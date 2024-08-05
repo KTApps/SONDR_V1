@@ -14,14 +14,8 @@ struct HabitPostView: View {
     
     var body: some View {
         ZStack {
-            Button(action: {
-                withAnimation {
-                    viewModel.isPostBlurViewVisible = false
-                }
-            }) {
-                BlurEffect(style: .systemMaterialDark)
-            }
-            .ignoresSafeArea()
+            BlurEffect(style: .systemMaterialDark)
+                .ignoresSafeArea()
             
             VStack {
                 HStack {
@@ -100,6 +94,7 @@ struct HabitPostView: View {
                     if viewModel.selectedImage != nil {
                         Button {
                             viewModel.uploadPhoto()
+                            viewModel.isPostBlurViewVisible = false
                         } label: {
                             Text("POST")
                                 .font(.title2)

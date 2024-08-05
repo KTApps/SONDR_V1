@@ -1,47 +1,23 @@
 //
-//  FeedView.swift
+//  Posts.swift
 //  Prod1
 //
-//  Created by Kelvin Mahaja on 11/07/2024.
+//  Created by Kelvin Mahaja on 05/08/2024.
 //
 
 import SwiftUI
-import Firebase
 
-struct FeedView: View {
+struct Posts: View {
     @EnvironmentObject var viewModel: ViewModel
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             VStack {
-                Spacer()
-                    .frame(height: 10)
-                Text("APP NAME")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
                 ScrollView {
                     
                     // Loop through images and display them
                     ForEach(viewModel.postMap, id: \.self) { post in
                         VStack {
-                            Spacer()
-                            HStack {
-                                Text(post.initial)
-                                    .font(.title3)
-                                    .foregroundColor(.white)
-                                    .frame(width: 30, height: 30)
-                                    .background(Color.gray)
-                                    .clipShape(Circle())
-                                
-                                Text(post.username)
-                                    .font(.title3)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 5)
-                            
                             Spacer()
                             
                             ZStack(alignment: .topLeading) {
@@ -124,14 +100,13 @@ struct FeedView: View {
                 }
             }
             .onAppear {
-                viewModel.retrievePhotos()
+                viewModel.retrieveUserPosts()
             }
         }
     }
 }
 
 #Preview {
-    FeedView()
+    Posts()
         .environmentObject(MockViewModel() as ViewModel)
 }
-

@@ -69,6 +69,7 @@ class MockViewModel: ViewModel {
         // Mock data for other properties
         self.currentUser = UserObject(id: "1", username: "NameExample", email: "name@example.com")
         self.docTitles = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        self.selectedImage = UIImage(systemName: "photo")
         self.caption = "Sample caption for preview"
     }
 }

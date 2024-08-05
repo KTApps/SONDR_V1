@@ -32,6 +32,14 @@ struct SettingsView: View {
                 Section("Account") {
                     
                     Button(role: .destructive) {
+                        withAnimation {
+                            viewModel.signOut()
+                        }
+                    } label: {
+                        SettingsButton(image: "arrow.left.circle.fill", action: "Log off")
+                    }
+                    
+                    Button(role: .destructive) {
                         Task {
                             try await viewModel.deleteAccount()
                         }

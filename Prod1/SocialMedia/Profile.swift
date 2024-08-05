@@ -2,111 +2,97 @@
 //  Profile.swift
 //  Prod1
 //
-//  Created by Kelvin Mahaja on 05/07/2024.
+//  Created by Kelvin Mahaja on 05/08/2024.
 //
 
 import SwiftUI
 
 struct Profile: View {
     @EnvironmentObject var viewModel: ViewModel
+    @State var selectedTab: Int = 0
     var body: some View {
         ZStack {
-            BlurEffect(style: .systemMaterialDark)
+            Color.black.ignoresSafeArea()
+            
             if let user = viewModel.currentUser {
-                VStack {
-                    Button {
-                        withAnimation {
-                            viewModel.comingSoonAlert = true
-                        }
-                    } label: {
-                        Text(user.initial)
-                            .font(.largeTitle)
+                    VStack {
+                        HStack {
+                            Button {
+                                withAnimation {
+                                    viewModel.isProfileViewVisible = false
+                                }
+                            } label: {
+                                Image(systemName: "chevron.left")
+                                    .resizable()
+                                    .frame(width: 17, height: 30)
+                                    .foregroundColor(.white)
+                            }
+                            
+                            Spacer()
+                                .frame(width: 23)
+                            
+                            VStack(alignment: .leading) {
+                                Text(user.username)
+                                    .font(.callout)
+                                    .fontWeight(.bold)
+                                Text("\(viewModel.friendCount) \(viewModel.friendOrFriends)")
+                            }
                             .foregroundColor(.white)
-                            .frame(width: 70, height: 70)
-                            .background(Color.gray)
-                            .clipShape(Circle())
-                    }
-                    Text(user.username)
-                    Text("\(viewModel.friendCount) \(viewModel.friendOrFriends)")
-                    
-                    Spacer()
-                        .frame(height: 60)
-                    
-                    Button {
-                        withAnimation {
-                            viewModel.comingSoonAlert = true
+                            .padding(5)
+                            
+                            Spacer()
+                            
+                            Button {
+                                withAnimation {
+                                    viewModel.comingSoonAlert = true
+                                }
+                            } label: {
+                                Text(user.initial)
+                                    .font(.title)
+                                    .foregroundColor(.white)
+                                    .frame(width: 50, height: 50)
+                                    .background(Color.gray)
+                                    .clipShape(Circle())
+                            }
                         }
-                    } label: {
-                        Text("MILESTONES")
-                            .font(.title)
-                            .fontWeight(.heavy)
-                    }
-                    
-                    Spacer()
-                        .frame(height: 40)
-                    
-                    Button {
-                        withAnimation {
-                            viewModel.isAddFriendsVisible.toggle()
+                        
+                        Spacer()
+                            .frame(height: 20)
+         
+                        HStack {
+                            Button {
+                                selectedTab = 0
+                            } label: {
+                                Label("Posts", systemImage: "camera")
+                            }
+                            
+                            Spacer()
+                                .frame(width: 80)
+                            
+                            Button {
+                                selectedTab = 1
+                            } label: {
+                                Label("LikedPosts", systemImage: "heart")
+                                
+                            }
                         }
-                    } label: {
-                        Text("ADD FRIENDS")
-                            .font(.title)
-                            .fontWeight(.heavy)
-                    }
-                    .sheet(isPresented: $viewModel.isAddFriendsVisible) {
-                        AddFriends()
-                            .presentationDetents([.fraction(3/10)])
-                    }
-                    
-                    Spacer()
-                        .frame(height: 40)
-
-                    Button {
-                        withAnimation {
-                            viewModel.isSettingsVisible = true
+                        .foregroundColor(.white)
+                        
+                        Divider()
+                            .background(Color.white)
+                        
+                        ScrollView {
+                            switch selectedTab {
+                            case 0:
+                                Posts()
+                            case 1:
+                                LikedPosts()
+                            default:
+                                Posts()
+                            }
                         }
-                    } label: {
-                        Text("SETTINGS")
-                            .font(.title)
-                            .fontWeight(.heavy)
                     }
-                    .sheet(isPresented: $viewModel.isSettingsVisible) {
-                        SettingsView()
-                            .presentationDetents([.fraction(3.5/10)])
-                    }
-                    
-                    Spacer()
-                        .frame(height: 40)
-                    
-                    Button {
-                        withAnimation {
-                            viewModel.signOut()
-                        }
-                    } label: {
-                        Text("LOGOUT")
-                            .font(.title)
-                            .fontWeight(.heavy)
-                    }
-                    
-                    Spacer()
-                        .frame(height: 60)
-                    
-                    Button {
-                        viewModel.isProfileBlurViewVisible = false
-                        viewModel.isBlurViewVisible = false
-                    } label: {
-                        Text("Close")
-                    }
-                }
-                .task {
-                    await viewModel.friendsCounter()
-                }
-                .alert("Coming Soon...", isPresented: $viewModel.comingSoonAlert) {
-                    Button("Continue") {
-                        viewModel.comingSoonAlert.toggle()
-                    }
-                }
+                    .padding()
             }
         }
     }

@@ -205,7 +205,7 @@ struct ContentView: View {
             }
             if viewModel.isProfileBlurViewVisible {
                 withAnimation {
-                    Profile()
+                    ProfileOptions()
                         .ignoresSafeArea()
                 }
             }

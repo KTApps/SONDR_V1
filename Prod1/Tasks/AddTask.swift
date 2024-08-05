@@ -38,9 +38,9 @@ struct AddTask: View {
     }
 }
 
-//struct AddTask_Previews: PreviewProvider {
-//    static var previews: some View {
-//        AddTask()
-//            .environmentObject(AuthViewModel())
-//    }
-//}
+struct AddTask_Previews: PreviewProvider {
+    static var previews: some View {
+        AddTask()
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}

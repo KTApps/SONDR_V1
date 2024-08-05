@@ -42,6 +42,7 @@ struct CustomTextFieldStyle: TextFieldStyle {
     }
 }
 
-//#Preview {
-//    Input(text: .constant(""), title: "Email Address", placeHolder: "name@example.com")
-//}
+#Preview {
+    Input(text: .constant(""), title: "Email Address", placeHolder: "name@example.com")
+        .environmentObject(MockViewModel() as ViewModel)
+}

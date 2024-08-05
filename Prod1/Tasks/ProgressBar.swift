@@ -78,10 +78,9 @@ struct CustomProgressBar: View {
     }
 }
 
-//struct CustomProgressBar_Previews: PreviewProvider {
-//    static var previews: some View {
-//        CustomProgressBar()
-//            .foregroundColor(.black)
-//            .environmentObject(AuthViewModel())
-//    }
-//}
+struct CustomProgressBar_Previews: PreviewProvider {
+    static var previews: some View {
+        CustomProgressBar()
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}

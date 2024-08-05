@@ -81,18 +81,9 @@ struct Inner10DaysCircle: View {
     }
 }
 
-//struct Last10Days_Previews: PreviewProvider {
-//    static var previews: some View {
-//        let authModel = AuthViewModel()
-//        authModel.currentUser = UserObject(id: "1", username: "NameExample", email: "name@example.com")
-//        authModel.docTitles = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] // Example day of year values
-//        authModel.habitDataForDay = [
-//            1: HabitData(habitIdArray: ["habit1"], habitIdName: ["1" : "1"], isHabitStriked: ["habit1": true]),
-//            2: HabitData(habitIdArray: ["habit2"], habitIdName: ["1" : "1"], isHabitStriked: ["habit2": false]),
-//            // Add more mock data as needed
-//        ]
-//        
-//        return Last10Days()
-//            .environmentObject(authModel)
-//    }
-//}
+struct Last10Days_Previews: PreviewProvider {
+    static var previews: some View {
+        return Last10Days()
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}

@@ -239,13 +239,9 @@ struct ContentView: View {
 }
         
         
-//struct ContentView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        let authModel = AuthViewModel() // Create an instance of AuthViewModel
-//        authModel.currentUser = UserObject(id: "1",
-//                                           username: "NameExample",
-//                                           email: "name@example.com") // Set a dummy user
-//        return ContentView()
-//            .environmentObject(authModel) // Inject authViewModel as environment object
-//    }
-//}
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        return ContentView()
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}

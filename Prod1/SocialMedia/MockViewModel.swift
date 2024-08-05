@@ -1,10 +1,3 @@
-//
-//  MockAuthViewModel.swift
-//  Prod1
-//
-//  Created by Kelvin Mahaja on 04/08/2024.
-//
-
 import SwiftUI
 import Firebase
 
@@ -15,7 +8,7 @@ class MockViewModel: ViewModel {
     }
     
     func loadMockData() {
-        // Replace with actual sample images and data
+        // Mock data for posts and comments
         let sampleImage = UIImage(systemName: "photo") ?? UIImage()
         let sampleTimestamp = Timestamp(date: Date())
         let sampleUsername = "TestUser"
@@ -43,5 +36,39 @@ class MockViewModel: ViewModel {
         ]
         
         self.commentMap = sampleComments
+        
+        // Mock data for habits
+        let sampleHabitData: [Int: HabitData] = [
+            1: HabitData(
+                habitIdArray: ["habit1", "habit2"],
+                habitIdName: [
+                    "habit1": "Exercise",
+                    "habit2": "Read"
+                ],
+                isHabitStriked: [
+                    "habit1": true,
+                    "habit2": false
+                ]
+            ),
+            2: HabitData(
+                habitIdArray: ["habit3", "habit4"],
+                habitIdName: [
+                    "habit3": "Meditate",
+                    "habit4": "Write"
+                ],
+                isHabitStriked: [
+                    "habit3": false,
+                    "habit4": true
+                ]
+            ),
+        ]
+        
+        self.habitDataForDay = sampleHabitData
+        self.currentDayOfWeek = 1
+        
+        // Mock data for other properties
+        self.currentUser = UserObject(id: "1", username: "NameExample", email: "name@example.com")
+        self.docTitles = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        self.caption = "Sample caption for preview"
     }
 }

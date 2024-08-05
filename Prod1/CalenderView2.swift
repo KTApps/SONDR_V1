@@ -255,18 +255,9 @@ extension Date {
     }
 }
 
-//struct CalendarView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        let authModel = AuthViewModel()
-//        authModel.currentUser = UserObject(id: "1", username: "NameExample", email: "name@example.com")
-//        authModel.docTitles = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] // Example day of year values
-//        authModel.habitDataForDay = [
-//            1: HabitData(habitIdArray: ["habit1"], habitIdName: ["habit1": "Exercise"], isHabitStriked: ["habit1": true]),
-//            2: HabitData(habitIdArray: ["habit2"], habitIdName: ["habit2": "Read"], isHabitStriked: ["habit2": false]),
-//            // Add more mock data as needed
-//        ]
-//        
-//        return CalendarView()
-//            .environmentObject(authModel)
-//    }
-//}
+struct CalendarView_Previews: PreviewProvider {
+    static var previews: some View {
+        return CalendarView()
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}

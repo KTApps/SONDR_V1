@@ -98,11 +98,9 @@ struct InnerFriendsCircle: View {
     }
 }
 
-//struct FriendsBar_Previews: PreviewProvider {
-//    static var previews: some View {
-//        let authModel = AuthViewModel()
-//        
-//        return FriendsBar()
-//            .environmentObject(authModel)
-//    }
-//}
+struct FriendsBar_Previews: PreviewProvider {
+    static var previews: some View {
+        return FriendsBar()
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}

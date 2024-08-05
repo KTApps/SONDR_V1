@@ -125,12 +125,9 @@ extension SignUpView: AuthFormValidation {
     }
 }
 
-//struct SignUpView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        let authModel = AuthViewModel()
-//        authModel.currentUser = UserObject(id: "1", username: "NameExample", email: "name@example.com")
-//        
-//        return SignUpView()
-//            .environmentObject(authModel)
-//    }
-//}
+struct SignUpView_Previews: PreviewProvider {
+    static var previews: some View {
+        return SignUpView()
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}

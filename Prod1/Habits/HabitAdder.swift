@@ -55,10 +55,9 @@ struct HabitAdder: View {
     }
 }
 
-//struct HabitAdder_Previews: PreviewProvider {
-//    static var previews: some View {
-//        HabitAdder()
-//            .foregroundColor(.black)
-//            .environmentObject(AuthViewModel())
-//    }
-//}
+struct HabitAdder_Previews: PreviewProvider {
+    static var previews: some View {
+        HabitAdder()
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}

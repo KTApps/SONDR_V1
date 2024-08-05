@@ -126,12 +126,9 @@ extension LogInView: AuthFormValidation {
     }
 }
 
-//struct LogInView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        let authModel = AuthViewModel()
-//        authModel.currentUser = UserObject(id: "1", username: "NameExample", email: "name@example.com")
-//        
-//        return LogInView()
-//            .environmentObject(authModel)
-//    }
-//}
+struct LogInView_Previews: PreviewProvider {
+    static var previews: some View {
+        return LogInView()
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}

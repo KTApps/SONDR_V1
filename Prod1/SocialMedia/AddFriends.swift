@@ -42,6 +42,7 @@ struct AddFriends: View {
     }
 }
 
-//#Preview {
-//    AddFriends()
-//}
+#Preview {
+    AddFriends()
+        .environmentObject(MockViewModel() as ViewModel)
+}

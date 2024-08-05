@@ -112,13 +112,10 @@ struct Profile: View {
     }
 }
 
-//struct Profile_Previews: PreviewProvider {
-//    static var previews: some View {
-//        let authModel = AuthViewModel()
-//        authModel.currentUser = UserObject(id: "1", username: "NameExample", email: "name@example.com")
-//        
-//        return Profile()
-//            .environmentObject(authModel)
-//    }
-//}
+struct Profile_Previews: PreviewProvider {
+    static var previews: some View {
+        return Profile()
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}
 

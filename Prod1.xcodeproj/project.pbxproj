@@ -17,7 +17,7 @@
 		082D11B72B8291E400E39B40 /* ViewYourProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082D11B62B8291E400E39B40 /* ViewYourProgress.swift */; };
 		083670132C37EB9E007A2708 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083670122C37EB9E007A2708 /* Profile.swift */; };
 		083670152C380285007A2708 /* Last10Days.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083670142C380285007A2708 /* Last10Days.swift */; };
-		084F54992C5FF5D600E44385 /* MockAuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084F54982C5FF5D600E44385 /* MockAuthViewModel.swift */; };
+		084F54992C5FF5D600E44385 /* MockViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084F54982C5FF5D600E44385 /* MockViewModel.swift */; };
 		085D8E0E2BA0DF580028AD03 /* ViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085D8E0D2BA0DF580028AD03 /* ViewModel.swift */; };
 		085D8E122BA0E8540028AD03 /* StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085D8E112BA0E8540028AD03 /* StartView.swift */; };
 		086FA10E2BA2178F005B26EB /* Input.swift in Sources */ = {isa = PBXBuildFile; fileRef = 086FA10D2BA2178F005B26EB /* Input.swift */; };
@@ -55,7 +55,7 @@
 		082D11B62B8291E400E39B40 /* ViewYourProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewYourProgress.swift; sourceTree = "<group>"; };
 		083670122C37EB9E007A2708 /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
 		083670142C380285007A2708 /* Last10Days.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Last10Days.swift; sourceTree = "<group>"; };
-		084F54982C5FF5D600E44385 /* MockAuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MockAuthViewModel.swift; path = SocialMedia/MockAuthViewModel.swift; sourceTree = "<group>"; };
+		084F54982C5FF5D600E44385 /* MockViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MockViewModel.swift; path = SocialMedia/MockViewModel.swift; sourceTree = "<group>"; };
 		085D8E0D2BA0DF580028AD03 /* ViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ViewModel.swift; path = Authentication/ViewModel.swift; sourceTree = "<group>"; };
 		085D8E112BA0E8540028AD03 /* StartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartView.swift; sourceTree = "<group>"; };
 		086FA10D2BA2178F005B26EB /* Input.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Input.swift; sourceTree = "<group>"; };
@@ -137,7 +137,7 @@
 			isa = PBXGroup;
 			children = (
 				085D8E0D2BA0DF580028AD03 /* ViewModel.swift */,
-				084F54982C5FF5D600E44385 /* MockAuthViewModel.swift */,
+				084F54982C5FF5D600E44385 /* MockViewModel.swift */,
 			);
 			name = AuthViewModel;
 			path = ..;
@@ -330,7 +330,7 @@
 				086FA10E2BA2178F005B26EB /* Input.swift in Sources */,
 				083670132C37EB9E007A2708 /* Profile.swift in Sources */,
 				08A61FEF2BB490D6004FB1D6 /* CalenderView2.swift in Sources */,
-				084F54992C5FF5D600E44385 /* MockAuthViewModel.swift in Sources */,
+				084F54992C5FF5D600E44385 /* MockViewModel.swift in Sources */,
 				082D11B42B82910100E39B40 /* HabitAdder.swift in Sources */,
 				08DC9D4B2C3306BD00AFDA0F /* OuterCircle.swift in Sources */,
 				087305262C18890F00F6DFEE /* FriendsBar.swift in Sources */,

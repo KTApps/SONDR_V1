@@ -27,11 +27,9 @@ struct OuterCircle: View {
     }
 }
 
-//struct OuterCircle_Previews: PreviewProvider {
-//    static var previews: some View {
-//        let authModel = AuthViewModel()
-//        
-//        return OuterCircle(innerRadius: 140, outerRadius: 170, cornerRadius: 5)
-//            .environmentObject(authModel)
-//    }
-//}
+struct OuterCircle_Previews: PreviewProvider {
+    static var previews: some View {
+        return OuterCircle(innerRadius: 140, outerRadius: 170, cornerRadius: 5)
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}

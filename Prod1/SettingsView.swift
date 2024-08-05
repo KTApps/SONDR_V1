@@ -45,15 +45,11 @@ struct SettingsView: View {
     }
 }
 
-//struct SettingsView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        let authModel = AuthViewModel() // Create an instance of AuthViewModel
-//        authModel.currentUser = UserObject(id: "1",
-//                                           username: "NameExample",
-//                                           email: "name@example.com") // Set a dummy user
-//        return SettingsView()
-//            .environmentObject(authModel) // Inject authViewModel as environment object
-//    }
-//}
+struct SettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        return SettingsView()
+            .environmentObject(MockViewModel() as ViewModel) // Inject authViewModel as environment object
+    }
+}
 
 

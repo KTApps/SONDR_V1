@@ -29,3 +29,10 @@ struct ViewYourProgress: View {
         }
     }
 }
+
+struct ViewYourProgress_Previews: PreviewProvider {
+    static var previews: some View {
+        return ViewYourProgress()
+            .environmentObject(MockViewModel() as ViewModel)
+    }
+}

@@ -71,61 +71,68 @@ struct FeedView: View {
                                 .fontWeight(.medium)
                                 .foregroundColor(.white)
                                 .padding()
-                                .background(Color.black.opacity(0.2))
+                                .background(Color.black.opacity(0.3))
                                 .cornerRadius(5)
+                                
+                                VStack {
+                                    Spacer()
+                                    HStack {
+                                        Button {
+                                            viewModel.likePost(postId: post.id)
+                                        } label: {
+                                            Image(systemName: viewModel.heart ? "heart.fill" : "heart")
+                                                .resizable()
+                                                .frame(width: 25, height: 23)
+                                                .foregroundColor(viewModel.heart ? Color.red : Color.white)
+                                        }
+                                        
+                                        Spacer()
+                                            .frame(width: 15)
+                                        
+                                        Button {
+                                            viewModel.postCommentsId = post.id
+                                            viewModel.comments.toggle()
+                                        } label: {
+                                            Image(systemName: "message")
+                                                .resizable()
+                                                .frame(width: 25, height: 23)
+                                                .foregroundColor(.white)
+                                        }
+                                        .sheet(isPresented: $viewModel.comments) {
+                                            Comments()
+                                                .presentationDetents([.fraction(3/5)])
+                                        }
+                                        
+                                        Spacer()
+                                            .frame(width: 15)
+                                        
+                                        Button {
+                                            viewModel.paperplane.toggle()
+                                        } label: {
+                                            Image(systemName: "paperplane")
+                                                .resizable()
+                                                .frame(width: 25, height: 23)
+                                                .foregroundColor(.white)
+                                        }
+                                        .sheet(isPresented: $viewModel.paperplane) {
+                                            Comments()
+                                                .presentationDetents([.fraction(2/5)])
+                                        }
+                                    }
+                                    .padding(5)
+                                    .background(Color.black.opacity(0.3))
+                                    .cornerRadius(5)
+                                }
                             }
                             Spacer()
                             
-                            HStack {
-                                Button {
-                                    viewModel.likePost(postId: post.id)
-                                } label: {
-                                    Image(systemName: viewModel.heart ? "heart.fill" : "heart")
-                                        .resizable()
-                                        .frame(width: 25, height: 23)
-                                        .foregroundColor(viewModel.heart ? Color.red : Color.white)
-                                }
-                                
-                                Spacer()
-                                    .frame(width: 15)
-                                
-                                Button {
-                                    viewModel.postCommentsId = post.id
-                                    viewModel.comments.toggle()
-                                } label: {
-                                    Image(systemName: "message")
-                                        .resizable()
-                                        .frame(width: 25, height: 23)
-                                }
-                                .sheet(isPresented: $viewModel.comments) {
-                                    Comments()
-                                        .presentationDetents([.fraction(3/5)])
-                                }
-                                
-                                Spacer()
-                                    .frame(width: 15)
-                                
-                                Button {
-                                    viewModel.paperplane.toggle()
-                                } label: {
-                                    Image(systemName: "paperplane")
-                                        .resizable()
-                                        .frame(width: 25, height: 23)
-                                }
-                                .sheet(isPresented: $viewModel.paperplane) {
-                                    Comments()
-                                        .presentationDetents([.fraction(2/5)])
-                                }
-                                
-                                Text(post.caption)
-                                    .font(.title3)
-                                    .fontWeight(.medium)
-                                
-                                Spacer()
-                            }
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .foregroundColor(.white)
+                            Text(post.caption)
+                                .font(.title3)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .foregroundColor(.white)
+                            
                             Spacer()
                         }
                     }

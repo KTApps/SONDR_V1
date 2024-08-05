@@ -21,6 +21,7 @@ struct BlurEffect: UIViewRepresentable {
     }
 }
 
-//#Preview {
-//    BlurEffect(style: .systemMaterialDark)
-//}
+#Preview {
+    BlurEffect(style: .systemMaterialDark)
+        .environmentObject(MockViewModel() as ViewModel)
+}

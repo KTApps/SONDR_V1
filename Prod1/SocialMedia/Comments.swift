@@ -66,7 +66,9 @@ struct Comments: View {
 
                         if !viewModel.comment.isEmpty {
                             Button {
-                                viewModel.uploadComment()
+                                Task {
+                                    await viewModel.uploadComment()
+                                }
                             } label: {
                                 Image(systemName: "paperplane.fill")
                                     .font(.title2)

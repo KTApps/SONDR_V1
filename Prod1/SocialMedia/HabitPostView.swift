@@ -93,7 +93,9 @@ struct HabitPostView: View {
                     
                     if viewModel.selectedImage != nil {
                         Button {
-                            viewModel.uploadPhoto()
+                            Task {
+                                await viewModel.uploadPhoto()
+                            }
                             viewModel.isPostBlurViewVisible = false
                         } label: {
                             Text("POST")

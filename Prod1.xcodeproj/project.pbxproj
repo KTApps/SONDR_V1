@@ -32,8 +32,8 @@
 		08834BBF2C405F0400DAF6E0 /* TabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08834BBE2C405F0400DAF6E0 /* TabView.swift */; };
 		08A430872C46F88F00D22B23 /* HabitPostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A430862C46F88F00D22B23 /* HabitPostView.swift */; };
 		08A430892C46FB9400D22B23 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A430882C46FB9400D22B23 /* ImagePicker.swift */; };
-		08A61FEF2BB490D6004FB1D6 /* CalenderView2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A61FEE2BB490D6004FB1D6 /* CalenderView2.swift */; };
 		08B8419F2BA5F15E009B4419 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 08B8419E2BA5F15E009B4419 /* GoogleService-Info.plist */; };
+		08BE44152C62719D00DD9457 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08BE44142C62719D00DD9457 /* CalendarView.swift */; };
 		08C5911D2BBC8376000EE1B9 /* LogInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C5911C2BBC8376000EE1B9 /* LogInView.swift */; };
 		08C5911F2BBC84AD000EE1B9 /* FirebaseFirestoreSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 08C5911E2BBC84AD000EE1B9 /* FirebaseFirestoreSwift */; };
 		08CD3D222C3444D800D48FAD /* BlurEffect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08CD3D212C3444D800D48FAD /* BlurEffect.swift */; };
@@ -70,8 +70,8 @@
 		08834BBE2C405F0400DAF6E0 /* TabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabView.swift; sourceTree = "<group>"; };
 		08A430862C46F88F00D22B23 /* HabitPostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitPostView.swift; sourceTree = "<group>"; };
 		08A430882C46FB9400D22B23 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
-		08A61FEE2BB490D6004FB1D6 /* CalenderView2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalenderView2.swift; sourceTree = "<group>"; };
 		08B8419E2BA5F15E009B4419 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		08BE44142C62719D00DD9457 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
 		08C5911C2BBC8376000EE1B9 /* LogInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogInView.swift; sourceTree = "<group>"; };
 		08CD3D212C3444D800D48FAD /* BlurEffect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlurEffect.swift; sourceTree = "<group>"; };
 		08DC9D4A2C3306BD00AFDA0F /* OuterCircle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OuterCircle.swift; sourceTree = "<group>"; };
@@ -154,7 +154,7 @@
 			children = (
 				083670142C380285007A2708 /* Last10Days.swift */,
 				082D11B62B8291E400E39B40 /* ViewYourProgress.swift */,
-				08A61FEE2BB490D6004FB1D6 /* CalenderView2.swift */,
+				08BE44142C62719D00DD9457 /* CalendarView.swift */,
 			);
 			name = ViewProgress;
 			sourceTree = "<group>";
@@ -335,10 +335,10 @@
 			files = (
 				086FA1122BA217D5005B26EB /* SettingsButton.swift in Sources */,
 				08C5911D2BBC8376000EE1B9 /* LogInView.swift in Sources */,
+				08BE44152C62719D00DD9457 /* CalendarView.swift in Sources */,
 				08834BBF2C405F0400DAF6E0 /* TabView.swift in Sources */,
 				086FA10E2BA2178F005B26EB /* Input.swift in Sources */,
 				083670132C37EB9E007A2708 /* Profile.swift in Sources */,
-				08A61FEF2BB490D6004FB1D6 /* CalenderView2.swift in Sources */,
 				084F54992C5FF5D600E44385 /* MockViewModel.swift in Sources */,
 				08F0487E2C612BBD008F5CFD /* Posts.swift in Sources */,
 				082D11B42B82910100E39B40 /* HabitAdder.swift in Sources */,

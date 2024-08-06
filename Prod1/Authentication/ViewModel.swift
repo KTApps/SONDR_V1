@@ -301,8 +301,6 @@ class ViewModel: ObservableObject {
         ]) { err in
             if let err = err {
                 print("Error updating document: \(err)")
-            } else {
-                print("Analytics successfully updated")
             }
         }
     }
@@ -1102,7 +1100,7 @@ class ViewModel: ObservableObject {
     @Published var caption: String = ""
     @Published var backButton: Bool = false
     var username: String = ""
-    func uploadPhoto() {
+    func uploadPhoto() async {
         //MARK: userId
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
@@ -1110,7 +1108,6 @@ class ViewModel: ObservableObject {
         
         //MARK: ID
         let id = UUID().uuidString
-        print("func uploadPhoto, id: \(id)")
         
         // MARK: Image
         // Check selectedImage isn't nil
@@ -1176,6 +1173,10 @@ class ViewModel: ObservableObject {
                         // add uploaded image to list of images for display
                         DispatchQueue.main.async {
                             self.postMap.append(PostData(id: id, userId: currentUserId, dayOfYear: self.currentDayOfYear, image: self.selectedImage!, timestamp: timestamp, username: self.username, caption: self.caption, likeCount: 0, likes: [:], commentsData: self.commentMap))
+                            
+                            Task {
+                                await self.savePosts()
+                            }
                         }
                     }
                 }
@@ -1188,9 +1189,8 @@ class ViewModel: ObservableObject {
     @Published var commentMap = [CommentsData]()
     @Published var postMap = [PostData]()
 
-    func uploadComment() {
+    func uploadComment() async {
         guard let currentUserId = authRef.currentUser?.uid else {
-            print("No current user ID")
             return
         }
 
@@ -1198,9 +1198,9 @@ class ViewModel: ObservableObject {
         let timestamp = Timestamp(date: Date())
 
         // Fetch username asynchronously
-        fetchUsername(for: currentUserId) { [weak self] username in
+        await fetchUsername(for: currentUserId) { [weak self] username in
             guard let self = self, let username = username else {
-                print("Failed to fetch username")
+                print("func uploadComment(): Failed to fetch username")
                 return
             }
 
@@ -1209,12 +1209,12 @@ class ViewModel: ObservableObject {
                 .whereField("id", isEqualTo: self.postCommentsId)
                 .getDocuments { [weak self] querySnapshot, error in
                     if let error = error {
-                        print("Error querying post ID: \(error.localizedDescription)")
+                        print("func uploadComment(): Error querying post ID: \(error.localizedDescription)")
                         return
                     }
                     
                     guard let document = querySnapshot?.documents.first else {
-                        print("Document not found")
+                        print("func uploadComment(): Document not found")
                         return
                     }
 
@@ -1229,7 +1229,7 @@ class ViewModel: ObservableObject {
                         "comment": self?.comment ?? ""
                     ]) { error in
                         if let error = error {
-                            print("Error uploading comment: \(error.localizedDescription)")
+                            print("func uploadComment(): Error uploading comment: \(error.localizedDescription)")
                         } else {
                             // Update commentMap with the new comment at the top
                             DispatchQueue.main.async {
@@ -1242,8 +1242,9 @@ class ViewModel: ObservableObject {
                                 ), at: 0) // Insert at the top
                                 
                                 self?.comment = "" // Clear the comment input field
-                                
-                                self?.savePosts()
+                                Task {
+                                    await self?.savePosts()
+                                }
                             }
                         }
                     }
@@ -1251,7 +1252,7 @@ class ViewModel: ObservableObject {
         }
     }
     
-    func retrievePhotos() {
+    func retrievePhotos() async {
         postMap = []
         commentMap = []
 
@@ -1260,7 +1261,7 @@ class ViewModel: ObservableObject {
             .order(by: "timestamp", descending: true)
             .getDocuments { [weak self] snapshot, error in
                 if let error = error {
-                    print("Error retrieving photos: \(error.localizedDescription)")
+                    print("func retrievePhotos():Error retrieving photos: \(error.localizedDescription)")
                     return
                 }
                 
@@ -1291,7 +1292,7 @@ class ViewModel: ObservableObject {
                         .order(by: "timestamp", descending: true)
                         .getDocuments { commentsSnapshot, commentsError in
                             if let commentsError = commentsError {
-                                print("Error retrieving comments: \(commentsError.localizedDescription)")
+                                print("func retrivePhotos(): Error retrieving comments: \(commentsError.localizedDescription)")
                             } else {
                                 if let commentsSnapshot = commentsSnapshot {
                                     self?.commentMap = commentsSnapshot.documents.compactMap { com in
@@ -1336,7 +1337,7 @@ class ViewModel: ObservableObject {
                                         }
                                     }
                                 case .failure(let error):
-                                    print("Error fetching image data: \(error.localizedDescription)")
+                                    print("func retrivePhotos(): Error fetching image data: \(error.localizedDescription)")
                                 }
                                 
                                 group.leave()
@@ -1352,11 +1353,11 @@ class ViewModel: ObservableObject {
         commentMap = []
     }
 
-    private func fetchUsername(for userId: String, completion: @escaping (String?) -> Void) {
+    private func fetchUsername(for userId: String, completion: @escaping (String?) -> Void) async {
         let userRef = databaseRef.collection("users").document(userId)
         userRef.getDocument { document, error in
             if let error = error {
-                print("Error fetching user document: \(error.localizedDescription)")
+                print("func fetchUsername(): Error fetching user document: \(error.localizedDescription)")
                 completion(nil)
                 return
             }
@@ -1367,7 +1368,7 @@ class ViewModel: ObservableObject {
                 let authData = data["AuthenticationData"] as? [String: Any],
                 let username = authData["username"] as? String
             else {
-                print("User document data is missing or invalid")
+                print("func fetchUsername(): User document data is missing or invalid")
                 completion(nil)
                 return
             }
@@ -1377,7 +1378,7 @@ class ViewModel: ObservableObject {
     }
     
     @Published var habitDataForDayTimeline: [String: Prod1.HabitData] = [:] // Dictionary = [Day of year: habit data]
-    func listenForTimelineHabitData(id: String, userId: String, dayOfYear: Int) {
+    func listenForTimelineHabitData(id: String, userId: String, dayOfYear: Int) async {
         
         let userRef = self.databaseRef.collection("users").document(userId)
         
@@ -1388,7 +1389,7 @@ class ViewModel: ObservableObject {
         habitDataRef.addSnapshotListener { documentSnapshot, error in
             // Check if data exists
             guard let habitDocument = documentSnapshot else {
-                print("Error fetching HabitData: \(error!)")
+                print("func listenForTimelineHabitData(): Error fetching HabitData: \(error!)")
                 return
             }
             // Check if document exists
@@ -1406,7 +1407,7 @@ class ViewModel: ObservableObject {
                     self.habitDataForDayTimeline[id] = decodedHabitData
 
                 } catch {
-                    print("Error decoding HabitData for day \(dayOfYear): \(error.localizedDescription)")
+                    print("func listenForTimelineHabitData(): Error decoding HabitData for day \(dayOfYear): \(error.localizedDescription)")
                 }
             }
         }
@@ -1415,83 +1416,104 @@ class ViewModel: ObservableObject {
     @Published var heart: Bool = false
     @Published var comments: Bool = false
     @Published var paperplane: Bool = false
-    func likePost(postId: String) {
+    func likePost(postId: String) async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }
         
-        // create refernece to document
+        // Create reference to the timeline collection
         let timelineRef = self.databaseRef.collection("timeline")
-        let query = timelineRef.whereField("id", isEqualTo: postId)
         
+        // Query to find the document with the matching postId
+        let query = timelineRef.whereField("id", isEqualTo: postId)
+                
         query.getDocuments { querySnapshot, error in
             if let error = error {
-                print("Error querying documents: \(error.localizedDescription)")
+                print("func likePost(): Error querying documents: \(error.localizedDescription)")
                 return
             }
             
-            // Step 2: Retrieve the document ID of the matching document
+            // Print the number of documents found
             if let documents = querySnapshot?.documents, !documents.isEmpty {
+                
+                // Retrieve the document ID of the matching document
                 let document = documents.first
                 let documentId = document?.documentID
+                guard let documentId = documentId else {
+                    print("func likePost(): No document found with the given postId")
+                    return
+                }
                 
-                // Step 3: Create a reference to that document
-                if let documentId = documentId {
-                    let postRef = self.databaseRef.collection("timeline").document(documentId)
-                    
-                    postRef.getDocument { document, error in
-                        if let document = document, document.exists { // do documents exist in "timeline"
-                            var likes = document.data()?["likes"] as? [String: Bool] ?? [:] // define data in "likes"
-                            let currentStatus = likes[currentUserId] ?? false // define current status of "likes"
-                            likes[currentUserId] = !currentStatus
-                            postRef.updateData([
-                                "likes": likes // update "likes" with the opposite status
-                            ]) { error in
-                                if let error = error {
-                                    print("func likePost(): error updating like")
-                                } else {
-                                    var likeCount = document.data()?["likeCount"] as? Int ?? 0
-                                    likeCount = currentStatus ? likeCount - 1 : likeCount + 1
-                                    
-                                    postRef.updateData([
-                                        "likeCount": likeCount
-                                    ])
-                                }
-                            }
-                        } else {
-                            print("func likePost(): doc doesnt exist")
-                        }
+                // Create a reference to that document
+                let postRef = timelineRef.document(documentId)
+                
+                postRef.getDocument { document, error in
+                    if let error = error {
+                        print("func likePost(): Error retrieving document: \(error.localizedDescription)")
+                        return
                     }
                     
-                    postRef.addSnapshotListener { documentSnapshot, error in
-                        guard let document = documentSnapshot else {
-                            print("Error fetching document: \(error!)")
+                    guard let document = document, document.exists else {
+                        print("func likePost(): Document does not exist")
+                        return
+                    }
+                    
+                    var likes = document.data()?["likes"] as? [String: Bool] ?? [:]
+                    let currentStatus = likes[currentUserId] ?? false
+                    likes[currentUserId] = !currentStatus
+                    
+                    postRef.updateData([
+                        "likes": likes
+                    ]) { error in
+                        if let error = error {
+                            print("func likePost(): Error updating likes: \(error.localizedDescription)")
                             return
                         }
                         
-                        guard let data = document.data() else {
-                            print("Document data was empty.")
-                            return
-                        }
+                        var likeCount = document.data()?["likeCount"] as? Int ?? 0
+                        likeCount = currentStatus ? likeCount - 1 : likeCount + 1
                         
-                        if let likes = data["likes"] as? [String: Bool] {
-                            DispatchQueue.main.async {
-                                self.heart = likes[currentUserId] ?? false
+                        postRef.updateData([
+                            "likeCount": likeCount
+                        ]) { error in
+                            if let error = error {
+                                print("func likePost(): Error updating likeCount: \(error.localizedDescription)")
                             }
                         }
                     }
+                }
+                
+                // Optionally, add a snapshot listener to keep track of real-time changes
+                postRef.addSnapshotListener { documentSnapshot, error in
+                    if let error = error {
+                        print("func likePost(): Error listening for document changes: \(error.localizedDescription)")
+                        return
+                    }
                     
-                } else {
-                    print("No document found with the given postId")
+                    guard let document = documentSnapshot, document.exists else {
+                        print("func likePost(): Document snapshot does not exist")
+                        return
+                    }
+                    
+                    guard let data = document.data() else {
+                        print("func likePost(): Document data is empty")
+                        return
+                    }
+                    
+                    if let likes = data["likes"] as? [String: Bool] {
+                        DispatchQueue.main.async {
+                            self.heart = likes[currentUserId] ?? false
+                        }
+                    }
                 }
             } else {
-                print("No documents match the query")
+                print("func likePost(): No documents found in the query snapshot")
             }
         }
     }
     
     @Published var postList: [String] = []
-    func savePosts() {
+    func savePosts() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }
@@ -1502,11 +1524,11 @@ class ViewModel: ObservableObject {
         // Empty list of posts
         self.postList = []
         
-        // Find the relevent posts
+        // Find the relevant posts
         let query = timelineRef.whereField("userId", isEqualTo: currentUserId)
-        query.getDocuments { querySnapshot, error in
+        query.getDocuments { [weak self] querySnapshot, error in
             if let error = error {
-                print("func savePosts(): error querying timeline collection")
+                print("func savePosts(): error querying timeline collection: \(error.localizedDescription)")
                 return
             }
             
@@ -1515,25 +1537,28 @@ class ViewModel: ObservableObject {
                 return
             }
             
-            // Append each relevant post
+            // Append each relevant post's id field
             for doc in documents {
-                let documentId = doc.documentID
-                self.postList.append(documentId)
+                if let postId = doc.data()["id"] as? String { // Retrieve the id field
+                    self?.postList.append(postId)
+                }
             }
             
-            // Updata database
-            userRef.setData([
-                "Posts": self.postList
-            ])
+            // Update database
+            userRef.updateData([
+                "Posts": self?.postList ?? []
+            ]) { error in
+                if let error = error {
+                    print("func savePosts(): error updating posts: \(error.localizedDescription)")
+                } else {
+
+                }
+            }
         }
-        
-        // Empty list of posts
-        self.postList = []
     }
     
-    func retrieveUserPosts() {
+    func retrieveUserPosts() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
-            print("User not logged in")
             return
         }
 
@@ -1544,14 +1569,18 @@ class ViewModel: ObservableObject {
         
         userRef.getDocument { [weak self] document, error in
             if let error = error {
-                print("Error retrieving user document: \(error.localizedDescription)")
+                print("func retrieveUserPosts(): Error retrieving user document: \(error.localizedDescription)")
                 return
             }
 
-            guard let document = document, document.exists,
-                  let data = document.data(),
+            guard let document = document, document.exists else {
+                print("func retrieveUserPosts(): document does not exist")
+                return
+            }
+                    
+            guard let data = document.data(),
                   let postIds = data["Posts"] as? [String] else {
-                print("No posts found for the user")
+                print("func retrieveUserPosts(): No posts found for the user")
                 return
             }
 
@@ -1559,84 +1588,110 @@ class ViewModel: ObservableObject {
             
             for postId in postIds {
                 group.enter()
-                self?.databaseRef.collection("timeline").document(postId).getDocument { postDoc, error in
+                self?.databaseRef.collection("timeline").whereField("id", isEqualTo: postId).getDocuments { querySnapshot, error in
                     if let error = error {
                         print("Error retrieving post document: \(error.localizedDescription)")
                         group.leave()
                         return
                     }
 
-                    guard let postDoc = postDoc, postDoc.exists,
-                          let postData = postDoc.data(),
-                          let userId = postData["userId"] as? String,
-                          let dayOfYear = postData["dayOfYear"] as? Int,
-                          let path = postData["url"] as? String,
-                          let timestamp = postData["timestamp"] as? Timestamp,
-                          let username = postData["username"] as? String,
-                          let caption = postData["caption"] as? String,
-                          let likeCount = postData["likeCount"] as? Int,
-                          let likes = postData["likes"] as? [String: Bool] else {
+                    guard let documents = querySnapshot?.documents, !documents.isEmpty else {
+                        print("func retrieveUserPosts(): No documents match the query for postId \(postId)")
                         group.leave()
                         return
                     }
 
-                    // Fetch comments
-                    self?.databaseRef.collection("timeline").document(postId).collection("Comments")
-                        .order(by: "timestamp", descending: true)
-                        .getDocuments { commentsSnapshot, commentsError in
-                            var postComments: [CommentsData] = []
-                            if let commentsError = commentsError {
-                                print("Error retrieving comments: \(commentsError.localizedDescription)")
-                            } else {
-                                if let commentsSnapshot = commentsSnapshot {
-                                    postComments = commentsSnapshot.documents.compactMap { com in
-                                        guard
-                                            let commentId = com["id"] as? String,
-                                            let commentUserId = com["userId"] as? String,
-                                            let commentTimestamp = com["timestamp"] as? Timestamp,
-                                            let commentUsername = com["username"] as? String,
-                                            let commentText = com["comment"] as? String
-                                        else { return nil }
-                                        
-                                        return CommentsData(
-                                            id: commentId,
-                                            userId: commentUserId,
-                                            timestamp: commentTimestamp,
-                                            username: commentUsername,
-                                            comment: commentText
-                                        )
-                                    }
-                                }
+                    // Assume there is only one document per postId
+                    if let postDoc = documents.first {
+                        if let postData = postDoc.data() as? [String: Any] {
+                            let userId = postData["userId"] as? String
+                            let dayOfYear = postData["dayOfYear"] as? Int
+                            let path = postData["url"] as? String
+                            let timestamp = postData["timestamp"] as? Timestamp
+                            let username = postData["username"] as? String
+                            let caption = postData["caption"] as? String
+                            let likeCount = postData["likeCount"] as? Int
+                            let likes = postData["likes"] as? [String: Bool]
+                            
+                            // Ensure all required fields are present
+                            guard let userId = userId,
+                                  let dayOfYear = dayOfYear,
+                                  let path = path,
+                                  let timestamp = timestamp,
+                                  let username = username,
+                                  let caption = caption,
+                                  let likeCount = likeCount,
+                                  let likes = likes else {
+                                print("func retrieveUserPosts(): Some post fields are missing or invalid")
+                                group.leave()
+                                return
                             }
 
-                            // Retrieve image data
-                            let fileRef = self?.storageRef.child(path)
-                            fileRef?.getData(maxSize: 5 * 1024 * 1024) { result in
-                                switch result {
-                                case .success(let data):
-                                    if let image = UIImage(data: data) {
-                                        DispatchQueue.main.async {
-                                            self?.postMap.append(PostData(
-                                                id: postId,
-                                                userId: userId,
-                                                dayOfYear: dayOfYear,
-                                                image: image,
-                                                timestamp: timestamp,
-                                                username: username,
-                                                caption: caption,
-                                                likeCount: likeCount,
-                                                likes: likes,
-                                                commentsData: postComments
-                                            ))
+                            // Fetch comments
+                            self?.databaseRef.collection("timeline").document(postDoc.documentID).collection("Comments")
+                                .order(by: "timestamp", descending: true)
+                                .getDocuments { commentsSnapshot, commentsError in
+                                    var postComments: [CommentsData] = []
+                                    if let commentsError = commentsError {
+                                        print("Error retrieving comments: \(commentsError.localizedDescription)")
+                                    } else {
+                                        if let commentsSnapshot = commentsSnapshot {
+                                            postComments = commentsSnapshot.documents.compactMap { com in
+                                                guard
+                                                    let commentId = com["id"] as? String,
+                                                    let commentUserId = com["userId"] as? String,
+                                                    let commentTimestamp = com["timestamp"] as? Timestamp,
+                                                    let commentUsername = com["username"] as? String,
+                                                    let commentText = com["comment"] as? String
+                                                else { return nil }
+                                                
+                                                return CommentsData(
+                                                    id: commentId,
+                                                    userId: commentUserId,
+                                                    timestamp: commentTimestamp,
+                                                    username: commentUsername,
+                                                    comment: commentText
+                                                )
+                                            }
                                         }
                                     }
-                                case .failure(let error):
-                                    print("Error fetching image data: \(error.localizedDescription)")
-                                }
 
-                                group.leave()
-                            }
+                                    // Retrieve image data
+                                    let fileRef = self?.storageRef.child(path)
+                                    fileRef?.getData(maxSize: 5 * 1024 * 1024) { result in
+                                        switch result {
+                                        case .success(let data):
+                                            if let image = UIImage(data: data) {
+                                                DispatchQueue.main.async {
+                                                    self?.postMap.append(PostData(
+                                                        id: postId,  // Use postId from the document
+                                                        userId: userId,
+                                                        dayOfYear: dayOfYear,
+                                                        image: image,
+                                                        timestamp: timestamp,
+                                                        username: username,
+                                                        caption: caption,
+                                                        likeCount: likeCount,
+                                                        likes: likes,
+                                                        commentsData: postComments
+                                                    ))
+                                                }
+                                            }
+                                        case .failure(let error):
+                                            print("func retrieveUserPosts(): Error fetching image data: \(error.localizedDescription)")
+                                        }
+
+                                        group.leave()
+                                    }
+                                }
+                        } else {
+                            print("func retrieveUserPosts(): Post data is not valid")
+                            group.leave()
                         }
+                    } else {
+                        print("func retrieveUserPosts(): No document found for postId \(postId)")
+                        group.leave()
+                    }
                 }
             }
 

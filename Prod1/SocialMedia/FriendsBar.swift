@@ -69,9 +69,9 @@ struct OuterFriendsCircle: View {
     var username: String
     
     var body: some View {
-        Chart(authModel.friendsCalendarData[username]?.tasks ?? [], id:\.self) { task in
+        Chart(authModel.friendsTaskData[username]?.tasks ?? [], id:\.self) { task in
             SectorMark(
-                angle: .value("Time Spent", authModel.friendsCalendarData[username]?.taskTimerDictionary[task] ?? 0),
+                angle: .value("Time Spent", authModel.friendsTaskData[username]?.taskTimerDictionary[task] ?? 0),
                 innerRadius: 22,
                 outerRadius: 29,
                 angularInset: 1

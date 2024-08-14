@@ -63,7 +63,7 @@ struct Inner10DaysCircle: View {
         let docTitle = authModel.docTitles[docTitleIndex]
         
         Task {
-            await authModel.listenForHabitData(dayOfYear: docTitle ?? 0)
+            await authModel.listenForCircleData(dayOfYear: docTitle ?? 0)
         }
         
         // Return the Chart view

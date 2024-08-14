@@ -131,6 +131,7 @@ struct ContentView: View {
                                 angularInset: 1
                             )
                             .foregroundStyle(viewModel.colorReturn(value: habit))
+                            .cornerRadius(5)
                         }
                         .frame(width: 220, height: 220)
                         .onTapGesture {
@@ -195,6 +196,12 @@ struct ContentView: View {
                 }
             }
             .preferredColorScheme(.dark)
+            .onAppear {
+                Task {
+                    await viewModel.listenForUser()
+                    await viewModel.listenForCircleData(dayOfYear: viewModel.currentDayOfWeek)
+                }
+            }
             
             //            MARK: BlurView Button
             if viewModel.isBlurViewVisible {

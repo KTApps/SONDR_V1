@@ -24,7 +24,8 @@ class ViewModel: ObservableObject {
     let storageRef = Storage.storage().reference()
     @Published var userSession: FirebaseAuth.User? = nil
     @Published var currentUser: UserObject?
-    @Published var calendarData: CalendarData?
+    @Published var taskData: TaskData?
+    @Published var progressData: ProgressData?
     @Published var habitData: HabitData?
     @Published var analytics: Analytics?
     @Published var currentYear: Int = Calendar.current.component(.year, from: Date())
@@ -51,12 +52,12 @@ class ViewModel: ObservableObject {
 //  MARK: Clear Data
     func clearData() {
         currentUser = nil
-        calendarData = nil
+        taskData = nil
         habitData = nil
         tasks = []
         taskDecimalDict = [:]
         taskPercentageDict = [:]
-        taskTimerDictionary = [:]
+        progressTimerDictionary = [:]
         taskMaxTime = [:]
         habitIdArray = []
         habitIdName = [:]
@@ -96,21 +97,6 @@ class ViewModel: ObservableObject {
                     }
                 }
                 
-                // Fetch and decode calendar data
-                if let calendarData = userData["CalendarData"] as? [String: Any] {
-                    do {
-                        let decodedCalendarData = try Firestore.Decoder().decode(Prod1.CalendarData.self, from: calendarData)
-                        self.calendarData = decodedCalendarData
-                        self.tasks = decodedCalendarData.tasks
-                        self.taskDecimalDict = decodedCalendarData.taskDecimalDict
-                        self.taskPercentageDict = decodedCalendarData.taskPercentageDict
-                        self.taskTimerDictionary = decodedCalendarData.taskTimerDictionary
-                        self.taskMaxTime = decodedCalendarData.taskMaxTime
-                    } catch {
-                        print("Error decoding CalendarData: \(error.localizedDescription)")
-                    }
-                }
-                
                 // Fetch and decode Analytics
                 if let analytics = userData["Analytics"] as? [String: Any] {
                     do {
@@ -120,27 +106,56 @@ class ViewModel: ObservableObject {
                         print("Error decoding Analytics: \(error.localizedDescription)")
                     }
                 }
+                
+                // Fetch and decode progress data
+                if let progressData = userData["Progress"] as? [String: Any] {
+                    do {
+                        let decodedProgressData = try Firestore.Decoder().decode(Prod1.ProgressData.self, from: progressData)
+                        self.progressData = decodedProgressData
+                        self.tasks = decodedProgressData.tasks
+                        self.progressTimerDictionary = decodedProgressData.progressTimerDictionary
+                        self.taskDecimalDict = decodedProgressData.taskDecimalDict
+                        self.taskMaxTime = decodedProgressData.taskMaxTime
+                    } catch {
+                        print("Error decoding progress data: \(error.localizedDescription)")
+                    }
+                }
             }
         }
         
         // Add a listener for changes to the habitData subcollection
-        let habitDataRef = userRef.collection("HabitData").document("\(currentDayOfYear)")
-        habitDataRef.addSnapshotListener { documentSnapshot, error in
-            guard let habitDocument = documentSnapshot else {
+        let circleData = userRef.collection("CircleData").document("\(currentDayOfYear)")
+        circleData.addSnapshotListener { documentSnapshot, error in
+            guard let circleDocument = documentSnapshot else {
                 print("Error fetching HabitData: \(error!)")
                 return
             }
-            guard habitDocument.exists else {
+            guard circleDocument.exists else {
                 return
             }
             
-            if let habitData = habitDocument.data() {
-                do {
-                    // Decode habit data into custom data model
-                    let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitData.self, from: habitData)
-                    self.habitData = decodedHabitData
-                } catch {
-                    print("Error decoding HabitData: \(error.localizedDescription)")
+            if let circleData = circleDocument.data() {
+                // Fetch and decode habit data
+                if let habitData = circleData["HabitData"] as? [String: Any] {
+                    do {
+                        // Decode habit data into custom data model
+                        let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitData.self, from: habitData)
+                        self.habitData = decodedHabitData
+                    } catch {
+                        print("Error decoding HabitData: \(error.localizedDescription)")
+                    }
+                }
+                
+                // Fetch and decode task data
+                if let taskData = circleData["TaskData"] as? [String: Any] {
+                    do {
+                        let decodedTaskData = try Firestore.Decoder().decode(Prod1.TaskData.self, from: taskData)
+                        self.taskData = decodedTaskData
+                        self.tasks = decodedTaskData.tasks
+                        self.taskTimerDictionary = decodedTaskData.taskTimerDictionary
+                    } catch {
+                        print("Error decoding TaskData: \(error.localizedDescription)")
+                    }
                 }
             }
         }
@@ -159,15 +174,15 @@ class ViewModel: ObservableObject {
             
             Task {
                 await listenForUser()
-                await listenForHabitData(dayOfYear: currentDayOfWeek)
+                await listenForCircleData(dayOfYear: currentDayOfWeek)
                 
                 dayTrackerMath()
                 if dayConstant < currentDayOfYear {
-                    await newHabitDoc()
+                    await newCircleDoc()
                 }
             }
             
-            await fetchHabitDataDocumentTitlesAsIntegers()
+            await fetchCircleDocRef()
             
         } catch {
             logInError.toggle()
@@ -191,7 +206,6 @@ class ViewModel: ObservableObject {
             if let document = document, document.exists {
                 // Extract the current 'dayTracker' array from the 'Analytics' map
                 self.dayTracker = document.get("Analytics.dayTracker") as? [Int] ?? []
-                print("dayTracker extraction: \(self.dayTracker)")
 
                 // Check if currentDayOfYear is equal to the last element in dayTracker
                 guard self.currentDayOfYear != self.dayTracker.last else {
@@ -237,6 +251,7 @@ class ViewModel: ObservableObject {
             taskDecimalDict = [:]
             taskPercentageDict = [:]
             taskTimerDictionary = [:]
+            progressTimerDictionary = [:]
             habitIdArray = []
             habitIdName = [:]
             isHabitStriked = [:]
@@ -250,30 +265,28 @@ class ViewModel: ObservableObject {
             let userRef = self.databaseRef.collection("users").document(user.id)
             try await userRef.setData(["AuthenticationData": encodedUser])
             
-            // Store calendar data
-            let calendarData = Prod1.CalendarData(tasks: tasks,
-                                            taskDecimalDict: taskDecimalDict,
-                                            taskPercentageDict: taskPercentageDict,
-                                            taskTimerDictionary: taskTimerDictionary,
-                                            taskMaxTime: taskMaxTime)
-            let encodedCalendarData = try Firestore.Encoder().encode(calendarData)
-            try await userRef.updateData(["CalendarData": encodedCalendarData])
-            
             let analytics = Prod1.Analytics(dayTracker: dayTracker,
                                             dayTrackerOffset: dayTrackerOffset)
             let encodedAnalytics = try Firestore.Encoder().encode(analytics)
             try await userRef.updateData(["Analytics": encodedAnalytics])
             
-            // Create Habit Sub-Collection
-            await habitSubCollection()
+            let progress = Prod1.ProgressData(tasks: tasks,
+                                              progressTimerDictionary: progressTimerDictionary,
+                                              taskDecimalDict: taskDecimalDict,
+                                              taskMaxTime: taskMaxTime)
+            let encodedProgress = try Firestore.Encoder().encode(progress)
+            try await userRef.updateData(["Progress": encodedProgress])
+            
+            // Create Circle Sub-Collection
+            await circleSubCollection()
             
             clearData()
             Task {
                 await listenForUser()
-                await listenForHabitData(dayOfYear: currentDayOfWeek)
+                await listenForCircleData(dayOfYear: currentDayOfWeek)
             }
             
-            await fetchHabitDataDocumentTitlesAsIntegers()
+            await fetchCircleDocRef()
             dayConstant = currentDayOfYear
             dayTracker.append(currentDayOfYear)
             await analyticsUpdate()
@@ -306,7 +319,7 @@ class ViewModel: ObservableObject {
     }
     
 //  MARK: Create Habit Sub-Collection
-    private func habitSubCollection() async {
+    private func circleSubCollection() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }
@@ -319,7 +332,7 @@ class ViewModel: ObservableObject {
             let nextDayOfYear = currentDayOfYear + i
             
             // Construct the document reference for the current day
-            let currentDayDocumentRef = userRef.collection("HabitData").document("\(nextDayOfYear)")
+            let currentDayDocumentRef = userRef.collection("CircleData").document("\(nextDayOfYear)")
 
             do {
                 // Check if the document for the current day already exists
@@ -333,7 +346,13 @@ class ViewModel: ObservableObject {
                                                      isHabitStriked: isHabitStriked)
 
                     let encodedHabitData = try Firestore.Encoder().encode(habitData)
-                    try await currentDayDocumentRef.setData(encodedHabitData)
+                    try await currentDayDocumentRef.setData(["HabitData": encodedHabitData])
+                    
+                    // Store task data
+                    let taskData = Prod1.TaskData(tasks: tasks,
+                                                    taskTimerDictionary: taskTimerDictionary)
+                    let encodedTaskData = try Firestore.Encoder().encode(taskData)
+                    try await currentDayDocumentRef.updateData(["TaskData": encodedTaskData])
                     
                 }
             } catch {
@@ -344,7 +363,7 @@ class ViewModel: ObservableObject {
     
     @Published var dayConstant: Int = 0
 //  MARK: Create Habit Document
-    private func newHabitDoc() async {
+    private func newCircleDoc() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }
@@ -358,7 +377,7 @@ class ViewModel: ObservableObject {
         for i in (nextDayInDocs - dayTrackerOffset)...nextDayInDocs {
             
             // Construct the document reference for the current day
-            let currentDayDocumentRef = userRef.collection("HabitData").document("\(i)")
+            let currentDayDocumentRef = userRef.collection("CircleData").document("\(i)")
 
             do {
                 // Check if the document for the current day already exists
@@ -372,11 +391,17 @@ class ViewModel: ObservableObject {
                                                      isHabitStriked: isHabitStriked)
 
                     let encodedHabitData = try Firestore.Encoder().encode(habitData)
-                    try await currentDayDocumentRef.setData(encodedHabitData)
-                    print("document \(i) created")
+                    try await currentDayDocumentRef.setData(["HabitData": encodedHabitData])
+                    
+                    // Store task data
+                    let taskData = Prod1.TaskData(tasks: tasks,
+                                                    taskTimerDictionary: taskTimerDictionary)
+                    let encodedTaskData = try Firestore.Encoder().encode(taskData)
+                    try await userRef.updateData(["TaskData": encodedTaskData])
+                    
                 }
             } catch {
-                print("Error checking or updating HabitData for day \(i): \(error)")
+                print("func newCircleDoc(): Error checking or updating HabitData for day \(i): \(error)")
             }
         }
     }
@@ -463,7 +488,7 @@ class ViewModel: ObservableObject {
     }
     
     @Published var friendsHabitData: [String: HabitData] = [:]
-    @Published var friendsCalendarData: [String: CalendarData] = [:]
+    @Published var friendsTaskData: [String: TaskData] = [:]
 
     func fetchFriendData(friendUsername: String) async {
         let query = self.databaseRef.collection("users").whereField("AuthenticationData.username", isEqualTo: friendUsername)
@@ -478,7 +503,7 @@ class ViewModel: ObservableObject {
             let friendId = friendDoc.documentID
 
             // Fetch HabitData
-            let habitDataRef = self.databaseRef.collection("users").document(friendId).collection("HabitData").document("\(currentDayOfYear)")
+            let habitDataRef = self.databaseRef.collection("users").document(friendId).collection("CircleData").document("\(currentDayOfYear)")
             let habitDocumentSnapshot = try await habitDataRef.getDocument()
             guard let habitData = habitDocumentSnapshot.data() else {
                 print("No HabitData found for friend with username \(friendUsername).")
@@ -489,15 +514,15 @@ class ViewModel: ObservableObject {
                 self.friendsHabitData[friendUsername] = decodedHabitData
             }
 
-            // Fetch CalendarData
-            if let calendarDataMap = friendDoc.data()["CalendarData"] as? [String: Any] {
-                let jsonData = try JSONSerialization.data(withJSONObject: calendarDataMap, options: [])
-                let decodedCalendarData = try JSONDecoder().decode(CalendarData.self, from: jsonData)
+            // Fetch TaskData
+            if let taskDataMap = friendDoc.data()["TaskData"] as? [String: Any] {
+                let jsonData = try JSONSerialization.data(withJSONObject: taskDataMap, options: [])
+                let decodedTaskData = try JSONDecoder().decode(TaskData.self, from: jsonData)
                 DispatchQueue.main.async {
-                    self.friendsCalendarData[friendUsername] = decodedCalendarData
+                    self.friendsTaskData[friendUsername] = decodedTaskData
                 }
             } else {
-                print("No CalendarData found for friend with username \(friendUsername).")
+                print("No TaskData found for friend with username \(friendUsername).")
             }
 
         } catch {
@@ -568,7 +593,7 @@ class ViewModel: ObservableObject {
             try await userRef.delete()
             
             // Delete subcollections (habitData)
-            let habitDataQuery = userRef.collection("HabitData")
+            let habitDataQuery = userRef.collection("CircleData")
             let habitDataDocs = try await habitDataQuery.getDocuments()
             for doc in habitDataDocs.documents {
                 try await doc.reference.delete()
@@ -602,7 +627,7 @@ class ViewModel: ObservableObject {
             currentDayOfWeek -= 1
         }
         Task {
-            await listenForHabitData(dayOfYear: currentDayOfWeek)
+            await listenForCircleData(dayOfYear: currentDayOfWeek)
         }
     }
     
@@ -613,7 +638,7 @@ class ViewModel: ObservableObject {
             currentDayOfWeek += 1
         }
         Task {
-            await listenForHabitData(dayOfYear: currentDayOfWeek)
+            await listenForCircleData(dayOfYear: currentDayOfWeek)
         }
     }
 
@@ -681,30 +706,30 @@ class ViewModel: ObservableObject {
                 // If there is only one habit, update the current day and the next 6 days
                 for i in 0..<7 {
                     let nextDayOfYear = currentDayOfYear + i
-                    let habitDataRef = userRef.collection("HabitData").document("\(nextDayOfYear)")
+                    let habitDataRef = userRef.collection("CircleData").document("\(nextDayOfYear)")
                     habitDataRef.updateData([
-                        "habitIdArray": FieldValue.arrayUnion([habitId]),
-                        "habitIdName.\(habitId)": habitName,
-                        "isHabitStriked.\(habitId)": false
+                        "HabitData.habitIdArray": FieldValue.arrayUnion([habitId]),
+                        "HabitData.habitIdName.\(habitId)": habitName,
+                        "HabitData.isHabitStriked.\(habitId)": false
                     ])
                 }
             } else {
                 habitDataForDay[currentDayOfWeek]?.isHabitStriked[habitId] = false
                 
-                let habitDataRef = userRef.collection("HabitData").document("\(currentDayOfWeek)")
+                let habitDataRef = userRef.collection("CircleData").document("\(currentDayOfWeek)")
                 habitDataRef.updateData([
-                    "habitIdArray": FieldValue.arrayUnion([habitId]),
-                    "habitIdName.\(habitId)": habitName,
-                    "isHabitStriked.\(habitId)": false
+                    "HabitData.habitIdArray": FieldValue.arrayUnion([habitId]),
+                    "HabitData.habitIdName.\(habitId)": habitName,
+                    "HabitData.isHabitStriked.\(habitId)": false
                 ])
                 
                 for i in 1..<7 {
                     let nextDayOfYear = currentDayOfYear + i
-                    let habitDataRef = userRef.collection("HabitData").document("\(nextDayOfYear)")
+                    let habitDataRef = userRef.collection("CircleData").document("\(nextDayOfYear)")
                     habitDataRef.updateData([
-                        "habitIdArray": FieldValue.arrayUnion([habitId]),
-                        "habitIdName.\(habitId)": habitName,
-                        "isHabitStriked.\(habitId)": false
+                        "HabitData.habitIdArray": FieldValue.arrayUnion([habitId]),
+                        "HabitData.habitIdName.\(habitId)": habitName,
+                        "HabitData.isHabitStriked.\(habitId)": false
                     ])
                 }
             }
@@ -712,7 +737,7 @@ class ViewModel: ObservableObject {
             // Assuming `listenForUser` and `listenForHabitData` are asynchronous tasks
             Task {
                 await listenForUser()
-                await listenForHabitData(dayOfYear: currentDayOfYear)
+                await listenForCircleData(dayOfYear: currentDayOfYear)
             }
         }
     }
@@ -722,12 +747,13 @@ class ViewModel: ObservableObject {
         habitDataForDay[currentDayOfWeek]?.isHabitStriked[value]?.toggle()
         if let userId = userSession?.uid {
             let userRef = self.databaseRef.collection("users").document(userId)
-            let habitDataRef = userRef.collection("HabitData").document("\(currentDayOfWeek)")
-            habitDataRef.updateData(["isHabitStriked": habitDataForDay[currentDayOfWeek]?.isHabitStriked])
+            let habitDataRef = userRef.collection("CircleData").document("\(currentDayOfWeek)")
+            habitDataRef.updateData(["HabitData.isHabitStriked": habitDataForDay[currentDayOfWeek]?.isHabitStriked])
             
             Task {
                 await listenForUser()
-                await listenForHabitData(dayOfYear: currentDayOfWeek)
+                await listenForCircleData(dayOfYear: currentDayOfWeek)
+                self.habitData = habitDataForDay[currentDayOfWeek] // Trigger a re-render by reassigning the object
             }
         } else {
             print("User is not logged in.")
@@ -745,42 +771,73 @@ class ViewModel: ObservableObject {
     let maxTime = 100
     
     func taskAdder() {
-        guard let userId = userSession?.uid else {
-            print("User is not logged in.")
+        guard let userId = self.authRef.currentUser?.uid else {
+            print("func taskAdder(): User is not logged in")
             return
         }
 
         let userRef = self.databaseRef.collection("users").document(userId)
 
+        // Fetch and update ProgressData
         userRef.getDocument { document, error in
             if let error = error {
-                print("Error fetching document: \(error.localizedDescription)")
+                print("func taskAdder(): error fetching user doc: \(error.localizedDescription)")
                 return
             }
 
-            var calendarData = document?.data()?["CalendarData"] as? [String: Any] ?? [:]
-            var currentTasks = calendarData["tasks"] as? [String] ?? []
-            var currentTaskMaxTime = calendarData["taskMaxTime"] as? [String: Int] ?? [:]
+            // Fetch progress data
+            var progressData = document?.data()?["Progress"] as? [String: Any] ?? [:]
+            var currentTasks = progressData["tasks"] as? [String] ?? []
 
+            // Update progress data
             currentTasks.append(self.taskString)
-            currentTaskMaxTime[self.taskString] = self.maxTime
 
-            calendarData["tasks"] = currentTasks
-            calendarData["taskMaxTime"] = currentTaskMaxTime
-
-            userRef.setData(["CalendarData": calendarData], merge: true) { error in
+            // Update database
+            userRef.updateData([
+                "Progress.tasks": currentTasks
+            ]) { error in
                 if let error = error {
-                    print("Error updating tasks: \(error.localizedDescription)")
+                    print("func taskAdder(): error updating userRef: \(error.localizedDescription)")
                 } else {
                     DispatchQueue.main.async {
                         self.tasks = currentTasks
-                        self.taskMaxTime = currentTaskMaxTime
-                        self.taskString = "" // Clear the task input field after successful addition
+                    }
+                }
+            }
+            
+            // Fetch and update CircleData
+            let circleDataRef = userRef.collection("CircleData").document(String(self.currentDayOfYear))
+            circleDataRef.getDocument { document, error in
+                if let error = error {
+                    print("func taskAdder(): error fetching CircleData doc: \(error.localizedDescription)")
+                    return
+                }
+
+                // Fetch task data
+                var taskData = document?.data()?["TaskData"] as? [String: Any] ?? [:]
+                var currentTasks = taskData["tasks"] as? [String] ?? []
+
+                // Update task data
+                currentTasks.append(self.taskString)
+                taskData["tasks"] = currentTasks
+
+                // Update database
+                circleDataRef.updateData([
+                    "TaskData.tasks": currentTasks
+                ]) { error in
+                    if let error = error {
+                        print("func taskAdder(): error updating circleDataRef: \(error.localizedDescription)")
+                    } else {
+                        DispatchQueue.main.async {
+                            self.tasks = currentTasks
+                            self.taskString = "" // Clear the task input field after successful addition
+                        }
                     }
                 }
             }
         }
     }
+
     
     @Published var taskMaxTime: [String: Int] = [:] // Dictionary = [Task Title: Max Time]
     @Published var maxTimeAlert: Bool = false
@@ -795,21 +852,21 @@ class ViewModel: ObservableObject {
     } // Dictionary = [Task Title: fraction of task completed]
     @Published var taskPercentageDict: [String: Int] = [:] // Dictionary = [Task Title: percentage of task completed]
     func progressPercentage() {
-            guard let userId = userSession?.uid else {
-                print("User is not logged in.")
-                return
-            }
+        guard let userId = userSession?.uid else {
+            print("func ProgressPercentage(): User is not logged in.")
+            return
+        }
 
-            let userRef = self.databaseRef.collection("users").document(userId)
+        let userRef = self.databaseRef.collection("users").document(userId)
             var maxTimeIncreasedTasks: [String: Int] = [:]
 
             for item in tasks {
                 // Ensure task time does not exceed max time
-                if let currentTime = taskTimerDictionary[item] {
+                if let currentTime = progressTimerDictionary[item] {
                     let currentMaxTime = taskMaxTime[item] ?? maxTime
                     if currentTime >= currentMaxTime {
                         let newMaxTime = ((currentTime / 100) + 1) * 100
-                        taskTimerDictionary[item] = newMaxTime
+                        progressTimerDictionary[item] = newMaxTime
                         newTimeCalc()
                         maxTimeAlert.toggle()
                         maxTimeIncreasedTasks[item] = newMaxTime
@@ -822,12 +879,12 @@ class ViewModel: ObservableObject {
 
             for (task, newMaxTime) in maxTimeIncreasedTasks {
                 taskMaxTime[task] = newMaxTime
-                updates["CalendarData.taskMaxTime.\(task)"] = newMaxTime
+                updates["Progress.taskMaxTime.\(task)"] = newMaxTime
             }
 
             userRef.updateData(updates) { error in
                 if let error = error {
-                    print("Error updating task max time: \(error.localizedDescription)")
+                    print("func ProgressPercentage(): error updating task max time: \(error.localizedDescription)")
                 } else {
                     self.updateTaskProgress(userId: userId)
                 }
@@ -835,27 +892,18 @@ class ViewModel: ObservableObject {
         }
 
         private func updateTaskProgress(userId: String) {
-            let userRef = self.databaseRef.collection("users").document(userId)
-
             for item in tasks {
-                let decimal = Double(taskTimerDictionary[item] ?? 0) / Double(taskMaxTime[item] ?? maxTime)
-                let percentage = Int(decimal * 100)
+                let decimal = Double(progressTimerDictionary[item] ?? 0) / Double(taskMaxTime[item] ?? maxTime)
                 taskDecimalDict[item] = decimal
-                taskPercentageDict[item] = percentage
             }
-
-            let updates: [String: Any] = [
-                "CalendarData.taskDecimalDict": taskDecimalDict,
-                "CalendarData.taskPercentageDict": taskPercentageDict
-            ]
-
-            userRef.updateData(updates) { error in
+            
+            // Update ProgressData
+            let userRef = self.databaseRef.collection("users").document(userId)
+            userRef.updateData([
+                "Progress.taskDecimalDict": taskDecimalDict
+            ]) { error in
                 if let error = error {
-                    print("Error updating task progress: \(error.localizedDescription)")
-                } else {
-                    DispatchQueue.main.async {
-                        // Any UI updates or state changes go here
-                    }
+                    print("Error updating progress data: \(error.localizedDescription)")
                 }
             }
 
@@ -879,7 +927,8 @@ class ViewModel: ObservableObject {
 //    MARK: Task Timer
     @Published var isTimerOn: Bool = false
     @Published var timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect() // Just initializing 'timer' variable
-    @Published var taskTimerDictionary: [String: Int] = [:] // Dictionary = [Task Title : TimerCount for task]
+    @Published var progressTimerDictionary: [String: Int] = [:] // Dictionary = [Task Title : cumulative TimerCount for task]
+    @Published var taskTimerDictionary: [String: Int] = [:] // Dictionary = [Task Title : Timer count for task]
     @Published var taskName = "Task"
     @Published var taskTime: Int = 0 {
         didSet {
@@ -900,41 +949,60 @@ class ViewModel: ObservableObject {
     func taskTimer() -> Int? {
         for item in tasks {
             if item == taskName {
-                if var timerCount = taskTimerDictionary[item] {
-                    timerCount += 1
-                    taskTimerDictionary[item] = timerCount
+                if var progressCount = progressTimerDictionary[item],
+                    var timerCount = taskTimerDictionary[item] {
+                        print("func taskTimer(): running if statement")
+                        progressCount += 1
+                        timerCount += 1
+                        
+                        progressTimerDictionary[item] = progressCount
+                        taskTimerDictionary[item] = timerCount
+                        
+                        // Update the TaskTimerDictionary in Firestore
+                        updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, timerCount: timerCount)
+                        Task {
+                            await listenForUser()
+                        }
                     
-                    // Update the TaskTimerDictionary in Firestore
-                    updateTaskTimerInFirestore(taskName: item, timerCount: timerCount)
-                    Task {
-                        await listenForUser()
+                        print("func taskTimer(): if finished")
+                        return timerCount
+                    } else {
+                        print("func taskTimer(): running else statement")
+                        let progressCount = 1
+                        let timerCount = 1
+                        
+                        progressTimerDictionary[item] = progressCount
+                        taskTimerDictionary[item] = timerCount
+                        
+                        // Update the TaskTimerDictionary in Firestore
+                        updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, timerCount: timerCount)
+                        Task {
+                            await listenForUser()
+                        }
+                        
+                        print("func taskTimer(): else finished")
+                        return timerCount
                     }
-                    
-                    return timerCount
-                } else {
-                    let timerCount = 1
-                    taskTimerDictionary[item] = timerCount
-                    
-                    // Update the TaskTimerDictionary in Firestore
-                    updateTaskTimerInFirestore(taskName: item, timerCount: timerCount)
-                    Task {
-                        await listenForUser()
-                    }
-                    
-                    return timerCount
-                }
             }
         }
         return nil
     }
 
-    func updateTaskTimerInFirestore(taskName: String, timerCount: Int) {
+    func updateTaskTimerInFirestore(taskName: String, progressCount: Int, timerCount: Int) {
         guard let userId = userSession?.uid else {
             return
         }
         
         let userRef = self.databaseRef.collection("users").document(userId)
-        userRef.updateData(["CalendarData.taskTimerDictionary.\(taskName)": timerCount])
+        userRef.updateData([
+            "Progress.progressTimerDictionary.\(taskName)": progressCount
+        ])
+        
+        let circleDataRef = userRef.collection("CircleData").document(String(self.currentDayOfYear))
+        circleDataRef.updateData([
+            "TaskData.taskTimerDictionary.\(taskName)": timerCount
+        ])
+        
         Task {
             await listenForUser()
         }
@@ -971,21 +1039,21 @@ class ViewModel: ObservableObject {
     @Published var isViewYourProgressVisible = false
     
     @Published var docTitles: [Int?] = []
-    func fetchHabitDataDocumentTitlesAsIntegers() async {
+    func fetchCircleDocRef() async {
         // Ensure the user is logged in
         guard let currentUserId = self.authRef.currentUser?.uid else {
-            print("User not logged in.")
+            print("func fetchCircleDocRef(): User not logged in.")
             return
         }
 
-        let habitDataRef = self.databaseRef.collection("users").document(currentUserId).collection("HabitData")
+        let circleDataRef = self.databaseRef.collection("users").document(currentUserId).collection("CircleData")
 
         do {
             for dayOffset in 1..<11 {
                 let dayToCollect = String(currentDayOfYear - dayOffset)
                 
                 // Create a query to fetch documents with the specific dayToCollect as the document ID
-                let query = habitDataRef.document(dayToCollect)
+                let query = circleDataRef.document(dayToCollect)
                 let documentSnapshot = try await query.getDocument()
                 
                 if let documentData = documentSnapshot.data() {
@@ -994,7 +1062,7 @@ class ViewModel: ObservableObject {
                 }
             }
         } catch {
-            print("Error fetching HabitData document: \(error.localizedDescription)")
+            print("func fetchCircleDocRef(): Error fetching HabitData document: \(error.localizedDescription)")
         }
     }
     
@@ -1046,7 +1114,8 @@ class ViewModel: ObservableObject {
     
     @Published var dictionaryCount: Int = 0
     @Published var habitDataForDay: [Int: Prod1.HabitData] = [:] // Dictionary = [Day of year: habit data]
-    func listenForHabitData(dayOfYear: Int) async {
+    @Published var taskDataForDay: [Int: Prod1.TaskData] = [:] // Dictionary = [Day of year: task data]
+    func listenForCircleData(dayOfYear: Int) async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }
@@ -1054,29 +1123,43 @@ class ViewModel: ObservableObject {
         // Reference to users document in Firestore
         let userRef = self.databaseRef.collection("users").document(currentUserId)
         // Reference to dayOfYear document in habitData sub-collection
-        let habitDataRef = userRef.collection("HabitData").document(String(dayOfYear))
+        let circleDataRef = userRef.collection("CircleData").document(String(dayOfYear))
         
         // Add a snapshot listener to listen for changes in the dayOfYear document
-        habitDataRef.addSnapshotListener { documentSnapshot, error in
+        circleDataRef.addSnapshotListener { documentSnapshot, error in
             // Check if data exists
-            guard let habitDocument = documentSnapshot else {
+            guard let circleDocument = documentSnapshot else {
                 print("Error fetching HabitData: \(error!)")
                 return
             }
             // Check if document exists
-            guard habitDocument.exists else {
+            guard circleDocument.exists else {
                 return
             }
             
             // extract data from dayOfYear document
-            if let habitData = habitDocument.data() {
-                do {
-                    // Decode habit data into custom data model
-                    let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitData.self, from: habitData)
-                    // Update habitDataForDay dictionary with the fetched habit data
-                    self.habitDataForDay[dayOfYear] = decodedHabitData
-                } catch {
-                    print("Error decoding HabitData for day \(dayOfYear): \(error.localizedDescription)")
+            if let circleData = circleDocument.data() {
+                
+                // Fetch and decode habit data
+                if let habitData = circleData["HabitData"] as? [String: Any] {
+                    do {
+                        // Decode habit data into custom data model
+                        let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitData.self, from: habitData)
+                        // Update habitDataForDay dictionary with the fetched habit data
+                        self.habitDataForDay[dayOfYear] = decodedHabitData
+                    } catch {
+                        print("Error decoding HabitData for day \(dayOfYear): \(error.localizedDescription)")
+                    }
+                }
+                
+                // Fetch and decode task data
+                if let taskData = circleData["TaskData"] as? [String: Any] {
+                    do {
+                        let decodedTaskData = try Firestore.Decoder().decode(Prod1.TaskData.self, from: taskData)
+                        self.taskDataForDay[dayOfYear] = decodedTaskData
+                    } catch {
+                        print("Error decoding TaskData: \(error.localizedDescription)")
+                    }
                 }
             }
         }

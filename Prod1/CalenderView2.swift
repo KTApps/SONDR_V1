@@ -198,33 +198,31 @@ struct CalendarView: View {
 }
 
 struct CalendarDayCell: View {
-    @EnvironmentObject var viewModel: ViewModel
     let day: Int
     let selectedMonth: Int
     let selectedYear: Int
-    private var dayOfYear: Int {
-        return viewModel.dayOfYear(year: selectedYear, month: selectedMonth, day: day)
-    }
     
     var body: some View {
         ZStack {
             Text("\(day)") // Display the day number
                 .foregroundColor(.black) // Ensure the text is visible
-            OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 19, outerRadius: 26, cornerRadius: 5)
-            InnerCircle(dayOfYear: dayOfYear, innerRadius: 11, outerRadius: 17, cornerRadius: 5)
+            OuterCircle(innerRadius: 18, outerRadius: 25, cornerRadius: 2.5)
+            InnerCircle(day: day, selectedMonth: selectedMonth, selectedYear: selectedYear)
         }
     }
 }
 
 struct InnerCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
-    let dayOfYear: Int
-    let innerRadius: MarkDimension
-    let outerRadius: MarkDimension
-    let cornerRadius: CGFloat
+    @EnvironmentObject var authModel: ViewModel
+    let day: Int
+    let selectedMonth: Int
+    let selectedYear: Int
+    private var dayOfYear: Int {
+        return authModel.dayOfYear(year: selectedYear, month: selectedMonth, day: day)
+    }
     
     private func calendarColorReturn(value: String) -> Color {
-        if viewModel.habitDataForDay[dayOfYear]?.isHabitStriked[value] == true {
+        if authModel.habitDataForDay[dayOfYear]?.isHabitStriked[value] == true {
             return .blue
         } else {
             return .gray
@@ -233,53 +231,18 @@ struct InnerCircle: View {
     
     var body: some View {
         Task {
-            await viewModel.listenForCircleData(dayOfYear: dayOfYear)
+            await authModel.listenForHabitData(dayOfYear: dayOfYear)
         }
         
         // Return the Chart view
-        return Chart(viewModel.habitDataForDay[dayOfYear]?.habitIdArray ?? [], id:\.self) { habit in
+        return Chart(authModel.habitDataForDay[dayOfYear]?.habitIdArray ?? [], id:\.self) { habit in
             SectorMark(
                 angle: .value("Time Spent", 10),
-                innerRadius: innerRadius,
-                outerRadius: outerRadius
+                innerRadius: 9,
+                outerRadius: 16
             )
             .foregroundStyle(calendarColorReturn(value: habit))
-            .cornerRadius(cornerRadius)
-        }
-    }
-}
-
-struct OuterCalendarCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
-    let dayOfYear: Int
-    let innerRadius: MarkDimension
-    let outerRadius: MarkDimension
-    let cornerRadius: CGFloat
-    
-    var body: some View {
-        Task {
-            await viewModel.listenForCircleData(dayOfYear: dayOfYear)
-        }
-
-        return Chart(viewModel.taskDataForDay[dayOfYear]?.tasks ?? [], id: \.self) { task in
-            if let timeSpent = viewModel.taskDataForDay[dayOfYear]?.taskTimerDictionary[task] {
-                SectorMark(
-                    angle: .value("Time Spent", timeSpent),
-                    innerRadius: innerRadius,
-                    outerRadius: outerRadius,
-                    angularInset: 1
-                )
-                .cornerRadius(cornerRadius)
-            } else {
-                // Handle case where taskTimerDictionary doesn't contain the task
-                SectorMark(
-                    angle: .value("Time Spent", 0), // Fallback value
-                    innerRadius: 18,
-                    outerRadius: 25,
-                    angularInset: 1
-                )
-                .cornerRadius(5)
-            }
+            .cornerRadius(2.5)
         }
     }
 }

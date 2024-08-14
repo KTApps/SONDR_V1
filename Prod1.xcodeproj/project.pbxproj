@@ -139,14 +139,13 @@
 			name = AuthView;
 			sourceTree = "<group>";
 		};
-		086FA12E2BA2262A005B26EB /* AuthViewModel */ = {
+		086FA12E2BA2262A005B26EB /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
 				085D8E0D2BA0DF580028AD03 /* ViewModel.swift */,
 				084F54982C5FF5D600E44385 /* MockViewModel.swift */,
 			);
-			name = AuthViewModel;
-			path = ..;
+			name = ViewModels;
 			sourceTree = "<group>";
 		};
 		086FA12F2BA226C9005B26EB /* ViewProgress */ = {
@@ -198,7 +197,6 @@
 			isa = PBXGroup;
 			children = (
 				086FA12C2BA225DF005B26EB /* AuthView */,
-				086FA12E2BA2262A005B26EB /* AuthViewModel */,
 			);
 			path = Authentication;
 			sourceTree = "<group>";
@@ -227,14 +225,15 @@
 				7646F2AC2B7837D20075908C /* Prod1App.swift */,
 				08A4308A2C46FF4500D22B23 /* Lobby */,
 				7646F2AE2B7837D20075908C /* ContentView.swift */,
-				086FA12F2BA226C9005B26EB /* ViewProgress */,
 				082D11B52B82912D00E39B40 /* Habits */,
 				08A4308C2C46FF7700D22B23 /* Tasks */,
+				086FA12F2BA226C9005B26EB /* ViewProgress */,
 				08A4308B2C46FF5F00D22B23 /* SocialMedia */,
 				086FA12B2BA225B1005B26EB /* Settings */,
 				08E5A3662B9FC9A000F3B5C5 /* Authentication */,
-				08CD3D212C3444D800D48FAD /* BlurEffect.swift */,
+				086FA12E2BA2262A005B26EB /* ViewModels */,
 				08E2D3E42BA0CE3D0097327A /* UserObject.swift */,
+				08CD3D212C3444D800D48FAD /* BlurEffect.swift */,
 				08A430882C46FB9400D22B23 /* ImagePicker.swift */,
 				7646F2B02B7837D40075908C /* Assets.xcassets */,
 				7646F2B22B7837D40075908C /* Preview Content */,

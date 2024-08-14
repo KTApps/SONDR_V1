@@ -38,7 +38,7 @@ struct HabitAdder: View {
                     viewModel.habitAppender()
                     viewModel.habitName = ""
                 }) {
-                    Text("Save")
+                    Text("ADD")
                         .font(.title3)
                         .fontWeight(.bold)
                         .padding(15)

@@ -9,7 +9,6 @@ import SwiftUI
 import Charts
  
 struct ViewYourProgress: View {
-    @State private var count: Int = 7
     
     var body: some View {
         ZStack{

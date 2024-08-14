@@ -30,15 +30,9 @@ struct CustomProgressBar: View {
                 } label: {
                     ZStack(alignment: .leading) {
                         
-                        ZStack(alignment: .trailing) {
-                            Capsule()
-                                .fill(Color.gray)
-                                .frame(width: viewModel.maxWidth, height: 32)
-                            
-                            Text("\(viewModel.taskPercentageDict[item] ?? 0)%")
-                                .foregroundColor(.white)
-                                .padding()
-                        }
+                        Capsule()
+                            .fill(Color.gray)
+                            .frame(width: viewModel.maxWidth, height: 32)
                         
                         Capsule()
                             .fill(Color.blue)
@@ -51,9 +45,9 @@ struct CustomProgressBar: View {
                             Spacer()
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, -5)
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 5)
             }
             
             Button(action: {

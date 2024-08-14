@@ -20,11 +20,15 @@ struct UserObject: Identifiable, Codable {
     }
 }
 
-struct CalendarData: Codable {
+struct TaskData: Codable {
     var tasks: [String]
-    var taskDecimalDict: [String: Double]
-    var taskPercentageDict: [String: Int]
     var taskTimerDictionary: [String: Int]
+}
+
+struct ProgressData: Codable {
+    var tasks: [String]
+    var progressTimerDictionary: [String: Int]
+    var taskDecimalDict: [String: Double]
     var taskMaxTime: [String: Int]
 }
 

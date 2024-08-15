@@ -442,55 +442,62 @@ class ViewModel: ObservableObject {
             }
             
             if !usernameExists {
-                print("Email does not exist in the database.")
+                print("func addFriends(): User does not exist")
                 return
             }
             
             // Fetch the current 'Friends' field
-            let userDocument = try await userRef.getDocument()
-            if var currentFriends = userDocument.data()?["Friends"] as? [String] {
+            let userDoc = try await userRef.getDocument()
+            if var currentFriends = userDoc.data()?["Friends"] as? [String] {
+                
                 // Append the new email to the existing 'Friends' array
                 if !currentFriends.contains(username) {
-                    currentFriends.append(username)
+                    
+                    // Update the 'Friends' field with the new array
+                    try await userRef.updateData([
+                        "Friends": FieldValue.arrayUnion([username])
+                    ])
+                    
                 } else {
-                    print("Email already exists in the Friends array.")
+                    print("func addFriends(): User already exists")
                     return
                 }
-                
-                // Update the 'Friends' field with the new array
-                try await userRef.updateData(["Friends": currentFriends])
             } else {
+                
                 // Create a new 'Friends' array with the provided email
-                let newFriends = [username]
-                try await userRef.setData(["Friends": newFriends], merge: true)
+                try await userRef.updateData([
+                    "Friends": [username]
+                ])
             }
             
         } catch {
-            print("Error checking email existence or updating data: \(error)")
+            print("func addFriends(): Error checking email existence or updating data: \(error)")
         }
     }
     
     func fetchAllFriendsData() async {
         // Checks if User is logged in
         guard let currentUserId = self.authRef.currentUser?.uid else {
-            print("User not logged in.")
+            print("func fetchAllFriendsData(): User not logged in.")
             return
         }
 
         let userRef = self.databaseRef.collection("users").document(currentUserId)
 
         do {
-            let documentSnapshot = try await userRef.getDocument()
-            guard let documentData = documentSnapshot.data(), let friends = documentData["Friends"] as? [String] else {
+            let userDocSnapshot = try await userRef.getDocument()
+            guard let friendsArray = userDocSnapshot.data()?["Friends"] as? [String] else {
+                print("func fetchAllFriendsData(): array of friends not found")
                 return
             }
 
             // Fetch habit data for all friends
-            for friendUsername in friends {
+            for friendUsername in friendsArray {
                 await fetchFriendData(friendUsername: friendUsername)
             }
+            
         } catch {
-            print("Error fetching user document: \(error.localizedDescription)")
+            print("func fetchAllFriendsData(): Error fetching user document: \(error.localizedDescription)")
         }
     }
     
@@ -503,37 +510,42 @@ class ViewModel: ObservableObject {
         do {
             let querySnapshot = try await query.getDocuments()
             guard let friendDoc = querySnapshot.documents.first else {
-                print("Friend with username \(friendUsername) not found.")
+                print("func fetchFriendData(): Friend with username \(friendUsername) not found.")
                 return
             }
 
             let friendId = friendDoc.documentID
 
-            // Fetch HabitData
-            let habitDataRef = self.databaseRef.collection("users").document(friendId).collection("CircleData").document("\(currentDayOfYear)")
-            let habitDocumentSnapshot = try await habitDataRef.getDocument()
-            guard let habitData = habitDocumentSnapshot.data() else {
-                print("No HabitData found for friend with username \(friendUsername).")
+            // Fetch CircleData
+            let circleDataRef = self.databaseRef.collection("users").document(friendId).collection("CircleData").document("\(currentDayOfYear)")
+            let circleDocumentSnapshot = try await circleDataRef.getDocument()
+            guard let circleData = circleDocumentSnapshot.data() else {
+                print("func fetchFriendData(): No CircleData found for friend with username \(friendUsername).")
                 return
             }
-            let decodedHabitData = try Firestore.Decoder().decode(HabitData.self, from: habitData)
-            DispatchQueue.main.async {
-                self.friendsHabitData[friendUsername] = decodedHabitData
+            
+            // Fetch HabitData
+            if let habitDataMap = circleData["HabitData"] as? [String: Any] {
+                let decodedHabitData = try Firestore.Decoder().decode(HabitData.self, from: habitDataMap)
+                DispatchQueue.main.async {
+                    self.friendsHabitData[friendUsername] = decodedHabitData
+                }
+            } else {
+                print("func fetchFriendData(): No HabitData found")
             }
 
             // Fetch TaskData
-            if let taskDataMap = friendDoc.data()["TaskData"] as? [String: Any] {
-                let jsonData = try JSONSerialization.data(withJSONObject: taskDataMap, options: [])
-                let decodedTaskData = try JSONDecoder().decode(TaskData.self, from: jsonData)
+            if let taskDataMap = circleData["TaskData"] as? [String: Any] {
+                let decodedTaskData = try Firestore.Decoder().decode(TaskData.self, from: taskDataMap)
                 DispatchQueue.main.async {
                     self.friendsTaskData[friendUsername] = decodedTaskData
                 }
             } else {
-                print("No TaskData found for friend with username \(friendUsername).")
+                print("func fetchFriendData(): No TaskData found")
             }
 
         } catch {
-            print("Error fetching friend's data: \(error.localizedDescription)")
+            print("func fetchFriendData(): Error fetching friend's data: \(error.localizedDescription)")
         }
     }
     
@@ -547,6 +559,7 @@ class ViewModel: ObservableObject {
     
     @Published var friendCount: Int = 0
     @Published var friendOrFriends: String = "Friends"
+    
     func friendsCounter() async {
         // Checks if User is logged in
         guard let currentUserId = self.authRef.currentUser?.uid else {
@@ -558,13 +571,13 @@ class ViewModel: ObservableObject {
 
         do {
             let documentSnapshot = try await userRef.getDocument()
-            guard let documentData = documentSnapshot.data(), let friends = documentData["Friends"] as? [String] else {
+            guard let friendsArray = documentSnapshot.data()?["Friends"] as? [String] else {
                 return
             }
 
             // Return the count of elements in the 'Friends' array
-            friendCount = friends.count
-            await friendOrFriends(friendCount: friends.count)
+            self.friendCount = friendsArray.count
+            await friendOrFriends(friendCount: friendsArray.count)
         } catch {
             print("Error fetching user document: \(error.localizedDescription)")
         }
@@ -995,7 +1008,6 @@ class ViewModel: ObservableObject {
             if item == taskName {
                 if var progressCount = progressTimerDictionary[item],
                     var timerCount = taskTimerDictionary[item] {
-                        print("func taskTimer(): running if statement")
                         progressCount += 1
                         timerCount += 1
                         
@@ -1008,10 +1020,8 @@ class ViewModel: ObservableObject {
                             await listenForUser()
                         }
                     
-                        print("func taskTimer(): if finished")
                         return timerCount
                     } else {
-                        print("func taskTimer(): running else statement")
                         let progressCount = 1
                         let timerCount = 1
                         
@@ -1024,7 +1034,6 @@ class ViewModel: ObservableObject {
                             await listenForUser()
                         }
                         
-                        print("func taskTimer(): else finished")
                         return timerCount
                     }
             }

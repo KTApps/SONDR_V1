@@ -19,10 +19,11 @@ struct CustomProgressBar: View {
                 Spacer()
             }
             .padding(.horizontal, 17)
-            ForEach(viewModel.tasks.indices, id:\.self) {index in
-                let item = viewModel.tasks[index]
+            ForEach(viewModel.progressTasks.indices, id:\.self) {index in
+                let item = viewModel.progressTasks[index]
                 Button {
                     withAnimation {
+                        viewModel.newTaskAdder(task: item)
                         viewModel.taskName = item
                         viewModel.isTaskDropDownVisible.toggle()
                         viewModel.taskTime = viewModel.resetTimer() ?? 0

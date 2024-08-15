@@ -9,12 +9,12 @@ import SwiftUI
 
 struct Profile: View {
     @EnvironmentObject var viewModel: ViewModel
-    @State var selectedTab: Int = 0
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             
             if let user = viewModel.currentUser {
+                ZStack {
                     VStack {
                         HStack {
                             Button {
@@ -29,70 +29,102 @@ struct Profile: View {
                             }
                             
                             Spacer()
-                                .frame(width: 23)
+                                .frame(width: 108)
                             
-                            VStack(alignment: .leading) {
-                                Text(user.username)
-                                    .font(.callout)
-                                    .fontWeight(.bold)
-                                Text("\(viewModel.friendCount) \(viewModel.friendOrFriends)")
-                            }
-                            .foregroundColor(.white)
-                            .padding(5)
+                            Text("SONDR")
+                                .font(.largeTitle)
+                                .fontWeight(.heavy)
                             
                             Spacer()
-                            
+                        }
+                        
+                        HStack {
                             Button {
                                 withAnimation {
                                     viewModel.comingSoonAlert = true
                                 }
                             } label: {
                                 Text(user.initial)
-                                    .font(.title)
+                                    .font(.largeTitle)
+                                    .fontWeight(.medium)
                                     .foregroundColor(.white)
-                                    .frame(width: 50, height: 50)
+                                    .frame(width: 60, height: 60)
                                     .background(Color.gray)
                                     .clipShape(Circle())
+                            }
+                            
+                            
+                            VStack(alignment: .leading) {
+                                Text(user.username)
+                                    .font(.callout)
+                                    .fontWeight(.bold)
+                                Text("\(viewModel.friendCount) \(viewModel.friendOrFriends)")
+                                Text("Bio")
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            
+                            Spacer()
+                            
+                            VStack(alignment: .trailing) {
+                                Button {
+                                    viewModel.comingSoonAlert = true
+                                } label:{
+                                    Text("Edit")
+                                        .foregroundColor(.gray)
+                                }
                             }
                         }
                         
                         Spacer()
                             .frame(height: 20)
-         
-                        HStack {
-                            Button {
-                                selectedTab = 0
-                            } label: {
-                                Label("Posts", systemImage: "camera")
-                            }
-                            
-                            Spacer()
-                                .frame(width: 80)
-                            
-                            Button {
-                                selectedTab = 1
-                            } label: {
-                                Label("LikedPosts", systemImage: "heart")
-                                
-                            }
-                        }
-                        .foregroundColor(.white)
+
+                        Text("Posts")
+                            .font(.title3)
+                            .bold()
+                            .underline()
                         
                         Divider()
                             .background(Color.white)
                         
-                        ScrollView {
-                            switch selectedTab {
-                            case 0:
+                        ZStack {
+                            ScrollView {
                                 Posts()
-                            case 1:
-                                LikedPosts()
-                            default:
-                                Posts()
+                            }
+                            
+                            VStack {
+                                Spacer()
+                                    .frame(height: 500)
+                                Button {
+                                    withAnimation {
+                                        viewModel.isAddFriendsVisible.toggle()
+                                    }
+                                } label:{
+                                    ZStack {
+                                        Rectangle()
+                                            .fill(Color.gray)
+                                            .frame(width: 300, height: 50)
+                                            .cornerRadius(10)
+                                            .shadow(color: Color.gray, radius: 10)
+                                        
+                                        HStack {
+                                            Text("Invite your friends to")
+                                            Text("SONDR")
+                                                .font(.title3)
+                                                .fontWeight(.bold)
+                                        }
+                                    }
+                                }
+                                .sheet(isPresented: $viewModel.isAddFriendsVisible) {
+                                    AddFriends()
+                                        .presentationDetents([.fraction(3/10)])
+                                }
                             }
                         }
                     }
-                    .padding()
+                    .padding(.horizontal, 10)
+                    .foregroundColor(.white)
+                }
             }
         }
     }

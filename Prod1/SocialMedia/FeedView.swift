@@ -9,7 +9,7 @@ struct FeedView: View {
             VStack {
                 Spacer()
                     .frame(height: 10)
-                Text("APP NAME")
+                Text("SONDR")
                     .font(.title)
                     .fontWeight(.bold)
                     .foregroundColor(.white)

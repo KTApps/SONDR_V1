@@ -35,7 +35,7 @@ class ViewModel: ObservableObject {
     @Published var weekDayIndexCounter: Int = 0
     
     init() { // Runs at start of program
-                
+        
         Task {
             await listenForUser()
         }
@@ -54,7 +54,7 @@ class ViewModel: ObservableObject {
         currentUser = nil
         taskData = nil
         habitData = nil
-        tasks = []
+        progressTasks = []
         taskDecimalDict = [:]
         taskPercentageDict = [:]
         progressTimerDictionary = [:]
@@ -112,7 +112,7 @@ class ViewModel: ObservableObject {
                     do {
                         let decodedProgressData = try Firestore.Decoder().decode(Prod1.ProgressData.self, from: progressData)
                         self.progressData = decodedProgressData
-                        self.tasks = decodedProgressData.tasks
+                        self.progressTasks = decodedProgressData.progressTasks
                         self.progressTimerDictionary = decodedProgressData.progressTimerDictionary
                         self.taskDecimalDict = decodedProgressData.taskDecimalDict
                         self.taskMaxTime = decodedProgressData.taskMaxTime
@@ -169,6 +169,7 @@ class ViewModel: ObservableObject {
             taskName = "Task"
             taskTime = 0
             taskString = ""
+            
             let result = try await self.authRef.signIn(withEmail: email, password: password) // signs into the authenticated user from firebase
             self.userSession = result.user // user session = authenticated user
             
@@ -244,18 +245,24 @@ class ViewModel: ObservableObject {
         do {
             let result = try await self.authRef.createUser(withEmail: email, password: password) // Authenticates user
             self.userSession = result.user // user session = authenticated user
+                        
             taskName = "Task"
             taskTime = 0
             taskString = ""
-            tasks = []
-            taskDecimalDict = [:]
-            taskPercentageDict = [:]
-            taskTimerDictionary = [:]
+            
+            dayTracker = []
+            
+            progressTasks = []
             progressTimerDictionary = [:]
+            taskDecimalDict = [:]
+            taskMaxTime = [:]
+            
             habitIdArray = []
             habitIdName = [:]
             isHabitStriked = [:]
-            taskMaxTime = [:]
+            
+            taskTimerDictionary = [:]
+            tasks = []
             
             // Store user data
             let user = UserObject(id: result.user.uid,
@@ -270,7 +277,7 @@ class ViewModel: ObservableObject {
             let encodedAnalytics = try Firestore.Encoder().encode(analytics)
             try await userRef.updateData(["Analytics": encodedAnalytics])
             
-            let progress = Prod1.ProgressData(tasks: tasks,
+            let progress = Prod1.ProgressData(progressTasks: progressTasks,
                                               progressTimerDictionary: progressTimerDictionary,
                                               taskDecimalDict: taskDecimalDict,
                                               taskMaxTime: taskMaxTime)
@@ -397,7 +404,7 @@ class ViewModel: ObservableObject {
                     let taskData = Prod1.TaskData(tasks: tasks,
                                                     taskTimerDictionary: taskTimerDictionary)
                     let encodedTaskData = try Firestore.Encoder().encode(taskData)
-                    try await userRef.updateData(["TaskData": encodedTaskData])
+                    try await currentDayDocumentRef.updateData(["TaskData": encodedTaskData])
                     
                 }
             } catch {
@@ -768,6 +775,11 @@ class ViewModel: ObservableObject {
             newTimeCalc()
         }
     }
+    @Published var progressTasks: [String] = [] {
+        didSet {
+            newTimeCalc()
+        }
+    }
     let maxTime = 100
     
     func taskAdder() {
@@ -787,20 +799,20 @@ class ViewModel: ObservableObject {
 
             // Fetch progress data
             var progressData = document?.data()?["Progress"] as? [String: Any] ?? [:]
-            var currentTasks = progressData["tasks"] as? [String] ?? []
+            var currentTasks = progressData["progressTasks"] as? [String] ?? []
 
             // Update progress data
             currentTasks.append(self.taskString)
 
             // Update database
             userRef.updateData([
-                "Progress.tasks": currentTasks
+                "Progress.progressTasks": currentTasks
             ]) { error in
                 if let error = error {
                     print("func taskAdder(): error updating userRef: \(error.localizedDescription)")
                 } else {
                     DispatchQueue.main.async {
-                        self.tasks = currentTasks
+                        self.progressTasks = currentTasks
                     }
                 }
             }
@@ -829,7 +841,7 @@ class ViewModel: ObservableObject {
                         print("func taskAdder(): error updating circleDataRef: \(error.localizedDescription)")
                     } else {
                         DispatchQueue.main.async {
-                            self.tasks = currentTasks
+                            self.progressTasks = currentTasks
                             self.taskString = "" // Clear the task input field after successful addition
                         }
                     }
@@ -837,6 +849,38 @@ class ViewModel: ObservableObject {
             }
         }
     }
+    
+    func newTaskAdder(task: String) {
+        guard let userId = self.authRef.currentUser?.uid else {
+            return
+        }
+        
+        let circleDataRef = self.databaseRef.collection("users").document(userId).collection("CircleData").document("\(self.currentDayOfYear)")
+        
+        circleDataRef.getDocument { document, error in
+            if let document = document, document.exists {
+                if let taskData = document.data()?["TaskData"] as? [String: Any],
+                   let tasks = taskData["tasks"] as? [String] {
+                    
+                    // Check if the task is not already in the array
+                    if !tasks.contains(task) {
+                        circleDataRef.updateData([
+                            "TaskData.tasks": FieldValue.arrayUnion([task]) //adds 'task' without replacing array
+                        ]) { error in
+                            if let error = error {
+                                print("func newTaskAdder(): failed to update data: \(error.localizedDescription)")
+                            }
+                        }
+                    }
+                } else {
+                    print("func newTaskAdder(): TaskData doesn't exist")
+                }
+            } else {
+                print("func newTaskAdder(): Document doesn't exist")
+            }
+        }
+    }
+
 
     
     @Published var taskMaxTime: [String: Int] = [:] // Dictionary = [Task Title: Max Time]
@@ -860,7 +904,7 @@ class ViewModel: ObservableObject {
         let userRef = self.databaseRef.collection("users").document(userId)
             var maxTimeIncreasedTasks: [String: Int] = [:]
 
-            for item in tasks {
+            for item in progressTasks {
                 // Ensure task time does not exceed max time
                 if let currentTime = progressTimerDictionary[item] {
                     let currentMaxTime = taskMaxTime[item] ?? maxTime
@@ -892,7 +936,7 @@ class ViewModel: ObservableObject {
         }
 
         private func updateTaskProgress(userId: String) {
-            for item in tasks {
+            for item in progressTasks {
                 let decimal = Double(progressTimerDictionary[item] ?? 0) / Double(taskMaxTime[item] ?? maxTime)
                 taskDecimalDict[item] = decimal
             }
@@ -917,7 +961,7 @@ class ViewModel: ObservableObject {
     @Published var newTimeArray: [String: Int] = [:]
     
     func newTimeCalc() {
-        for item in tasks {
+        for item in progressTasks {
             let newTime = (maxWidth * (taskDecimalDict[item] ?? 0))
             newTimeArray[item] = Int(newTime)
         }
@@ -947,7 +991,7 @@ class ViewModel: ObservableObject {
     }
     
     func taskTimer() -> Int? {
-        for item in tasks {
+        for item in progressTasks {
             if item == taskName {
                 if var progressCount = progressTimerDictionary[item],
                     var timerCount = taskTimerDictionary[item] {
@@ -1009,7 +1053,7 @@ class ViewModel: ObservableObject {
     }
     
     func resetTimer() -> Int? {
-        for item in tasks {
+        for item in progressTasks {
             if (item == taskName) {
                 if taskTimerDictionary[item] == nil {
                     return 0

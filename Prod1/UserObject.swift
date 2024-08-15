@@ -26,7 +26,7 @@ struct TaskData: Codable {
 }
 
 struct ProgressData: Codable {
-    var tasks: [String]
+    var progressTasks: [String]
     var progressTimerDictionary: [String: Int]
     var taskDecimalDict: [String: Double]
     var taskMaxTime: [String: Int]

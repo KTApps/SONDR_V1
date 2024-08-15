@@ -22,10 +22,22 @@ struct SignUpView: View {
                 Spacer()
                     .frame(height: 60)
                 
-                Image(systemName: "play.circle.fill")
-                    .resizable()
-                    .frame(width: 200, height: 200)
-                    .foregroundColor(/*@START_MENU_TOKEN@*/.blue/*@END_MENU_TOKEN@*/)
+                ZStack {
+                    Circle()
+                        .stroke(lineWidth: 30)
+                        .foregroundColor(.blue)
+                        .frame(height: 300)
+                    
+                    Circle()
+                        .stroke(lineWidth: 30)
+                        .foregroundColor(.blue)
+                        .frame(height: 200)
+                    
+                    Text("SONDR")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                }
                 
                 Spacer()
                     .frame(height: 20)

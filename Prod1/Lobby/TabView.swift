@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct tabView: View {
+    @EnvironmentObject var viewModel: ViewModel
     var body: some View {
         TabView {
             ContentView()

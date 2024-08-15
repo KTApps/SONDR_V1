@@ -23,10 +23,22 @@ struct LogInView: View {
                         .frame(height: 100)
                     
         //            MARK: PLAY BUTTON
-                    Image(systemName: "play.circle.fill")
-                        .resizable()
-                        .frame(width: 130, height: 130)
-                        .foregroundColor(/*@START_MENU_TOKEN@*/.blue/*@END_MENU_TOKEN@*/)
+                    ZStack {
+                        Circle()
+                            .stroke(lineWidth: 30)
+                            .foregroundColor(.blue)
+                            .frame(height: 300)
+                        
+                        Circle()
+                            .stroke(lineWidth: 30)
+                            .foregroundColor(.blue)
+                            .frame(height: 200)
+                        
+                        Text("SONDR")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                    }
                     
                     Spacer()
                         .frame(height: 60)

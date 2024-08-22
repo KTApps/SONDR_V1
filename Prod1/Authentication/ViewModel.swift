@@ -915,59 +915,59 @@ class ViewModel: ObservableObject {
         }
 
         let userRef = self.databaseRef.collection("users").document(userId)
-            var maxTimeIncreasedTasks: [String: Int] = [:]
+        var maxTimeIncreasedTasks: [String: Int] = [:]
 
-            for item in progressTasks {
-                // Ensure task time does not exceed max time
-                if let currentTime = progressTimerDictionary[item] {
-                    let currentMaxTime = taskMaxTime[item] ?? maxTime
-                    if currentTime >= currentMaxTime {
-                        let newMaxTime = ((currentTime / 100) + 1) * 100
-                        progressTimerDictionary[item] = newMaxTime
-                        newTimeCalc()
-                        maxTimeAlert.toggle()
-                        maxTimeIncreasedTasks[item] = newMaxTime
-                    }
-                }
-            }
-
-            // Update Firestore
-            var updates: [String: Any] = [:]
-
-            for (task, newMaxTime) in maxTimeIncreasedTasks {
-                taskMaxTime[task] = newMaxTime
-                updates["Progress.taskMaxTime.\(task)"] = newMaxTime
-            }
-
-            userRef.updateData(updates) { error in
-                if let error = error {
-                    print("func ProgressPercentage(): error updating task max time: \(error.localizedDescription)")
-                } else {
-                    self.updateTaskProgress(userId: userId)
+        for item in progressTasks {
+            // Ensure task time does not exceed max time
+            if let currentTime = progressTimerDictionary[item] {
+                let currentMaxTime = taskMaxTime[item] ?? maxTime
+                if currentTime >= currentMaxTime {
+                    let newMaxTime = ((currentTime / 100) + 1) * 100
+                    progressTimerDictionary[item] = newMaxTime
+                    newTimeCalc()
+                    maxTimeAlert.toggle()
+                    maxTimeIncreasedTasks[item] = newMaxTime
                 }
             }
         }
 
-        private func updateTaskProgress(userId: String) {
-            for item in progressTasks {
-                let decimal = Double(progressTimerDictionary[item] ?? 0) / Double(taskMaxTime[item] ?? maxTime)
-                taskDecimalDict[item] = decimal
-            }
-            
-            // Update ProgressData
-            let userRef = self.databaseRef.collection("users").document(userId)
-            userRef.updateData([
-                "Progress.taskDecimalDict": taskDecimalDict
-            ]) { error in
-                if let error = error {
-                    print("Error updating progress data: \(error.localizedDescription)")
-                }
-            }
+        // Update Firestore
+        var updates: [String: Any] = [:]
 
-            Task {
-                await listenForUser()
+        for (task, newMaxTime) in maxTimeIncreasedTasks {
+            taskMaxTime[task] = newMaxTime
+            updates["Progress.taskMaxTime.\(task)"] = newMaxTime
+        }
+
+        userRef.updateData(updates) { error in
+            if let error = error {
+                print("func ProgressPercentage(): error updating task max time: \(error.localizedDescription)")
+            } else {
+                self.updateTaskProgress(userId: userId)
             }
         }
+    }
+
+    private func updateTaskProgress(userId: String) {
+        for item in progressTasks {
+            let decimal = Double(progressTimerDictionary[item] ?? 0) / Double(taskMaxTime[item] ?? maxTime)
+            taskDecimalDict[item] = decimal
+        }
+        
+        // Update ProgressData
+        let userRef = self.databaseRef.collection("users").document(userId)
+        userRef.updateData([
+            "Progress.taskDecimalDict": taskDecimalDict
+        ]) { error in
+            if let error = error {
+                print("Error updating progress data: \(error.localizedDescription)")
+            }
+        }
+
+        Task {
+            await listenForUser()
+        }
+    }
 
     
     @Published var maxWidth: Double = 340
@@ -1006,36 +1006,22 @@ class ViewModel: ObservableObject {
     func taskTimer() -> Int? {
         for item in progressTasks {
             if item == taskName {
-                if var progressCount = progressTimerDictionary[item],
-                    var timerCount = taskTimerDictionary[item] {
-                        progressCount += 1
-                        timerCount += 1
-                        
-                        progressTimerDictionary[item] = progressCount
-                        taskTimerDictionary[item] = timerCount
-                        
-                        // Update the TaskTimerDictionary in Firestore
-                        updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, timerCount: timerCount)
-                        Task {
-                            await listenForUser()
-                        }
-                    
-                        return timerCount
-                    } else {
-                        let progressCount = 1
-                        let timerCount = 1
-                        
-                        progressTimerDictionary[item] = progressCount
-                        taskTimerDictionary[item] = timerCount
-                        
-                        // Update the TaskTimerDictionary in Firestore
-                        updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, timerCount: timerCount)
-                        Task {
-                            await listenForUser()
-                        }
-                        
-                        return timerCount
-                    }
+                
+                let existingProgressCount = progressTimerDictionary[item] ?? 0
+                let progressCount = existingProgressCount + 1
+                
+                let timerCount = (taskTimerDictionary[item] ?? 0) + 1
+                
+                progressTimerDictionary[item] = progressCount
+                taskTimerDictionary[item] = timerCount
+                
+                updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, timerCount: timerCount)
+                
+                Task {
+                    await listenForUser()
+                }
+                
+                return timerCount
             }
         }
         return nil
@@ -1063,7 +1049,7 @@ class ViewModel: ObservableObject {
     
     func resetTimer() -> Int? {
         for item in progressTasks {
-            if (item == taskName) {
+            if item == taskName {
                 if taskTimerDictionary[item] == nil {
                     return 0
                 } else {

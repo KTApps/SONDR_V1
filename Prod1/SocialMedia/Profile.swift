@@ -105,7 +105,7 @@ struct Profile: View {
                                             .fill(Color.gray)
                                             .frame(width: 300, height: 50)
                                             .cornerRadius(10)
-                                            .shadow(color: Color.gray, radius: 10)
+                                            .shadow(color: Color.gray, radius: 5)
                                         
                                         HStack {
                                             Text("Invite your friends to")

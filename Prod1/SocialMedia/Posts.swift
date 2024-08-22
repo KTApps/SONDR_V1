@@ -10,14 +10,21 @@ import SwiftUI
 struct Posts: View {
     @EnvironmentObject var viewModel: ViewModel
     
+    private let adaptiveColumns = [
+        GridItem(.adaptive(minimum: 170))
+    ]
+    
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             VStack {
                 ScrollView {
-                    // Loop through images and display them
-                    ForEach(viewModel.postMap, id: \.self) { post in
-                        PostView(post: $viewModel.postMap[viewModel.postMap.firstIndex(of: post)!])
+                    LazyVGrid(columns: self.adaptiveColumns, spacing: 20) {
+                        // Loop through images and display them
+                        ForEach(viewModel.postMap, id: \.self) { post in
+                            PostView(post: $viewModel.postMap[viewModel.postMap.firstIndex(of: post)!])
+                                .cornerRadius(10)
+                        }
                     }
                 }
                 .onAppear {

@@ -193,6 +193,7 @@ class ViewModel: ObservableObject {
     
     @Published var dayTracker: [Int] = []
     @Published var dayTrackerOffset: Int = 0
+    @Published var habitStreak: Int = 0
     private func dayTrackerMath() {
         // Checks if User is logged in
         guard let currentUserId = self.authRef.currentUser?.uid else {
@@ -264,6 +265,8 @@ class ViewModel: ObservableObject {
             taskTimerDictionary = [:]
             tasks = []
             
+            habitStreak = 0
+            
             // Store user data
             let user = UserObject(id: result.user.uid,
                                   username: username,
@@ -273,7 +276,8 @@ class ViewModel: ObservableObject {
             try await userRef.setData(["AuthenticationData": encodedUser])
             
             let analytics = Prod1.Analytics(dayTracker: dayTracker,
-                                            dayTrackerOffset: dayTrackerOffset)
+                                            dayTrackerOffset: dayTrackerOffset,
+                                            habitStreak: habitStreak)
             let encodedAnalytics = try Firestore.Encoder().encode(analytics)
             try await userRef.updateData(["Analytics": encodedAnalytics])
             
@@ -487,7 +491,6 @@ class ViewModel: ObservableObject {
         do {
             let userDocSnapshot = try await userRef.getDocument()
             guard let friendsArray = userDocSnapshot.data()?["Friends"] as? [String] else {
-                print("func fetchAllFriendsData(): array of friends not found")
                 return
             }
 
@@ -1209,7 +1212,7 @@ class ViewModel: ObservableObject {
     @Published var isAddFriendsVisible: Bool = false
     
 //    MARK: CUSTOM COLOURS
-    @Published var darkGray: Color = Color(.sRGB, red: 0.2, green: 0.2, blue: 0.2, opacity: 1.0)
+    @Published var darkGray: Color = Color(.sRGB, red: 0.1, green: 0.1, blue: 0.1, opacity: 1.0)
     
 //    MARK: COMING SOON...
     @Published var comingSoonAlert: Bool = false
@@ -1287,14 +1290,13 @@ class ViewModel: ObservableObject {
                     "username": self.username,
                     "caption": self.caption,
                     "likeCount": 0,
-                    "likes": [:],
-                    "CommentsData": self.commentMap]) { error in
+                    "likes": [:]]) { error in
                     
                     // if there were no errors, display the image
                     if error == nil {
                         // add uploaded image to list of images for display
                         DispatchQueue.main.async {
-                            self.postMap.append(PostData(id: id, userId: currentUserId, dayOfYear: self.currentDayOfYear, image: self.selectedImage!, timestamp: timestamp, username: self.username, caption: self.caption, likeCount: 0, likes: [:], commentsData: self.commentMap))
+                            self.postMap.append(PostData(id: id, userId: currentUserId, dayOfYear: self.currentDayOfYear, image: self.selectedImage!, timestamp: timestamp, username: self.username, caption: self.caption, likeCount: 0, likes: [:]))
                             
                             Task {
                                 await self.savePosts()
@@ -1377,104 +1379,104 @@ class ViewModel: ObservableObject {
     func retrievePhotos() async {
         postMap = []
         commentMap = []
-
-        // Get data from Firestore
-        databaseRef.collection("timeline")
-            .order(by: "timestamp", descending: true)
-            .getDocuments { [weak self] snapshot, error in
-                if let error = error {
-                    print("func retrievePhotos():Error retrieving photos: \(error.localizedDescription)")
-                    return
+        
+        let timelineRef = self.databaseRef.collection("timeline")
+        
+        do {
+            let snapshot = try await timelineRef
+                .order(by: "timestamp", descending: true)
+                .getDocuments()
+            
+            var posts: [PostData] = []
+            
+            for doc in snapshot.documents {
+                guard
+                    let id = doc["id"] as? String,
+                    let userId = doc["userId"] as? String,
+                    let dayOfYear = doc["dayOfYear"] as? Int,
+                    let path = doc["url"] as? String,
+                    let timestamp = doc["timestamp"] as? Timestamp,
+                    let username = doc["username"] as? String,
+                    let caption = doc["caption"] as? String,
+                    let likeCount = doc["likeCount"] as? Int,
+                    let likes = doc["likes"] as? [String: Bool]
+                else {
+                    continue
                 }
                 
-                guard let snapshot = snapshot else { return }
+                // Fetch comments
+                let commentsSnapshot = try await timelineRef.document(doc.documentID).collection("Comments")
+                    .order(by: "timestamp", descending: true)
+                    .getDocuments()
                 
-                let group = DispatchGroup()
-                
-                for doc in snapshot.documents {
-                    group.enter()
-                    
+                let comments: [CommentsData] = commentsSnapshot.documents.compactMap { document -> CommentsData? in
                     guard
-                        let id = doc["id"] as? String,
-                        let userId = doc["userId"] as? String,
-                        let dayOfYear = doc["dayOfYear"] as? Int,
-                        let path = doc["url"] as? String,
-                        let timestamp = doc["timestamp"] as? Timestamp,
-                        let username = doc["username"] as? String,
-                        let caption = doc["caption"] as? String,
-                        let likeCount = doc["likeCount"] as? Int,
-                        let likes = doc["likes"] as? [String: Bool]
+                        let commentId = document["id"] as? String,
+                        let commentUserId = document["userId"] as? String,
+                        let commentTimestamp = document["timestamp"] as? Timestamp,
+                        let commentUsername = document["username"] as? String,
+                        let commentText = document["comment"] as? String
                     else {
-                        group.leave()
-                        continue
+                        return nil
                     }
                     
-                    // Fetch comments
-                    self?.databaseRef.collection("timeline").document(doc.documentID).collection("Comments")
-                        .order(by: "timestamp", descending: true)
-                        .getDocuments { commentsSnapshot, commentsError in
-                            if let commentsError = commentsError {
-                                print("func retrivePhotos(): Error retrieving comments: \(commentsError.localizedDescription)")
-                            } else {
-                                if let commentsSnapshot = commentsSnapshot {
-                                    self?.commentMap = commentsSnapshot.documents.compactMap { com in
-                                        guard
-                                            let commentId = com["id"] as? String,
-                                            let commentUserId = com["userId"] as? String,
-                                            let commentTimestamp = com["timestamp"] as? Timestamp,
-                                            let commentUsername = com["username"] as? String,
-                                            let commentText = com["comment"] as? String
-                                        else { return nil }
-                                        
-                                        return CommentsData(
-                                            id: commentId,
-                                            userId: commentUserId,
-                                            timestamp: commentTimestamp,
-                                            username: commentUsername,
-                                            comment: commentText
-                                        )
-                                    }
-                                }
-                            }
-                            
-                            // Retrieve image data
-                            let fileRef = self?.storageRef.child(path)
-                            fileRef?.getData(maxSize: 5 * 1024 * 1024) { result in
-                                switch result {
-                                case .success(let data):
-                                    if let image = UIImage(data: data) {
-                                        DispatchQueue.main.async {
-                                            self?.postMap.append(PostData(
-                                                id: id,
-                                                userId: userId,
-                                                dayOfYear: dayOfYear,
-                                                image: image,
-                                                timestamp: timestamp,
-                                                username: username,
-                                                caption: caption,
-                                                likeCount: likeCount,
-                                                likes: likes,
-                                                commentsData: self?.commentMap ?? []
-                                            ))
-                                        }
-                                    }
-                                case .failure(let error):
-                                    print("func retrivePhotos(): Error fetching image data: \(error.localizedDescription)")
-                                }
-                                
-                                group.leave()
-                            }
-                        }
+                    return CommentsData(
+                        id: commentId,
+                        userId: commentUserId,
+                        timestamp: commentTimestamp,
+                        username: commentUsername,
+                        comment: commentText
+                    )
                 }
                 
-                group.notify(queue: .main) {
-                    self?.postMap.sort(by: { $0.timestamp.dateValue() > $1.timestamp.dateValue() })
+                // Retrieve image data using async/await
+                do {
+                    let data = try await getImageData(for: path)
+                    if let image = UIImage(data: data) {
+                        posts.append(PostData(
+                            id: id,
+                            userId: userId,
+                            dayOfYear: dayOfYear,
+                            image: image,
+                            timestamp: timestamp,
+                            username: username,
+                            caption: caption,
+                            likeCount: likeCount,
+                            likes: likes
+                        ))
+                    }
+                } catch {
+                    print("Error fetching image data: \(error.localizedDescription)")
                 }
             }
-        postMap = []
-        commentMap = []
+            
+            // Update the main thread with sorted posts
+            DispatchQueue.main.async {
+                self.postMap = posts
+                self.postMap.sort(by: { $0.timestamp.dateValue() > $1.timestamp.dateValue() })
+            }
+            
+        } catch {
+            print("Error retrieving photos or comments: \(error.localizedDescription)")
+        }
     }
 
+    // Helper function to get image data using async/await
+    private func getImageData(for path: String) async throws -> Data {
+        let fileRef = storageRef.child(path)
+        return try await withCheckedThrowingContinuation { continuation in
+            fileRef.getData(maxSize: 5 * 1024 * 1024) { result in
+                switch result {
+                case .success(let data):
+                    continuation.resume(returning: data)
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+    
+    
     private func fetchUsername(for userId: String, completion: @escaping (String?) -> Void) async {
         let userRef = databaseRef.collection("users").document(userId)
         userRef.getDocument { document, error in
@@ -1498,6 +1500,7 @@ class ViewModel: ObservableObject {
             completion(username)
         }
     }
+    
     
     @Published var habitDataForDayTimeline: [String: Prod1.HabitData] = [:] // Dictionary = [Day of year: habit data]
     func listenForTimelineHabitData(id: String, userId: String, dayOfYear: Int) async {
@@ -1633,6 +1636,7 @@ class ViewModel: ObservableObject {
             }
         }
     }
+    
     
     @Published var postList: [String] = []
     func savePosts() async {
@@ -1794,8 +1798,7 @@ class ViewModel: ObservableObject {
                                                         username: username,
                                                         caption: caption,
                                                         likeCount: likeCount,
-                                                        likes: likes,
-                                                        commentsData: postComments
+                                                        likes: likes
                                                     ))
                                                 }
                                             }

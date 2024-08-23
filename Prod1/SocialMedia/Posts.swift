@@ -125,8 +125,6 @@ struct PostView: View {
                 .foregroundColor(.white)
             
             Spacer()
-            Divider()
-                .background(Color.white)
         }
     }
 }

@@ -9,13 +9,14 @@ import SwiftUI
 import Charts
  
 struct ViewYourProgress: View {
+    @EnvironmentObject var viewModel: ViewModel
     
     var body: some View {
         ZStack{
-            Color.gray.ignoresSafeArea()
+            viewModel.darkGray.ignoresSafeArea()
             VStack {
                 Text("Progress")
-                    .foregroundColor(.black)
+                    .foregroundColor(.white)
 
                 Spacer()
                     .frame(height: 0)

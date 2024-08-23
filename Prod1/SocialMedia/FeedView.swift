@@ -64,27 +64,6 @@ struct Feed: View {
                     .clipped()
                     .cornerRadius(10)
                 
-                // MARK: HABIT ARRAY
-                VStack {
-                    ForEach(viewModel.habitDataForDayTimeline[post.id]?.habitIdArray ?? [], id: \.self) { habit in
-                        Text(viewModel.habitDataForDayTimeline[post.id]?.habitIdName[habit] ?? "")
-                            .overlay(
-                                viewModel.habitDataForDayTimeline[post.id]?.isHabitStriked[habit] ?? false ?
-                                Rectangle()
-                                    .frame(height: 3)
-                                    .colorInvert()
-                                    .padding(.horizontal, -10)
-                                : nil
-                            )
-                    }
-                }
-                .font(.title3)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-                .padding()
-                .background(Color.black.opacity(0.3))
-                .cornerRadius(5)
-                
                 VStack {
                     Spacer()
                     HStack {

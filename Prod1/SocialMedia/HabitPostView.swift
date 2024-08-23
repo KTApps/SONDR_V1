@@ -36,30 +36,10 @@ struct HabitPostView: View {
                         Image(uiImage: viewModel.selectedImage!)
                             .resizable()
                             .scaledToFill()
-                            .frame(maxHeight: 370)
+                            .frame(maxHeight: .infinity)
                             .frame(maxWidth: 395)
                             .clipped()
                             .cornerRadius(10)
-                        //            MARK: HABIT ARRAY
-                        VStack {
-                            ForEach(viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdArray ?? [], id: \.self) { habit in
-                                Text(viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdName[habit] ?? "")
-                                    .overlay(
-                                        viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.isHabitStriked[habit] ?? false ?
-                                        Rectangle()
-                                            .frame(height: 3)
-                                            .colorInvert()
-                                            .padding(.horizontal, -10)
-                                        : nil
-                                    )
-                            }
-                        }
-                        .font(.title3)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.black.opacity(0.05))
-                        .cornerRadius(5)
                     }
                 }
                 
@@ -97,6 +77,7 @@ struct HabitPostView: View {
                                 await viewModel.uploadPhoto()
                             }
                             viewModel.isPostBlurViewVisible = false
+                            viewModel.isBlurViewVisible = false
                         } label: {
                             Text("POST")
                                 .font(.title2)

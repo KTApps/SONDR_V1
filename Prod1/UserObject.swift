@@ -45,6 +45,7 @@ struct Friends: Codable {
 struct Analytics: Codable {
     var dayTracker: [Int]
     var dayTrackerOffset: Int
+    var habitStreak: Int
 }
 
 struct PostData: Identifiable, Hashable {
@@ -60,7 +61,6 @@ struct PostData: Identifiable, Hashable {
     }
     let likeCount: Int
     var likes: [String: Bool]
-    let commentsData: [CommentsData]
 }
 
 struct CommentsData: Identifiable, Hashable {

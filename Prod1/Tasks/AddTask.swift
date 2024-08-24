@@ -20,7 +20,9 @@ struct AddTask: View {
                 .frame(height: 20)
             
             Button {
-                viewModel.taskAdder()
+                Task {
+                    await viewModel.taskAdder()
+                }
             } label: {
                 ZStack {
                     Capsule()

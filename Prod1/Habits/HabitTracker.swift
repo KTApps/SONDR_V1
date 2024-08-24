@@ -79,7 +79,9 @@ struct HabitTracker: View {
     //            MARK: HABIT ARRAY
                 ForEach(viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdArray ?? [], id: \.self) { habit in
                     Button {
-                        viewModel.habitStriker(value: habit)
+                        Task {
+                            await viewModel.habitStriker(value: habit)
+                        }
                     } label: {
                         Text(viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdName[habit] ?? "")
                             .font(.custom("Big Header", size: 30))

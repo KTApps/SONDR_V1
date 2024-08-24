@@ -33,6 +33,8 @@ struct AddFriends: View {
                 Task {
                     await viewModel.addFriends(withUsername: friend)
                 }
+                viewModel.isAddFriendsVisible = false
+                viewModel.isFriendsVisible = false
             } label: {
                 Text("Add friend")
             }

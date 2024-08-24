@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct CustomProgressBar: View {
+struct ProgressBar: View {
     @EnvironmentObject var viewModel: ViewModel
 
     var body: some View {
@@ -23,7 +23,9 @@ struct CustomProgressBar: View {
                 let item = viewModel.progressTasks[index]
                 Button {
                     withAnimation {
-                        viewModel.newTaskAdder(task: item)
+                        Task {
+                            await viewModel.newTaskAdder(task: item)
+                        }
                         viewModel.taskName = item
                         viewModel.isTaskDropDownVisible.toggle()
                         viewModel.taskTime = viewModel.resetTimer() ?? 0
@@ -73,9 +75,9 @@ struct CustomProgressBar: View {
     }
 }
 
-struct CustomProgressBar_Previews: PreviewProvider {
+struct ProgressBar_Previews: PreviewProvider {
     static var previews: some View {
-        CustomProgressBar()
+        ProgressBar()
             .environmentObject(MockViewModel() as ViewModel)
     }
 }

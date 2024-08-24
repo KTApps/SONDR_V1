@@ -64,6 +64,7 @@ class ViewModel: ObservableObject {
         isHabitStriked = [:]
         friendsHabitData = [:]
         docTitles = []
+        habitStreak = 0
     }
     
     
@@ -107,7 +108,7 @@ class ViewModel: ObservableObject {
                     }
                 }
                 
-                // Fetch and decode progress data
+                    // Fetch and decode progress data
                 if let progressData = userData["Progress"] as? [String: Any] {
                     do {
                         let decodedProgressData = try Firestore.Decoder().decode(Prod1.ProgressData.self, from: progressData)
@@ -177,16 +178,17 @@ class ViewModel: ObservableObject {
                 await listenForUser()
                 await listenForCircleData(dayOfYear: currentDayOfWeek)
                 
-                dayTrackerMath()
+                await self.dayTrackerMath()
                 if dayConstant < currentDayOfYear {
                     await newCircleDoc()
                 }
+                
+                await self.fetchCircleDocRef()
+                
+                await habitStreakTracker()
             }
-            
-            await fetchCircleDocRef()
-            
         } catch {
-            logInError.toggle()
+            self.logInError.toggle()
             print("LOG IN Failed... \(error.localizedDescription)")
         }
     }
@@ -194,7 +196,7 @@ class ViewModel: ObservableObject {
     @Published var dayTracker: [Int] = []
     @Published var dayTrackerOffset: Int = 0
     @Published var habitStreak: Int = 0
-    private func dayTrackerMath() {
+    private func dayTrackerMath() async {
         // Checks if User is logged in
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
@@ -204,8 +206,9 @@ class ViewModel: ObservableObject {
         let userRef = self.databaseRef.collection("users").document(currentUserId)
         
         // Fetch the current 'dayTracker' array from Firestore
-        userRef.getDocument { (document, error) in
-            if let document = document, document.exists {
+        do {
+            let document = try await userRef.getDocument()
+            if document.exists {
                 // Extract the current 'dayTracker' array from the 'Analytics' map
                 self.dayTracker = document.get("Analytics.dayTracker") as? [Int] ?? []
 
@@ -230,12 +233,60 @@ class ViewModel: ObservableObject {
                 }
                 print("dayTrackerOffset = \(self.dayTrackerOffset)")
                 
+                self.habitStreak = document.get("Analytics.habitStreak") as? Int ?? 0
+                
                 Task {
                     await self.analyticsUpdate()
+                    await self.habitStreakTracker()
                 }
-            } else {
-                print("Document does not exist")
             }
+        } catch {
+            print("Document does not exist")
+        }
+    }
+    
+    func habitStreakTracker() async {
+        guard let currentUserId = self.authRef.currentUser?.uid else {
+            return
+        }
+        
+        let userRef = self.databaseRef.collection("users").document(currentUserId)
+        let circleDataRef = userRef.collection("CircleData").document("\(self.currentDayOfYear - 1)")
+        
+        do {
+            do {
+                guard self.dayTrackerOffset != 0 else {
+                    return
+                }
+                
+                guard self.dayTrackerOffset == 1 else {
+                    self.habitStreak = 0
+                    return
+                }
+                
+                let document = try await circleDataRef.getDocument()
+                if document.exists {
+                    let docData = document.data()
+                    let habitData = docData?["HabitData"] as? [String: Any]
+                    let isStriked = habitData?["isHabitStriked"] as? [String: Bool]
+                    
+                    if let isStriked = isStriked {
+                        let allStriked = isStriked.values.allSatisfy { $0 == true }
+                        self.habitStreak = allStriked ? self.habitStreak + 1 : 0
+                    } else {
+                        self.habitStreak = 0
+                    }
+                }
+            } catch {
+                self.habitStreak = 0
+            }
+            
+            try await userRef.updateData([
+                "Analytics.habitStreak" : self.habitStreak
+            ])
+            
+        } catch {
+            return
         }
     }
     
@@ -290,18 +341,18 @@ class ViewModel: ObservableObject {
             
             // Create Circle Sub-Collection
             await circleSubCollection()
-            
-            clearData()
             Task {
+                clearData()
+                
                 await listenForUser()
                 await listenForCircleData(dayOfYear: currentDayOfWeek)
+                
+                await fetchCircleDocRef()
+                
+                dayConstant = currentDayOfYear
+                dayTracker.append(currentDayOfYear)
+                await analyticsUpdate()
             }
-            
-            await fetchCircleDocRef()
-            dayConstant = currentDayOfYear
-            dayTracker.append(currentDayOfYear)
-            await analyticsUpdate()
-            
         } catch {
             signUpError.toggle()
             print("SIGN UP Failed... \(error.localizedDescription)")
@@ -318,14 +369,16 @@ class ViewModel: ObservableObject {
         
         let analyticsUpdate: [String: Any] = [
             "dayTracker": self.dayTracker,
-            "dayTrackerOffset": self.dayTrackerOffset
+            "dayTrackerOffset": self.dayTrackerOffset,
+            "habitStreak": self.habitStreak
         ]
-        try await userRef.updateData([
-            "Analytics": analyticsUpdate
-        ]) { err in
-            if let err = err {
-                print("Error updating document: \(err)")
-            }
+        
+        do {
+            try await userRef.updateData([
+                "Analytics": analyticsUpdate
+            ])
+        } catch {
+            print("Error updating document: \(error.localizedDescription)")
         }
     }
     
@@ -452,7 +505,7 @@ class ViewModel: ObservableObject {
             
             // Fetch the current 'Friends' field
             let userDoc = try await userRef.getDocument()
-            if var currentFriends = userDoc.data()?["Friends"] as? [String] {
+            if let currentFriends = userDoc.data()?["Friends"] as? [String] {
                 
                 // Append the new email to the existing 'Friends' array
                 if !currentFriends.contains(username) {
@@ -522,13 +575,10 @@ class ViewModel: ObservableObject {
             // Fetch CircleData
             let circleDataRef = self.databaseRef.collection("users").document(friendId).collection("CircleData").document("\(currentDayOfYear)")
             let circleDocumentSnapshot = try await circleDataRef.getDocument()
-            guard let circleData = circleDocumentSnapshot.data() else {
-                print("func fetchFriendData(): No CircleData found for friend with username \(friendUsername).")
-                return
-            }
+            let circleData = circleDocumentSnapshot.data()
             
             // Fetch HabitData
-            if let habitDataMap = circleData["HabitData"] as? [String: Any] {
+            if let habitDataMap = circleData?["HabitData"] as? [String: Any] {
                 let decodedHabitData = try Firestore.Decoder().decode(HabitData.self, from: habitDataMap)
                 DispatchQueue.main.async {
                     self.friendsHabitData[friendUsername] = decodedHabitData
@@ -538,7 +588,7 @@ class ViewModel: ObservableObject {
             }
 
             // Fetch TaskData
-            if let taskDataMap = circleData["TaskData"] as? [String: Any] {
+            if let taskDataMap = circleData?["TaskData"] as? [String: Any] {
                 let decodedTaskData = try Firestore.Decoder().decode(TaskData.self, from: taskDataMap)
                 DispatchQueue.main.async {
                     self.friendsTaskData[friendUsername] = decodedTaskData
@@ -716,71 +766,84 @@ class ViewModel: ObservableObject {
     @Published var habitTime: String = ""
     
     func habitAppender() {
+        guard let userId = userSession?.uid else {
+            print("func habitAppender(): User is not logged in.")
+            return
+        }
+        
         let habitId = UUID().uuidString
         habitIdArray.append(habitId)
         habitIdName[habitId] = habitName
         isHabitStriked[habitId] = false
         
-        if let userId = userSession?.uid {
-            let userRef = self.databaseRef.collection("users").document(userId)
-            
-            // Check if there is exactly 1 element in the `isHabitStriked` dictionary
-            if isHabitStriked.count == 1 {
-                // If there is only one habit, update the current day and the next 6 days
-                for i in 0..<7 {
-                    let nextDayOfYear = currentDayOfYear + i
-                    let habitDataRef = userRef.collection("CircleData").document("\(nextDayOfYear)")
-                    habitDataRef.updateData([
-                        "HabitData.habitIdArray": FieldValue.arrayUnion([habitId]),
-                        "HabitData.habitIdName.\(habitId)": habitName,
-                        "HabitData.isHabitStriked.\(habitId)": false
-                    ])
-                }
-            } else {
-                habitDataForDay[currentDayOfWeek]?.isHabitStriked[habitId] = false
+        let userRef = self.databaseRef.collection("users").document(userId)
+        
+        // Check if there is exactly 1 element in the `isHabitStriked` dictionary
+        if isHabitStriked.count == 1 {
+            // If there is only one habit, update the current day and the next 6 days
+            for i in 0..<7 {
+                let nextDayOfYear = currentDayOfYear + i
+                let habitDataRef = userRef.collection("CircleData").document("\(nextDayOfYear)")
                 
-                let habitDataRef = userRef.collection("CircleData").document("\(currentDayOfWeek)")
                 habitDataRef.updateData([
                     "HabitData.habitIdArray": FieldValue.arrayUnion([habitId]),
                     "HabitData.habitIdName.\(habitId)": habitName,
                     "HabitData.isHabitStriked.\(habitId)": false
                 ])
                 
-                for i in 1..<7 {
-                    let nextDayOfYear = currentDayOfYear + i
-                    let habitDataRef = userRef.collection("CircleData").document("\(nextDayOfYear)")
-                    habitDataRef.updateData([
-                        "HabitData.habitIdArray": FieldValue.arrayUnion([habitId]),
-                        "HabitData.habitIdName.\(habitId)": habitName,
-                        "HabitData.isHabitStriked.\(habitId)": false
-                    ])
-                }
             }
+        } else {
+            habitDataForDay[currentDayOfWeek]?.isHabitStriked[habitId] = false
             
-            // Assuming `listenForUser` and `listenForHabitData` are asynchronous tasks
-            Task {
-                await listenForUser()
-                await listenForCircleData(dayOfYear: currentDayOfYear)
+            let habitDataRef = userRef.collection("CircleData").document("\(currentDayOfWeek)")
+            
+            habitDataRef.updateData([
+                "HabitData.habitIdArray": FieldValue.arrayUnion([habitId]),
+                "HabitData.habitIdName.\(habitId)": habitName,
+                "HabitData.isHabitStriked.\(habitId)": false
+            ])
+            
+            for i in 1..<7 {
+                let nextDayOfYear = currentDayOfYear + i
+                let habitDataRef = userRef.collection("CircleData").document("\(nextDayOfYear)")
+                
+                habitDataRef.updateData([
+                    "HabitData.habitIdArray": FieldValue.arrayUnion([habitId]),
+                    "HabitData.habitIdName.\(habitId)": habitName,
+                    "HabitData.isHabitStriked.\(habitId)": false
+                ])
             }
+        }
+        
+        Task {
+            // Assuming `listenForUser` and `listenForHabitData` are asynchronous tasks
+            await listenForUser()
+            await listenForCircleData(dayOfYear: currentDayOfYear)
         }
     }
 
 
     func habitStriker(value: String) {
-        habitDataForDay[currentDayOfWeek]?.isHabitStriked[value]?.toggle()
-        if let userId = userSession?.uid {
-            let userRef = self.databaseRef.collection("users").document(userId)
-            let habitDataRef = userRef.collection("CircleData").document("\(currentDayOfWeek)")
-            habitDataRef.updateData(["HabitData.isHabitStriked": habitDataForDay[currentDayOfWeek]?.isHabitStriked])
-            
-            Task {
-                await listenForUser()
-                await listenForCircleData(dayOfYear: currentDayOfWeek)
-                self.habitData = habitDataForDay[currentDayOfWeek] // Trigger a re-render by reassigning the object
-            }
-        } else {
-            print("User is not logged in.")
+        guard let userId = userSession?.uid else {
+            print("func habitStriker(): User is not logged in.")
+            return
         }
+        
+        habitDataForDay[currentDayOfWeek]?.isHabitStriked[value]?.toggle()
+        
+        let userRef = self.databaseRef.collection("users").document(userId)
+        let habitDataRef = userRef.collection("CircleData").document("\(currentDayOfWeek)")
+        
+        habitDataRef.updateData([
+            "HabitData.isHabitStriked": habitDataForDay[currentDayOfWeek]?.isHabitStriked
+        ])
+            
+        Task {
+            await listenForUser()
+            await listenForCircleData(dayOfYear: currentDayOfWeek)
+        }
+        
+        self.habitData = habitDataForDay[currentDayOfWeek] // Trigger a re-render by reassigning the object
     }
     
     
@@ -798,7 +861,7 @@ class ViewModel: ObservableObject {
     }
     let maxTime = 100
     
-    func taskAdder() {
+    func taskAdder() async {
         guard let userId = self.authRef.currentUser?.uid else {
             print("func taskAdder(): User is not logged in")
             return
@@ -806,43 +869,38 @@ class ViewModel: ObservableObject {
 
         let userRef = self.databaseRef.collection("users").document(userId)
 
-        // Fetch and update ProgressData
-        userRef.getDocument { document, error in
-            if let error = error {
-                print("func taskAdder(): error fetching user doc: \(error.localizedDescription)")
-                return
-            }
-
+        do {
+            let document = try await userRef.getDocument()
+            
             // Fetch progress data
-            var progressData = document?.data()?["Progress"] as? [String: Any] ?? [:]
+            var progressData = document.data()?["Progress"] as? [String: Any] ?? [:]
             var currentTasks = progressData["progressTasks"] as? [String] ?? []
 
             // Update progress data
             currentTasks.append(self.taskString)
 
             // Update database
-            userRef.updateData([
-                "Progress.progressTasks": currentTasks
-            ]) { error in
-                if let error = error {
-                    print("func taskAdder(): error updating userRef: \(error.localizedDescription)")
-                } else {
-                    DispatchQueue.main.async {
-                        self.progressTasks = currentTasks
-                    }
+            do {
+                try await userRef.updateData([
+                    "Progress.progressTasks": currentTasks
+                ])
+                
+                DispatchQueue.main.async {
+                    self.progressTasks = currentTasks
                 }
+                
+            } catch {
+                print("func taskAdder(): error updating userRef: \(error.localizedDescription)")
             }
             
             // Fetch and update CircleData
             let circleDataRef = userRef.collection("CircleData").document(String(self.currentDayOfYear))
-            circleDataRef.getDocument { document, error in
-                if let error = error {
-                    print("func taskAdder(): error fetching CircleData doc: \(error.localizedDescription)")
-                    return
-                }
-
+            
+            do {
+                let document = try await circleDataRef.getDocument()
+                
                 // Fetch task data
-                var taskData = document?.data()?["TaskData"] as? [String: Any] ?? [:]
+                var taskData = document.data()?["TaskData"] as? [String: Any] ?? [:]
                 var currentTasks = taskData["tasks"] as? [String] ?? []
 
                 // Update task data
@@ -850,50 +908,62 @@ class ViewModel: ObservableObject {
                 taskData["tasks"] = currentTasks
 
                 // Update database
-                circleDataRef.updateData([
-                    "TaskData.tasks": currentTasks
-                ]) { error in
-                    if let error = error {
-                        print("func taskAdder(): error updating circleDataRef: \(error.localizedDescription)")
-                    } else {
-                        DispatchQueue.main.async {
-                            self.progressTasks = currentTasks
-                            self.taskString = "" // Clear the task input field after successful addition
-                        }
+                do {
+                    try await circleDataRef.updateData([
+                        "TaskData.tasks": currentTasks
+                    ])
+                    
+                    DispatchQueue.main.async {
+                        self.progressTasks = currentTasks
+                        self.taskString = "" // Clear the task input field after successful addition
                     }
+                } catch {
+                    print("func taskAdder(): error updating circleDataRef: \(error.localizedDescription)")
                 }
+                
+            } catch {
+                print("func taskAdder(): error fetching CircleData doc: \(error.localizedDescription)")
+                return
             }
+            
+        } catch {
+            print("func taskAdder(): error fetching user doc: \(error.localizedDescription)")
+            return
         }
     }
     
-    func newTaskAdder(task: String) {
+    func newTaskAdder(task: String) async {
         guard let userId = self.authRef.currentUser?.uid else {
             return
         }
         
         let circleDataRef = self.databaseRef.collection("users").document(userId).collection("CircleData").document("\(self.currentDayOfYear)")
         
-        circleDataRef.getDocument { document, error in
-            if let document = document, document.exists {
-                if let taskData = document.data()?["TaskData"] as? [String: Any],
-                   let tasks = taskData["tasks"] as? [String] {
+        do {
+            let document = try await circleDataRef.getDocument()
+            
+            if let taskData = document.data()?["TaskData"] as? [String: Any],
+               let tasks = taskData["tasks"] as? [String] {
+                
+                // Check if the task is not already in the array
+                if !tasks.contains(task) {
                     
-                    // Check if the task is not already in the array
-                    if !tasks.contains(task) {
-                        circleDataRef.updateData([
+                    do {
+                        try await circleDataRef.updateData([
                             "TaskData.tasks": FieldValue.arrayUnion([task]) //adds 'task' without replacing array
-                        ]) { error in
-                            if let error = error {
-                                print("func newTaskAdder(): failed to update data: \(error.localizedDescription)")
-                            }
-                        }
+                        ])
+                    } catch {
+                        print("func newTaskAdder(): failed to update data: \(error.localizedDescription)")
                     }
-                } else {
-                    print("func newTaskAdder(): TaskData doesn't exist")
+                    
                 }
+                
             } else {
-                print("func newTaskAdder(): Document doesn't exist")
+                print("func newTaskAdder(): TaskData doesn't exist")
             }
+            
+        } catch {
+            print("func newTaskAdder(): Document doesn't exist")
         }
     }
 
@@ -933,39 +1003,29 @@ class ViewModel: ObservableObject {
                 }
             }
         }
-
-        // Update Firestore
-        var updates: [String: Any] = [:]
-
+        
         for (task, newMaxTime) in maxTimeIncreasedTasks {
             taskMaxTime[task] = newMaxTime
-            updates["Progress.taskMaxTime.\(task)"] = newMaxTime
+            userRef.updateData([
+                "Progress.taskMaxTime.\(task)" : newMaxTime
+            ])
         }
-
-        userRef.updateData(updates) { error in
-            if let error = error {
-                print("func ProgressPercentage(): error updating task max time: \(error.localizedDescription)")
-            } else {
-                self.updateTaskProgress(userId: userId)
-            }
-        }
+        
+        self.updateTaskProgress(userId: userId)
     }
 
     private func updateTaskProgress(userId: String) {
+        // Update ProgressData
+        let userRef = self.databaseRef.collection("users").document(userId)
+        
         for item in progressTasks {
             let decimal = Double(progressTimerDictionary[item] ?? 0) / Double(taskMaxTime[item] ?? maxTime)
             taskDecimalDict[item] = decimal
         }
         
-        // Update ProgressData
-        let userRef = self.databaseRef.collection("users").document(userId)
         userRef.updateData([
             "Progress.taskDecimalDict": taskDecimalDict
-        ]) { error in
-            if let error = error {
-                print("Error updating progress data: \(error.localizedDescription)")
-            }
-        }
+        ])
 
         Task {
             await listenForUser()
@@ -1006,7 +1066,7 @@ class ViewModel: ObservableObject {
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
     
-    func taskTimer() -> Int? {
+    func taskTimer() async -> Int? {
         for item in progressTasks {
             if item == taskName {
                 
@@ -1018,11 +1078,9 @@ class ViewModel: ObservableObject {
                 progressTimerDictionary[item] = progressCount
                 taskTimerDictionary[item] = timerCount
                 
-                updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, timerCount: timerCount)
+                await updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, timerCount: timerCount)
                 
-                Task {
-                    await listenForUser()
-                }
+                await listenForUser()
                 
                 return timerCount
             }
@@ -1030,24 +1088,26 @@ class ViewModel: ObservableObject {
         return nil
     }
 
-    func updateTaskTimerInFirestore(taskName: String, progressCount: Int, timerCount: Int) {
+    func updateTaskTimerInFirestore(taskName: String, progressCount: Int, timerCount: Int) async {
         guard let userId = userSession?.uid else {
             return
         }
         
-        let userRef = self.databaseRef.collection("users").document(userId)
-        userRef.updateData([
-            "Progress.progressTimerDictionary.\(taskName)": progressCount
-        ])
-        
-        let circleDataRef = userRef.collection("CircleData").document(String(self.currentDayOfYear))
-        circleDataRef.updateData([
-            "TaskData.taskTimerDictionary.\(taskName)": timerCount
-        ])
-        
-        Task {
-            await listenForUser()
+        do {
+            let userRef = self.databaseRef.collection("users").document(userId)
+            try await userRef.updateData([
+                "Progress.progressTimerDictionary.\(taskName)": progressCount
+            ])
+            
+            let circleDataRef = userRef.collection("CircleData").document(String(self.currentDayOfYear))
+            try await circleDataRef.updateData([
+                "TaskData.taskTimerDictionary.\(taskName)": timerCount
+            ])
+        } catch {
+            return
         }
+        
+        await listenForUser()
     }
     
     func resetTimer() -> Int? {
@@ -1088,9 +1148,9 @@ class ViewModel: ObservableObject {
             return
         }
 
-        let circleDataRef = self.databaseRef.collection("users").document(currentUserId).collection("CircleData")
-
         do {
+            let circleDataRef = self.databaseRef.collection("users").document(currentUserId).collection("CircleData")
+            
             for dayOffset in 1..<11 {
                 let dayToCollect = String(currentDayOfYear - dayOffset)
                 
@@ -1149,7 +1209,7 @@ class ViewModel: ObservableObject {
             month += 1
         }
         
-        print("Error: Should never reach this point if input is valid")
+        print("func dateFromDayOfYear(): Should never reach this point if input is valid")
         return nil // This should never be reached if the input is valid
     }
     
@@ -1226,86 +1286,87 @@ class ViewModel: ObservableObject {
     @Published var backButton: Bool = false
     var username: String = ""
     func uploadPhoto() async {
-        //MARK: userId
+        // MARK: Authentication
         guard let currentUserId = self.authRef.currentUser?.uid else {
+            print("uploadPhoto(): User not authenticated.")
             return
         }
         
-        //MARK: ID
+        // MARK: Define ID and Prepare Image Data
         let id = UUID().uuidString
         
-        // MARK: Image
-        // Check selectedImage isn't nil
-        guard selectedImage != nil else {
-            return
-        }
-        
-        // turn Image into Data
-        let imageData = selectedImage!.jpegData(compressionQuality: 0.8)
-        
-        // Check if we were able to convert it
-        guard imageData != nil else {
+        guard let selectedImage = self.selectedImage,
+              let imageData = selectedImage.jpegData(compressionQuality: 0.8) else {
+            print("uploadPhoto(): No image selected or image conversion failed.")
             return
         }
         
         // Specify file path and name
-        let path = "images/\(UUID().uuidString).jpg"
+        let path = "images/\(id).jpg"
         let fileRef = self.storageRef.child(path)
-        
         
         // MARK: Timestamp
         let timestamp = Timestamp(date: Date())
         
-        
         // MARK: Username
-        let userRef = databaseRef.collection("users").document(currentUserId ?? "")
-        userRef.getDocument { document, error in
-            if let document = document, document.exists { // if doc != nil, doc exists
-                if let data = document.data(),
-                   let authData = data["AuthenticationData"] as? [String: Any],
-                   let username = authData["username"] as? String {
-                    self.username = username
-                } else {
-                    print("func uploadPhoto(): user doc data doesnt exist")
-                }
+        let userRef = databaseRef.collection("users").document(currentUserId)
+        
+        do {
+            let document = try await userRef.getDocument()
+            if let authData = document.data()?["AuthenticationData"] as? [String: Any],
+               let username = authData["username"] as? String {
+                self.username = username
             } else {
-                print("func uploadPhoto(): user document doesnt exist")
+                print("uploadPhoto(): Username not found in user document.")
+                return
             }
+        } catch {
+            print("uploadPhoto(): Error fetching user document: \(error.localizedDescription)")
+            return
         }
         
-        // Upload Data
-        let uploadTask = fileRef.putData(imageData!, metadata: nil) {
-            metadata, error in
-            
-            // check for errors
-            if error == nil && metadata != nil {
-                
-                // Save a reference to the file in firestore Database
-                self.databaseRef.collection("timeline").document().setData([
-                    "id": id,
-                    "userId": currentUserId,
-                    "dayOfYear": self.currentDayOfYear,
-                    "url": path,
-                    "timestamp": timestamp,
-                    "username": self.username,
-                    "caption": self.caption,
-                    "likeCount": 0,
-                    "likes": [:]]) { error in
-                    
-                    // if there were no errors, display the image
-                    if error == nil {
-                        // add uploaded image to list of images for display
-                        DispatchQueue.main.async {
-                            self.postMap.append(PostData(id: id, userId: currentUserId, dayOfYear: self.currentDayOfYear, image: self.selectedImage!, timestamp: timestamp, username: self.username, caption: self.caption, likeCount: 0, likes: [:]))
-                            
-                            Task {
-                                await self.savePosts()
-                            }
-                        }
-                    }
-                }
-            }
+        // MARK: Upload Image Data
+        do {
+            _ = try await fileRef.putDataAsync(imageData, metadata: nil)
+        } catch {
+            print("uploadPhoto(): Error uploading image data: \(error.localizedDescription)")
+            return
         }
+        
+        // MARK: Save File Reference to Firestore
+        do {
+            try await self.databaseRef.collection("timeline").document().setData([
+                "id": id,
+                "userId": currentUserId,
+                "dayOfYear": self.currentDayOfYear,
+                "url": path,
+                "timestamp": timestamp,
+                "username": self.username,
+                "caption": self.caption,
+                "likeCount": 0,
+                "likes": [:]
+            ])
+        } catch {
+            print("uploadPhoto(): Error saving file reference to Firestore: \(error.localizedDescription)")
+            return
+        }
+        
+        // MARK: Update UI and Save Posts
+        DispatchQueue.main.async {
+            self.postMap.append(PostData(
+                id: id,
+                userId: currentUserId,
+                dayOfYear: self.currentDayOfYear,
+                image: selectedImage,
+                timestamp: timestamp,
+                username: self.username,
+                caption: self.caption,
+                likeCount: 0,
+                likes: [:]
+            ))
+        }
+        
+        await self.savePosts()
     }
     
     @Published var postCommentsId: String = ""
@@ -1314,81 +1375,94 @@ class ViewModel: ObservableObject {
     @Published var postMap = [PostData]()
 
     func uploadComment() async {
+        // MARK: Authentication
         guard let currentUserId = authRef.currentUser?.uid else {
+            print("uploadComment(): User not authenticated.")
             return
         }
-
+        
+        // MARK: Prepare Data
         let id = UUID().uuidString
         let timestamp = Timestamp(date: Date())
-
-        // Fetch username asynchronously
-        await fetchUsername(for: currentUserId) { [weak self] username in
-            guard let self = self, let username = username else {
-                print("func uploadComment(): Failed to fetch username")
+        
+        // MARK: Fetch Username Asynchronously
+        let username: String
+        do {
+            username = try await fetchUsername(for: currentUserId)
+        } catch {
+            print("uploadComment(): Error fetching username: \(error.localizedDescription)")
+            return
+        }
+        
+        // MARK: Find Post ID and Create Comments Sub-collection
+        let postRef = self.databaseRef.collection("timeline")
+        do {
+            let querySnapshot = try await postRef.whereField("id", isEqualTo: self.postCommentsId).getDocuments()
+            guard let document = querySnapshot.documents.first else {
+                print("uploadComment(): Document not found")
                 return
             }
-
-            // Find post ID and create comments sub-collection
-            self.databaseRef.collection("timeline")
-                .whereField("id", isEqualTo: self.postCommentsId)
-                .getDocuments { [weak self] querySnapshot, error in
-                    if let error = error {
-                        print("func uploadComment(): Error querying post ID: \(error.localizedDescription)")
-                        return
-                    }
-                    
-                    guard let document = querySnapshot?.documents.first else {
-                        print("func uploadComment(): Document not found")
-                        return
-                    }
-
-                    let documentId = document.documentID
-                    let postRef = self?.databaseRef.collection("timeline").document(documentId)
-                    
-                    postRef?.collection("Comments").document(id).setData([
-                        "id": id,
-                        "userId": currentUserId,
-                        "timestamp": timestamp,
-                        "username": username,
-                        "comment": self?.comment ?? ""
-                    ]) { error in
-                        if let error = error {
-                            print("func uploadComment(): Error uploading comment: \(error.localizedDescription)")
-                        } else {
-                            // Update commentMap with the new comment at the top
-                            DispatchQueue.main.async {
-                                self?.commentMap.insert(CommentsData(
-                                    id: id,
-                                    userId: currentUserId,
-                                    timestamp: timestamp,
-                                    username: username,
-                                    comment: self?.comment ?? ""
-                                ), at: 0) // Insert at the top
-                                
-                                self?.comment = "" // Clear the comment input field
-                                Task {
-                                    await self?.savePosts()
-                                }
-                            }
-                        }
-                    }
-                }
+            
+            let documentId = document.documentID
+            let postDocRef = postRef.document(documentId)
+            
+            // MARK: Upload Comment
+            try await postDocRef.collection("Comments").document(id).setData([
+                "id": id,
+                "userId": currentUserId,
+                "timestamp": timestamp,
+                "username": username,
+                "comment": self.comment
+            ])
+            
+            // MARK: Update UI
+            DispatchQueue.main.async {
+                self.commentMap.insert(CommentsData(
+                    id: id,
+                    userId: currentUserId,
+                    timestamp: timestamp,
+                    username: username,
+                    comment: self.comment
+                ), at: 0) // Insert at the top
+                
+                self.comment = "" // Clear the comment input field
+            }
+            
+            // MARK: Save Posts
+            await self.savePosts()
+            
+        } catch {
+            print("uploadComment(): Error during Firestore operations: \(error.localizedDescription)")
         }
     }
     
+    func fetchUsername(for userId: String) async throws -> String {
+        let userRef = databaseRef.collection("users").document(userId)
+        let document = try await userRef.getDocument()
+        if let authData = document.data()?["AuthenticationData"] as? [String: Any],
+           let username = authData["username"] as? String {
+            return username
+        } else {
+            throw NSError(domain: "uploadComment", code: 404, userInfo: [NSLocalizedDescriptionKey: "Username not found"])
+        }
+    }
+
+    
     func retrievePhotos() async {
+        // MARK: Clear Existing Data
         postMap = []
         commentMap = []
-        
+
         let timelineRef = self.databaseRef.collection("timeline")
         
         do {
+            // MARK: Fetch Timeline Documents
             let snapshot = try await timelineRef
                 .order(by: "timestamp", descending: true)
                 .getDocuments()
             
             var posts: [PostData] = []
-            
+
             for doc in snapshot.documents {
                 guard
                     let id = doc["id"] as? String,
@@ -1401,36 +1475,38 @@ class ViewModel: ObservableObject {
                     let likeCount = doc["likeCount"] as? Int,
                     let likes = doc["likes"] as? [String: Bool]
                 else {
+                    print("retrievePhotos(): Document data is missing or invalid.")
                     continue
                 }
                 
-                // Fetch comments
-                let commentsSnapshot = try await timelineRef.document(doc.documentID).collection("Comments")
-                    .order(by: "timestamp", descending: true)
-                    .getDocuments()
-                
-                let comments: [CommentsData] = commentsSnapshot.documents.compactMap { document -> CommentsData? in
-                    guard
-                        let commentId = document["id"] as? String,
-                        let commentUserId = document["userId"] as? String,
-                        let commentTimestamp = document["timestamp"] as? Timestamp,
-                        let commentUsername = document["username"] as? String,
-                        let commentText = document["comment"] as? String
-                    else {
-                        return nil
+                do {
+                    // MARK: Fetch Comments for the Post
+                    let commentsSnapshot = try await timelineRef.document(doc.documentID).collection("Comments")
+                        .order(by: "timestamp", descending: true)
+                        .getDocuments()
+                    
+                    let comments: [CommentsData] = commentsSnapshot.documents.compactMap { document -> CommentsData? in
+                        guard
+                            let commentId = document["id"] as? String,
+                            let commentUserId = document["userId"] as? String,
+                            let commentTimestamp = document["timestamp"] as? Timestamp,
+                            let commentUsername = document["username"] as? String,
+                            let commentText = document["comment"] as? String
+                        else {
+                            print("retrievePhotos(): Invalid comment data.")
+                            return nil
+                        }
+                        
+                        return CommentsData(
+                            id: commentId,
+                            userId: commentUserId,
+                            timestamp: commentTimestamp,
+                            username: commentUsername,
+                            comment: commentText
+                        )
                     }
                     
-                    return CommentsData(
-                        id: commentId,
-                        userId: commentUserId,
-                        timestamp: commentTimestamp,
-                        username: commentUsername,
-                        comment: commentText
-                    )
-                }
-                
-                // Retrieve image data using async/await
-                do {
+                    // MARK: Retrieve Image Data
                     let data = try await getImageData(for: path)
                     if let image = UIImage(data: data) {
                         posts.append(PostData(
@@ -1444,22 +1520,26 @@ class ViewModel: ObservableObject {
                             likeCount: likeCount,
                             likes: likes
                         ))
+
+                        // Update commentMap
+                        self.commentMap = comments
                     }
                 } catch {
-                    print("Error fetching image data: \(error.localizedDescription)")
+                    print("retrievePhotos(): Error processing document \(doc.documentID): \(error.localizedDescription)")
                 }
             }
             
-            // Update the main thread with sorted posts
+            // MARK: Update UI on the Main Thread
             DispatchQueue.main.async {
                 self.postMap = posts
                 self.postMap.sort(by: { $0.timestamp.dateValue() > $1.timestamp.dateValue() })
             }
             
         } catch {
-            print("Error retrieving photos or comments: \(error.localizedDescription)")
+            print("retrievePhotos(): Error retrieving photos or comments: \(error.localizedDescription)")
         }
     }
+    
 
     // Helper function to get image data using async/await
     private func getImageData(for path: String) async throws -> Data {
@@ -1477,31 +1557,6 @@ class ViewModel: ObservableObject {
     }
     
     
-    private func fetchUsername(for userId: String, completion: @escaping (String?) -> Void) async {
-        let userRef = databaseRef.collection("users").document(userId)
-        userRef.getDocument { document, error in
-            if let error = error {
-                print("func fetchUsername(): Error fetching user document: \(error.localizedDescription)")
-                completion(nil)
-                return
-            }
-            
-            guard
-                let document = document, document.exists,
-                let data = document.data(),
-                let authData = data["AuthenticationData"] as? [String: Any],
-                let username = authData["username"] as? String
-            else {
-                print("func fetchUsername(): User document data is missing or invalid")
-                completion(nil)
-                return
-            }
-            
-            completion(username)
-        }
-    }
-    
-    
     @Published var habitDataForDayTimeline: [String: Prod1.HabitData] = [:] // Dictionary = [Day of year: habit data]
     func listenForTimelineHabitData(id: String, userId: String, dayOfYear: Int) async {
         
@@ -1511,16 +1566,8 @@ class ViewModel: ObservableObject {
         let habitDataRef = userRef.collection("HabitData").document(String(dayOfYear))
         
         // Add a snapshot listener to listen for changes in the dayOfYear document
-        habitDataRef.addSnapshotListener { documentSnapshot, error in
-            // Check if data exists
-            guard let habitDocument = documentSnapshot else {
-                print("func listenForTimelineHabitData(): Error fetching HabitData: \(error!)")
-                return
-            }
-            // Check if document exists
-            guard habitDocument.exists else {
-                return
-            }
+        do {
+            let habitDocument = try await habitDataRef.getDocument()
             
             // extract data from dayOfYear document
             if let habitData = habitDocument.data() {
@@ -1535,6 +1582,9 @@ class ViewModel: ObservableObject {
                     print("func listenForTimelineHabitData(): Error decoding HabitData for day \(dayOfYear): \(error.localizedDescription)")
                 }
             }
+        } catch {
+            print("func listenForTimelineHabitData(): Error fetching HabitData: \(error.localizedDescription)")
+            return
         }
     }
     
@@ -1552,88 +1602,68 @@ class ViewModel: ObservableObject {
         // Query to find the document with the matching postId
         let query = timelineRef.whereField("id", isEqualTo: postId)
                 
-        query.getDocuments { querySnapshot, error in
-            if let error = error {
-                print("func likePost(): Error querying documents: \(error.localizedDescription)")
+        do {
+            let querySnapshot = try await query.getDocuments()
+            let documents = querySnapshot.documents
+                
+            // Retrieve the document ID of the matching document
+            let document = documents.first
+            let documentId = document?.documentID
+            guard let documentId = documentId else {
+                print("func likePost(): No document found with the given postId")
                 return
             }
             
-            // Print the number of documents found
-            if let documents = querySnapshot?.documents, !documents.isEmpty {
+            // Create a reference to that document
+            let postRef = timelineRef.document(documentId)
+            
+            do {
+                let document = try await postRef.getDocument()
                 
-                // Retrieve the document ID of the matching document
-                let document = documents.first
-                let documentId = document?.documentID
-                guard let documentId = documentId else {
-                    print("func likePost(): No document found with the given postId")
+                var likes = document.data()?["likes"] as? [String: Bool] ?? [:]
+                let currentStatus = likes[currentUserId] ?? false
+                likes[currentUserId] = !currentStatus
+
+                do {
+                    try await postRef.updateData([
+                        "likes": likes
+                    ])
+                    
+                    var likeCount = document.data()?["likeCount"] as? Int ?? 0
+                    likeCount = currentStatus ? likeCount - 1 : likeCount + 1
+                    
+                    do {
+                        try await postRef.updateData([
+                            "likeCount": likeCount
+                        ])
+                    } catch {
+                        print("func likePost(): Error updating likeCount: \(error.localizedDescription)")
+                    }
+                } catch {
+                    print("func likePost(): Error updating likes: \(error.localizedDescription)")
                     return
                 }
-                
-                // Create a reference to that document
-                let postRef = timelineRef.document(documentId)
-                
-                postRef.getDocument { document, error in
-                    if let error = error {
-                        print("func likePost(): Error retrieving document: \(error.localizedDescription)")
-                        return
-                    }
-                    
-                    guard let document = document, document.exists else {
-                        print("func likePost(): Document does not exist")
-                        return
-                    }
-                    
-                    var likes = document.data()?["likes"] as? [String: Bool] ?? [:]
-                    let currentStatus = likes[currentUserId] ?? false
-                    likes[currentUserId] = !currentStatus
-                    
-                    postRef.updateData([
-                        "likes": likes
-                    ]) { error in
-                        if let error = error {
-                            print("func likePost(): Error updating likes: \(error.localizedDescription)")
-                            return
-                        }
-                        
-                        var likeCount = document.data()?["likeCount"] as? Int ?? 0
-                        likeCount = currentStatus ? likeCount - 1 : likeCount + 1
-                        
-                        postRef.updateData([
-                            "likeCount": likeCount
-                        ]) { error in
-                            if let error = error {
-                                print("func likePost(): Error updating likeCount: \(error.localizedDescription)")
-                            }
-                        }
-                    }
-                }
-                
-                // Optionally, add a snapshot listener to keep track of real-time changes
-                postRef.addSnapshotListener { documentSnapshot, error in
-                    if let error = error {
-                        print("func likePost(): Error listening for document changes: \(error.localizedDescription)")
-                        return
-                    }
-                    
-                    guard let document = documentSnapshot, document.exists else {
-                        print("func likePost(): Document snapshot does not exist")
-                        return
-                    }
-                    
-                    guard let data = document.data() else {
-                        print("func likePost(): Document data is empty")
-                        return
-                    }
-                    
-                    if let likes = data["likes"] as? [String: Bool] {
-                        DispatchQueue.main.async {
-                            self.heart = likes[currentUserId] ?? false
-                        }
-                    }
-                }
-            } else {
-                print("func likePost(): No documents found in the query snapshot")
+            } catch {
+                print("func likePost(): Error retrieving document: \(error.localizedDescription)")
+                return
             }
+            
+            // Optionally, add a snapshot listener to keep track of real-time changes
+            do {
+                let document = try await postRef.getDocument()
+                
+                if let likes = document.data()?["likes"] as? [String: Bool] {
+                    DispatchQueue.main.async {
+                        self.heart = likes[currentUserId] ?? false
+                    }
+                }
+            } catch {
+                print("func likePost(): Error listening for document changes: \(error.localizedDescription)")
+                return
+            }
+        } catch {
+            print("func likePost(): Error querying documents: \(error.localizedDescription)")
+            return
         }
     }
     
@@ -1652,177 +1682,159 @@ class ViewModel: ObservableObject {
         
         // Find the relevant posts
         let query = timelineRef.whereField("userId", isEqualTo: currentUserId)
-        query.getDocuments { [weak self] querySnapshot, error in
-            if let error = error {
-                print("func savePosts(): error querying timeline collection: \(error.localizedDescription)")
-                return
-            }
-            
-            guard let documents = querySnapshot?.documents, !documents.isEmpty else {
-                print("func savePosts(): There are no documents")
-                return
-            }
+        
+        do {
+            let querySnapshot = try await query.getDocuments()
+            let documents = querySnapshot.documents
             
             // Append each relevant post's id field
             for doc in documents {
                 if let postId = doc.data()["id"] as? String { // Retrieve the id field
-                    self?.postList.append(postId)
+                    self.postList.append(postId)
                 }
             }
             
             // Update database
-            userRef.updateData([
-                "Posts": self?.postList ?? []
-            ]) { error in
-                if let error = error {
-                    print("func savePosts(): error updating posts: \(error.localizedDescription)")
-                } else {
-
-                }
+            do {
+                try await userRef.updateData([
+                    "Posts": self.postList
+                ])
+            } catch {
+                print("func savePosts(): error updating posts: \(error.localizedDescription)")
             }
+        } catch {
+            print("func savePosts(): error querying timeline collection: \(error.localizedDescription)")
+            return
         }
     }
     
     func retrieveUserPosts() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
+            print("func retrieveUserPosts(): No current user ID available")
             return
         }
-
+        
         postMap = []
         commentMap = []
 
         let userRef = self.databaseRef.collection("users").document(currentUserId)
         
-        userRef.getDocument { [weak self] document, error in
-            if let error = error {
-                print("func retrieveUserPosts(): Error retrieving user document: \(error.localizedDescription)")
-                return
-            }
-
-            guard let document = document, document.exists else {
-                print("func retrieveUserPosts(): document does not exist")
-                return
-            }
-                    
-            guard let data = document.data(),
-                  let postIds = data["Posts"] as? [String] else {
+        do {
+            // Fetch user document
+            let document = try await userRef.getDocument()
+            
+            guard let postIds = document.data()?["Posts"] as? [String] else {
                 print("func retrieveUserPosts(): No posts found for the user")
                 return
             }
 
-            let group = DispatchGroup()
-            
-            for postId in postIds {
-                group.enter()
-                self?.databaseRef.collection("timeline").whereField("id", isEqualTo: postId).getDocuments { querySnapshot, error in
-                    if let error = error {
-                        print("Error retrieving post document: \(error.localizedDescription)")
-                        group.leave()
-                        return
-                    }
-
-                    guard let documents = querySnapshot?.documents, !documents.isEmpty else {
-                        print("func retrieveUserPosts(): No documents match the query for postId \(postId)")
-                        group.leave()
-                        return
-                    }
-
-                    // Assume there is only one document per postId
-                    if let postDoc = documents.first {
-                        if let postData = postDoc.data() as? [String: Any] {
-                            let userId = postData["userId"] as? String
-                            let dayOfYear = postData["dayOfYear"] as? Int
-                            let path = postData["url"] as? String
-                            let timestamp = postData["timestamp"] as? Timestamp
-                            let username = postData["username"] as? String
-                            let caption = postData["caption"] as? String
-                            let likeCount = postData["likeCount"] as? Int
-                            let likes = postData["likes"] as? [String: Bool]
-                            
-                            // Ensure all required fields are present
-                            guard let userId = userId,
-                                  let dayOfYear = dayOfYear,
-                                  let path = path,
-                                  let timestamp = timestamp,
-                                  let username = username,
-                                  let caption = caption,
-                                  let likeCount = likeCount,
-                                  let likes = likes else {
-                                print("func retrieveUserPosts(): Some post fields are missing or invalid")
-                                group.leave()
-                                return
-                            }
-
-                            // Fetch comments
-                            self?.databaseRef.collection("timeline").document(postDoc.documentID).collection("Comments")
-                                .order(by: "timestamp", descending: true)
-                                .getDocuments { commentsSnapshot, commentsError in
-                                    var postComments: [CommentsData] = []
-                                    if let commentsError = commentsError {
-                                        print("Error retrieving comments: \(commentsError.localizedDescription)")
-                                    } else {
-                                        if let commentsSnapshot = commentsSnapshot {
-                                            postComments = commentsSnapshot.documents.compactMap { com in
-                                                guard
-                                                    let commentId = com["id"] as? String,
-                                                    let commentUserId = com["userId"] as? String,
-                                                    let commentTimestamp = com["timestamp"] as? Timestamp,
-                                                    let commentUsername = com["username"] as? String,
-                                                    let commentText = com["comment"] as? String
-                                                else { return nil }
-                                                
-                                                return CommentsData(
-                                                    id: commentId,
-                                                    userId: commentUserId,
-                                                    timestamp: commentTimestamp,
-                                                    username: commentUsername,
-                                                    comment: commentText
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    // Retrieve image data
-                                    let fileRef = self?.storageRef.child(path)
-                                    fileRef?.getData(maxSize: 5 * 1024 * 1024) { result in
-                                        switch result {
-                                        case .success(let data):
-                                            if let image = UIImage(data: data) {
-                                                DispatchQueue.main.async {
-                                                    self?.postMap.append(PostData(
-                                                        id: postId,  // Use postId from the document
-                                                        userId: userId,
-                                                        dayOfYear: dayOfYear,
-                                                        image: image,
-                                                        timestamp: timestamp,
-                                                        username: username,
-                                                        caption: caption,
-                                                        likeCount: likeCount,
-                                                        likes: likes
-                                                    ))
-                                                }
-                                            }
-                                        case .failure(let error):
-                                            print("func retrieveUserPosts(): Error fetching image data: \(error.localizedDescription)")
-                                        }
-
-                                        group.leave()
-                                    }
-                                }
-                        } else {
-                            print("func retrieveUserPosts(): Post data is not valid")
-                            group.leave()
-                        }
-                    } else {
-                        print("func retrieveUserPosts(): No document found for postId \(postId)")
-                        group.leave()
+            // Process each post ID
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for postId in postIds {
+                    group.addTask {
+                        try await self.processPost(postId: postId)
                     }
                 }
+                
+                // Wait for all tasks to complete
+                try await group.waitForAll()
+                
+                // Sort and update UI
+                DispatchQueue.main.async {
+                    self.postMap.sort(by: { $0.timestamp.dateValue() > $1.timestamp.dateValue() })
+                }
             }
+        } catch {
+            print("func retrieveUserPosts(): Error retrieving user document or processing posts: \(error.localizedDescription)")
+        }
+    }
 
-            group.notify(queue: .main) {
-                self?.postMap.sort(by: { $0.timestamp.dateValue() > $1.timestamp.dateValue() })
+    private func processPost(postId: String) async throws {
+        let timelineRef = self.databaseRef.collection("timeline")
+        
+        // Fetch post document
+        let querySnapshot = try await timelineRef.whereField("id", isEqualTo: postId).getDocuments()
+        
+        guard let document = querySnapshot.documents.first else {
+            print("func processPost(): No document found for postId \(postId)")
+            return
+        }
+        
+        let postDoc = document
+        guard let postData = postDoc.data() as? [String: Any] else {
+            print("func processPost(): Post data is not valid")
+            return
+        }
+        
+        let userId = postData["userId"] as? String
+        let dayOfYear = postData["dayOfYear"] as? Int
+        let path = postData["url"] as? String
+        let timestamp = postData["timestamp"] as? Timestamp
+        let username = postData["username"] as? String
+        let caption = postData["caption"] as? String
+        let likeCount = postData["likeCount"] as? Int
+        let likes = postData["likes"] as? [String: Bool]
+        
+        guard let userId = userId,
+              let dayOfYear = dayOfYear,
+              let path = path,
+              let timestamp = timestamp,
+              let username = username,
+              let caption = caption,
+              let likeCount = likeCount,
+              let likes = likes else {
+            print("func processPost(): Some post fields are missing or invalid")
+            return
+        }
+        
+        // Fetch comments for the post
+        let commentsSnapshot = try await timelineRef.document(postDoc.documentID).collection("Comments")
+            .order(by: "timestamp", descending: true)
+            .getDocuments()
+        
+        let comments: [CommentsData] = commentsSnapshot.documents.compactMap { document in
+            guard
+                let commentId = document["id"] as? String,
+                let commentUserId = document["userId"] as? String,
+                let commentTimestamp = document["timestamp"] as? Timestamp,
+                let commentUsername = document["username"] as? String,
+                let commentText = document["comment"] as? String
+            else {
+                return nil
             }
+            
+            return CommentsData(
+                id: commentId,
+                userId: commentUserId,
+                timestamp: commentTimestamp,
+                username: commentUsername,
+                comment: commentText
+            )
+        }
+        
+        // Retrieve image data
+        let fileRef = self.storageRef.child(path)
+        let data = try await fileRef.getData(maxSize: 5 * 1024 * 1024) // Limit size to 5MB
+        guard let image = UIImage(data: data) else {
+            print("func processPost(): Error converting data to UIImage")
+            return
+        }
+        
+        DispatchQueue.main.async {
+            self.postMap.append(PostData(
+                id: postId,
+                userId: userId,
+                dayOfYear: dayOfYear,
+                image: image,
+                timestamp: timestamp,
+                username: username,
+                caption: caption,
+                likeCount: likeCount,
+                likes: likes
+            ))
+            
+            // Update commentMap
+            self.commentMap = comments
         }
     }
     

@@ -88,14 +88,18 @@ struct ContentView: View {
                         viewModel.timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
                     } else {
                         viewModel.timer.upstream.connect().cancel()
-                        viewModel.progressPercentage()
+                        Task {
+                            await viewModel.progressPercentage()
+                        }
                         viewModel.newTimeCalc()
                     }
                 }) {
                     Text("\(viewModel.formattedTaskTime)")
                         .onReceive(viewModel.timer) { time in
                             if viewModel.isTimerOn {
-                                viewModel.taskTime = viewModel.taskTimer() ?? 0
+                                Task {
+                                    viewModel.taskTime = await viewModel.taskTimer() ?? 0
+                                }
                             }
                         }
                 }
@@ -222,7 +226,7 @@ struct ContentView: View {
                     .foregroundColor(viewModel.darkGray)
                     .padding(.horizontal, 5)
                 
-                CustomProgressBar()
+                ProgressBar()
             }
             .frame(height: viewModel.isTaskDropDownVisible ? 410 : 0) // Control Transition of Height
             .offset(y: viewModel.isTaskDropDownVisible ? -80 : -290) // Control Transition of DropDown

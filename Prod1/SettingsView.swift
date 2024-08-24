@@ -33,6 +33,8 @@ struct SettingsView: View {
                     
                     Button(role: .destructive) {
                         withAnimation {
+                            viewModel.isSettingsVisible = false
+                            viewModel.isProfileBlurViewVisible = false
                             viewModel.signOut()
                         }
                     } label: {
@@ -40,6 +42,10 @@ struct SettingsView: View {
                     }
                     
                     Button(role: .destructive) {
+                        withAnimation {
+                            viewModel.isSettingsVisible = false
+                            viewModel.isProfileBlurViewVisible = false
+                        }
                         Task {
                             try await viewModel.deleteAccount()
                         }

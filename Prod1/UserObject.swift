@@ -59,8 +59,10 @@ struct PostData: Identifiable, Hashable {
     var initial: String {
         return username.first?.uppercased() ?? ""
     }
-    let likeCount: Int
+    var likeCount: Int
     var likes: [String: Bool]
+    var commentCount: Int
+    let habitStreak: Int
 }
 
 struct CommentsData: Identifiable, Hashable {

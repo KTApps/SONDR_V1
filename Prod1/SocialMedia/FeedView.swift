@@ -39,71 +39,87 @@ struct Feed: View {
             
             HStack {
                 Text(post.initial)
-                    .font(.title3)
+                    .font(.title2)
                     .foregroundColor(.white)
-                    .frame(width: 30, height: 30)
+                    .frame(width: 40, height: 40)
                     .background(Color.gray)
                     .clipShape(Circle())
                 
-                Text(post.username)
-                    .font(.title3)
-                    .fontWeight(.medium)
-                    .foregroundColor(.white)
+                VStack(alignment: .leading) {
+                    Text(post.username)
+                        .font(.callout)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                    Text("\(post.habitStreak) Day Streak")
+                        .font(.callout)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                }
                 Spacer()
             }
             .padding(.horizontal, 5)
             
             Spacer()
             
-            ZStack(alignment: .topLeading) {
-                Image(uiImage: post.image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxHeight: .infinity)
-                    .frame(maxWidth: 395)
-                    .clipped()
-                    .cornerRadius(10)
-                
-                VStack {
-                    Spacer()
-                    HStack {
-                        if let user = viewModel.authRef.currentUser?.uid {
-                            let isLiked = post.likes[user] ?? false
-                            Button {
-                                Task {
-                                    await viewModel.likePost(postId: post.id)
-                                }
-                                post.likes[user] = !(post.likes[user] ?? false)
-                            } label: {
-                                Image(systemName: isLiked ? "heart.fill" : "heart")
-                                    .resizable()
-                                    .frame(width: 25, height: 23)
-                                    .foregroundColor(isLiked ? Color.red : Color.white)
-                            }
-                            
-                            Spacer()
-                                .frame(width: 15)
-                            
-                            Button {
-                                viewModel.postCommentsId = post.id
-                                viewModel.comments.toggle()
-                            } label: {
-                                Image(systemName: "message")
-                                    .resizable()
-                                    .frame(width: 25, height: 23)
-                                    .foregroundColor(.white)
-                            }
-                            .sheet(isPresented: $viewModel.comments) {
-                                Comments()
-                                    .presentationDetents([.fraction(3/5)])
-                            }
+            Image(uiImage: post.image)
+                .resizable()
+                .scaledToFill()
+                .frame(maxHeight: .infinity)
+                .frame(maxWidth: 395)
+                .clipped()
+                .cornerRadius(10)
+            
+            Spacer()
+
+            HStack {
+                if let user = viewModel.authRef.currentUser?.uid {
+                    let isLiked = post.likes[user] ?? false
+                    Button {
+                        Task {
+                            await viewModel.likePost(postId: post.id)
                         }
+                        post.likes[user] = !(post.likes[user] ?? false)
+                    } label: {
+                        Text("\(post.likeCount)")
+                            .font(.title3)
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                            .frame(width: 5)
+                        
+                        Image(systemName: isLiked ? "heart.fill" : "heart")
+                            .resizable()
+                            .frame(width: 18, height: 18)
+                            .foregroundColor(isLiked ? Color.red : Color.white)
                     }
-                    .padding(5)
-                    .background(Color.black.opacity(0.3))
-                    .cornerRadius(5)
+                    
+                    Spacer()
+                        .frame(width: 15)
+                    
+                    Button {
+                        viewModel.postCommentsId = post.id
+                        viewModel.comments.toggle()
+                    } label: {
+                        Text("\(post.commentCount)")
+                            .font(.title3)
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                            .frame(width: 5)
+                        
+                        Image(systemName: "message")
+                            .resizable()
+                            .frame(width: 18, height: 18)
+                            .foregroundColor(.white)
+                    }
+                    .sheet(isPresented: $viewModel.comments) {
+                        Comments()
+                            .presentationDetents([.fraction(3/5)])
+                    }
                 }
+                Spacer()
             }
+            
             Spacer()
             
             Text(post.caption)
@@ -114,6 +130,7 @@ struct Feed: View {
                 .foregroundColor(.white)
             
             Spacer()
+            
             Divider()
                 .background(Color.white)
         }

@@ -48,7 +48,9 @@ class MockViewModel: ViewModel {
                 username: sampleUsername,
                 caption: sampleCaption,
                 likeCount: sampleLikeCount,
-                likes: ["user1": true]
+                likes: ["user1": true],
+                commentCount: 5,
+                habitStreak: 4
             ),
             PostData(
                 id: "5678",
@@ -59,7 +61,9 @@ class MockViewModel: ViewModel {
                 username: "AnotherUser",
                 caption: sampleCaption,
                 likeCount: sampleLikeCount,
-                likes: ["user2": true]
+                likes: ["user2": true],
+                commentCount: 5,
+                habitStreak: 5
             ),
             PostData(
                 id: "91011",
@@ -70,7 +74,9 @@ class MockViewModel: ViewModel {
                 username: "ExampleUser",
                 caption: sampleCaption,
                 likeCount: sampleLikeCount,
-                likes: ["user3": true]
+                likes: ["user3": true],
+                commentCount: 5,
+                habitStreak: 6
             )
         ]
         

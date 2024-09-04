@@ -16,12 +16,12 @@ protocol AuthFormValidation {
     var isFormValid: Bool { get }
 }
 
-
 @MainActor
 class ViewModel: ObservableObject {
     let authRef = Auth.auth()
     let databaseRef = Firestore.firestore()
     let storageRef = Storage.storage().reference()
+    
     @Published var userSession: FirebaseAuth.User? = nil
     @Published var currentUser: UserObject?
     @Published var taskData: TaskData?
@@ -35,7 +35,6 @@ class ViewModel: ObservableObject {
     @Published var weekDayIndexCounter: Int = 0
     
     init() { // Runs at start of program
-        
         Task {
             await listenForUser()
         }
@@ -1344,7 +1343,9 @@ class ViewModel: ObservableObject {
                 "username": self.username,
                 "caption": self.caption,
                 "likeCount": 0,
-                "likes": [:]
+                "likes": [:],
+                "commentCount": 0,
+                "habitStreak": self.habitStreak
             ])
         } catch {
             print("uploadPhoto(): Error saving file reference to Firestore: \(error.localizedDescription)")
@@ -1362,7 +1363,9 @@ class ViewModel: ObservableObject {
                 username: self.username,
                 caption: self.caption,
                 likeCount: 0,
-                likes: [:]
+                likes: [:],
+                commentCount: 0,
+                habitStreak: self.habitStreak
             ))
         }
         
@@ -1371,6 +1374,7 @@ class ViewModel: ObservableObject {
     
     @Published var postCommentsId: String = ""
     @Published var comment: String = ""
+    @Published var commentCount: Int = 0
     @Published var commentMap = [CommentsData]()
     @Published var postMap = [PostData]()
 
@@ -1380,6 +1384,8 @@ class ViewModel: ObservableObject {
             print("uploadComment(): User not authenticated.")
             return
         }
+        
+        self.commentCount += 1
         
         // MARK: Prepare Data
         let id = UUID().uuidString
@@ -1414,6 +1420,15 @@ class ViewModel: ObservableObject {
                 "username": username,
                 "comment": self.comment
             ])
+            
+            // MARK: Update CommentCount
+            let post = try await postDocRef.getDocument()
+            if let commentNum = post.data()?["commentCount"] as? Int {
+                
+                try await postDocRef.updateData([
+                    "commentCount": commentNum + 1
+                ])
+            }
             
             // MARK: Update UI
             DispatchQueue.main.async {
@@ -1473,7 +1488,9 @@ class ViewModel: ObservableObject {
                     let username = doc["username"] as? String,
                     let caption = doc["caption"] as? String,
                     let likeCount = doc["likeCount"] as? Int,
-                    let likes = doc["likes"] as? [String: Bool]
+                    let likes = doc["likes"] as? [String: Bool],
+                    let commentCount = doc["commentCount"] as? Int,
+                    let habitStreak = doc["habitStreak"] as? Int
                 else {
                     print("retrievePhotos(): Document data is missing or invalid.")
                     continue
@@ -1518,7 +1535,9 @@ class ViewModel: ObservableObject {
                             username: username,
                             caption: caption,
                             likeCount: likeCount,
-                            likes: likes
+                            likes: likes,
+                            commentCount: commentCount,
+                            habitStreak: habitStreak
                         ))
 
                         // Update commentMap
@@ -1774,6 +1793,8 @@ class ViewModel: ObservableObject {
         let caption = postData["caption"] as? String
         let likeCount = postData["likeCount"] as? Int
         let likes = postData["likes"] as? [String: Bool]
+        let commentCount = postData["commentCount"] as? Int
+        let habitStreak = postData["habitStreak"] as? Int
         
         guard let userId = userId,
               let dayOfYear = dayOfYear,
@@ -1782,7 +1803,9 @@ class ViewModel: ObservableObject {
               let username = username,
               let caption = caption,
               let likeCount = likeCount,
-              let likes = likes else {
+              let likes = likes,
+              let commentCount = commentCount,
+              let habitStreak = habitStreak else {
             print("func processPost(): Some post fields are missing or invalid")
             return
         }
@@ -1830,7 +1853,9 @@ class ViewModel: ObservableObject {
                 username: username,
                 caption: caption,
                 likeCount: likeCount,
-                likes: likes
+                likes: likes,
+                commentCount: commentCount,
+                habitStreak: habitStreak
             ))
             
             // Update commentMap

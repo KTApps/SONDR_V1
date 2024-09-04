@@ -31,6 +31,33 @@ struct HabitPostView: View {
                 }
                 .padding()
                 
+                if let user = viewModel.currentUser {
+                    HStack {
+                        Text(user.initial)
+                            .font(.title)
+                            .foregroundColor(.white)
+                            .frame(width: 50, height: 50)
+                            .background(Color.gray)
+                            .clipShape(Circle())
+                        
+                        VStack(alignment: .leading) {
+                            Text(user.username)
+                                .font(.title3)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                            Text("\(viewModel.habitStreak) Day Streak")
+                                .font(.title3)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 10)
+                }
+                
+                Spacer()
+                    .frame(height: 10)
+                
                 if viewModel.selectedImage != nil {
                     ZStack(alignment: .topLeading) {
                         Image(uiImage: viewModel.selectedImage!)

@@ -87,6 +87,9 @@ struct Profile: View {
                         Divider()
                             .background(Color.white)
                         
+                        Spacer()
+                            .frame(height: 10)
+                        
                         ZStack {
                             ScrollView {
                                 Posts()

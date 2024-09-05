@@ -9,6 +9,7 @@ import SwiftUI
 
 struct Comments: View {
     @EnvironmentObject var viewModel: ViewModel
+    let post: String
     var body: some View {
         ZStack {
             Button(action: {
@@ -24,7 +25,7 @@ struct Comments: View {
                 Spacer()
                 ScrollView {
                     VStack(alignment: .leading) {
-                        ForEach(viewModel.commentMap) { comment in
+                        ForEach(viewModel.commentMap[post] ?? []) { comment in
                             Spacer()
                                 .frame(height: 20)
                             
@@ -81,10 +82,16 @@ struct Comments: View {
                 .frame(height: 70)
             }
         }
+        .onAppear {
+            print("Comments view visability = \(viewModel.comments)")
+        }
+        .onDisappear {
+            print("comments view visability = \(viewModel.comments)")
+        }
     }
 }
 
 #Preview {
-    Comments()
+    Comments(post: "1234")
         .environmentObject(MockViewModel() as ViewModel)
 }

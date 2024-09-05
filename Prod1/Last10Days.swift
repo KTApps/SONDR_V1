@@ -28,7 +28,7 @@ struct Last10Days: View {
                                         Text(String(date?.day ?? 0))
                                             .font(.custom("smallNumber", size: 15))
                                             .foregroundColor(.white)
-                                        OuterCircle(innerRadius: 20, outerRadius: 27, cornerRadius: 5)
+                                        OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 20, outerRadius: 27, cornerRadius: 5)
                                         Inner10DaysCircle(docTitleIndex: index)
                                     }
                                 }

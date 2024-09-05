@@ -183,8 +183,6 @@ class ViewModel: ObservableObject {
                 }
                 
                 await self.fetchCircleDocRef()
-                
-                await habitStreakTracker()
             }
         } catch {
             self.logInError.toggle()
@@ -1284,7 +1282,7 @@ class ViewModel: ObservableObject {
     @Published var caption: String = ""
     @Published var backButton: Bool = false
     var username: String = ""
-    func uploadPhoto() async {
+    func uploadPost() async {
         // MARK: Authentication
         guard let currentUserId = self.authRef.currentUser?.uid else {
             print("uploadPhoto(): User not authenticated.")
@@ -1375,7 +1373,7 @@ class ViewModel: ObservableObject {
     @Published var postCommentsId: String = ""
     @Published var comment: String = ""
     @Published var commentCount: Int = 0
-    @Published var commentMap = [CommentsData]()
+    @Published var commentMap = [String: [CommentsData]]()
     @Published var postMap = [PostData]()
 
     func uploadComment() async {
@@ -1384,7 +1382,6 @@ class ViewModel: ObservableObject {
             print("uploadComment(): User not authenticated.")
             return
         }
-        
         self.commentCount += 1
         
         // MARK: Prepare Data
@@ -1401,16 +1398,17 @@ class ViewModel: ObservableObject {
         }
         
         // MARK: Find Post ID and Create Comments Sub-collection
-        let postRef = self.databaseRef.collection("timeline")
+        let timelineRef = self.databaseRef.collection("timeline")
         do {
-            let querySnapshot = try await postRef.whereField("id", isEqualTo: self.postCommentsId).getDocuments()
+            let querySnapshot = try await timelineRef.whereField("id", isEqualTo: self.postCommentsId).getDocuments()
+            
             guard let document = querySnapshot.documents.first else {
                 print("uploadComment(): Document not found")
                 return
             }
             
             let documentId = document.documentID
-            let postDocRef = postRef.document(documentId)
+            let postDocRef = timelineRef.document(documentId)
             
             // MARK: Upload Comment
             try await postDocRef.collection("Comments").document(id).setData([
@@ -1432,24 +1430,33 @@ class ViewModel: ObservableObject {
             
             // MARK: Update UI
             DispatchQueue.main.async {
-                self.commentMap.insert(CommentsData(
+                // Create new comment data
+                let newComment = CommentsData(
                     id: id,
                     userId: currentUserId,
                     timestamp: timestamp,
                     username: username,
                     comment: self.comment
-                ), at: 0) // Insert at the top
+                )
                 
-                self.comment = "" // Clear the comment input field
+                // Check if the post ID already exists in commentMap
+                if var existingComments = self.commentMap[self.postCommentsId] {
+                    // Append new comment to the existing list for the post
+                    existingComments.insert(newComment, at: 0) // Insert at the top
+                    self.commentMap[self.postCommentsId] = existingComments
+                } else {
+                    // If no comments exist for this post, create a new array with the new comment
+                    self.commentMap[self.postCommentsId] = [newComment]
+                }
+                
+                // Clear the comment input field
+                self.comment = ""
             }
-            
-            // MARK: Save Posts
-            await self.savePosts()
-            
         } catch {
             print("uploadComment(): Error during Firestore operations: \(error.localizedDescription)")
         }
     }
+
     
     func fetchUsername(for userId: String) async throws -> String {
         let userRef = databaseRef.collection("users").document(userId)
@@ -1465,8 +1472,8 @@ class ViewModel: ObservableObject {
     
     func retrievePhotos() async {
         // MARK: Clear Existing Data
-        postMap = []
-        commentMap = []
+        self.postMap = []
+        self.commentMap = [:]  // Initialize as an empty dictionary
 
         let timelineRef = self.databaseRef.collection("timeline")
         
@@ -1502,6 +1509,7 @@ class ViewModel: ObservableObject {
                         .order(by: "timestamp", descending: true)
                         .getDocuments()
                     
+                    // Convert documents to CommentsData objects
                     let comments: [CommentsData] = commentsSnapshot.documents.compactMap { document -> CommentsData? in
                         guard
                             let commentId = document["id"] as? String,
@@ -1523,6 +1531,9 @@ class ViewModel: ObservableObject {
                         )
                     }
                     
+                    // Update commentMap with postId as the key
+                    self.commentMap[id] = comments
+                    
                     // MARK: Retrieve Image Data
                     let data = try await getImageData(for: path)
                     if let image = UIImage(data: data) {
@@ -1539,9 +1550,6 @@ class ViewModel: ObservableObject {
                             commentCount: commentCount,
                             habitStreak: habitStreak
                         ))
-
-                        // Update commentMap
-                        self.commentMap = comments
                     }
                 } catch {
                     print("retrievePhotos(): Error processing document \(doc.documentID): \(error.localizedDescription)")
@@ -1699,10 +1707,10 @@ class ViewModel: ObservableObject {
         // Empty list of posts
         self.postList = []
         
-        // Find the relevant posts
-        let query = timelineRef.whereField("userId", isEqualTo: currentUserId)
-        
         do {
+            // Find the relevant posts
+            let query = timelineRef.whereField("userId", isEqualTo: currentUserId)
+            
             let querySnapshot = try await query.getDocuments()
             let documents = querySnapshot.documents
             
@@ -1733,8 +1741,8 @@ class ViewModel: ObservableObject {
             return
         }
         
-        postMap = []
-        commentMap = []
+        self.postMap = []
+        self.commentMap = [:]  // Initialize as an empty dictionary
 
         let userRef = self.databaseRef.collection("users").document(currentUserId)
         
@@ -1779,8 +1787,7 @@ class ViewModel: ObservableObject {
             return
         }
         
-        let postDoc = document
-        guard let postData = postDoc.data() as? [String: Any] else {
+        guard let postData = document.data() as? [String: Any] else {
             print("func processPost(): Post data is not valid")
             return
         }
@@ -1811,11 +1818,11 @@ class ViewModel: ObservableObject {
         }
         
         // Fetch comments for the post
-        let commentsSnapshot = try await timelineRef.document(postDoc.documentID).collection("Comments")
+        let commentsSnapshot = try await timelineRef.document(document.documentID).collection("Comments")
             .order(by: "timestamp", descending: true)
             .getDocuments()
         
-        let comments: [CommentsData] = commentsSnapshot.documents.compactMap { document in
+        let comments: [CommentsData] = commentsSnapshot.documents.compactMap { document -> CommentsData? in
             guard
                 let commentId = document["id"] as? String,
                 let commentUserId = document["userId"] as? String,
@@ -1823,6 +1830,7 @@ class ViewModel: ObservableObject {
                 let commentUsername = document["username"] as? String,
                 let commentText = document["comment"] as? String
             else {
+                print("processPost(): Invalid comment data.")
                 return nil
             }
             
@@ -1834,6 +1842,9 @@ class ViewModel: ObservableObject {
                 comment: commentText
             )
         }
+        
+        // Update commentMap with postId as the key
+        self.commentMap[postId] = comments
         
         // Retrieve image data
         let fileRef = self.storageRef.child(path)
@@ -1857,11 +1868,10 @@ class ViewModel: ObservableObject {
                 commentCount: commentCount,
                 habitStreak: habitStreak
             ))
-            
-            // Update commentMap
-            self.commentMap = comments
         }
     }
+    
+    @Published var comId: String = ""
     
     @Published var isProfileViewVisible: Bool = false
 }

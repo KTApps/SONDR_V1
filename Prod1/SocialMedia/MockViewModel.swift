@@ -1,7 +1,7 @@
 import SwiftUI
 import Firebase
 
-class MockViewModel: ViewModel {
+class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
     override init() {
         super.init()
         loadMockData()
@@ -28,13 +28,6 @@ class MockViewModel: ViewModel {
         let sampleComments = [
             CommentsData(id: sampleCommentId, userId: sampleCommentUserId, timestamp: sampleCommentTimestamp, username: sampleCommentUsername, comment: sampleCommentText),
             CommentsData(id: "comment5678", userId: "commentUser5678", timestamp: sampleCommentTimestamp, username: "AnotherCommentUser", comment: "Another comment")
-        ]
-        
-        // Mock feedPostDisplay data
-        let mockFeedPostDisplay: [String: Int] = [
-            sampleUserId: 0,  // Current user (sampleUserId) sees display type 0
-            "user2": 1,  // Another user sees display type 1
-            "user3": 0   // ExampleUser sees display type 0
         ]
         
         // Populate postMap with mock PostData
@@ -80,8 +73,14 @@ class MockViewModel: ViewModel {
             )
         ]
         
-        // Populate commentMap with sample comments
-        self.commentMap = sampleComments
+        // Populate commentMap with sample comments for each post
+        self.commentMap = [
+            sampleId: sampleComments,
+            "5678": [
+                CommentsData(id: "comment6789", userId: "commentUser6789", timestamp: sampleCommentTimestamp, username: "SampleUser", comment: "A different comment")
+            ],
+            "91011": sampleComments
+        ]
         
         // Mock data for habits
         let sampleHabitData: [Int: HabitData] = [

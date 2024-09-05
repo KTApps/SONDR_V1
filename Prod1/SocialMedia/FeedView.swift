@@ -98,6 +98,7 @@ struct Feed: View {
                     
                     Button {
                         viewModel.postCommentsId = post.id
+                        viewModel.comId = viewModel.postCommentsId
                         viewModel.comments.toggle()
                     } label: {
                         Text("\(post.commentCount)")
@@ -113,7 +114,7 @@ struct Feed: View {
                             .foregroundColor(.white)
                     }
                     .sheet(isPresented: $viewModel.comments) {
-                        Comments()
+                        Comments(post: viewModel.comId)
                             .presentationDetents([.fraction(3/5)])
                     }
                 }
@@ -133,6 +134,11 @@ struct Feed: View {
             
             Divider()
                 .background(Color.white)
+        }
+        .onAppear {
+            if !viewModel.comments {
+                viewModel.comId = ""
+            }
         }
     }
 }

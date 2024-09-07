@@ -82,12 +82,6 @@ struct Comments: View {
                 .frame(height: 70)
             }
         }
-        .onAppear {
-            print("Comments view visability = \(viewModel.comments)")
-        }
-        .onDisappear {
-            print("comments view visability = \(viewModel.comments)")
-        }
     }
 }
 

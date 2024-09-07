@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct FeedView: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @StateObject var viewModel: ViewModel
     
     var body: some View {
         ZStack {
@@ -19,11 +19,9 @@ struct FeedView: View {
                         Feed(post: $viewModel.postMap[index])
                     }
                 }
-                .onAppear {
-                    Task {
-                        await viewModel.retrievePhotos()
-                    }
-                }
+            }
+            .onAppear {
+                viewModel.listenForPhotos()
             }
         }
     }
@@ -143,7 +141,7 @@ struct Feed: View {
     }
 }
 
-#Preview {
-    FeedView()
-        .environmentObject(MockViewModel() as ViewModel)
-}
+//#Preview {
+//    FeedView()
+//        .environmentObject(MockViewModel() as ViewModel)
+//}

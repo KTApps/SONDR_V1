@@ -15,7 +15,7 @@ struct tabView: View {
                 .ignoresSafeArea()
                 .tag(0)
             
-            FeedView()
+            FeedView(viewModel: viewModel)
                 .ignoresSafeArea()
                 .tag(1)
         }

@@ -88,18 +88,14 @@ struct ContentView: View {
                         viewModel.timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
                     } else {
                         viewModel.timer.upstream.connect().cancel()
-                        Task {
-                            await viewModel.progressPercentage()
-                        }
+                        viewModel.progressPercentage()
                         viewModel.newTimeCalc()
                     }
                 }) {
                     Text("\(viewModel.formattedTaskTime)")
                         .onReceive(viewModel.timer) { time in
                             if viewModel.isTimerOn {
-                                Task {
-                                    viewModel.taskTime = await viewModel.taskTimer() ?? 0
-                                }
+                                viewModel.taskTime = viewModel.taskTimer() ?? 0
                             }
                         }
                 }
@@ -243,6 +239,7 @@ struct ContentView: View {
             .alert("Congrats, youv've completed the milestone. Your next milestone is in 100 seconds", isPresented: $viewModel.maxTimeAlert) {
                 Button("Continue") {
                     viewModel.maxTimeAlert.toggle()
+                    viewModel.updateTaskDecimalDict()
                 }
             }
         }

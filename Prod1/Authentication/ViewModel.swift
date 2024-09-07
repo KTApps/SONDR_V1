@@ -1028,6 +1028,30 @@ class ViewModel: ObservableObject {
             await listenForUser()
         }
     }
+    
+    func updateTaskDecimalDict() {
+        for item in progressTimerDictionary.keys {
+            let decimal = Double(progressTimerDictionary[item] ?? 0) / Double(taskMaxTime[item] ?? maxTime)
+            taskDecimalDict[item] = decimal
+        }
+        
+        guard let userId = userSession?.uid else {
+            print("User is not logged in.")
+            return
+        }
+        
+        let userRef = self.databaseRef.collection("users").document(userId)
+
+        userRef.updateData([
+            "Progress.taskDecimalDict": self.taskDecimalDict
+        ]) { error in
+            if let error = error {
+                print("Error updating taskDecimalDict: \(error.localizedDescription)")
+            } else {
+                print("taskDecimalDict successfully updated in Firestore.")
+            }
+        }
+    }
 
     
     @Published var maxWidth: Double = 340
@@ -1063,7 +1087,7 @@ class ViewModel: ObservableObject {
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
     
-    func taskTimer() async -> Int? {
+    func taskTimer() -> Int? {
         for item in progressTasks {
             if item == taskName {
                 
@@ -1075,9 +1099,11 @@ class ViewModel: ObservableObject {
                 progressTimerDictionary[item] = progressCount
                 taskTimerDictionary[item] = timerCount
                 
-                await updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, timerCount: timerCount)
+                updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, timerCount: timerCount)
                 
-                await listenForUser()
+                Task {
+                    await listenForUser()
+                }
                 
                 return timerCount
             }
@@ -1085,26 +1111,24 @@ class ViewModel: ObservableObject {
         return nil
     }
 
-    func updateTaskTimerInFirestore(taskName: String, progressCount: Int, timerCount: Int) async {
+    func updateTaskTimerInFirestore(taskName: String, progressCount: Int, timerCount: Int) {
         guard let userId = userSession?.uid else {
             return
         }
         
-        do {
-            let userRef = self.databaseRef.collection("users").document(userId)
-            try await userRef.updateData([
-                "Progress.progressTimerDictionary.\(taskName)": progressCount
-            ])
-            
-            let circleDataRef = userRef.collection("CircleData").document(String(self.currentDayOfYear))
-            try await circleDataRef.updateData([
-                "TaskData.taskTimerDictionary.\(taskName)": timerCount
-            ])
-        } catch {
-            return
-        }
+        let userRef = self.databaseRef.collection("users").document(userId)
+        userRef.updateData([
+            "Progress.progressTimerDictionary.\(taskName)": progressCount
+        ])
         
-        await listenForUser()
+        let circleDataRef = userRef.collection("CircleData").document(String(self.currentDayOfYear))
+        circleDataRef.updateData([
+            "TaskData.taskTimerDictionary.\(taskName)": timerCount
+        ])
+        
+        Task {
+            await listenForUser()
+        }
     }
     
     func resetTimer() -> Int? {

@@ -1498,10 +1498,6 @@ class ViewModel: ObservableObject {
         guard !isListening else { return }
         isListening = true
 
-        // MARK: Clear Existing Data
-        self.postMap = []
-        self.commentMap = [:]  // Initialize as an empty dictionary
-
         let timelineRef = self.databaseRef.collection("timeline")
 
         // MARK: Add Firestore Listener for Realtime Updates
@@ -1518,7 +1514,8 @@ class ViewModel: ObservableObject {
                 return
             }
 
-            var updatedPosts: [PostData] = []
+            // Hold a reference to the current posts
+            var currentPosts = self.postMap
 
             // Loop through document changes
             for change in snapshot.documentChanges {
@@ -1539,79 +1536,81 @@ class ViewModel: ObservableObject {
                     print("listenForPhotos(): Document data is missing or invalid.")
                     continue
                 }
-                
-                // Handle document changes (added, modified, removed)
-                switch change.type {
-                case .added, .modified:
-                    Task {
-                        do {
-                            // Fetch Comments for the Post
-                            let commentsSnapshot = try await timelineRef.document(doc.documentID)
-                                .collection("Comments")
-                                .order(by: "timestamp", descending: true)
-                                .getDocuments()
-                            
-                            // Convert documents to CommentsData objects
-                            let comments: [CommentsData] = commentsSnapshot.documents.compactMap { document -> CommentsData? in
-                                guard
-                                    let commentId = document["id"] as? String,
-                                    let commentUserId = document["userId"] as? String,
-                                    let commentTimestamp = document["timestamp"] as? Timestamp,
-                                    let commentUsername = document["username"] as? String,
-                                    let commentText = document["comment"] as? String
-                                else {
-                                    print("listenForPhotos(): Invalid comment data.")
-                                    return nil
-                                }
-                                
-                                return CommentsData(
-                                    id: commentId,
-                                    userId: commentUserId,
-                                    timestamp: commentTimestamp,
-                                    username: commentUsername,
-                                    comment: commentText
-                                )
+
+                // Fetch comments and images (in a background task)
+                Task {
+                    do {
+                        let commentsSnapshot = try await timelineRef.document(doc.documentID)
+                            .collection("Comments")
+                            .order(by: "timestamp", descending: true)
+                            .getDocuments()
+                        
+                        let comments: [CommentsData] = commentsSnapshot.documents.compactMap { document -> CommentsData? in
+                            guard
+                                let commentId = document["id"] as? String,
+                                let commentUserId = document["userId"] as? String,
+                                let commentTimestamp = document["timestamp"] as? Timestamp,
+                                let commentUsername = document["username"] as? String,
+                                let commentText = document["comment"] as? String
+                            else {
+                                print("listenForPhotos(): Invalid comment data.")
+                                return nil
                             }
                             
-                            // Update commentMap with postId as the key
-                            DispatchQueue.main.async {
-                                self.commentMap[id] = comments
-                            }
-                            
-                            // Retrieve Image Data
-                            let data = try await self.getImageData(for: path)
-                            if let image = UIImage(data: data) {
-                                let postData = PostData(
-                                    id: id,
-                                    userId: userId,
-                                    dayOfYear: dayOfYear,
-                                    image: image,
-                                    timestamp: timestamp,
-                                    username: username,
-                                    caption: caption,
-                                    likeCount: likeCount,
-                                    likes: likes,
-                                    commentCount: commentCount,
-                                    habitStreak: habitStreak
-                                )
-                                
-                                DispatchQueue.main.async {
-                                    updatedPosts.append(postData)
-                                    
-                                    // Sort the posts by timestamp
-                                    self.postMap = updatedPosts.sorted { $0.timestamp.dateValue() > $1.timestamp.dateValue() }
-                                }
-                            }
-                        } catch {
-                            print("listenForPhotos(): Error processing document \(doc.documentID): \(error.localizedDescription)")
+                            return CommentsData(
+                                id: commentId,
+                                userId: commentUserId,
+                                timestamp: commentTimestamp,
+                                username: commentUsername,
+                                comment: commentText
+                            )
                         }
-                    }
-                    
-                case .removed:
-                    // Handle post removal
-                    DispatchQueue.main.async {
-                        self.postMap.removeAll { $0.id == id }
-                        self.commentMap[id] = nil  // Remove associated comments
+                        
+                        DispatchQueue.main.async {
+                            self.commentMap[id] = comments
+                        }
+
+                        // Retrieve Image Data
+                        let data = try await self.getImageData(for: path)
+                        if let image = UIImage(data: data) {
+                            let postData = PostData(
+                                id: id,
+                                userId: userId,
+                                dayOfYear: dayOfYear,
+                                image: image,
+                                timestamp: timestamp,
+                                username: username,
+                                caption: caption,
+                                likeCount: likeCount,
+                                likes: likes,
+                                commentCount: commentCount,
+                                habitStreak: habitStreak
+                            )
+                            
+                            DispatchQueue.main.async {
+                                switch change.type {
+                                case .added:
+                                    // Add new post
+                                    currentPosts.append(postData)
+                                    
+                                case .modified:
+                                    // Update existing post
+                                    if let index = currentPosts.firstIndex(where: { $0.id == id }) {
+                                        currentPosts[index] = postData
+                                    }
+                                    
+                                case .removed:
+                                    // Remove post
+                                    currentPosts.removeAll { $0.id == id }
+                                    self.commentMap[id] = nil  // Remove associated comments
+                                }
+                                
+                                // Update postMap with merged changes
+                                self.postMap = currentPosts.sorted { $0.timestamp.dateValue() > $1.timestamp.dateValue() }
+                            }
+                        }
+                    } catch {
+                        print("listenForPhotos(): Error processing document \(doc.documentID): \(error.localizedDescription)")
                     }
                 }
             }

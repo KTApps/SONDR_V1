@@ -101,14 +101,6 @@ struct HabitTracker: View {
                 
                 Spacer()
                 
-                Button {
-                    viewModel.isPostBlurViewVisible = true
-                } label: {
-                    Image(systemName: "circle")
-                        .resizable()
-                        .frame(width: 25, height: 25)
-                }
-                
     //            MARK: ADD HABIT Button
                 HStack {
                     Button(action: {
@@ -138,13 +130,6 @@ struct HabitTracker: View {
             .onChange(of: viewModel.selectedHabit) { habitToRemove in
                 if let habitToRemove = habitToRemove {
                     viewModel.habitData?.habitIdArray.removeAll { $0 == habitToRemove }
-                }
-            }
-            
-            if viewModel.isPostBlurViewVisible {
-                withAnimation {
-                    HabitPostView()
-                        .ignoresSafeArea()
                 }
             }
         }

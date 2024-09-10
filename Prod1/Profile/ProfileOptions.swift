@@ -39,19 +39,6 @@ struct ProfileOptions: View {
                     
                     Button {
                         withAnimation {
-                            viewModel.isProfileViewVisible = true
-                        }
-                    } label: {
-                        Text("PROFILE")
-                            .font(.title)
-                            .fontWeight(.heavy)
-                    }
-                    
-                    Spacer()
-                        .frame(height: 40)
-                    
-                    Button {
-                        withAnimation {
                             viewModel.comingSoonAlert = true
                         }
                     } label: {
@@ -103,12 +90,6 @@ struct ProfileOptions: View {
                         viewModel.comingSoonAlert.toggle()
                     }
                 }
-            }
-        }
-        if viewModel.isProfileViewVisible {
-            withAnimation {
-                Profile()
-                    .ignoresSafeArea()
             }
         }
     }

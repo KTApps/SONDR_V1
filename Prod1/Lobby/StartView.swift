@@ -14,7 +14,7 @@ struct StartView: View {
         // checks if a user is logged in or not
         Group {
             if viewModel.userSession != nil {
-                tabView()
+                ContentView()
             } else {
                 LogInView()
             }

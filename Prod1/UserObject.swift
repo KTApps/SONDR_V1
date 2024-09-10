@@ -47,31 +47,3 @@ struct Analytics: Codable {
     var dayTrackerOffset: Int
     var habitStreak: Int
 }
-
-struct PostData: Identifiable, Hashable {
-    let id: String
-    let userId: String
-    let dayOfYear: Int
-    let image: UIImage
-    let timestamp: Timestamp
-    let username: String
-    let caption: String
-    var initial: String {
-        return username.first?.uppercased() ?? ""
-    }
-    var likeCount: Int
-    var likes: [String: Bool]
-    var commentCount: Int
-    let habitStreak: Int
-}
-
-struct CommentsData: Identifiable, Hashable {
-    let id: String
-    let userId: String
-    let timestamp: Timestamp
-    let username: String
-    var initial: String {
-        return username.first?.uppercased() ?? ""
-    }
-    let comment: String
-}

@@ -8,79 +8,8 @@ class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
     }
     
     func loadMockData() {
-        // Define common sample data
-        let sampleImage = UIImage(systemName: "photo") ?? UIImage()
-        let sampleTimestamp = Timestamp(date: Date())
-        let sampleUsername = "TestUser"
-        let sampleCaption = "Hello World"
-        let sampleId = "1234"
         let sampleUserId = "1234"
-        let sampleDayOfYear = 100
-        let sampleLikeCount = 100
-        
-        // Define sample comments
-        let sampleCommentId = "comment1234"
-        let sampleCommentUserId = "commentUser1234"
-        let sampleCommentUsername = "CommentUser"
-        let sampleCommentText = "This is a comment"
-        let sampleCommentTimestamp = Timestamp(date: Date())
-        
-        let sampleComments = [
-            CommentsData(id: sampleCommentId, userId: sampleCommentUserId, timestamp: sampleCommentTimestamp, username: sampleCommentUsername, comment: sampleCommentText),
-            CommentsData(id: "comment5678", userId: "commentUser5678", timestamp: sampleCommentTimestamp, username: "AnotherCommentUser", comment: "Another comment")
-        ]
-        
-        // Populate postMap with mock PostData
-        self.postMap = [
-            PostData(
-                id: sampleId,
-                userId: sampleUserId,
-                dayOfYear: sampleDayOfYear,
-                image: sampleImage,
-                timestamp: sampleTimestamp,
-                username: sampleUsername,
-                caption: sampleCaption,
-                likeCount: sampleLikeCount,
-                likes: ["user1": true],
-                commentCount: 5,
-                habitStreak: 4
-            ),
-            PostData(
-                id: "5678",
-                userId: sampleUserId,
-                dayOfYear: sampleDayOfYear,
-                image: sampleImage,
-                timestamp: sampleTimestamp,
-                username: "AnotherUser",
-                caption: sampleCaption,
-                likeCount: sampleLikeCount,
-                likes: ["user2": true],
-                commentCount: 5,
-                habitStreak: 5
-            ),
-            PostData(
-                id: "91011",
-                userId: sampleUserId,
-                dayOfYear: sampleDayOfYear,
-                image: sampleImage,
-                timestamp: sampleTimestamp,
-                username: "ExampleUser",
-                caption: sampleCaption,
-                likeCount: sampleLikeCount,
-                likes: ["user3": true],
-                commentCount: 5,
-                habitStreak: 6
-            )
-        ]
-        
-        // Populate commentMap with sample comments for each post
-        self.commentMap = [
-            sampleId: sampleComments,
-            "5678": [
-                CommentsData(id: "comment6789", userId: "commentUser6789", timestamp: sampleCommentTimestamp, username: "SampleUser", comment: "A different comment")
-            ],
-            "91011": sampleComments
-        ]
+        let sampleUsername = "TestUser"
         
         // Mock data for habits
         let sampleHabitData: [Int: HabitData] = [
@@ -115,7 +44,5 @@ class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
         // Mock data for other properties
         self.currentUser = UserObject(id: sampleUserId, username: sampleUsername, email: "name@example.com")
         self.docTitles = Array(1...10) // Example list of document titles
-        self.selectedImage = UIImage(systemName: "photo") // Mock selected image
-        self.caption = "Sample caption for preview" // Mock caption for preview
     }
 }

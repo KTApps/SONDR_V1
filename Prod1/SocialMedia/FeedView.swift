@@ -73,9 +73,7 @@ struct Feed: View {
                 if let user = viewModel.authRef.currentUser?.uid {
                     let isLiked = post.likes[user] ?? false
                     Button {
-                        Task {
-                            await viewModel.likePost(postId: post.id)
-                        }
+                        viewModel.likePost(postId: post.id)
                         post.likes[user] = !(post.likes[user] ?? false)
                     } label: {
                         Text("\(post.likeCount)")

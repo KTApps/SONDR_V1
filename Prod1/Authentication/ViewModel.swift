@@ -1452,28 +1452,7 @@ class ViewModel: ObservableObject {
                 ])
             }
             
-            // MARK: Update UI
             DispatchQueue.main.async {
-                // Create new comment data
-                let newComment = CommentsData(
-                    id: id,
-                    userId: currentUserId,
-                    timestamp: timestamp,
-                    username: username,
-                    comment: self.comment
-                )
-                
-                // Check if the post ID already exists in commentMap
-                if var existingComments = self.commentMap[self.postCommentsId] {
-                    // Append new comment to the existing list for the post
-                    existingComments.insert(newComment, at: 0) // Insert at the top
-                    self.commentMap[self.postCommentsId] = existingComments
-                } else {
-                    // If no comments exist for this post, create a new array with the new comment
-                    self.commentMap[self.postCommentsId] = [newComment]
-                }
-                
-                // Clear the comment input field
                 self.comment = ""
             }
         } catch {
@@ -1493,10 +1472,10 @@ class ViewModel: ObservableObject {
         }
     }
 
-    private var isListening = false
+    private var photosListening = true
     func listenForPhotos() {
-        guard !isListening else { return }
-        isListening = true
+        guard photosListening else { return }
+        photosListening = false
 
         let timelineRef = self.databaseRef.collection("timeline")
 
@@ -1668,82 +1647,48 @@ class ViewModel: ObservableObject {
     @Published var heart: Bool = false
     @Published var comments: Bool = false
     @Published var paperplane: Bool = false
-    func likePost(postId: String) async {
+    func likePost(postId: String) {
         guard let currentUserId = self.authRef.currentUser?.uid else {
+            print("User not authenticated")
             return
         }
-        
-        // Create reference to the timeline collection
-        let timelineRef = self.databaseRef.collection("timeline")
-        
-        // Query to find the document with the matching postId
-        let query = timelineRef.whereField("id", isEqualTo: postId)
-                
-        do {
-            let querySnapshot = try await query.getDocuments()
-            let documents = querySnapshot.documents
-                
-            // Retrieve the document ID of the matching document
-            let document = documents.first
-            let documentId = document?.documentID
-            guard let documentId = documentId else {
-                print("func likePost(): No document found with the given postId")
-                return
-            }
-            
-            // Create a reference to that document
-            let postRef = timelineRef.document(documentId)
-            
-            do {
-                let document = try await postRef.getDocument()
-                
-                var likes = document.data()?["likes"] as? [String: Bool] ?? [:]
-                let currentStatus = likes[currentUserId] ?? false
-                likes[currentUserId] = !currentStatus
 
-                do {
-                    try await postRef.updateData([
-                        "likes": likes
-                    ])
-                    
-                    var likeCount = document.data()?["likeCount"] as? Int ?? 0
-                    likeCount = currentStatus ? likeCount - 1 : likeCount + 1
-                    
-                    do {
-                        try await postRef.updateData([
-                            "likeCount": likeCount
-                        ])
-                    } catch {
-                        print("func likePost(): Error updating likeCount: \(error.localizedDescription)")
-                    }
-                } catch {
-                    print("func likePost(): Error updating likes: \(error.localizedDescription)")
-                    return
-                }
-            } catch {
-                print("func likePost(): Error retrieving document: \(error.localizedDescription)")
+        // Create reference to the timeline collection
+        let postRef = databaseRef.collection("timeline").whereField("id", isEqualTo: postId)
+
+        // Fetch the document that matches the postId
+        postRef.getDocuments() { querySnapshot, error in
+            if let error = error {
                 return
             }
             
-            // Optionally, add a snapshot listener to keep track of real-time changes
-            do {
-                let document = try await postRef.getDocument()
-                
-                if let likes = document.data()?["likes"] as? [String: Bool] {
-                    DispatchQueue.main.async {
-                        self.heart = likes[currentUserId] ?? false
-                    }
-                }
-            } catch {
-                print("func likePost(): Error listening for document changes: \(error.localizedDescription)")
+            guard let document = querySnapshot?.documents.first else {
+                print("No document found with the given postId")
                 return
             }
-        } catch {
-            print("func likePost(): Error querying documents: \(error.localizedDescription)")
-            return
+
+            let documentId = document.documentID
+            let postRef = self.databaseRef.collection("timeline").document(documentId)
+
+            // Retrieve current likes and likeCount
+            var likes = document.data()["likes"] as? [String: Bool] ?? [:]
+            var likeCount = document.data()["likeCount"] as? Int ?? 0
+
+            // Toggle like status
+            let currentStatus = likes[currentUserId] ?? false
+            likes[currentUserId] = !currentStatus
+
+            // Update likeCount based on the new like status
+            likeCount = currentStatus ? likeCount - 1 : likeCount + 1
+
+            // Update Firestore with new likes and likeCount
+            postRef.updateData([
+                "likes": likes,
+                "likeCount": likeCount
+            ])
         }
     }
-    
+
     
     @Published var postList: [String] = []
     func savePosts() async {

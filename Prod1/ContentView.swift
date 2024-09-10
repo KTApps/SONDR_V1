@@ -182,7 +182,7 @@ struct ContentView: View {
                                         .stroke(lineWidth: 1)
                                         .frame(width: 210, height: 40)
                                     Text("View Your Progress")
-                                        .font(.title3)
+                                        .font(.callout)
                                         .fontWeight(.bold)
                                 }
                                 .foregroundColor(.white)

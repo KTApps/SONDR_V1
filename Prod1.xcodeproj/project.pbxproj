@@ -16,6 +16,7 @@
 		082D11B72B8291E400E39B40 /* ViewYourProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082D11B62B8291E400E39B40 /* ViewYourProgress.swift */; };
 		083670152C380285007A2708 /* Last10Days.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083670142C380285007A2708 /* Last10Days.swift */; };
 		084F54992C5FF5D600E44385 /* MockViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084F54982C5FF5D600E44385 /* MockViewModel.swift */; };
+		085ACA3C2C90A9700024C508 /* SwipeGeometryReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085ACA3B2C90A9700024C508 /* SwipeGeometryReader.swift */; };
 		085D8E0E2BA0DF580028AD03 /* ViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085D8E0D2BA0DF580028AD03 /* ViewModel.swift */; };
 		085D8E122BA0E8540028AD03 /* StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085D8E112BA0E8540028AD03 /* StartView.swift */; };
 		086FA10E2BA2178F005B26EB /* Input.swift in Sources */ = {isa = PBXBuildFile; fileRef = 086FA10D2BA2178F005B26EB /* Input.swift */; };
@@ -35,6 +36,7 @@
 		08E2D3E52BA0CE3D0097327A /* UserObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08E2D3E42BA0CE3D0097327A /* UserObject.swift */; };
 		08EB383E2B7FCF6700141B28 /* HabitTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08EB383D2B7FCF6700141B28 /* HabitTracker.swift */; };
 		08F0487C2C612773008F5CFD /* ProfileOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F0487B2C612773008F5CFD /* ProfileOptions.swift */; };
+		08F36E4E2C90952000067902 /* GeometryReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F36E4D2C90952000067902 /* GeometryReader.swift */; };
 		7646F2AD2B7837D20075908C /* Prod1App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7646F2AC2B7837D20075908C /* Prod1App.swift */; };
 		7646F2AF2B7837D20075908C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7646F2AE2B7837D20075908C /* ContentView.swift */; };
 		7646F2B12B7837D40075908C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7646F2B02B7837D40075908C /* Assets.xcassets */; };
@@ -49,6 +51,7 @@
 		082D11B62B8291E400E39B40 /* ViewYourProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewYourProgress.swift; sourceTree = "<group>"; };
 		083670142C380285007A2708 /* Last10Days.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Last10Days.swift; sourceTree = "<group>"; };
 		084F54982C5FF5D600E44385 /* MockViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MockViewModel.swift; path = SocialMedia/MockViewModel.swift; sourceTree = "<group>"; };
+		085ACA3B2C90A9700024C508 /* SwipeGeometryReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeGeometryReader.swift; sourceTree = "<group>"; };
 		085D8E0D2BA0DF580028AD03 /* ViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ViewModel.swift; path = Authentication/ViewModel.swift; sourceTree = "<group>"; };
 		085D8E112BA0E8540028AD03 /* StartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartView.swift; sourceTree = "<group>"; };
 		086FA10D2BA2178F005B26EB /* Input.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Input.swift; sourceTree = "<group>"; };
@@ -64,6 +67,7 @@
 		08E2D3E42BA0CE3D0097327A /* UserObject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserObject.swift; sourceTree = "<group>"; };
 		08EB383D2B7FCF6700141B28 /* HabitTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitTracker.swift; sourceTree = "<group>"; };
 		08F0487B2C612773008F5CFD /* ProfileOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileOptions.swift; sourceTree = "<group>"; };
+		08F36E4D2C90952000067902 /* GeometryReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometryReader.swift; sourceTree = "<group>"; };
 		7646F2A92B7837D20075908C /* Prod1.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Prod1.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7646F2AC2B7837D20075908C /* Prod1App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Prod1App.swift; sourceTree = "<group>"; };
 		7646F2AE2B7837D20075908C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -101,6 +105,7 @@
 			isa = PBXGroup;
 			children = (
 				08EB383D2B7FCF6700141B28 /* HabitTracker.swift */,
+				085ACA3B2C90A9700024C508 /* SwipeGeometryReader.swift */,
 				082D11B32B82910100E39B40 /* HabitAdder.swift */,
 			);
 			path = Habits;
@@ -128,6 +133,7 @@
 				08C5911C2BBC8376000EE1B9 /* LogInView.swift */,
 				086FA10D2BA2178F005B26EB /* Input.swift */,
 				086FA1252BA221A6005B26EB /* SignUpView.swift */,
+				08F36E4D2C90952000067902 /* GeometryReader.swift */,
 			);
 			name = AuthView;
 			sourceTree = "<group>";
@@ -325,11 +331,13 @@
 				08DC9D4B2C3306BD00AFDA0F /* OuterCircle.swift in Sources */,
 				087305262C18890F00F6DFEE /* FriendsBar.swift in Sources */,
 				08E2D3E52BA0CE3D0097327A /* UserObject.swift in Sources */,
+				085ACA3C2C90A9700024C508 /* SwipeGeometryReader.swift in Sources */,
 				086FA1262BA221A6005B26EB /* SignUpView.swift in Sources */,
 				08CD3D222C3444D800D48FAD /* BlurEffect.swift in Sources */,
 				086FA1142BA217F9005B26EB /* SettingsView.swift in Sources */,
 				085D8E0E2BA0DF580028AD03 /* ViewModel.swift in Sources */,
 				08F0487C2C612773008F5CFD /* ProfileOptions.swift in Sources */,
+				08F36E4E2C90952000067902 /* GeometryReader.swift in Sources */,
 				7646F2AF2B7837D20075908C /* ContentView.swift in Sources */,
 				080E02652BAA0F840044ADFB /* ProgressBar.swift in Sources */,
 				082D11B72B8291E400E39B40 /* ViewYourProgress.swift in Sources */,
@@ -486,6 +494,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LIBTOOLFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.First.Prod1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -516,6 +525,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LIBTOOLFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.First.Prod1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

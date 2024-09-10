@@ -14,9 +14,12 @@ struct AddFriends: View {
     var body: some View {
         VStack {
             
+            Spacer()
+                .frame(height: 15)
+            
             Input(text: $friend,
                   title: "Search for your Friends!",
-                  placeHolder: "username")
+                  placeHolder: "username/email")
             
             Spacer()
                 .frame(height: 15)
@@ -41,6 +44,11 @@ struct AddFriends: View {
         }
         .padding(.vertical, 2)
         .padding(.horizontal, 15)
+        .alert("User doesn't exist", isPresented: $viewModel.addFriendsError) {
+            Button("Try Again") {
+                viewModel.addFriendsError = false
+            }
+        }
     }
 }
 

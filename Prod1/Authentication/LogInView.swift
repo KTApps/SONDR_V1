@@ -126,6 +126,7 @@ struct LogInView: View {
                     }
                 }
             }
+            .keyboardResponsive()
         }
     }
 }

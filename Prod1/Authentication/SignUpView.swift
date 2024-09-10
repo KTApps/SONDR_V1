@@ -25,12 +25,12 @@ struct SignUpView: View {
                 ZStack {
                     Circle()
                         .stroke(lineWidth: 25)
-                        .foregroundColor(.gray)
+                        .foregroundColor(.blue)
                         .frame(height: 260)
                     
                     Circle()
                         .stroke(lineWidth: 25)
-                        .foregroundColor(.gray)
+                        .foregroundColor(.blue)
                         .frame(height: 160)
                     
                     Text("SONDR")
@@ -125,6 +125,7 @@ struct SignUpView: View {
                 }
             }
         }
+        .keyboardResponsive()
     }
 }
 

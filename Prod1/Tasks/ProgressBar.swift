@@ -54,6 +54,7 @@ struct ProgressBar: View {
             }
             
             Button(action: {
+                viewModel.taskString = "" // Clear the task input field
                 viewModel.isAddTaskVisible.toggle()
             }) {
                 ZStack {

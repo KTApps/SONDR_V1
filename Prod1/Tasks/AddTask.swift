@@ -23,6 +23,7 @@ struct AddTask: View {
                 Task {
                     await viewModel.taskAdder()
                 }
+                viewModel.isAddTaskVisible = false
             } label: {
                 ZStack {
                     Capsule()

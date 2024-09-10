@@ -19,7 +19,7 @@ struct ViewYourProgress: View {
                     .foregroundColor(.white)
 
                 Spacer()
-                    .frame(height: 0)
+                    .frame(height: 20)
                 
                 CalendarView()
                 

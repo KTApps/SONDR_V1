@@ -33,7 +33,7 @@ struct FriendsBar: View {
                     .foregroundColor(.white)
                     .sheet(isPresented: $viewModel.isAddFriendsVisible) {
                         AddFriends()
-                            .presentationDetents([.fraction(3/10)])
+                            .presentationDetents([.fraction(4/10)])
                     }
                 }
                 .padding(.horizontal, 13)
@@ -43,8 +43,8 @@ struct FriendsBar: View {
                         ForEach(viewModel.friendsHabitData.keys.sorted(), id: \.self) { friendUsername in
                             VStack(spacing: -20) {
                                 ZStack {
-                                    OuterFriendsCircle(username: friendUsername)
-                                    InnerFriendsCircle(username: friendUsername)
+                                    OuterFriendsCircle(username: friendUsername, innerRadius: 22, outerRadius: 29, cornerRadius: 1)
+                                    InnerFriendsCircle(username: friendUsername, innerRadius: 13, outerRadius: 20, cornerRadius: 1)
                                 }
                                 Text(friendUsername)
                                     .font(.system(size: 14))
@@ -67,16 +67,19 @@ struct FriendsBar: View {
 struct OuterFriendsCircle: View {
     @EnvironmentObject var authModel: ViewModel
     var username: String
+    let innerRadius: MarkDimension
+    let outerRadius: MarkDimension
+    let cornerRadius: CGFloat
     
     var body: some View {
         Chart(authModel.friendsTaskData[username]?.tasks ?? [], id:\.self) { task in
             SectorMark(
                 angle: .value("Time Spent", authModel.friendsTaskData[username]?.taskTimerDictionary[task] ?? 0),
-                innerRadius: 22,
-                outerRadius: 29,
+                innerRadius: innerRadius,
+                outerRadius: outerRadius,
                 angularInset: 1
             )
-            .cornerRadius(0.25)
+            .cornerRadius(cornerRadius)
         }
     }
 }
@@ -84,16 +87,20 @@ struct OuterFriendsCircle: View {
 struct InnerFriendsCircle: View {
     @EnvironmentObject var authModel: ViewModel
     var username: String
+    let innerRadius: MarkDimension
+    let outerRadius: MarkDimension
+    let cornerRadius: CGFloat
 
     var body: some View {
         Chart(authModel.friendsHabitData[username]?.habitIdArray ?? [""], id:\.self) { habit in
             SectorMark(
                 angle: .value("isTicked", 1),
-                innerRadius: 13,
-                outerRadius: 20,
+                innerRadius: innerRadius,
+                outerRadius: outerRadius,
                 angularInset: 1
             )
             .foregroundStyle(authModel.friendColorReturn(value: habit, username: username))
+            .cornerRadius(cornerRadius)
         }
     }
 }

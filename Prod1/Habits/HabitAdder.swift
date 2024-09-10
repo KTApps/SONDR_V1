@@ -35,10 +35,9 @@ struct HabitAdder: View {
                 
 //                MARK: SAVE Button
                 Button(action: {
-                    Task {
-                        await viewModel.habitAppender()
-                        viewModel.habitName = ""
-                    }
+                    viewModel.habitAppender()
+                    viewModel.isAddHabitVisible = false
+                    viewModel.habitName = ""
                 }) {
                     Text("ADD")
                         .font(.title3)

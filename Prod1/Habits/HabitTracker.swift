@@ -34,9 +34,7 @@ struct HabitTracker: View {
                             viewModel.weekDayIndexCounter += 6
                         }
                         
-                        Task {
-                            viewModel.weekdayMinus()
-                        }
+                        viewModel.weekdayMinus()
                                             
                     }) {
                         Image(systemName: "chevron.left")
@@ -48,8 +46,9 @@ struct HabitTracker: View {
                     
     //                MARK: WEEKDAY ARRAY
                     Text(viewModel.weekDay[viewModel.weekDayIndexCounter])
+                        .font(.custom("medium Header", size: 25))
                         .shadow(radius: 3, x: 3, y: 3)
-                        .fontWeight(.heavy)
+                        .fontWeight(.black)
                     
                     Spacer()
                     
@@ -61,9 +60,8 @@ struct HabitTracker: View {
                             viewModel.weekDayIndexCounter = 0
                         }
                         
-                        Task {
-                            viewModel.weekdayPlus()
-                        }
+                        viewModel.weekdayPlus()
+                        
                     }) {
                         Image(systemName: "chevron.right")
                             .shadow(radius: 3, x: 3, y: 3)
@@ -78,24 +76,33 @@ struct HabitTracker: View {
                 
     //            MARK: HABIT ARRAY
                 ForEach(viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdArray ?? [], id: \.self) { habit in
-                    Button {
-                        Task {
-                            await viewModel.habitStriker(value: habit)
+                    SwipeableRow(
+                        content: {
+                            HStack {
+                                Text(viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdName[habit] ?? "")
+                                    .font(.custom("Big Header", size: 30))
+                                    .fontWeight(.black)
+                                    .shadow(radius: 3, x: 3, y: 3)
+                                    .padding(.vertical, 3)
+                                    .overlay(
+                                        viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.isHabitStriked[habit] ?? false ?
+                                            Rectangle()
+                                                .frame(height: 4)
+                                                .colorInvert()
+                                                .padding(.horizontal, -10)
+                                            : nil
+                                    )
+                                    .onTapGesture {
+                                        viewModel.habitStriker(value: habit)
+                                    }
+                            }
+                        },
+                        onSwipeLeft: {
+                            viewModel.habitRemover(value: habit)
+                        },
+                        onSwipeRight: {
+                            viewModel.habitRemover(value: habit)
                         }
-                    } label: {
-                        Text(viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdName[habit] ?? "")
-                            .font(.custom("Big Header", size: 30))
-                    }
-                    .fontWeight(.black)
-                    .shadow(radius: 3, x: 3, y: 3)
-                    .padding(.vertical, 3)
-                    .overlay(
-                        viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.isHabitStriked[habit] ?? false ?
-                            Rectangle()
-                                .frame(height: 4)
-                                .colorInvert()
-                                .padding(.horizontal, -10)
-                            : nil
                     )
                 }
                 

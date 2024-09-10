@@ -217,8 +217,8 @@ struct CalendarDayCell: View {
         ZStack {
             Text("\(day)") // Display the day number
                 .foregroundColor(.white)
-            OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 19, outerRadius: 26, cornerRadius: 5)
-            InnerCircle(dayOfYear: dayOfYear, innerRadius: 11, outerRadius: 17, cornerRadius: 5)
+            OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 20, outerRadius: 27, cornerRadius: 3)
+            InnerCircle(dayOfYear: dayOfYear, innerRadius: 12, outerRadius: 18, cornerRadius: 3)
         }
     }
 }

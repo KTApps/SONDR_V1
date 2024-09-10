@@ -467,6 +467,7 @@ class ViewModel: ObservableObject {
     
     
 //  MARK: Add Friends
+    @Published var addFriendsError = false
     func addFriends(withUsername username: String) async {
         // Checks if User is logged in
         guard let currentUserId = self.authRef.currentUser?.uid else {
@@ -494,7 +495,7 @@ class ViewModel: ObservableObject {
             }
             
             if !usernameExists {
-                print("func addFriends(): User does not exist")
+                self.addFriendsError = true
                 return
             }
             
@@ -841,6 +842,33 @@ class ViewModel: ObservableObject {
         self.habitData = habitDataForDay[currentDayOfWeek] // Trigger a re-render by reassigning the object
     }
     
+    @Published var offsetX: CGFloat = 0
+    func habitRemover(value: String) {
+        guard let userId = userSession?.uid else {
+            return
+        }
+        
+        if var currentHabitData = self.habitDataForDay[self.currentDayOfWeek] {
+            
+            currentHabitData.habitIdArray.removeAll { $0 == value }
+            currentHabitData.habitIdName.removeValue(forKey: value)
+            currentHabitData.isHabitStriked.removeValue(forKey: value)
+            
+            self.habitDataForDay[self.currentDayOfWeek] = currentHabitData
+        }
+
+        let circleDocRef = self.databaseRef.collection("users").document(userId).collection("CircleData").document(String(self.currentDayOfWeek))
+        circleDocRef.updateData([
+            "HabitData.habitIdArray": FieldValue.arrayRemove([value]),
+            "HabitData.habitIdName.\(value)": FieldValue.delete(),
+            "HabitData.isHabitStriked.\(value)": FieldValue.delete()
+        ]) { error in
+            if let error = error {
+                print("func habitRemover(): Error updating document: \(error)")
+            }
+        }
+    }
+    
     
 //    MARK: Task DropDown Menu
     @Published var taskString: String = ""
@@ -909,8 +937,8 @@ class ViewModel: ObservableObject {
                     ])
                     
                     DispatchQueue.main.async {
-                        self.progressTasks = currentTasks
                         self.taskString = "" // Clear the task input field after successful addition
+                        self.progressTasks = currentTasks
                     }
                 } catch {
                     print("func taskAdder(): error updating circleDataRef: \(error.localizedDescription)")

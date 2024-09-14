@@ -28,6 +28,12 @@ class ViewModel: ObservableObject {
     @Published var analytics: Analytics?
     @Published var currentYear: Int = Calendar.current.component(.year, from: Date())
     @Published var currentMonth: Int = Calendar.current.component(.month, from: Date())
+    var month: String {
+        let date = Date()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "LLLL" // This gives the full month name (e.g., "September")
+        return dateFormatter.string(from: date)
+    }
     @Published var currentDayOfYear: Int = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
     @Published var currentDayOfWeek: Int = 0
     @Published var weekDayIndexCounter: Int = 0
@@ -62,6 +68,8 @@ class ViewModel: ObservableObject {
         friendsHabitData = [:]
         docTitles = []
         habitStreak = 0
+        cumulativeTasks = [:]
+        cumulativeProg = 0
     }
     
     
@@ -312,6 +320,7 @@ class ViewModel: ObservableObject {
             tasks = []
             
             habitStreak = 0
+            cumulativeTasks = [:]
             
             // Store user data
             let user = UserObject(id: result.user.uid,
@@ -323,7 +332,8 @@ class ViewModel: ObservableObject {
             
             let analytics = Prod1.Analytics(dayTracker: dayTracker,
                                             dayTrackerOffset: dayTrackerOffset,
-                                            habitStreak: habitStreak)
+                                            habitStreak: habitStreak,
+                                            cumulativeTasks: cumulativeTasks)
             let encodedAnalytics = try Firestore.Encoder().encode(analytics)
             try await userRef.updateData(["Analytics": encodedAnalytics])
             
@@ -365,7 +375,8 @@ class ViewModel: ObservableObject {
         let analyticsUpdate: [String: Any] = [
             "dayTracker": self.dayTracker,
             "dayTrackerOffset": self.dayTrackerOffset,
-            "habitStreak": self.habitStreak
+            "habitStreak": self.habitStreak,
+            "cumulativeTasks": self.cumulativeTasks
         ]
         
         do {
@@ -1102,6 +1113,7 @@ class ViewModel: ObservableObject {
             formattedTaskTime = formatTime(taskTime)
         }
     }
+        
     @Published var timerCount: Int = 0
     @Published var formattedTaskTime: String = "00:00:00"
     
@@ -1122,19 +1134,41 @@ class ViewModel: ObservableObject {
                 
                 let timerCount = (taskTimerDictionary[item] ?? 0) + 1
                 
+                // Update dictionaries with the new progress
                 progressTimerDictionary[item] = progressCount
                 taskTimerDictionary[item] = timerCount
                 
+                // Update the Firestore documents
                 updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, timerCount: timerCount)
                 
+                // Update cumulative tasks in Firestore periodically
                 Task {
                     await listenForUser()
+                    updateCumulativeProgressPeriodically()
                 }
                 
                 return timerCount
             }
         }
         return nil
+    }
+
+    @Published var formattedCumulativeTime: String = "00:00:00"
+    @Published var cumulativeTime: Int = 0 {
+        didSet {
+            formattedCumulativeTime = formatTime(cumulativeTime)
+        }
+    }
+    /// This function updates the cumulative progress periodically (e.g., every second)
+    func updateCumulativeProgressPeriodically() {
+        // Throttle the updates to avoid overloading Firestore
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
+            self.cumulativeProgress()  // Recalculate cumulative progress
+            
+            DispatchQueue.main.async {
+                self.cumulativeTime = self.cumulativeProg
+            }
+        }
     }
 
     func updateTaskTimerInFirestore(taskName: String, progressCount: Int, timerCount: Int) {
@@ -1378,4 +1412,149 @@ class ViewModel: ObservableObject {
     }
     
     @Published var isProfileViewVisible: Bool = false
+    
+    @Published var cumulativeProg: Int = 0
+    @Published var cumulativeTasks: [String: Int] = [:]
+    func cumulativeProgress() {
+        guard let currentUserId = userSession?.uid else {
+            print("func cumulativeProgress(): User session not available")
+            return
+        }
+        
+        // Step 1: Get the current date and the current month range in terms of day of the year
+        let calendar = Calendar.current
+        let currentDate = Date()
+        
+        // Get the first and last day of the current month
+        let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: currentDate))!
+        let endOfMonth = calendar.date(byAdding: DateComponents(month: 1, day: -1), to: startOfMonth)!
+        
+        // Get the day of the year for the start and end of the month
+        let startDayOfYear = calendar.ordinality(of: .day, in: .year, for: startOfMonth)!
+        let endDayOfYear = calendar.ordinality(of: .day, in: .year, for: endOfMonth)!
+        
+        // Step 2: Reference the "CircleData" sub-collection
+        let circleDataRef = self.databaseRef.collection("users").document(currentUserId).collection("CircleData")
+        
+        // Step 3: Fetch all documents from the "CircleData" sub-collection
+        circleDataRef.getDocuments { (querySnapshot, error) in
+            if let error = error {
+                print("func cumulativeProgress(): Error fetching CircleData - \(error)")
+                return
+            }
+            
+            // Step 4: Initialize a variable to store the cumulative sum
+            var totalCumulativeProgress = 0
+            
+            // Step 5: Iterate over each document in the "CircleData" sub-collection
+            guard let documents = querySnapshot?.documents else {
+                print("func cumulativeProgress(): No documents found in CircleData")
+                return
+            }
+            
+            for document in documents {
+                // The document ID is the day of the year, so convert it to an Int
+                if let dayOfYear = Int(document.documentID), dayOfYear >= startDayOfYear, dayOfYear <= endDayOfYear {
+                    // Step 6: Extract the "TaskData" map from each document within the date range
+                    let data = document.data()
+                    
+                    if let taskData = data["TaskData"] as? [String: Any],
+                       let taskTimerDictionary = taskData["taskTimerDictionary"] as? [String: Int] {
+                        
+                        // Step 7: Sum the values in taskTimerDictionary and add them to the total
+                        let documentTotal = taskTimerDictionary.values.reduce(0, +)
+                        totalCumulativeProgress += documentTotal
+                    } else {
+                        print("func cumulativeProgress(): TaskData or taskTimerDictionary not found in document \(document.documentID)")
+                    }
+                }
+            }
+            
+            // Step 8: Update the @Published var with the total cumulative progress
+            self.cumulativeProg = totalCumulativeProgress
+            self.updateCumulativeTasks()
+        }
+    }
+    
+    func updateCumulativeTasks() {
+        guard let currentUserId = userSession?.uid else {
+            print("func updateCumulativeTasks(): User session not available")
+            return
+        }
+        
+        // Step 1: Get the current month as a string
+        let calendar = Calendar.current
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMMM" // This will give us the full month name, e.g., "September"
+        let currentMonth = dateFormatter.string(from: Date())
+        
+        // Step 2: Reference the user document
+        let userDocRef = self.databaseRef.collection("users").document(currentUserId)
+        
+        // Step 3: Fetch the existing "Analytics" document
+        userDocRef.getDocument { document, error in
+            if let error = error {
+                print("func updateCumulativeTasks(): Error fetching Analytics document - \(error)")
+                return
+            }
+            
+            guard let document = document, document.exists, var userData = document.data() else {
+                print("func updateCumulativeTasks(): Analytics document does not exist or data is nil")
+                return
+            }
+            
+            // Step 4: Check if the "cumulativeTasks" map exists, otherwise create a new one
+            let analyticsData = userData["Analytics"] as? [String: Any]
+            var cumulativeTasks = analyticsData?["cumulativeTasks"] as? [String: Int] ?? [:]
+            
+            // Step 5: Update the map with the current month and cumulative progress
+            self.cumulativeTasks[currentMonth] = self.cumulativeProg
+            
+            // Step 6: Write the updated map back to the "Analytics" document
+            userDocRef.updateData([
+                "Analytics.cumulativeTasks": self.cumulativeTasks
+            ]) { error in
+                if let error = error {
+                    print("func updateCumulativeTasks(): Error updating cumulativeTasks - \(error)")
+                }
+            }
+        }
+    }
+    
+    @Published var taskSum: Int = 0
+    func taskTimerDictionarySum(dayOfYear: Int) {
+        guard let currentUserId = userSession?.uid else {
+            return
+        }
+        
+        self.taskSum = 0
+        
+        let CircleDataRef = self.databaseRef.collection("users").document(currentUserId).collection("CircleData").document(String(dayOfYear))
+        
+        // Fetch the document for the given dayOfYear
+        CircleDataRef.getDocument { document, error in
+            if let error = error {
+                print("Error fetching document: \(error)")
+                return
+            }
+            
+            // Check if the document exists and contains data
+            guard let document = document, document.exists, let data = document.data() else {
+                return
+            }
+            
+            // Extract the "taskTimerDictionary" from the document data
+            
+            if let taskData = data["TaskData"] as? [String: Any],
+                let taskTimerDictionary = taskData["taskTimerDictionary"] as? [String: Int] {
+                // Calculate the sum of all values in taskTimerDictionary
+                let total = taskTimerDictionary.values.reduce(0, +)
+                
+                // Update the published variable on the main thread
+                DispatchQueue.main.async {
+                    self.taskSum = total
+                }
+            }
+        }
+    }
 }

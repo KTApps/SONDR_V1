@@ -86,119 +86,134 @@ struct CalendarView: View {
         let firstWeekday = firstWeekdayOfMonth(for: selectedYear, month: selectedMonthIndex + 1)
         let daysToDisplay = calculateDaysToDisplay(daysInMonth: daysInMonth,
                                                    firstWeekday: firstWeekday)
-        return ZStack {
-            viewModel.darkGray.ignoresSafeArea()
-            
-            VStack {
-                HStack {
-                    Button {
-                        isMonthChangerVisible.toggle()
-                    } label: {
-                        Text(String("\(selectedMonth) \(selectedYear)"))
-                            .foregroundColor(.white)
-                    }
-                    .sheet(isPresented: $isMonthChangerVisible) {
-                        VStack {
-                            HStack {
-                                Picker(selection: $selectedMonthIndex, label: Text("\(selectedMonth)")) {
-                                    ForEach(0..<months.count) { index in
-                                        Text(months[index]).tag(index)
+        return NavigationView {
+            ZStack {
+                viewModel.darkGray.ignoresSafeArea()
+                VStack {
+                    Text("SONDR")
+                        .font(.title)
+                        .foregroundColor(.white)
+                        .shadow(radius: 3, x: 3, y: 3)
+                        .fontWeight(.black)
+
+                    Spacer()
+                        .frame(height: 20)
+                    
+                    HStack {
+                        Button {
+                            isMonthChangerVisible.toggle()
+                        } label: {
+                            Text(String("\(selectedMonth) \(selectedYear)"))
+                                .foregroundColor(.white)
+                        }
+                        .sheet(isPresented: $isMonthChangerVisible) {
+                            VStack {
+                                HStack {
+                                    Picker(selection: $selectedMonthIndex, label: Text("\(selectedMonth)")) {
+                                        ForEach(0..<months.count) { index in
+                                            Text(months[index]).tag(index)
+                                        }
                                     }
-                                }
-                                .pickerStyle(WheelPickerStyle())
-                                .onChange(of: selectedMonthIndex) { newValue in
-                                    selectedMonth = months[newValue]
+                                    .pickerStyle(WheelPickerStyle())
+                                    .onChange(of: selectedMonthIndex) { newValue in
+                                        selectedMonth = months[newValue]
+                                    }
+                                    
+                                    Picker(selection: $selectedYear, label: Text(String("\(selectedYear)"))) {
+                                        ForEach(selectedYear - 10..<selectedYear + 10, id: \.self) { year in
+                                            Text(String("\(year)"))
+                                                .tag(year)
+                                        }
+                                    }
+                                    .pickerStyle(WheelPickerStyle())
                                 }
                                 
-                                Picker(selection: $selectedYear, label: Text(String("\(selectedYear)"))) {
-                                    ForEach(selectedYear - 10..<selectedYear + 10, id: \.self) { year in
-                                        Text(String("\(year)"))
-                                            .tag(year)
-                                    }
+                                Spacer()
+                                    .frame(height: 10)
+                                
+                                Button {
+                                    isMonthChangerVisible.toggle()
+                                } label: {
+                                    Text("Submit")
+                                        .font(.title)
                                 }
-                                .pickerStyle(WheelPickerStyle())
                             }
-                            
-                            Spacer()
-                                .frame(height: 10)
-                            
-                            Button {
-                                isMonthChangerVisible.toggle()
-                            } label: {
-                                Text("Submit")
-                                    .font(.title)
-                            }
+                            .presentationDetents([.medium])
                         }
-                        .presentationDetents([.medium])
-                    }
-                    
-                    Spacer()
-                    
-                    Button {
-                        monthOffset -= 1
-                        selectedMonthIndex -= 1
-                        if selectedMonthIndex < 0 {
-                            selectedMonthIndex = months.count - 1
-                            selectedYear -= 1
-                        }
-                        updateSelectedMonthAndYear()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(.white)
-                    }
-
-                    Button {
-                        monthOffset += 1
-                        selectedMonthIndex += 1
-                        if selectedMonthIndex >= months.count {
-                            selectedMonthIndex = 0
-                            selectedYear += 1
-                        }
-                        updateSelectedMonthAndYear()
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.white)
-                    }
-                }
-                .padding(.horizontal)
-                
-                ScrollView {
-                    VStack {
-                        // Display weekday labels row
-                        HStack(spacing: 0) {
-                            ForEach(0..<7) { column in
-                                Text(abbreviatedWeekday(for: column))
-                                    .frame(width: UIScreen.main.bounds.width / CGFloat(7), height: UIScreen.main.bounds.width / CGFloat(7))
-                            }
-                        }
-                        .foregroundColor(.gray)
                         
-                        // Display days in the calendar
-                        ForEach(0..<((daysInMonth + firstWeekday - 1) / 7) + 1) { row in // Calculates the number of rows needed to display all the days of the month
+                        Spacer()
+                        
+                        Button {
+                            monthOffset -= 1
+                            selectedMonthIndex -= 1
+                            if selectedMonthIndex < 0 {
+                                selectedMonthIndex = months.count - 1
+                                selectedYear -= 1
+                            }
+                            updateSelectedMonthAndYear()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .foregroundColor(.white)
+                        }
+
+                        Button {
+                            monthOffset += 1
+                            selectedMonthIndex += 1
+                            if selectedMonthIndex >= months.count {
+                                selectedMonthIndex = 0
+                                selectedYear += 1
+                            }
+                            updateSelectedMonthAndYear()
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding(.horizontal)
+                    
+                    ScrollView {
+                        VStack {
+                            // Display weekday labels row
                             HStack(spacing: 0) {
                                 ForEach(0..<7) { column in
-                                    if let day = daysToDisplay[row * 7 + column] {
-                                        // Display a CalendarDayCell if day exists
-                                        CalendarDayCell(day: day, selectedMonth: selectedMonthIndex + 1, selectedYear: selectedYear)
-                                            .frame(width: UIScreen.main.bounds.width / CGFloat(7),
-                                                   height: UIScreen.main.bounds.width / CGFloat(7))
-                                    } else {
-                                        // Display an empty view when day is doesnt exist
-                                        Color.clear
+                                    Text(abbreviatedWeekday(for: column))
+                                        .frame(width: UIScreen.main.bounds.width / CGFloat(7), height: UIScreen.main.bounds.width / CGFloat(7))
+                                }
+                            }
+                            .foregroundColor(.gray)
+                            
+                            // Display days in the calendar
+                            ForEach(0..<((daysInMonth + firstWeekday - 1) / 7) + 1) { row in // Calculates the number of rows needed to display all the days of the month
+                                HStack(spacing: 0) {
+                                    ForEach(0..<7) { column in
+                                        if let day = daysToDisplay[row * 7 + column] {
+                                            NavigationLink {
+                                                CalendarCircle(day: day, selectedMonth: selectedMonthIndex + 1, selectedYear: selectedYear)
+                                            } label: {
+                                                // Display a CalendarDayCell if day exists
+                                                CalendarDayCell(day: day, selectedMonth: selectedMonthIndex + 1, selectedYear: selectedYear)
+                                                    .frame(width: UIScreen.main.bounds.width / CGFloat(7),
+                                                           height: UIScreen.main.bounds.width / CGFloat(7))
+                                            }
+                                        } else {
+                                            // Display an empty view when day is doesnt exist
+                                            Color.clear
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+                .padding(.vertical, 30)
             }
-        }
-        .onAppear {
-            // Update selectedDate when the view appears
-            let newDateComponents = DateComponents(year: selectedYear,
-                                                   month: selectedMonthIndex + 1)
-            if let newDate = Calendar.current.date(from: newDateComponents) {
-                selectedDate = newDate
+            .onAppear {
+                // Update selectedDate when the view appears
+                let newDateComponents = DateComponents(year: selectedYear,
+                                                       month: selectedMonthIndex + 1)
+                if let newDate = Calendar.current.date(from: newDateComponents) {
+                    selectedDate = newDate
+                }
             }
         }
     }
@@ -248,7 +263,8 @@ struct InnerCircle: View {
             SectorMark(
                 angle: .value("Time Spent", 10),
                 innerRadius: innerRadius,
-                outerRadius: outerRadius
+                outerRadius: outerRadius,
+                angularInset: 1
             )
             .foregroundStyle(calendarColorReturn(value: habit))
             .cornerRadius(cornerRadius)
@@ -285,7 +301,7 @@ struct OuterCalendarCircle: View {
                     outerRadius: 25,
                     angularInset: 1
                 )
-                .cornerRadius(5)
+                .cornerRadius(cornerRadius)
             }
         }
     }

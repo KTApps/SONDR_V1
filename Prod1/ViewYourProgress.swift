@@ -15,7 +15,8 @@ struct ViewYourProgress: View {
         ZStack{
             viewModel.darkGray.ignoresSafeArea()
             VStack {
-                Text("Progress")
+                Text("SONDR")
+                    .font(.title)
                     .foregroundColor(.white)
 
                 Spacer()

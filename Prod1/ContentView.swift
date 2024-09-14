@@ -10,6 +10,7 @@ import Charts
 
 struct ContentView: View {
     @EnvironmentObject var viewModel: ViewModel
+    @State var isShowingCumTime: Bool = false
     
     var body: some View {
 //        MARK: ZStack for BlurView
@@ -90,12 +91,15 @@ struct ContentView: View {
                         viewModel.timer.upstream.connect().cancel()
                         viewModel.progressPercentage()
                         viewModel.newTimeCalc()
+                        viewModel.cumulativeProgress()
                     }
                 }) {
-                    Text("\(viewModel.formattedTaskTime)")
+                    Text(isShowingCumTime ? "\(viewModel.formattedCumulativeTime)" : "\(viewModel.formattedTaskTime)")
                         .onReceive(viewModel.timer) { time in
                             if viewModel.isTimerOn {
                                 viewModel.taskTime = viewModel.taskTimer() ?? 0
+                                // Update cumulative progress periodically during timer execution
+                                viewModel.updateCumulativeProgressPeriodically()
                             }
                         }
                 }
@@ -141,11 +145,29 @@ struct ContentView: View {
                             viewModel.weekDayIndexCounter = viewModel.weekdayIndex(forDayOfYear: viewModel.currentDayOfYear, inYear: viewModel.currentYear) ?? 0
                             viewModel.currentDayOfWeek = viewModel.currentDayOfYear
                         }
+                        .gesture(
+                            DragGesture()
+                                .onEnded { value in
+                                    withAnimation {
+                                        if value.translation.width < -50 {
+                                            // Swiped left, show cumulative time
+                                            isShowingCumTime = true
+                                        } else if value.translation.width > 50 {
+                                            // Swiped right, show task time
+                                            isShowingCumTime = false
+                                        }
+                                    }
+                                }
+                        )
                         VStack{
-                            Text("\(viewModel.taskTime) Seconds")
+                            Text(isShowingCumTime ? "\(viewModel.cumulativeProg) Seconds" : "\(viewModel.taskTime) Seconds")
                                 .font(.title2)
-                            Text("Today")
-                                .font(.title3) // placeholder for date
+                                .transition(.slide)
+                                .animation(.easeInOut, value: isShowingCumTime)
+                            Text(isShowingCumTime ? "\(viewModel.month)" : "Today")
+                                .font(.title3)
+                                .transition(.slide)
+                                .animation(.easeInOut, value: isShowingCumTime)
                         }
                     }
                 }
@@ -189,8 +211,7 @@ struct ContentView: View {
                             }
                         }
                         .sheet(isPresented: $viewModel.isViewYourProgressVisible) {
-                            ViewYourProgress()
-                                .presentationDetents([.fraction(6.7/10)])
+                            CalendarView()
                         }
                     }
                 }

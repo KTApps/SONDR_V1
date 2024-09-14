@@ -16,6 +16,7 @@
 		082D11B72B8291E400E39B40 /* ViewYourProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082D11B62B8291E400E39B40 /* ViewYourProgress.swift */; };
 		083670152C380285007A2708 /* Last10Days.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083670142C380285007A2708 /* Last10Days.swift */; };
 		084F54992C5FF5D600E44385 /* MockViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084F54982C5FF5D600E44385 /* MockViewModel.swift */; };
+		0855693D2C95FC2100D5E40F /* CalendarCircle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0855693C2C95FC2100D5E40F /* CalendarCircle.swift */; };
 		085ACA3C2C90A9700024C508 /* SwipeGeometryReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085ACA3B2C90A9700024C508 /* SwipeGeometryReader.swift */; };
 		085D8E0E2BA0DF580028AD03 /* ViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085D8E0D2BA0DF580028AD03 /* ViewModel.swift */; };
 		085D8E122BA0E8540028AD03 /* StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085D8E112BA0E8540028AD03 /* StartView.swift */; };
@@ -51,6 +52,7 @@
 		082D11B62B8291E400E39B40 /* ViewYourProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewYourProgress.swift; sourceTree = "<group>"; };
 		083670142C380285007A2708 /* Last10Days.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Last10Days.swift; sourceTree = "<group>"; };
 		084F54982C5FF5D600E44385 /* MockViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MockViewModel.swift; path = SocialMedia/MockViewModel.swift; sourceTree = "<group>"; };
+		0855693C2C95FC2100D5E40F /* CalendarCircle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarCircle.swift; sourceTree = "<group>"; };
 		085ACA3B2C90A9700024C508 /* SwipeGeometryReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeGeometryReader.swift; sourceTree = "<group>"; };
 		085D8E0D2BA0DF580028AD03 /* ViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ViewModel.swift; path = Authentication/ViewModel.swift; sourceTree = "<group>"; };
 		085D8E112BA0E8540028AD03 /* StartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartView.swift; sourceTree = "<group>"; };
@@ -153,6 +155,7 @@
 				083670142C380285007A2708 /* Last10Days.swift */,
 				082D11B62B8291E400E39B40 /* ViewYourProgress.swift */,
 				08BE44142C62719D00DD9457 /* CalendarView.swift */,
+				0855693C2C95FC2100D5E40F /* CalendarCircle.swift */,
 			);
 			name = ViewProgress;
 			sourceTree = "<group>";
@@ -329,6 +332,7 @@
 				084F54992C5FF5D600E44385 /* MockViewModel.swift in Sources */,
 				082D11B42B82910100E39B40 /* HabitAdder.swift in Sources */,
 				08DC9D4B2C3306BD00AFDA0F /* OuterCircle.swift in Sources */,
+				0855693D2C95FC2100D5E40F /* CalendarCircle.swift in Sources */,
 				087305262C18890F00F6DFEE /* FriendsBar.swift in Sources */,
 				08E2D3E52BA0CE3D0097327A /* UserObject.swift in Sources */,
 				085ACA3C2C90A9700024C508 /* SwipeGeometryReader.swift in Sources */,

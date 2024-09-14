@@ -21,7 +21,15 @@ struct HabitTracker: View {
             }
             VStack {
                 Spacer()
-                    .frame(height: 120)
+                    .frame(height: 70)
+                
+                Text("SONDR")
+                    .font(.title)
+                    .shadow(radius: 3, x: 3, y: 3)
+                    .fontWeight(.black)
+                
+                Spacer()
+                    .frame(height: 30)
                 
     //            MARK: WEEKDAY HStack
                 HStack {
@@ -71,8 +79,13 @@ struct HabitTracker: View {
                 .font(.custom("Big title", size: 35))
                 .fontWeight(.black)
                 .padding(.horizontal, 20)
+                .padding(.vertical, -10)
+                
+                Text("Day \(viewModel.habitStreak)")
+                    .font(.callout)
+                
                 Spacer()
-                    .frame(height: 80)
+                    .frame(height: 70)
                 
     //            MARK: HABIT ARRAY
                 ForEach(viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdArray ?? [], id: \.self) { habit in

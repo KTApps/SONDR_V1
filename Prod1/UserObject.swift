@@ -46,4 +46,5 @@ struct Analytics: Codable {
     var dayTracker: [Int]
     var dayTrackerOffset: Int
     var habitStreak: Int
+    var cumulativeTasks: [String: Int]
 }

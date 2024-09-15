@@ -33,7 +33,6 @@ struct FriendsBar: View {
                     .foregroundColor(.white)
                     .sheet(isPresented: $viewModel.isAddFriendsVisible) {
                         AddFriends()
-                            .presentationDetents([.fraction(4/10)])
                     }
                 }
                 .padding(.horizontal, 13)

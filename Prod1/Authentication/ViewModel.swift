@@ -439,40 +439,69 @@ class ViewModel: ObservableObject {
         }
 
         let userRef = self.databaseRef.collection("users").document(currentUserId)
-
-        // Calculate the day of year for the current day plus 'i'
-        let nextDayInDocs = currentDayOfYear + 6
         
-        // Iterate over the next six days
-        for i in (nextDayInDocs - dayTrackerOffset)...nextDayInDocs {
+        // Reference the current day document
+        let currentDayDocumentRef = userRef.collection("CircleData").document("\(currentDayOfYear)")
+        
+        do {
+            // Fetch the current day document's data
+            let currentDayDocumentSnapshot = try await currentDayDocumentRef.getDocument()
             
-            // Construct the document reference for the current day
-            let currentDayDocumentRef = userRef.collection("CircleData").document("\(i)")
-
-            do {
-                // Check if the document for the current day already exists
-                let documentSnapshot = try await currentDayDocumentRef.getDocument()
-                
-                // If the document for the current day doesn't exist, create it
-                if !documentSnapshot.exists {
-                    // Store habit data as a subcollection within the current day document
-                    let habitData = Prod1.HabitData(habitIdArray: habitIdArray,
-                                                     habitIdName: habitIdName,
-                                                     isHabitStriked: isHabitStriked)
-
-                    let encodedHabitData = try Firestore.Encoder().encode(habitData)
-                    try await currentDayDocumentRef.setData(["HabitData": encodedHabitData])
-                    
-                    // Store task data
-                    let taskData = Prod1.TaskData(tasks: tasks,
-                                                    taskTimerDictionary: taskTimerDictionary)
-                    let encodedTaskData = try Firestore.Encoder().encode(taskData)
-                    try await currentDayDocumentRef.updateData(["TaskData": encodedTaskData])
-                    
-                }
-            } catch {
-                print("func newCircleDoc(): Error checking or updating HabitData for day \(i): \(error)")
+            // Ensure that the current day's document exists before proceeding
+            guard var currentDayData = currentDayDocumentSnapshot.data() else {
+                print("Current day's document does not exist or contains no data.")
+                return
             }
+            
+            // Extract only the "HabitData" from the current day data
+            guard var habitData = currentDayData["HabitData"] as? [String: Any] else {
+                print("No HabitData found in current day's document.")
+                return
+            }
+            
+            // Extract and modify the "isHabitStriked" map
+            if var isHabitStriked = habitData["isHabitStriked"] as? [String: Bool] {
+                // Set all values in "isHabitStriked" to false
+                for key in isHabitStriked.keys {
+                    isHabitStriked[key] = false
+                }
+                // Update the "HabitData" with the modified "isHabitStriked" map
+                habitData["isHabitStriked"] = isHabitStriked
+            } else {
+                print("No isHabitStriked map found.")
+            }
+
+            // Prepare an empty "TaskData" structure
+            let emptyTaskData: [String: Any] = [
+                "tasks": [],
+                "taskTimerDictionary": [:]
+            ]
+            
+            // Calculate the day of year for the next days (nextDayInDocs is current day + 6)
+            let nextDayInDocs = currentDayOfYear + 6
+
+            // Iterate over the next six days to create new documents
+            for i in (nextDayInDocs - dayTrackerOffset)...nextDayInDocs {
+                
+                // Construct the document reference for the next day
+                let nextDayDocumentRef = userRef.collection("CircleData").document("\(i)")
+                
+                // Check if the document for the next day already exists
+                let documentSnapshot = try await nextDayDocumentRef.getDocument()
+                
+                // If the document for the next day doesn't exist, create it
+                if !documentSnapshot.exists {
+                    // Create a new document with modified "HabitData" and empty "TaskData"
+                    try await nextDayDocumentRef.setData([
+                        "HabitData": habitData,
+                        "TaskData": emptyTaskData
+                    ])
+                    
+                    print("Created new document for day \(i) with current day's modified HabitData and empty TaskData.")
+                }
+            }
+        } catch {
+            print("Error in newCircleDoc(): \(error)")
         }
     }
     

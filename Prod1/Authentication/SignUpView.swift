@@ -42,13 +42,17 @@ struct SignUpView: View {
                 Spacer()
                     .frame(height: 20)
                 
-                Input(text: $username, title: "username", placeHolder: "username")
+                Input(text: $username, 
+                      title: "username",
+                      placeHolder: "username")
                 .foregroundColor(.white)
                 
                 Spacer()
                     .frame(height: 20)
                 
-                Input(text: $email, title: "Email Address", placeHolder: "name@example.com")
+                Input(text: $email, 
+                      title: "Email Address",
+                      placeHolder: "name@example.com")
                 .autocapitalization(/*@START_MENU_TOKEN@*/.none/*@END_MENU_TOKEN@*/)
                 .foregroundColor(.white)
                 
@@ -57,9 +61,9 @@ struct SignUpView: View {
                 
                 ZStack(alignment: .trailing) {
                     Input(text: $password,
-                                title: "Password",
-                                placeHolder: "********",
-                                secureField: true)
+                          title: "Password",
+                          placeHolder: "********",
+                          secureField: true)
                     .foregroundColor(.white)
                     
                     VStack {

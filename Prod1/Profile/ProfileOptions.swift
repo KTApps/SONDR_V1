@@ -61,7 +61,6 @@ struct ProfileOptions: View {
                     }
                     .sheet(isPresented: $viewModel.isAddFriendsVisible) {
                         AddFriends()
-                            .presentationDetents([.fraction(4/10)])
                     }
                     
                     Spacer()

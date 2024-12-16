@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct ProfileOptions: View {
     @EnvironmentObject var viewModel: ViewModel
@@ -19,17 +20,21 @@ struct ProfileOptions: View {
             }
             if let user = viewModel.currentUser {
                 VStack {
-                    Button {
-                        withAnimation {
-                            viewModel.comingSoonAlert = true
+                    PhotosPicker(selection: $viewModel.selectedItem) {
+                        if let profileImage = viewModel.profileImage {
+                            profileImage
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 70, height: 70)
+                                .clipShape(Circle())
+                        } else {
+                            Text(user.initial)
+                                .font(.largeTitle)
+                                .foregroundColor(.white)
+                                .frame(width: 70, height: 70)
+                                .background(Color.gray)
+                                .clipShape(Circle())
                         }
-                    } label: {
-                        Text(user.initial)
-                            .font(.largeTitle)
-                            .foregroundColor(.white)
-                            .frame(width: 70, height: 70)
-                            .background(Color.gray)
-                            .clipShape(Circle())
                     }
                     Text(user.username)
                     Text("\(viewModel.friendCount) \(viewModel.friendOrFriends)")

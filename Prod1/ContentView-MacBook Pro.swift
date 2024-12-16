@@ -117,7 +117,7 @@ struct ContentView: View {
                                 .foregroundColor(.gray)
                                 .frame(width: geometry.size.width * 0.65, height: geometry.size.width * 0.65)
                             
-                            OuterCircle(innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.4), cornerRadius: 5)
+                            OuterCircle(innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.3), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.39), cornerRadius: 5)
                             
                             Circle()
                                 .stroke(lineWidth: geometry.size.width * 0.05)
@@ -127,8 +127,8 @@ struct ContentView: View {
                             Chart(viewModel.habitData?.habitIdArray ?? [""], id:\.self) { habit in
                                 SectorMark(
                                     angle: .value("isTicked", 1),
-                                    innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.19),
-                                    outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.27),
+                                    innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.20),
+                                    outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.28),
                                     angularInset: 1
                                 )
                                 .foregroundStyle(viewModel.colorReturn(value: habit))

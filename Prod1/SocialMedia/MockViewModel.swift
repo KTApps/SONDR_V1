@@ -24,7 +24,7 @@ class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
                     "habit2": false
                 ]
             ),
-            2: HabitData(
+            9: HabitData(
                 habitIdArray: ["habit3", "habit4"],
                 habitIdName: [
                     "habit3": "Meditate",

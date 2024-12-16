@@ -9,6 +9,8 @@ import SwiftUI
 import Foundation
 import Firebase
 import FirebaseFirestoreSwift
+import PhotosUI
+import FirebaseStorage
 
 //  MARK: User Input Validator
 protocol AuthFormValidation {
@@ -19,6 +21,7 @@ protocol AuthFormValidation {
 class ViewModel: ObservableObject {
     let authRef = Auth.auth()
     let databaseRef = Firestore.firestore()
+    let storageRef = Storage.storage().reference()
     
     @Published var userSession: FirebaseAuth.User? = nil
     @Published var currentUser: UserObject?
@@ -49,10 +52,12 @@ class ViewModel: ObservableObject {
         // Initialising currentDayOfWeek
         currentDayOfWeek = currentDayOfYear
         
+        isFriendsVisible = false
+        
     }
     
     
-//  MARK: Clear Data
+    //  MARK: Clear Data
     func clearData() {
         currentUser = nil
         taskData = nil
@@ -73,7 +78,7 @@ class ViewModel: ObservableObject {
     }
     
     
-//  MARK: Listen For Data
+    //  MARK: Listen For Data
     func listenForUser() async {
         // Checks if User is logged in
         guard let currentUserId = self.authRef.currentUser?.uid else {
@@ -82,6 +87,33 @@ class ViewModel: ObservableObject {
         
         // Add a listener for changes to the user document
         let userRef = self.databaseRef.collection("users").document(currentUserId)
+        
+        userRef.getDocument { document, error in
+            if let error = error {
+                print("func retrieveImage(): error fetching document: \(error)")
+                return
+            }
+            guard let document = document, document.exists, let data = document.data() else {
+                return
+            }
+            if let path = data["profilePic"] as? String {
+                let imageRef = self.storageRef.child(path)
+                imageRef.getData(maxSize: 10 * 1024 * 1024) { data, error in
+                    if let error = error {
+                        print("func retrieveImage(): error fetching imageRef: \(error)")
+                        return
+                    }
+                    guard let data = data, let uiImage = UIImage(data: data) else {
+                        print("func retrieveImage(): error converting imageRef to UiImage: \(error)")
+                        return
+                    }
+                    DispatchQueue.main.async {
+                        self.profileImage = Image(uiImage: uiImage)
+                    }
+                }
+            }
+        }
+        
         userRef.addSnapshotListener { documentSnapshot, error in
             guard let document = documentSnapshot else {
                 print("Error fetching document: \(error!)")
@@ -113,7 +145,7 @@ class ViewModel: ObservableObject {
                     }
                 }
                 
-                    // Fetch and decode progress data
+                // Fetch and decode progress data
                 if let progressData = userData["Progress"] as? [String: Any] {
                     do {
                         let decodedProgressData = try Firestore.Decoder().decode(Prod1.ProgressData.self, from: progressData)
@@ -166,9 +198,9 @@ class ViewModel: ObservableObject {
             }
         }
     }
-
     
-//  MARK: LOG IN
+    
+    //  MARK: LOG IN
     @Published var logInError: Bool = false
     func logIn(withEmail email: String, password: String) async throws {
         do {
@@ -214,7 +246,7 @@ class ViewModel: ObservableObject {
             if document.exists {
                 // Extract the current 'dayTracker' array from the 'Analytics' map
                 self.dayTracker = document.get("Analytics.dayTracker") as? [Int] ?? []
-
+                
                 // Check if currentDayOfYear is equal to the last element in dayTracker
                 guard self.currentDayOfYear != self.dayTracker.last else {
                     return
@@ -294,13 +326,13 @@ class ViewModel: ObservableObject {
     }
     
     
-//  MARK: SIGN UP
+    //  MARK: SIGN UP
     @Published var signUpError: Bool = false
     func signUp(withEmail email: String, password: String, username: String) async throws {
         do {
             let result = try await self.authRef.createUser(withEmail: email, password: password) // Authenticates user
             self.userSession = result.user // user session = authenticated user
-                        
+            
             taskName = "Task"
             taskTime = 0
             taskString = ""
@@ -388,12 +420,12 @@ class ViewModel: ObservableObject {
         }
     }
     
-//  MARK: Create Habit Sub-Collection
+    //  MARK: Create Habit Sub-Collection
     private func circleSubCollection() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }
-
+        
         let userRef = self.databaseRef.collection("users").document(currentUserId)
         
         // Iterate over the next six days
@@ -403,7 +435,7 @@ class ViewModel: ObservableObject {
             
             // Construct the document reference for the current day
             let currentDayDocumentRef = userRef.collection("CircleData").document("\(nextDayOfYear)")
-
+            
             do {
                 // Check if the document for the current day already exists
                 let documentSnapshot = try await currentDayDocumentRef.getDocument()
@@ -412,15 +444,15 @@ class ViewModel: ObservableObject {
                 if !documentSnapshot.exists {
                     // Store habit data as a subcollection within the current day document
                     let habitData = Prod1.HabitData(habitIdArray: habitIdArray,
-                                                     habitIdName: habitIdName,
-                                                     isHabitStriked: isHabitStriked)
-
+                                                    habitIdName: habitIdName,
+                                                    isHabitStriked: isHabitStriked)
+                    
                     let encodedHabitData = try Firestore.Encoder().encode(habitData)
                     try await currentDayDocumentRef.setData(["HabitData": encodedHabitData])
                     
                     // Store task data
                     let taskData = Prod1.TaskData(tasks: tasks,
-                                                    taskTimerDictionary: taskTimerDictionary)
+                                                  taskTimerDictionary: taskTimerDictionary)
                     let encodedTaskData = try Firestore.Encoder().encode(taskData)
                     try await currentDayDocumentRef.updateData(["TaskData": encodedTaskData])
                     
@@ -432,12 +464,12 @@ class ViewModel: ObservableObject {
     }
     
     @Published var dayConstant: Int = 0
-//  MARK: Create Habit Document
+    //  MARK: Create Habit Document
     private func newCircleDoc() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }
-
+        
         let userRef = self.databaseRef.collection("users").document(currentUserId)
         
         // Reference the current day document
@@ -470,7 +502,7 @@ class ViewModel: ObservableObject {
             } else {
                 print("No isHabitStriked map found.")
             }
-
+            
             // Prepare an empty "TaskData" structure
             let emptyTaskData: [String: Any] = [
                 "tasks": [],
@@ -479,7 +511,7 @@ class ViewModel: ObservableObject {
             
             // Calculate the day of year for the next days (nextDayInDocs is current day + 6)
             let nextDayInDocs = currentDayOfYear + 6
-
+            
             // Iterate over the next six days to create new documents
             for i in (nextDayInDocs - dayTrackerOffset)...nextDayInDocs {
                 
@@ -506,7 +538,7 @@ class ViewModel: ObservableObject {
     }
     
     
-//  MARK: Add Friends
+    //  MARK: Add Friends
     @Published var addFriendsError = false
     func addFriends(withUsername username: String) async {
         // Checks if User is logged in
@@ -574,15 +606,15 @@ class ViewModel: ObservableObject {
             print("func fetchAllFriendsData(): User not logged in.")
             return
         }
-
+        
         let userRef = self.databaseRef.collection("users").document(currentUserId)
-
+        
         do {
             let userDocSnapshot = try await userRef.getDocument()
             guard let friendsArray = userDocSnapshot.data()?["Friends"] as? [String] else {
                 return
             }
-
+            
             // Fetch habit data for all friends
             for friendUsername in friendsArray {
                 await fetchFriendData(friendUsername: friendUsername)
@@ -595,19 +627,19 @@ class ViewModel: ObservableObject {
     
     @Published var friendsHabitData: [String: HabitData] = [:]
     @Published var friendsTaskData: [String: TaskData] = [:]
-
+    
     func fetchFriendData(friendUsername: String) async {
         let query = self.databaseRef.collection("users").whereField("AuthenticationData.username", isEqualTo: friendUsername)
-
+        
         do {
             let querySnapshot = try await query.getDocuments()
             guard let friendDoc = querySnapshot.documents.first else {
                 print("func fetchFriendData(): Friend with username \(friendUsername) not found.")
                 return
             }
-
+            
             let friendId = friendDoc.documentID
-
+            
             // Fetch CircleData
             let circleDataRef = self.databaseRef.collection("users").document(friendId).collection("CircleData").document("\(currentDayOfYear)")
             let circleDocumentSnapshot = try await circleDataRef.getDocument()
@@ -619,20 +651,16 @@ class ViewModel: ObservableObject {
                 DispatchQueue.main.async {
                     self.friendsHabitData[friendUsername] = decodedHabitData
                 }
-            } else {
-                print("func fetchFriendData(): No HabitData found")
             }
-
+            
             // Fetch TaskData
             if let taskDataMap = circleData?["TaskData"] as? [String: Any] {
                 let decodedTaskData = try Firestore.Decoder().decode(TaskData.self, from: taskDataMap)
                 DispatchQueue.main.async {
                     self.friendsTaskData[friendUsername] = decodedTaskData
                 }
-            } else {
-                print("func fetchFriendData(): No TaskData found")
             }
-
+            
         } catch {
             print("func fetchFriendData(): Error fetching friend's data: \(error.localizedDescription)")
         }
@@ -655,15 +683,15 @@ class ViewModel: ObservableObject {
             print("User not logged in.")
             return
         }
-
+        
         let userRef = self.databaseRef.collection("users").document(currentUserId)
-
+        
         do {
             let documentSnapshot = try await userRef.getDocument()
             guard let friendsArray = documentSnapshot.data()?["Friends"] as? [String] else {
                 return
             }
-
+            
             // Return the count of elements in the 'Friends' array
             self.friendCount = friendsArray.count
             await friendOrFriends(friendCount: friendsArray.count)
@@ -679,9 +707,9 @@ class ViewModel: ObservableObject {
             friendOrFriends = "Friends"
         }
     }
-
     
-//  MARK: SIGN OUT
+    
+    //  MARK: SIGN OUT
     func signOut() {
         do {
             try self.authRef.signOut() // firebase sign out
@@ -694,7 +722,7 @@ class ViewModel: ObservableObject {
     }
     
     
-//  MARK: DELETE ACCOUNT
+    //  MARK: DELETE ACCOUNT
     func deleteAccount() async throws {
         if let user = self.authRef.currentUser {
             let userId = user.uid
@@ -715,15 +743,15 @@ class ViewModel: ObservableObject {
     }
     
     
-//    MARK: Authentication
+    //    MARK: Authentication
     @Published var secureField: Bool = false
     
     
-//    MARK: Settings
+    //    MARK: Settings
     @Published var isSettingsVisible = false
     
     
-//    MARK: BlurView
+    //    MARK: BlurView
     @Published var isBlurViewVisible: Bool = false
     @Published var isProfileBlurViewVisible: Bool = false
     @Published var isPostBlurViewVisible: Bool = false
@@ -750,9 +778,9 @@ class ViewModel: ObservableObject {
             await listenForCircleData(dayOfYear: currentDayOfWeek)
         }
     }
-
     
-//    MARK: WeekDays
+    
+    //    MARK: WeekDays
     
     @Published var weekDay: [String] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     
@@ -762,36 +790,36 @@ class ViewModel: ObservableObject {
         guard year > 0 else {
             return nil
         }
-
+        
         // Create a Calendar instance
         let calendar = Calendar.current
-
+        
         // Check if the day of the year is valid
         guard dayOfYear > 0 && dayOfYear <= 365 + (isLeapYear(year) ? 1 : 0) else {
             return nil
         }
-
+        
         // Create a DateComponents instance for the given year and day of the year
         var dateComponents = DateComponents()
         dateComponents.year = year
         dateComponents.day = dayOfYear
-
+        
         // Get the date for the given year and day of the year
         guard let date = calendar.date(from: dateComponents) else {
             return nil
         }
-
+        
         // Get the weekday index for the date (0 for Sunday, 1 for Monday, ..., 6 for Saturday)
         var weekdayIndex = calendar.component(.weekday, from: date) - 1
         if weekdayIndex == 0 {
             weekdayIndex = 7
         }
-
+        
         return weekdayIndex - 1
     }
     
     
-//    MARK: Habits
+    //    MARK: Habits
     @Published var isAddHabitVisible = false
     @Published var habitIdArray: [String] = []
     @Published var habitIdName: [String: String] = [:] // Dictionary = [Habit Id : Habit Name]
@@ -857,8 +885,8 @@ class ViewModel: ObservableObject {
             await listenForCircleData(dayOfYear: currentDayOfYear)
         }
     }
-
-
+    
+    
     func habitStriker(value: String) {
         guard let userId = userSession?.uid else {
             print("func habitStriker(): User is not logged in.")
@@ -873,7 +901,7 @@ class ViewModel: ObservableObject {
         habitDataRef.updateData([
             "HabitData.isHabitStriked": habitDataForDay[currentDayOfWeek]?.isHabitStriked
         ])
-            
+        
         Task {
             await listenForUser()
             await listenForCircleData(dayOfYear: currentDayOfWeek)
@@ -896,7 +924,7 @@ class ViewModel: ObservableObject {
             
             self.habitDataForDay[self.currentDayOfWeek] = currentHabitData
         }
-
+        
         let circleDocRef = self.databaseRef.collection("users").document(userId).collection("CircleData").document(String(self.currentDayOfWeek))
         circleDocRef.updateData([
             "HabitData.habitIdArray": FieldValue.arrayRemove([value]),
@@ -910,7 +938,7 @@ class ViewModel: ObservableObject {
     }
     
     
-//    MARK: Task DropDown Menu
+    //    MARK: Task DropDown Menu
     @Published var taskString: String = ""
     @Published var tasks: [String] = [] {
         didSet {
@@ -929,19 +957,19 @@ class ViewModel: ObservableObject {
             print("func taskAdder(): User is not logged in")
             return
         }
-
+        
         let userRef = self.databaseRef.collection("users").document(userId)
-
+        
         do {
             let document = try await userRef.getDocument()
             
             // Fetch progress data
             var progressData = document.data()?["Progress"] as? [String: Any] ?? [:]
             var currentTasks = progressData["progressTasks"] as? [String] ?? []
-
+            
             // Update progress data
             currentTasks.append(self.taskString)
-
+            
             // Update database
             do {
                 try await userRef.updateData([
@@ -965,11 +993,11 @@ class ViewModel: ObservableObject {
                 // Fetch task data
                 var taskData = document.data()?["TaskData"] as? [String: Any] ?? [:]
                 var currentTasks = taskData["tasks"] as? [String] ?? []
-
+                
                 // Update task data
                 currentTasks.append(self.taskString)
                 taskData["tasks"] = currentTasks
-
+                
                 // Update database
                 do {
                     try await circleDataRef.updateData([
@@ -1029,8 +1057,8 @@ class ViewModel: ObservableObject {
             print("func newTaskAdder(): Document doesn't exist")
         }
     }
-
-
+    
+    
     
     @Published var taskMaxTime: [String: Int] = [:] // Dictionary = [Task Title: Max Time]
     @Published var maxTimeAlert: Bool = false
@@ -1049,10 +1077,10 @@ class ViewModel: ObservableObject {
             print("func ProgressPercentage(): User is not logged in.")
             return
         }
-
+        
         let userRef = self.databaseRef.collection("users").document(userId)
         var maxTimeIncreasedTasks: [String: Int] = [:]
-
+        
         for item in progressTasks {
             // Ensure task time does not exceed max time
             if let currentTime = progressTimerDictionary[item] {
@@ -1076,7 +1104,7 @@ class ViewModel: ObservableObject {
         
         self.updateTaskProgress(userId: userId)
     }
-
+    
     private func updateTaskProgress(userId: String) {
         // Update ProgressData
         let userRef = self.databaseRef.collection("users").document(userId)
@@ -1089,7 +1117,7 @@ class ViewModel: ObservableObject {
         userRef.updateData([
             "Progress.taskDecimalDict": taskDecimalDict
         ])
-
+        
         Task {
             await listenForUser()
         }
@@ -1107,7 +1135,7 @@ class ViewModel: ObservableObject {
         }
         
         let userRef = self.databaseRef.collection("users").document(userId)
-
+        
         userRef.updateData([
             "Progress.taskDecimalDict": self.taskDecimalDict
         ]) { error in
@@ -1118,7 +1146,7 @@ class ViewModel: ObservableObject {
             }
         }
     }
-
+    
     
     @Published var maxWidth: Double = 340
     @Published var newTimeArray: [String: Int] = [:]
@@ -1131,7 +1159,7 @@ class ViewModel: ObservableObject {
     }
     
     
-//    MARK: Task Timer
+    //    MARK: Task Timer
     @Published var isTimerOn: Bool = false
     @Published var timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect() // Just initializing 'timer' variable
     @Published var progressTimerDictionary: [String: Int] = [:] // Dictionary = [Task Title : cumulative TimerCount for task]
@@ -1142,7 +1170,7 @@ class ViewModel: ObservableObject {
             formattedTaskTime = formatTime(taskTime)
         }
     }
-        
+    
     @Published var timerCount: Int = 0
     @Published var formattedTaskTime: String = "00:00:00"
     
@@ -1181,7 +1209,7 @@ class ViewModel: ObservableObject {
         }
         return nil
     }
-
+    
     @Published var formattedCumulativeTime: String = "00:00:00"
     @Published var cumulativeTime: Int = 0 {
         didSet {
@@ -1199,7 +1227,7 @@ class ViewModel: ObservableObject {
             }
         }
     }
-
+    
     func updateTaskTimerInFirestore(taskName: String, progressCount: Int, timerCount: Int) {
         guard let userId = userSession?.uid else {
             return
@@ -1234,7 +1262,7 @@ class ViewModel: ObservableObject {
     }
     
     
-//    MARK: Circles
+    //    MARK: Circles
     @Published var selectedChartPosition: Int?
     @Published var taskSectorRange: [String: Range<Int>] = [:]
     
@@ -1247,7 +1275,7 @@ class ViewModel: ObservableObject {
     }
     
     
-//    MARK: View Your Progress
+    //    MARK: View Your Progress
     @Published var isViewYourProgressVisible = false
     
     @Published var docTitles: [Int?] = []
@@ -1257,7 +1285,7 @@ class ViewModel: ObservableObject {
             print("func fetchCircleDocRef(): User not logged in.")
             return
         }
-
+        
         do {
             let circleDataRef = self.databaseRef.collection("users").document(currentUserId).collection("CircleData")
             
@@ -1279,7 +1307,7 @@ class ViewModel: ObservableObject {
     }
     
     
-//    MARK: Calendar
+    //    MARK: Calendar
     func dayOfYear(year: Int, month: Int, day: Int) -> Int {
         // Define the number of days in each month
         let daysInMonth: [Int] = [31, 28 + (year % 4 == 0 ? (year % 100 != 0 || year % 400 == 0 ? 1 : 0) : 0), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
@@ -1295,7 +1323,7 @@ class ViewModel: ObservableObject {
     func isLeapYear(_ year: Int) -> Bool {
         return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
     }
-
+    
     func dateFromDayOfYear(index: Int, year: Int, dayOfYear: Int) -> (month: Int, day: Int)? {
         // Define the number of days in each month
         let daysInMonth: [Int] = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
@@ -1306,10 +1334,10 @@ class ViewModel: ObservableObject {
             print("Invalid dayOfYear: \(dayOfYear)")
             return nil
         }
-
+        
         var remainingDays = dayOfYear
         var month = 1
-
+        
         // Iterate through the months to find the corresponding month and day
         for days in daysInMonth {
             if remainingDays <= days {
@@ -1377,17 +1405,17 @@ class ViewModel: ObservableObject {
         }
     }
     
-//    MARK: ADD FRIENDS
+    //    MARK: ADD FRIENDS
     @Published var isFriendsVisible: Bool = false
     @Published var isAddFriendsVisible: Bool = false
     
-//    MARK: CUSTOM COLOURS
+    //    MARK: CUSTOM COLOURS
     @Published var darkGray: Color = Color(.sRGB, red: 0.1, green: 0.1, blue: 0.1, opacity: 1.0)
     
-//    MARK: COMING SOON...
+    //    MARK: COMING SOON...
     @Published var comingSoonAlert: Bool = false
     
-//    MARK: IMAGE POST
+    //    MARK: IMAGE POST
     @Published var showImagePicker: Bool = false
     @Published var libraryIsVisible: Bool = false
     @Published var capturedImage: UIImage?
@@ -1395,7 +1423,7 @@ class ViewModel: ObservableObject {
     @Published var caption: String = ""
     @Published var backButton: Bool = false
     var username: String = ""
-
+    
     
     func fetchUsername(for userId: String) async throws -> String {
         let userRef = databaseRef.collection("users").document(userId)
@@ -1407,7 +1435,7 @@ class ViewModel: ObservableObject {
             throw NSError(domain: "uploadComment", code: 404, userInfo: [NSLocalizedDescriptionKey: "Username not found"])
         }
     }
-
+    
     
     @Published var habitDataForDayTimeline: [String: Prod1.HabitData] = [:] // Dictionary = [Day of year: habit data]
     func listenForTimelineHabitData(id: String, userId: String, dayOfYear: Int) async {
@@ -1429,7 +1457,7 @@ class ViewModel: ObservableObject {
                     
                     // Update habitDataForDay dictionary with the fetched habit data
                     self.habitDataForDayTimeline[id] = decodedHabitData
-
+                    
                 } catch {
                     print("func listenForTimelineHabitData(): Error decoding HabitData for day \(dayOfYear): \(error.localizedDescription)")
                 }
@@ -1575,7 +1603,7 @@ class ViewModel: ObservableObject {
             // Extract the "taskTimerDictionary" from the document data
             
             if let taskData = data["TaskData"] as? [String: Any],
-                let taskTimerDictionary = taskData["taskTimerDictionary"] as? [String: Int] {
+               let taskTimerDictionary = taskData["taskTimerDictionary"] as? [String: Int] {
                 // Calculate the sum of all values in taskTimerDictionary
                 let total = taskTimerDictionary.values.reduce(0, +)
                 
@@ -1586,4 +1614,91 @@ class ViewModel: ObservableObject {
             }
         }
     }
+    
+    @Published var selectedItem: PhotosPickerItem? {
+        didSet {
+            Task {
+                if let selectedItem {
+                    if let imageData = try? await selectedItem.loadTransferable(type: Data.self),
+                       let uiImage = UIImage(data: imageData) {
+                        DispatchQueue.main.async {
+                            self.profileImage = Image(uiImage: uiImage)
+                        }
+                    }
+                }
+                try await saveImage()
+                retrieveImage()
+            }
+        }
+    }
+    
+    @Published var profileImage: Image?
+    
+    func saveImage() async throws {
+        guard let item = selectedItem else {
+            return
+        }
+        
+        guard let currentUserId = userSession?.uid else {
+            return
+        }
+        
+        guard let imageData = try await item.loadTransferable(type: Data.self) else {
+            return
+        }
+        
+        let meta = StorageMetadata()
+        meta.contentType = "image/jpeg"
+        
+        let path = "\(UUID().uuidString).jpeg"
+        let metaData = try await self.storageRef.child(path).putDataAsync(imageData, metadata: meta)
+        
+        let userDocRef = self.databaseRef.collection("users").document(currentUserId)
+        
+        let docSnapshot = try await userDocRef.getDocument()
+        if let profilePic = docSnapshot.data()?["profilePic"] as? String {
+            let oldImageRef = self.storageRef.child(profilePic)
+            try? await oldImageRef.delete()
+        }
+        
+        try await userDocRef.updateData(["profilePic": path])
+    }
+    
+    func retrieveImage() {
+        guard let currentUserId = userSession?.uid else {
+            return
+        }
+        let userDocRef = self.databaseRef.collection("users").document(currentUserId)
+        userDocRef.getDocument { document, error in
+            if let error = error {
+                print("func retrieveImage(): error fetching document: \(error)")
+                return
+            }
+            guard let document = document, document.exists, let data = document.data() else {
+                return
+            }
+            if let path = data["profilePic"] as? String {
+                let imageRef = self.storageRef.child(path)
+                imageRef.getData(maxSize: 10 * 1024 * 1024) { data, error in
+                    if let error = error {
+                        print("func retrieveImage(): error fetching imageRef: \(error)")
+                        return
+                    }
+                    guard let data = data, let uiImage = UIImage(data: data) else {
+                        print("func retrieveImage(): error converting imageRef to UiImage: \(error)")
+                        return
+                    }
+                    DispatchQueue.main.async {
+                        self.profileImage = Image(uiImage: uiImage)
+                    }
+                }
+            }
+        }
+    }
 }
+
+// 1. create reference to photo in Storage
+// 2. save photo reference from Storage into the users Database
+// 3. replace photo reference in Database and delete old reference from Storage when changed
+// 3. retrieve photo
+// 4. fix logic in app

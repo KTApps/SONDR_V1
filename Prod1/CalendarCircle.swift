@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Charts
 
 struct CalendarCircle: View {
     @EnvironmentObject var viewModel: ViewModel
@@ -35,60 +36,62 @@ struct CalendarCircle: View {
     
     @Environment(\.presentationMode) var presentationMode
     var body: some View {
-        ZStack {
-            viewModel.darkGray.ignoresSafeArea()
-            VStack {
-                Spacer()
-                    .frame(height: 40)
-                
-                HStack {
-                    Button {
-                        presentationMode.wrappedValue.dismiss()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .resizable()
-                            .frame(width: 15, height: 23)
-                            .foregroundColor(.white)
-                    }
-                    
+        GeometryReader { geometry in
+            ZStack {
+                viewModel.darkGray.ignoresSafeArea()
+                VStack {
                     Spacer()
-                        .frame(width: 110)
+                        .frame(height: 40)
                     
-                    Text("SONDR")
+                    HStack {
+                        Button {
+                            presentationMode.wrappedValue.dismiss()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .resizable()
+                                .frame(width: 15, height: 23)
+                                .foregroundColor(.white)
+                        }
+                        
+                        Spacer()
+                            .frame(width: 110)
+                        
+                        Text("SONDR")
+                            .font(.title)
+                            .foregroundColor(.white)
+                            .shadow(radius: 3, x: 3, y: 3)
+                            .fontWeight(.black)
+                        
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+
+                    Spacer()
+                        .frame(height: 110)
+                    
+                    // Display the formatted date above the ZStack
+                    Text(formattedDate)
                         .font(.title)
                         .foregroundColor(.white)
-                        .shadow(radius: 3, x: 3, y: 3)
-                        .fontWeight(.black)
+                    
+                    ZStack {
+                        VStack {
+                            Text("\(viewModel.taskSum)")
+                            Text("seconds")
+                        }
+                        .font(.title)
+                        
+                        OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.4), cornerRadius: 5)
+                        InnerCircle(dayOfYear: dayOfYear, innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.19), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.27), cornerRadius: 5)
+                    }
                     
                     Spacer()
+                        .frame(height: 130)
                 }
-                .padding(.horizontal, 20)
-
-                Spacer()
-                    .frame(height: 110)
-                
-                // Display the formatted date above the ZStack
-                Text(formattedDate)
-                    .font(.title)
-                    .foregroundColor(.white)
-                
-                ZStack {
-                    VStack {
-                        Text("\(viewModel.taskSum)")
-                        Text("seconds")
-                    }
-                    .font(.title)
-                    
-                    OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 140, outerRadius: 170, cornerRadius: 5)
-                    InnerCircle(dayOfYear: dayOfYear, innerRadius: 90, outerRadius: 120, cornerRadius: 5)
+                .navigationBarBackButtonHidden(true)
+                .onAppear {
+                    viewModel.taskTimerDictionarySum(dayOfYear: dayOfYear)
                 }
-                
-                Spacer()
-                    .frame(height: 130)
-            }
-            .navigationBarBackButtonHidden(true)
-            .onAppear {
-                viewModel.taskTimerDictionarySum(dayOfYear: dayOfYear)
             }
         }
     }

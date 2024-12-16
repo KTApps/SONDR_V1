@@ -1,10 +1,3 @@
-//
-//  SignUpView.swift
-//  Prod1
-//
-//  Created by Kelvin Mahaja on 11/03/2024.
-//
-
 import SwiftUI
 
 struct SignUpView: View {
@@ -15,121 +8,117 @@ struct SignUpView: View {
     @State private var password = ""
     
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            VStack {
-                Spacer()
-                    .frame(height: 60)
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
                 
-                ZStack {
-                    Circle()
-                        .stroke(lineWidth: 25)
-                        .foregroundColor(.blue)
-                        .frame(height: 260)
+                VStack {
                     
-                    Circle()
-                        .stroke(lineWidth: 25)
-                        .foregroundColor(.blue)
-                        .frame(height: 160)
-                    
-                    Text("SONDR")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                }
-                
-                Spacer()
-                    .frame(height: 20)
-                
-                Input(text: $username, 
-                      title: "username",
-                      placeHolder: "username")
-                .foregroundColor(.white)
-                
-                Spacer()
-                    .frame(height: 20)
-                
-                Input(text: $email, 
-                      title: "Email Address",
-                      placeHolder: "name@example.com")
-                .autocapitalization(/*@START_MENU_TOKEN@*/.none/*@END_MENU_TOKEN@*/)
-                .foregroundColor(.white)
-                
-                Spacer()
-                    .frame(height: 20)
-                
-                ZStack(alignment: .trailing) {
-                    Input(text: $password,
-                          title: "Password",
-                          placeHolder: "********",
-                          secureField: true)
-                    .foregroundColor(.white)
-                    
-                    VStack {
-                        Spacer()
-                            .frame(height: 30)
-                        
-                        if !password.isEmpty {
-                            if password.count < 6 {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.callout)
-                                    .foregroundColor(.red)
-                            } else {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.callout)
-                                    .foregroundColor(.green)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                }
-                
-                Spacer()
-                    .frame(height: 30)
-                
-                Button {
-                    Task {
-                        try await viewModel.signUp(withEmail: email,
-                                                   password: password,
-                                                   username: username)
-                    }
-                } label: {
+                    // MARK: Logo Group
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .frame(width: 350, height: 40)
-                            .foregroundColor(/*@START_MENU_TOKEN@*/.blue/*@END_MENU_TOKEN@*/)
-                        Text("SIGN UP")
-                            .font(.title3)
+                        Circle()
+                            .stroke(lineWidth: 25)
+                            .foregroundColor(.blue)
+                            .frame(width: geometry.size.width * 0.65, height: geometry.size.width * 0.65)  // Dynamic Circle
+                        
+                        Circle()
+                            .stroke(lineWidth: 25)
+                            .foregroundColor(.blue)
+                            .frame(width: geometry.size.width * 0.45, height: geometry.size.width * 0.45)  // Dynamic Circle
+                        
+                        Text("SONDR")
+                            .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
                     }
-                }
-                .disabled(!isFormValid)
-                .opacity(isFormValid ? 1 : 0.5)
-                
-                Spacer()
-                
-                NavigationLink {
-                    LogInView()
-                        .navigationBarBackButtonHidden(true)
-                } label: {
-                    HStack {
-                        Text("Already have an account?")
-                        Text("LOG IN")
-                            .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
+                    
+                    Spacer()
+                    
+                    // MARK: Input Group
+                    VStack {
+                        Input(text: $username,
+                              title: "Username",
+                              placeHolder: "Enter your username")
+                        .foregroundColor(.white)
+                        
+                        
+                        Input(text: $email,
+                              title: "Email Address",
+                              placeHolder: "name@example.com")
+                        .autocapitalization(.none)
+                        .foregroundColor(.white)
+                        
+                        ZStack(alignment: .trailing) {
+                            Input(text: $password,
+                                  title: "Password",
+                                  placeHolder: "********",
+                                  secureField: true)
+                            .foregroundColor(.white)
+                            
+                            VStack {
+                                
+                                if !password.isEmpty {
+                                    if password.count < 6 {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.callout)
+                                            .foregroundColor(.red)
+                                    } else {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.callout)
+                                            .foregroundColor(.green)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer()
+                            .frame(height: geometry.size.width * 0.05)
+                        
+                        Button {
+                            Task {
+                                try await viewModel.signUp(withEmail: email,
+                                                           password: password,
+                                                           username: username)
+                            }
+                        } label: {
+                            Text("SIGN UP")
+                                .font(/*@START_MENU_TOKEN@*/.title/*@END_MENU_TOKEN@*/)
+                                .fontWeight(.bold)
+                                .foregroundColor(.black)
+                                .frame(width: geometry.size.width * 0.85, height: 50)
+                                .background(Color.blue)
+                                .cornerRadius(20)
+                        }
+                        .disabled(!isFormValid)
+                        .opacity(isFormValid ? 1 : 0.5)
                     }
-                    .foregroundColor(.white)
+                    
+                    Spacer()
+                        
+                    // MARK: Navigation Group
+                    NavigationLink {
+                        LogInView()
+                            .navigationBarBackButtonHidden(true)
+                    } label: {
+                        HStack {
+                            Text("Already have an account?")
+                            Text("LOG IN")
+                                .fontWeight(.bold)
+                        }
+                        .foregroundColor(.white)
+                    }
+                    
+                }
+                .padding(.horizontal, geometry.size.width * 0.05)  // 5% horizontal padding
+                .padding(.vertical, geometry.size.height * 0.05)  // 5% vertical padding
+                .alert("User already exists", isPresented: $viewModel.signUpError) {
+                    Button("Try again") {
+                        viewModel.signUpError.toggle()
+                    }
                 }
             }
-            .padding(.horizontal, 10)
-            .alert("User already exists", isPresented: $viewModel.signUpError) {
-                Button("Try again") {
-                    viewModel.signUpError.toggle()
-                }
-            }
+            .keyboardResponsive()
         }
-        .keyboardResponsive()
     }
 }
 

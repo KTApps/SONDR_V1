@@ -231,9 +231,10 @@ struct CalendarDayCell: View {
     var body: some View {
         ZStack {
             Text("\(day)") // Display the day number
+                .font(.system(size: 12))
                 .foregroundColor(.white)
-            OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 20, outerRadius: 27, cornerRadius: 3)
-            InnerCircle(dayOfYear: dayOfYear, innerRadius: 12, outerRadius: 18, cornerRadius: 3)
+            OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 18, outerRadius: 24, cornerRadius: 3)
+            InnerCircle(dayOfYear: dayOfYear, innerRadius: 10, outerRadius: 15, cornerRadius: 3)
         }
     }
 }

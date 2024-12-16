@@ -26,7 +26,7 @@ struct Last10Days: View {
                                         let dayOfYear = viewModel.docTitles[index] ?? 0
                                         let date = viewModel.dateFromDayOfYear(index: index, year: viewModel.currentYear, dayOfYear: dayOfYear)
                                         Text(String(date?.day ?? 0))
-                                            .font(.custom("smallNumber", size: 15))
+                                            .font(.custom("smallNumber", size: 13))
                                             .foregroundColor(.white)
                                         OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 20, outerRadius: 27, cornerRadius: 5)
                                         Inner10DaysCircle(docTitleIndex: index)

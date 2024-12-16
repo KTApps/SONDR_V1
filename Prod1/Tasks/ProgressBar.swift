@@ -11,66 +11,72 @@ struct ProgressBar: View {
     @EnvironmentObject var viewModel: ViewModel
 
     var body: some View {
-        ScrollView {
-            Spacer()
-                .frame(height: 12)
-            HStack {
-                Text("Select Your Task")
+        GeometryReader { geometry in
+            ScrollView {
                 Spacer()
-            }
-            .padding(.horizontal, 17)
-            ForEach(viewModel.progressTasks.indices, id:\.self) {index in
-                let item = viewModel.progressTasks[index]
-                Button {
-                    withAnimation {
-                        Task {
-                            await viewModel.newTaskAdder(task: item)
+                    .frame(height: geometry.size.height * 0.01)
+                HStack {
+                    Text("Select Your Task")
+                        .font(.system(size: geometry.size.width * 0.04))
+                    Spacer()
+                }
+                .padding(.horizontal, geometry.size.width * 0.04)
+                .padding(.vertical, geometry.size.height * 0.04)
+                
+                ForEach(viewModel.progressTasks.indices, id:\.self) {index in
+                    let item = viewModel.progressTasks[index]
+                    Button {
+                        withAnimation {
+                            Task {
+                                await viewModel.newTaskAdder(task: item)
+                            }
+                            viewModel.taskName = item
+                            viewModel.isTaskDropDownVisible.toggle()
+                            viewModel.taskTime = viewModel.resetTimer() ?? 0
                         }
-                        viewModel.taskName = item
-                        viewModel.isTaskDropDownVisible.toggle()
-                        viewModel.taskTime = viewModel.resetTimer() ?? 0
+                    } label: {
+                        ZStack(alignment: .leading) {
+                            
+                            Capsule()
+                                .fill(Color.gray)
+                                .frame(width: geometry.size.width * (viewModel.maxWidth/370), height: geometry.size.height * 0.07)
+                            
+                            Capsule()
+                                .fill(Color.blue)
+                                .frame(width: geometry.size.width * ((CGFloat(viewModel.newTimeArray[item] ?? 0))/370), height: geometry.size.height * 0.07)
+                            
+                            HStack {
+                                Spacer()
+                                Text("\(item)")
+                                    .font(.system(size: geometry.size.width * 0.05))
+                                    .foregroundColor(.white)
+                                Spacer()
+                            }
+                        }
                     }
-                } label: {
-                    ZStack(alignment: .leading) {
-                        
+                    .padding(.horizontal, geometry.size.width * 0.04)
+                    .padding(.bottom, geometry.size.height * 0.03)
+                }
+                
+                Button(action: {
+                    viewModel.taskString = "" // Clear the task input field
+                    viewModel.isAddTaskVisible.toggle()
+                }) {
+                    ZStack {
                         Capsule()
                             .fill(Color.gray)
-                            .frame(width: viewModel.maxWidth, height: 32)
+                            .frame(width: geometry.size.width * 0.5, height: geometry.size.height * 0.07)
                         
-                        Capsule()
-                            .fill(Color.blue)
-                            .frame(width: (CGFloat(viewModel.newTimeArray[item] ?? 0)), height: 32)
-                        
-                        HStack {
-                            Spacer()
-                            Text("\(item)")
-                                .foregroundColor(.white)
-                            Spacer()
-                        }
+                        Text("Add Task")
+                            .font(.system(size: geometry.size.width * 0.05))
+                            .foregroundColor(Color.white)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 5)
-            }
-            
-            Button(action: {
-                viewModel.taskString = "" // Clear the task input field
-                viewModel.isAddTaskVisible.toggle()
-            }) {
-                ZStack {
-                    Capsule()
-                        .fill(Color.gray)
-                    .frame(width: 150, height: 32)
-                    
-                    Text("Add Task")
-                        .font(.title3)
-                        .foregroundColor(Color.white)
+                .padding(.vertical, geometry.size.height * 0.03)
+                .sheet(isPresented:  $viewModel.isAddTaskVisible) {
+                    AddTask()
+                        .presentationDetents([.fraction(1/4)])
                 }
-            }
-            .padding(.vertical, 15)
-            .sheet(isPresented:  $viewModel.isAddTaskVisible) {
-                AddTask()
-                    .presentationDetents([.fraction(1/4)])
             }
         }
     }

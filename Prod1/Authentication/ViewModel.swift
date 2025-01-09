@@ -51,9 +51,6 @@ class ViewModel: ObservableObject {
         
         // Initialising currentDayOfWeek
         currentDayOfWeek = currentDayOfYear
-        
-        isFriendsVisible = false
-        
     }
     
     
@@ -222,6 +219,7 @@ class ViewModel: ObservableObject {
                 
                 await self.fetchCircleDocRef()
             }
+            self.isFriendsVisible = false
         } catch {
             self.logInError.toggle()
             print("LOG IN Failed... \(error.localizedDescription)")
@@ -328,8 +326,21 @@ class ViewModel: ObservableObject {
     
     //  MARK: SIGN UP
     @Published var signUpError: Bool = false
+    @Published var usernameExists: Bool = false
+    enum usernameExistsError: Error {
+        case usernameAlreadyExists
+    }
     func signUp(withEmail email: String, password: String, username: String) async throws {
         do {
+            // Check if the username already exists
+            let querySnapshot = try await self.databaseRef.collection("users")
+                .whereField("AuthenticationData.username", isEqualTo: username)
+                .getDocuments()
+
+            if !querySnapshot.isEmpty {
+                throw usernameExistsError.usernameAlreadyExists // Custom error
+            }
+            
             let result = try await self.authRef.createUser(withEmail: email, password: password) // Authenticates user
             self.userSession = result.user // user session = authenticated user
             
@@ -353,6 +364,8 @@ class ViewModel: ObservableObject {
             
             habitStreak = 0
             cumulativeTasks = [:]
+            
+            self.profileImage = nil
             
             // Store user data
             let user = UserObject(id: result.user.uid,
@@ -390,6 +403,9 @@ class ViewModel: ObservableObject {
                 dayTracker.append(currentDayOfYear)
                 await analyticsUpdate()
             }
+        } catch usernameExistsError.usernameAlreadyExists {
+            usernameExists.toggle()
+            print("SIGN UP Failed... Username already exists.")
         } catch {
             signUpError.toggle()
             print("SIGN UP Failed... \(error.localizedDescription)")

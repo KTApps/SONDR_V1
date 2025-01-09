@@ -111,9 +111,14 @@ struct SignUpView: View {
                 }
                 .padding(.horizontal, geometry.size.width * 0.05)  // 5% horizontal padding
                 .padding(.vertical, geometry.size.height * 0.05)  // 5% vertical padding
-                .alert("User already exists", isPresented: $viewModel.signUpError) {
+                .alert("Email already exists", isPresented: $viewModel.signUpError) {
                     Button("Try again") {
                         viewModel.signUpError.toggle()
+                    }
+                }
+                .alert("Username is taken", isPresented: $viewModel.usernameExists) {
+                    Button("Try again") {
+                        viewModel.usernameExists.toggle()
                     }
                 }
             }

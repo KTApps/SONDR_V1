@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct SettingsView: View {
     @EnvironmentObject var viewModel: ViewModel
@@ -15,12 +16,22 @@ struct SettingsView: View {
             List {
                 Section {
                     HStack {
-                        Text(user.initial)
-                            .font(.largeTitle)
-                            .foregroundColor(.white)
-                            .frame(width: 70, height: 70)
-                            .background(Color.gray)
-                            .clipShape(Circle())
+                        PhotosPicker(selection: $viewModel.selectedItem) {
+                            if let profileImage = viewModel.profileImage {
+                                profileImage
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 70, height: 70)
+                                    .clipShape(Circle())
+                            } else {
+                                Text(user.initial)
+                                    .font(.largeTitle)
+                                    .foregroundColor(.white)
+                                    .frame(width: 70, height: 70)
+                                    .background(Color.gray)
+                                    .clipShape(Circle())
+                            }
+                        }
                         VStack(alignment: .leading) {
                             Text(user.username)
                             Text(user.email)

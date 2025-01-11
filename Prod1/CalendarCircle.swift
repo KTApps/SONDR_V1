@@ -76,17 +76,17 @@ struct CalendarCircle: View {
                     
                     ZStack {
                         VStack {
-                            Text("\(viewModel.taskSum)")
-                            Text("seconds")
+                            Text("\(viewModel.taskSum)hrs")
+                                .fontWeight(.bold)
                         }
                         .font(.title)
                         
-                        OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.4), cornerRadius: 5)
-                        InnerCircle(dayOfYear: dayOfYear, innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.19), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.27), cornerRadius: 5)
+                        OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 130, outerRadius: 157, cornerRadius: 5)
+                        InnerCircle(dayOfYear: dayOfYear, innerRadius: 91, outerRadius: 117, cornerRadius: 5)
                     }
                     
                     Spacer()
-                        .frame(height: 130)
+                        .frame(height: 180)
                 }
                 .navigationBarBackButtonHidden(true)
                 .onAppear {

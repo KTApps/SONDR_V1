@@ -29,6 +29,7 @@ struct ContentView: View {
                             }
                             withAnimation {
                                 viewModel.isFriendsVisible.toggle()
+                                viewModel.isTaskDropDownVisible = false
                             }
                         } label: {
                             Image(systemName: "person.fill")
@@ -46,6 +47,8 @@ struct ContentView: View {
                             }
                             withAnimation {
                                 viewModel.isProfileBlurViewVisible = true
+                                viewModel.isFriendsVisible = false
+                                viewModel.isTaskDropDownVisible = false
                             }
                         } label: {
                             Image(systemName: "gear")
@@ -138,6 +141,7 @@ struct ContentView: View {
                             .onTapGesture {
                                 withAnimation {
                                     viewModel.isBlurViewVisible = true
+                                    viewModel.isFriendsVisible = false
                                 }
                                 viewModel.weekDayIndexCounter = viewModel.weekdayIndex(forDayOfYear: viewModel.currentDayOfYear, inYear: viewModel.currentYear) ?? 0
                                 viewModel.currentDayOfWeek = viewModel.currentDayOfYear
@@ -192,6 +196,8 @@ struct ContentView: View {
                                 
                                 Button(action: {
                                     viewModel.isViewYourProgressVisible = true
+                                    viewModel.isFriendsVisible = false
+                                    viewModel.isTaskDropDownVisible = false
                                 }) {
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 10)

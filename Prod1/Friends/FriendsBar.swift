@@ -33,6 +33,9 @@ struct FriendsBar: View {
                     .foregroundColor(.white)
                     .sheet(isPresented: $viewModel.isAddFriendsVisible) {
                         AddFriends()
+                            .onDisappear {
+                                viewModel.searchResults = [:]
+                            }
                     }
                 }
                 .padding(.horizontal, 13)
@@ -40,10 +43,10 @@ struct FriendsBar: View {
                 ScrollView(.horizontal) {
                     HStack(spacing: -30) {
                         ForEach(viewModel.friendsHabitData.keys.sorted(), id: \.self) { friendUsername in
-                            VStack(spacing: -20) {
+                            VStack(spacing: -15) {
                                 ZStack {
                                     OuterFriendsCircle(username: friendUsername, innerRadius: 22, outerRadius: 29, cornerRadius: 1)
-                                    InnerFriendsCircle(username: friendUsername, innerRadius: 13, outerRadius: 20, cornerRadius: 1)
+                                    InnerFriendsCircle(username: friendUsername, innerRadius: 12, outerRadius: 19, cornerRadius: 1)
                                 }
                                 Text(friendUsername)
                                     .font(.system(size: 14))
@@ -51,7 +54,6 @@ struct FriendsBar: View {
                         }
                         Spacer()
                     }
-                    .padding(.horizontal, 5)
                 }
                 .offset(y: -22)
             }
@@ -69,16 +71,35 @@ struct OuterFriendsCircle: View {
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
+    let placeholderTasks = [1]
     
     var body: some View {
-        Chart(authModel.friendsTaskData[username]?.tasks ?? [], id:\.self) { task in
-            SectorMark(
-                angle: .value("Time Spent", authModel.friendsTaskData[username]?.taskTimerDictionary[task] ?? 0),
-                innerRadius: innerRadius,
-                outerRadius: outerRadius,
-                angularInset: 1
-            )
-            .cornerRadius(cornerRadius)
+        if let tasks = authModel.friendsTaskData[username]?.tasks,
+           let taskTimers = authModel.friendsTaskData[username]?.taskTimerDictionary,
+           !tasks.isEmpty,
+           !taskTimers.isEmpty {
+            // Render the chart if there are tasks and timers
+            Chart(tasks, id: \.self) { task in
+                SectorMark(
+                    angle: .value("Time Spent", taskTimers[task] ?? 0),
+                    innerRadius: innerRadius,
+                    outerRadius: outerRadius,
+                    angularInset: 1
+                )
+                .cornerRadius(cornerRadius)
+            }
+        } else {
+            Chart(placeholderTasks, id: \.self) { task in
+                SectorMark(
+                    angle: .value("Time Spent", task),
+                    innerRadius: innerRadius,
+                    outerRadius: outerRadius,
+                    angularInset: 1
+                )
+                .cornerRadius(cornerRadius)
+            }
+            .foregroundColor(.gray)
+            .opacity(0.3)
         }
     }
 }
@@ -89,17 +110,32 @@ struct InnerFriendsCircle: View {
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
+    let placeholderTasks = [1]
 
     var body: some View {
-        Chart(authModel.friendsHabitData[username]?.habitIdArray ?? [""], id:\.self) { habit in
-            SectorMark(
-                angle: .value("isTicked", 1),
-                innerRadius: innerRadius,
-                outerRadius: outerRadius,
-                angularInset: 1
-            )
-            .foregroundStyle(authModel.friendColorReturn(value: habit, username: username))
-            .cornerRadius(cornerRadius)
+        if let habits = authModel.friendsHabitData[username]?.habitIdArray, !habits.isEmpty {
+            Chart(habits, id: \.self) { habit in
+                SectorMark(
+                    angle: .value("isTicked", 1),
+                    innerRadius: innerRadius,
+                    outerRadius: outerRadius,
+                    angularInset: 1
+                )
+                .foregroundStyle(authModel.friendColorReturn(value: habit, username: username))
+                .cornerRadius(cornerRadius)
+            }
+        } else {
+            Chart(placeholderTasks, id: \.self) { task in
+                SectorMark(
+                    angle: .value("Time Spent", task),
+                    innerRadius: innerRadius,
+                    outerRadius: outerRadius,
+                    angularInset: 1
+                )
+                .cornerRadius(cornerRadius)
+            }
+            .foregroundColor(.gray)
+            .opacity(0.3)
         }
     }
 }

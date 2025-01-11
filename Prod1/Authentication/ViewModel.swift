@@ -616,6 +616,51 @@ class ViewModel: ObservableObject {
         }
     }
     
+    @Published var searchResults: [String: Int] = [:]
+    func searchUsers(query: String) async {
+        guard !query.isEmpty else {
+            self.searchResults = [:] // Clear results if the query is empty
+            return
+        }
+
+        let queryRef = self.databaseRef.collection("users")
+            .whereField("AuthenticationData.username", isGreaterThanOrEqualTo: query)
+            .whereField("AuthenticationData.username", isLessThanOrEqualTo: query + "\u{f8ff}") // Supports partial matching
+        
+        do {
+            // Fetch the matching documents
+            let querySnapshot = try await queryRef.getDocuments()
+
+            // Clear previous search results (if you want to reset search results each time)
+            self.searchResults.removeAll()
+
+            // Iterate over the documents and extract 'username' from the 'AuthenticationData' map
+            for document in querySnapshot.documents {
+                if let authData = document.data()["AuthenticationData"] as? [String: Any],
+                   let username = authData["username"] as? String,
+                   let progressData = document.data()["Progress"] as? [String: Any],
+                   let progressTimerDictionary = progressData["progressTimerDictionary"] as? [String: Int] {
+                    // Sum up all the values in the progressTimerDictionary
+                    let totalProgress = progressTimerDictionary.values.reduce(0, +)
+                   
+                    // Generate a unique key by appending 'uniqueId' and a counter
+                    var uniqueKey = "\(username)_uniqueId\(0)"
+                    var counter = 1
+                    while self.searchResults.keys.contains(uniqueKey) {
+                        uniqueKey = "\(username)_uniqueId\(counter)"
+                        counter += 1
+                    }
+                    
+                    // Update the searchResults dictionary
+                    self.searchResults[uniqueKey] = totalProgress
+                }
+            }
+
+        } catch {
+            print("Error fetching users: \(error.localizedDescription)")
+        }
+    }
+    
     func fetchAllFriendsData() async {
         // Checks if User is logged in
         guard let currentUserId = self.authRef.currentUser?.uid else {
@@ -1711,10 +1756,62 @@ class ViewModel: ObservableObject {
             }
         }
     }
-}
+    
+    @Published var profileImageCache: [String: Image] = [:]
 
-// 1. create reference to photo in Storage
-// 2. save photo reference from Storage into the users Database
-// 3. replace photo reference in Database and delete old reference from Storage when changed
-// 3. retrieve photo
-// 4. fix logic in app
+    func retrieveFriendImage(for username: String) async -> Image? {
+        
+        // Check if the image is already cached
+        if let cachedImage = profileImageCache[username] {
+            return cachedImage
+        }
+
+        // Fetch the user's document by username
+        let query = databaseRef.collection("users").whereField("AuthenticationData.username", isEqualTo: username)
+        
+        do {
+            // Fetch user document
+            let snapshot = try await query.getDocuments()
+            if snapshot.documents.isEmpty {
+                print("No documents found for username: \(username)")
+                return nil
+            }
+            
+            guard let document = snapshot.documents.first,
+                  let profilePicPath = document.data()["profilePic"] as? String else {
+                return nil // If no document or profilePicPath is found
+            }
+                        
+            // Download the image from Firebase Storage
+            let imageRef = storageRef.child(profilePicPath)
+            
+            // Fetch image data with completion handler wrapped in async/await
+            let imageData: Data? = try await withCheckedContinuation { continuation in
+                imageRef.getData(maxSize: 10 * 1024 * 1024) { data, error in
+                    if let error = error {
+                        print("Error fetching image: \(error)")
+                        continuation.resume(returning: nil) // Return nil on error
+                    } else {
+                        continuation.resume(returning: data) // Return the image data
+                    }
+                }
+            }
+            
+            // Check if imageData was successfully fetched and convert it to UIImage
+            if let data = imageData, let uiImage = UIImage(data: data) {
+                let image = Image(uiImage: uiImage)
+                DispatchQueue.main.async {
+                    self.profileImageCache[username] = image // Cache the image
+                }
+                return image
+            } else {
+                print("Failed to convert imageData to UIImage for username: \(username)")
+                return nil // If unable to convert data to UIImage
+            }
+            
+        } catch {
+            print("Error fetching profile picture for \(username): \(error)")
+            return nil // If there's any error, return nil
+        }
+    }
+}

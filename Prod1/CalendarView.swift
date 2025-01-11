@@ -245,30 +245,37 @@ struct InnerCircle: View {
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
-    
-    private func calendarColorReturn(value: String) -> Color {
-        if viewModel.habitDataForDay[dayOfYear]?.isHabitStriked[value] == true {
-            return .blue
-        } else {
-            return .gray
-        }
-    }
+    let placeholderTasks = [1]
     
     var body: some View {
-        Task {
-            await viewModel.listenForCircleData(dayOfYear: dayOfYear)
-        }
-        
-        // Return the Chart view
-        return Chart(viewModel.habitDataForDay[dayOfYear]?.habitIdArray ?? [], id:\.self) { habit in
-            SectorMark(
-                angle: .value("Time Spent", 10),
-                innerRadius: innerRadius,
-                outerRadius: outerRadius,
-                angularInset: 1
-            )
-            .foregroundStyle(calendarColorReturn(value: habit))
-            .cornerRadius(cornerRadius)
+        if let habits = viewModel.habitDataForDay[dayOfYear]?.habitIdArray, !habits.isEmpty {
+            Chart(habits, id:\.self) { habit in
+                SectorMark(
+                    angle: .value("Time Spent", 10),
+                    innerRadius: innerRadius,
+                    outerRadius: outerRadius,
+                    angularInset: 1
+                )
+                .foregroundStyle(.blue)
+                .cornerRadius(cornerRadius)
+            }
+            .onAppear {
+                Task {
+                    await viewModel.listenForCircleData(dayOfYear: dayOfYear)
+                }
+            }
+        } else {
+            Chart(placeholderTasks, id: \.self) { task in
+                SectorMark(
+                    angle: .value("Time Spent", task),
+                    innerRadius: innerRadius,
+                    outerRadius: outerRadius,
+                    angularInset: 1
+                )
+                .foregroundStyle(.gray)
+                .opacity(0.3)
+                .cornerRadius(cornerRadius)
+            }
         }
     }
 }
@@ -279,29 +286,36 @@ struct OuterCalendarCircle: View {
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
+    let placeholderTasks = [1]
     
     var body: some View {
-        Task {
-            await viewModel.listenForCircleData(dayOfYear: dayOfYear)
-        }
-
-        return Chart(viewModel.taskDataForDay[dayOfYear]?.tasks ?? [], id: \.self) { task in
-            if let timeSpent = viewModel.taskDataForDay[dayOfYear]?.taskTimerDictionary[task] {
+        if let tasks = viewModel.taskDataForDay[dayOfYear]?.tasks, !tasks.isEmpty {
+            Chart(tasks, id: \.self) { task in
+                if let timeSpent = viewModel.taskDataForDay[dayOfYear]?.taskTimerDictionary[task] {
+                    SectorMark(
+                        angle: .value("Time Spent", timeSpent),
+                        innerRadius: innerRadius,
+                        outerRadius: outerRadius,
+                        angularInset: 1
+                    )
+                    .cornerRadius(cornerRadius)
+                }
+            }
+            .onAppear {
+                Task {
+                    await viewModel.listenForCircleData(dayOfYear: dayOfYear)
+                }
+            }
+        } else {
+            Chart(placeholderTasks, id: \.self) { task in
                 SectorMark(
-                    angle: .value("Time Spent", timeSpent),
+                    angle: .value("Time Spent", task),
                     innerRadius: innerRadius,
                     outerRadius: outerRadius,
                     angularInset: 1
                 )
-                .cornerRadius(cornerRadius)
-            } else {
-                // Handle case where taskTimerDictionary doesn't contain the task
-                SectorMark(
-                    angle: .value("Time Spent", 0), // Fallback value
-                    innerRadius: 18,
-                    outerRadius: 25,
-                    angularInset: 1
-                )
+                .foregroundStyle(.gray)
+                .opacity(0.3)
                 .cornerRadius(cornerRadius)
             }
         }

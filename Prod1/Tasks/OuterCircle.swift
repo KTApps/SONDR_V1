@@ -15,23 +15,28 @@ struct OuterCircle: View {
     let cornerRadius: CGFloat
     
     var body: some View {
-        Chart(viewModel.taskData?.tasks ?? [], id: \.self) { task in
-            if let timeSpent = viewModel.taskData?.taskTimerDictionary[task] {
+        if let tasks = viewModel.taskData?.tasks,
+           let timeSpent = viewModel.taskData?.taskTimerDictionary,
+            !tasks.isEmpty, !timeSpent.isEmpty {
+            Chart(tasks, id: \.self) { task in
                 SectorMark(
-                    angle: .value("Time Spent", timeSpent),
+                    angle: .value("Time Spent", timeSpent[task] ?? 0),
                     innerRadius: innerRadius,
                     outerRadius: outerRadius,
                     angularInset: 1
                 )
                 .cornerRadius(cornerRadius)
-            } else {
-                // Handle case where taskTimerDictionary doesn't contain the task
+            }
+        } else {
+            Chart(viewModel.placeholderTasks, id: \.self) { task in
                 SectorMark(
-                    angle: .value("Time Spent", 0), // Fallback value
+                    angle: .value("Time Spent", task),
                     innerRadius: innerRadius,
                     outerRadius: outerRadius,
                     angularInset: 1
                 )
+                .foregroundStyle(.gray)
+                .opacity(0.3)
                 .cornerRadius(cornerRadius)
             }
         }

@@ -81,8 +81,8 @@ struct CalendarCircle: View {
                         }
                         .font(.title)
                         
-                        OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 130, outerRadius: 157, cornerRadius: 5)
-                        InnerCircle(dayOfYear: dayOfYear, innerRadius: 91, outerRadius: 117, cornerRadius: 5)
+                        OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 130, outerRadius: 157, cornerRadius: 1)
+                        InnerCircle(dayOfYear: dayOfYear, innerRadius: 91, outerRadius: 117, cornerRadius: 1)
                     }
                     
                     Spacer()

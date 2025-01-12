@@ -14,15 +14,6 @@ struct FriendsBar: View {
         ScrollView {
             VStack {
                 HStack {
-                    Text("Friends")
-                        .onTapGesture {
-                            withAnimation {
-                                viewModel.isFriendsVisible.toggle()
-                            }
-                        }
-                    
-                    Spacer()
-
                     Button {
                         withAnimation {
                             viewModel.isAddFriendsVisible.toggle()
@@ -37,6 +28,7 @@ struct FriendsBar: View {
                                 viewModel.searchResults = [:]
                             }
                     }
+                    Spacer()
                 }
                 .padding(.horizontal, 13)
                 
@@ -66,16 +58,15 @@ struct FriendsBar: View {
 }
 
 struct OuterFriendsCircle: View {
-    @EnvironmentObject var authModel: ViewModel
+    @EnvironmentObject var viewModel: ViewModel
     var username: String
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
-    let placeholderTasks = [1]
     
     var body: some View {
-        if let tasks = authModel.friendsTaskData[username]?.tasks,
-           let taskTimers = authModel.friendsTaskData[username]?.taskTimerDictionary,
+        if let tasks = viewModel.friendsTaskData[username]?.tasks,
+           let taskTimers = viewModel.friendsTaskData[username]?.taskTimerDictionary,
            !tasks.isEmpty,
            !taskTimers.isEmpty {
             // Render the chart if there are tasks and timers
@@ -89,7 +80,7 @@ struct OuterFriendsCircle: View {
                 .cornerRadius(cornerRadius)
             }
         } else {
-            Chart(placeholderTasks, id: \.self) { task in
+            Chart(viewModel.placeholderTasks, id: \.self) { task in
                 SectorMark(
                     angle: .value("Time Spent", task),
                     innerRadius: innerRadius,
@@ -105,15 +96,14 @@ struct OuterFriendsCircle: View {
 }
 
 struct InnerFriendsCircle: View {
-    @EnvironmentObject var authModel: ViewModel
+    @EnvironmentObject var viewModel: ViewModel
     var username: String
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
-    let placeholderTasks = [1]
 
     var body: some View {
-        if let habits = authModel.friendsHabitData[username]?.habitIdArray, !habits.isEmpty {
+        if let habits = viewModel.friendsHabitData[username]?.habitIdArray, !habits.isEmpty {
             Chart(habits, id: \.self) { habit in
                 SectorMark(
                     angle: .value("isTicked", 1),
@@ -121,11 +111,11 @@ struct InnerFriendsCircle: View {
                     outerRadius: outerRadius,
                     angularInset: 1
                 )
-                .foregroundStyle(authModel.friendColorReturn(value: habit, username: username))
+                .foregroundStyle(viewModel.friendColorReturn(value: habit, username: username))
                 .cornerRadius(cornerRadius)
             }
         } else {
-            Chart(placeholderTasks, id: \.self) { task in
+            Chart(viewModel.placeholderTasks, id: \.self) { task in
                 SectorMark(
                     angle: .value("Time Spent", task),
                     innerRadius: innerRadius,

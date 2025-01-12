@@ -114,52 +114,80 @@ struct ContentView: View {
 
                     VStack {
                         ZStack {
-                            Circle()
-                                .stroke(lineWidth: geometry.size.width * 0.06)
-                                .opacity(0.3)
-                                .foregroundColor(.gray)
-                                .frame(width: geometry.size.width * 0.65, height: geometry.size.width * 0.65)
                             
-                            OuterCircle(innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.4), cornerRadius: 5)
+                            OuterCircle(innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.4), cornerRadius: 1)
                             
-                            Circle()
-                                .stroke(lineWidth: geometry.size.width * 0.05)
-                                .opacity(0.3)
-                                .foregroundColor(.gray)
-                                .frame(width: geometry.size.width * 0.45, height: geometry.size.width * 0.45)
-                            Chart(viewModel.habitData?.habitIdArray ?? [""], id:\.self) { habit in
-                                SectorMark(
-                                    angle: .value("isTicked", 1),
-                                    innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.19),
-                                    outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.27),
-                                    angularInset: 1
-                                )
-                                .foregroundStyle(viewModel.colorReturn(value: habit))
-                                .cornerRadius(5)
-                            }
-                            .frame(width: geometry.size.width * 0.51, height: geometry.size.width * 0.51)
-                            .onTapGesture {
-                                withAnimation {
-                                    viewModel.isBlurViewVisible = true
-                                    viewModel.isFriendsVisible = false
+                            if let habits = viewModel.habitData?.habitIdArray, !habits.isEmpty {
+                                Chart(habits, id:\.self) { habit in
+                                    SectorMark(
+                                        angle: .value("isTicked", 1),
+                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.19),
+                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.27),
+                                        angularInset: 1
+                                    )
+                                    .foregroundStyle(viewModel.colorReturn(value: habit))
+                                    .cornerRadius(1)
                                 }
-                                viewModel.weekDayIndexCounter = viewModel.weekdayIndex(forDayOfYear: viewModel.currentDayOfYear, inYear: viewModel.currentYear) ?? 0
-                                viewModel.currentDayOfWeek = viewModel.currentDayOfYear
-                            }
-                            .gesture(
-                                DragGesture()
-                                    .onEnded { value in
-                                        withAnimation {
-                                            if value.translation.width < -50 {
-                                                // Swiped left, show cumulative time
-                                                isShowingCumTime = true
-                                            } else if value.translation.width > 50 {
-                                                // Swiped right, show task time
-                                                isShowingCumTime = false
+                                .frame(width: geometry.size.width * 0.51, height: geometry.size.width * 0.51)
+                                .onTapGesture {
+                                    withAnimation {
+                                        viewModel.isBlurViewVisible = true
+                                        viewModel.isFriendsVisible = false
+                                    }
+                                    viewModel.weekDayIndexCounter = viewModel.weekdayIndex(forDayOfYear: viewModel.currentDayOfYear, inYear: viewModel.currentYear) ?? 0
+                                    viewModel.currentDayOfWeek = viewModel.currentDayOfYear
+                                }
+                                .gesture(
+                                    DragGesture()
+                                        .onEnded { value in
+                                            withAnimation {
+                                                if value.translation.width < -50 {
+                                                    // Swiped left, show cumulative time
+                                                    isShowingCumTime = true
+                                                } else if value.translation.width > 50 {
+                                                    // Swiped right, show task time
+                                                    isShowingCumTime = false
+                                                }
                                             }
                                         }
+                                )
+                            } else {
+                                Chart(viewModel.placeholderTasks, id:\.self) { habit in
+                                    SectorMark(
+                                        angle: .value("isTicked", 1),
+                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.19),
+                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.27),
+                                        angularInset: 1
+                                    )
+                                    .foregroundStyle(.gray)
+                                    .opacity(0.3)
+                                    .cornerRadius(1)
+                                }
+                                .frame(width: geometry.size.width * 0.51, height: geometry.size.width * 0.51)
+                                .onTapGesture {
+                                    withAnimation {
+                                        viewModel.isBlurViewVisible = true
+                                        viewModel.isFriendsVisible = false
                                     }
-                            )
+                                    viewModel.weekDayIndexCounter = viewModel.weekdayIndex(forDayOfYear: viewModel.currentDayOfYear, inYear: viewModel.currentYear) ?? 0
+                                    viewModel.currentDayOfWeek = viewModel.currentDayOfYear
+                                }
+                                .gesture(
+                                    DragGesture()
+                                        .onEnded { value in
+                                            withAnimation {
+                                                if value.translation.width < -50 {
+                                                    // Swiped left, show cumulative time
+                                                    isShowingCumTime = true
+                                                } else if value.translation.width > 50 {
+                                                    // Swiped right, show task time
+                                                    isShowingCumTime = false
+                                                }
+                                            }
+                                        }
+                                )
+                            }
+                        
                             VStack{
                                 Text(isShowingCumTime ? "\(viewModel.cumulativeProg) Seconds" : "\(viewModel.taskTime) Seconds")
                                     .font(.system(size: geometry.size.width * 0.05))

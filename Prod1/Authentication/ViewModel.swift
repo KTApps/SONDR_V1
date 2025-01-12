@@ -1025,7 +1025,7 @@ class ViewModel: ObservableObject {
             let document = try await userRef.getDocument()
             
             // Fetch progress data
-            var progressData = document.data()?["Progress"] as? [String: Any] ?? [:]
+            let progressData = document.data()?["Progress"] as? [String: Any] ?? [:]
             var currentTasks = progressData["progressTasks"] as? [String] ?? []
             
             // Update progress data
@@ -1057,7 +1057,6 @@ class ViewModel: ObservableObject {
                 
                 // Update task data
                 currentTasks.append(self.taskString)
-                taskData["tasks"] = currentTasks
                 
                 // Update database
                 do {
@@ -1067,7 +1066,6 @@ class ViewModel: ObservableObject {
                     
                     DispatchQueue.main.async {
                         self.taskString = "" // Clear the task input field after successful addition
-                        self.progressTasks = currentTasks
                     }
                 } catch {
                     print("func taskAdder(): error updating circleDataRef: \(error.localizedDescription)")
@@ -1814,4 +1812,6 @@ class ViewModel: ObservableObject {
             return nil // If there's any error, return nil
         }
     }
+    
+    @Published var placeholderTasks: [Int] = [1]
 }

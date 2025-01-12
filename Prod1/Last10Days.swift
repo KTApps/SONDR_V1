@@ -44,11 +44,11 @@ struct Last10Days: View {
 }
 
 struct Inner10DaysCircle: View {
-    @EnvironmentObject var authModel: ViewModel
+    @EnvironmentObject var viewModel: ViewModel
     var docTitleIndex: Int
     
     private func calendarColorReturn(value: String) -> Color {
-        if authModel.habitDataForDay[authModel.docTitles[docTitleIndex] ?? 0]?.isHabitStriked[value] == true {
+        if viewModel.habitDataForDay[viewModel.docTitles[docTitleIndex] ?? 0]?.isHabitStriked[value] == true {
             return .blue
         } else {
             return .gray
@@ -56,19 +56,19 @@ struct Inner10DaysCircle: View {
     }
     
     var body: some View {
-        guard docTitleIndex < authModel.docTitles.count else {
+        guard docTitleIndex < viewModel.docTitles.count else {
             return AnyView(Text("Index out of range"))
         }
         
-        let docTitle = authModel.docTitles[docTitleIndex]
+        let docTitle = viewModel.docTitles[docTitleIndex]
         
         Task {
-            await authModel.listenForCircleData(dayOfYear: docTitle ?? 0)
+            await viewModel.listenForCircleData(dayOfYear: docTitle ?? 0)
         }
         
         // Return the Chart view
         return AnyView(
-            Chart(authModel.habitDataForDay[docTitle ?? 0]?.habitIdArray ?? [], id:\.self) { habit in
+            Chart(viewModel.habitDataForDay[docTitle ?? 0]?.habitIdArray ?? [], id:\.self) { habit in
                 SectorMark(
                     angle: .value("Time Spent", 10),
                     innerRadius: 11,

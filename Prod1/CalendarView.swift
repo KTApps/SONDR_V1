@@ -245,7 +245,13 @@ struct InnerCircle: View {
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
-    let placeholderTasks = [1]
+    private func calendarColorReturn(value: String) -> Color {
+        if viewModel.habitDataForDay[dayOfYear]?.isHabitStriked[value] == true {
+            return .blue
+        } else {
+            return .gray
+        }
+    }
     
     var body: some View {
         if let habits = viewModel.habitDataForDay[dayOfYear]?.habitIdArray, !habits.isEmpty {
@@ -256,7 +262,7 @@ struct InnerCircle: View {
                     outerRadius: outerRadius,
                     angularInset: 1
                 )
-                .foregroundStyle(.blue)
+                .foregroundStyle(calendarColorReturn(value: habit))
                 .cornerRadius(cornerRadius)
             }
             .onAppear {
@@ -265,7 +271,7 @@ struct InnerCircle: View {
                 }
             }
         } else {
-            Chart(placeholderTasks, id: \.self) { task in
+            Chart(viewModel.placeholderTasks, id: \.self) { task in
                 SectorMark(
                     angle: .value("Time Spent", task),
                     innerRadius: innerRadius,
@@ -286,7 +292,6 @@ struct OuterCalendarCircle: View {
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
-    let placeholderTasks = [1]
     
     var body: some View {
         if let tasks = viewModel.taskDataForDay[dayOfYear]?.tasks, !tasks.isEmpty {
@@ -307,7 +312,7 @@ struct OuterCalendarCircle: View {
                 }
             }
         } else {
-            Chart(placeholderTasks, id: \.self) { task in
+            Chart(viewModel.placeholderTasks, id: \.self) { task in
                 SectorMark(
                     angle: .value("Time Spent", task),
                     innerRadius: innerRadius,

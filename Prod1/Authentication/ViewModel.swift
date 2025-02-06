@@ -278,6 +278,30 @@ class ViewModel: ObservableObject {
         }
     }
     
+    private func analyticsUpdate() async {
+        guard let currentUserId = self.authRef.currentUser?.uid else {
+            return
+        }
+        
+        // Reference to the specific user document
+        let userRef = self.databaseRef.collection("users").document(currentUserId)
+        
+        let analyticsUpdate: [String: Any] = [
+            "dayTracker": self.dayTracker,
+            "dayTrackerOffset": self.dayTrackerOffset,
+            "habitStreak": self.habitStreak,
+            "cumulativeTasks": self.cumulativeTasks
+        ]
+        
+        do {
+            try await userRef.updateData([
+                "Analytics": analyticsUpdate
+            ])
+        } catch {
+            print("Error updating document: \(error.localizedDescription)")
+        }
+    }
+    
     func habitStreakTracker() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
@@ -399,7 +423,7 @@ class ViewModel: ObservableObject {
                 
                 await fetchCircleDocRef()
                 
-                dayConstant = currentDayOfYear
+                self.dayConstant = currentDayOfYear
                 dayTracker.append(currentDayOfYear)
                 await analyticsUpdate()
             }
@@ -409,30 +433,6 @@ class ViewModel: ObservableObject {
         } catch {
             signUpError.toggle()
             print("SIGN UP Failed... \(error.localizedDescription)")
-        }
-    }
-    
-    private func analyticsUpdate() async {
-        guard let currentUserId = self.authRef.currentUser?.uid else {
-            return
-        }
-        
-        // Reference to the specific user document
-        let userRef = self.databaseRef.collection("users").document(currentUserId)
-        
-        let analyticsUpdate: [String: Any] = [
-            "dayTracker": self.dayTracker,
-            "dayTrackerOffset": self.dayTrackerOffset,
-            "habitStreak": self.habitStreak,
-            "cumulativeTasks": self.cumulativeTasks
-        ]
-        
-        do {
-            try await userRef.updateData([
-                "Analytics": analyticsUpdate
-            ])
-        } catch {
-            print("Error updating document: \(error.localizedDescription)")
         }
     }
     
@@ -495,10 +495,35 @@ class ViewModel: ObservableObject {
             // Fetch the current day document's data
             let currentDayDocumentSnapshot = try await currentDayDocumentRef.getDocument()
             
-            // Ensure that the current day's document exists before proceeding
-            guard var currentDayData = currentDayDocumentSnapshot.data() else {
-                print("Current day's document does not exist or contains no data.")
-                return
+            var currentDayData: [String: Any]
+                    
+            // Check if today's document exists
+            if let fetchedData = currentDayDocumentSnapshot.data() {
+                currentDayData = fetchedData
+            } else {
+                print("Current day's document does not exist. Creating a new one.")
+                
+                // Create default HabitData and TaskData structures
+                let defaultHabitData: [String: Any] = [
+                    "habitIdArray": [:],
+                    "habitIdName": [:],
+                    "isHabitStriked": [:]  // Default empty habit tracker
+                ]
+                
+                let defaultTaskData: [String: Any] = [
+                    "tasks": [],
+                    "taskTimerDictionary": [:]
+                ]
+
+                // Create the document with default data
+                currentDayData = [
+                    "HabitData": defaultHabitData,
+                    "TaskData": defaultTaskData
+                ]
+
+                // Save it to Firestore
+                try await currentDayDocumentRef.setData(currentDayData)
+                print("New document for current day created successfully.")
             }
             
             // Extract only the "HabitData" from the current day data
@@ -529,7 +554,7 @@ class ViewModel: ObservableObject {
             let nextDayInDocs = currentDayOfYear + 6
             
             // Iterate over the next six days to create new documents
-            for i in (nextDayInDocs - dayTrackerOffset)...nextDayInDocs {
+            for i in (currentDayOfYear + 1)...nextDayInDocs {
                 
                 // Construct the document reference for the next day
                 let nextDayDocumentRef = userRef.collection("CircleData").document("\(i)")

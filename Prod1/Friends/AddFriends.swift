@@ -82,25 +82,11 @@ struct AddFriends: View {
                         }
                         .onTapGesture {
                             Task {
-                                // Add the user as a friend
                                 await viewModel.addFriends(withUsername: username)
                             }
                         }
                     }
                     .listStyle(PlainListStyle())
-                }
-                
-                Spacer()
-                
-                Button {
-                    // Create Friend Sub-Collection
-                    Task {
-                        await viewModel.addFriends(withUsername: friend)
-                    }
-                    viewModel.isAddFriendsVisible = false
-                    viewModel.isFriendsVisible = false
-                } label: {
-                    Text("Add friend")
                 }
                 
                 Spacer()
@@ -126,6 +112,23 @@ struct AddFriends: View {
             .alert("User doesn't exist", isPresented: $viewModel.addFriendsError) {
                 Button("Try Again") {
                     viewModel.addFriendsError = false
+                }
+            }
+            if viewModel.friendAdded {
+                VStack {
+                    Text(viewModel.friendMessage)
+                        .padding()
+                        .background(Color.white.opacity(0.3))
+                        .foregroundColor(.black)
+                        .cornerRadius(10)
+                        .transition(.opacity)
+                        .onAppear {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                withAnimation(.easeOut(duration: 2)) {
+                                    viewModel.friendAdded = false
+                                }
+                            }
+                        }
                 }
             }
         }

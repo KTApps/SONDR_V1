@@ -129,17 +129,6 @@
 			name = Settings;
 			sourceTree = "<group>";
 		};
-		086FA12C2BA225DF005B26EB /* AuthView */ = {
-			isa = PBXGroup;
-			children = (
-				08C5911C2BBC8376000EE1B9 /* LogInView.swift */,
-				086FA10D2BA2178F005B26EB /* Input.swift */,
-				086FA1252BA221A6005B26EB /* SignUpView.swift */,
-				08F36E4D2C90952000067902 /* GeometryReader.swift */,
-			);
-			name = AuthView;
-			sourceTree = "<group>";
-		};
 		086FA12E2BA2262A005B26EB /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -189,7 +178,10 @@
 		08E5A3662B9FC9A000F3B5C5 /* Authentication */ = {
 			isa = PBXGroup;
 			children = (
-				086FA12C2BA225DF005B26EB /* AuthView */,
+				08C5911C2BBC8376000EE1B9 /* LogInView.swift */,
+				086FA10D2BA2178F005B26EB /* Input.swift */,
+				086FA1252BA221A6005B26EB /* SignUpView.swift */,
+				08F36E4D2C90952000067902 /* GeometryReader.swift */,
 			);
 			path = Authentication;
 			sourceTree = "<group>";

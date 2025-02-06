@@ -74,11 +74,13 @@ struct LogInView: View {
                                             .frame(height: geometry.size.height * 0.03)
                                         
                                         Image(systemName: "eye")
-                                            .font(.callout)
+                                            .font(.system(size: 15))
+                                            .opacity(0.5)
                                             .foregroundColor(eyeball ? Color.white : Color.red)
                                     }
                                 }
-                                .padding(.horizontal, 8)
+                                .padding(.top, 7)
+                                .padding(.horizontal, 9)
                             }
                             
                             Spacer()

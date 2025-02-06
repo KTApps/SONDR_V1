@@ -61,14 +61,18 @@ struct SignUpView: View {
                                     if password.count < 6 {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.callout)
+                                            .opacity(0.5)
                                             .foregroundColor(.red)
                                     } else {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.callout)
+                                            .opacity(0.5)
                                             .foregroundColor(.green)
                                     }
                                 }
                             }
+                            .padding(.top, 28)
+                            .padding(.horizontal, 10)
                         }
                         
                         Spacer()

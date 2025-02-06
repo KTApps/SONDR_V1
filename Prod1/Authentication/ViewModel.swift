@@ -581,6 +581,9 @@ class ViewModel: ObservableObject {
     
     //  MARK: Add Friends
     @Published var addFriendsError = false
+    @Published var friendAlreadyExistsError = false
+    @Published var friendAdded: Bool = false
+    @Published var friendMessage = ""
     func addFriends(withUsername username: String) async {
         // Checks if User is logged in
         guard let currentUserId = self.authRef.currentUser?.uid else {
@@ -607,37 +610,39 @@ class ViewModel: ObservableObject {
                 }
             }
             
+            // If username is not found, show error and return
             if !usernameExists {
-                self.addFriendsError = true
+                DispatchQueue.main.async {
+                    self.addFriendsError = true
+                }
                 return
             }
-            
-            // Fetch the current 'Friends' field
+
+            // Fetch the current user's friends list
             let userDoc = try await userRef.getDocument()
-            if let currentFriends = userDoc.data()?["Friends"] as? [String] {
-                
-                // Append the new email to the existing 'Friends' array
-                if !currentFriends.contains(username) {
-                    
-                    // Update the 'Friends' field with the new array
-                    try await userRef.updateData([
-                        "Friends": FieldValue.arrayUnion([username])
-                    ])
-                    
-                } else {
-                    print("func addFriends(): User already exists")
-                    return
+            var currentFriends = userDoc.data()?["Friends"] as? [String] ?? []
+
+            // Check if friend already exists
+            if currentFriends.contains(username) {
+                DispatchQueue.main.async {
+                    self.friendAlreadyExistsError = true
                 }
-            } else {
-                
-                // Create a new 'Friends' array with the provided email
-                try await userRef.updateData([
-                    "Friends": [username]
-                ])
+                print("func addFriends(): User already exists in friends list.")
+                self.friendMessage = "Friend Already Exists!"
+                self.friendAdded = true
+                return
             }
-            
+
+            // Add new friend to the 'Friends' array
+            currentFriends.append(username)
+            try await userRef.updateData(["Friends": FieldValue.arrayUnion([username])])
+
+            print("func addFriends(): Successfully added friend.")
+            self.friendMessage = "Friend Added!"
+            self.friendAdded = true
+
         } catch {
-            print("func addFriends(): Error checking email existence or updating data: \(error)")
+            print("func addFriends(): Error adding friend: \(error)")
         }
     }
     

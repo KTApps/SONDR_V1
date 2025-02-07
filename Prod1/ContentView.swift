@@ -115,7 +115,7 @@ struct ContentView: View {
                     VStack {
                         ZStack {
                             
-                            OuterCircle(innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.4), cornerRadius: 1)
+                            OuterCircle(innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.4), selectedOuterRadius: MarkDimension(floatLiteral: geometry.size.width * 0.6), cornerRadius: 1)
                             
                             if let habits = viewModel.habitData?.habitIdArray, !habits.isEmpty {
                                 Chart(habits, id:\.self) { habit in
@@ -189,6 +189,8 @@ struct ContentView: View {
                             }
                         
                             VStack{
+                                Text(viewModel.selectedTask ?? "")
+                                    .font(.system(size: geometry.size.width * 0.05))
                                 Text(isShowingCumTime ? "\(viewModel.cumulativeProg) Seconds" : "\(viewModel.taskTime) Seconds")
                                     .font(.system(size: geometry.size.width * 0.05))
                                     .transition(.slide)

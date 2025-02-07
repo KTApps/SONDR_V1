@@ -1844,4 +1844,6 @@ class ViewModel: ObservableObject {
     }
     
     @Published var placeholderTasks: [Int] = [1]
+    
+    @Published var selectedTask: String? = nil
 }

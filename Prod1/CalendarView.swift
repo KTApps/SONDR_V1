@@ -293,22 +293,36 @@ struct OuterCalendarCircle: View {
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
     
+    @State private var pieSelection: Double?
+    @State private var animatedOpacity: Double = 1.0
+    
     var body: some View {
         if let tasks = viewModel.taskDataForDay[dayOfYear]?.tasks, !tasks.isEmpty {
+            let timeSpent = viewModel.taskDataForDay[dayOfYear]?.taskTimerDictionary ?? [:]
             Chart(tasks, id: \.self) { task in
-                if let timeSpent = viewModel.taskDataForDay[dayOfYear]?.taskTimerDictionary[task] {
+                if let taskTime = timeSpent[task] {
                     SectorMark(
-                        angle: .value("Time Spent", timeSpent),
+                        angle: .value("Time Spent", taskTime),
                         innerRadius: innerRadius,
                         outerRadius: outerRadius,
                         angularInset: 1
                     )
                     .cornerRadius(cornerRadius)
+                    .opacity(viewModel.selectedCalendarTask == nil || viewModel.selectedCalendarTask == task ? 1 : animatedOpacity)
                 }
             }
             .onAppear {
                 Task {
                     await viewModel.listenForCircleData(dayOfYear: dayOfYear)
+                }
+            }
+            .chartAngleSelection(value: $pieSelection)
+            .onChange(of: pieSelection, initial: false) { _ , newValue in
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    if let newValue {
+                        viewModel.selectedCalendarTask = viewModel.taskForTime(newValue, tasks: tasks, timeSpent: timeSpent)
+                    }
+                    animatedOpacity = 0.3
                 }
             }
         } else {

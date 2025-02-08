@@ -218,6 +218,7 @@ class ViewModel: ObservableObject {
                 }
                 
                 await self.fetchCircleDocRef()
+                self.cumulativeProgress()
             }
             self.isFriendsVisible = false
         } catch {
@@ -1846,4 +1847,24 @@ class ViewModel: ObservableObject {
     @Published var placeholderTasks: [Int] = [1]
     
     @Published var selectedTask: String? = nil
+    @Published var selectedCalendarTask: String? = nil
+    func taskForTime(_ time: Double, tasks: [String], timeSpent: [String: Int]) -> String? {
+        var cumulativeTime: Double = 0
+        let timeSpentDouble = timeSpent.mapValues { Double($0) }
+        let totalTime = timeSpentDouble.values.reduce(0, +)
+                
+        for task in tasks {
+            if let taskTime = timeSpentDouble[task] {
+                
+                // Check if the clicked time falls within this task's range
+                if time >= cumulativeTime && time < cumulativeTime + taskTime {
+                    return task
+                }
+                
+                // Update the cumulative time for the next task
+                cumulativeTime += taskTime
+            }
+        }
+        return nil
+    }
 }

@@ -76,6 +76,9 @@ struct CalendarCircle: View {
                     
                     ZStack {
                         VStack {
+                            Text(viewModel.selectedCalendarTask ?? "")
+                                .font(.title2)
+                                .fontWeight(.bold)
                             Text("\(viewModel.taskSum)hrs")
                                 .fontWeight(.bold)
                         }

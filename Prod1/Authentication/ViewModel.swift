@@ -1445,7 +1445,7 @@ class ViewModel: ObservableObject {
     @Published var dictionaryCount: Int = 0
     @Published var habitDataForDay: [Int: Prod1.HabitData] = [:] // Dictionary = [Day of year: habit data]
     @Published var taskDataForDay: [Int: Prod1.TaskData] = [:] // Dictionary = [Day of year: task data]
-    func listenForCircleData(dayOfYear: Int) async {
+    func listenForCircleData(dayOfYear: Int) {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }

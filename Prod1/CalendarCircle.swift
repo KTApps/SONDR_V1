@@ -95,6 +95,9 @@ struct CalendarCircle: View {
                 .onAppear {
                     viewModel.taskTimerDictionarySum(dayOfYear: dayOfYear)
                 }
+                .onDisappear {
+                    viewModel.selectedCalendarTask = ""
+                }
             }
         }
     }

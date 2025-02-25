@@ -236,6 +236,9 @@ struct CalendarDayCell: View {
             OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 18, outerRadius: 24, cornerRadius: 3)
             InnerCircle(dayOfYear: dayOfYear, innerRadius: 10, outerRadius: 15, cornerRadius: 3)
         }
+        .onAppear {
+            viewModel.listenForCircleData(dayOfYear: dayOfYear)
+        }
     }
 }
 
@@ -309,11 +312,6 @@ struct OuterCalendarCircle: View {
                     )
                     .cornerRadius(cornerRadius)
                     .opacity(viewModel.selectedCalendarTask == nil || viewModel.selectedCalendarTask == task ? 1 : animatedOpacity)
-                }
-            }
-            .onAppear {
-                Task {
-                    await viewModel.listenForCircleData(dayOfYear: dayOfYear)
                 }
             }
             .chartAngleSelection(value: $pieSelection)

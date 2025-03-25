@@ -26,7 +26,7 @@ struct Last10Days: View {
                                         let dayOfYear = viewModel.docTitles[index] ?? 0
                                         let date = viewModel.dateFromDayOfYear(index: index, year: viewModel.currentYear, dayOfYear: dayOfYear)
                                         Text(String(date?.day ?? 0))
-                                            .font(.custom("smallNumber", size: 15))
+                                            .font(.custom("smallNumber", size: 13))
                                             .foregroundColor(.white)
                                         OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 20, outerRadius: 27, cornerRadius: 5)
                                         Inner10DaysCircle(docTitleIndex: index)
@@ -66,18 +66,35 @@ struct Inner10DaysCircle: View {
             await viewModel.listenForCircleData(dayOfYear: docTitle ?? 0)
         }
         
-        // Return the Chart view
-        return AnyView(
-            Chart(viewModel.habitDataForDay[docTitle ?? 0]?.habitIdArray ?? [], id:\.self) { habit in
-                SectorMark(
-                    angle: .value("Time Spent", 10),
-                    innerRadius: 11,
-                    outerRadius: 18
-                )
-                .foregroundStyle(calendarColorReturn(value: habit))
-                .cornerRadius(5)
-            }
-        )
+        // Check if habit data exists and isn’t empty
+        if let habits = viewModel.habitDataForDay[docTitle ?? 0]?.habitIdArray, !habits.isEmpty {
+            // Return the Chart view
+            return AnyView(
+                Chart(habits, id:\.self) { habit in
+                    SectorMark(
+                        angle: .value("Time Spent", 10),
+                        innerRadius: 11,
+                        outerRadius: 17
+                    )
+                    .foregroundStyle(calendarColorReturn(value: habit))
+                    .cornerRadius(5)
+                }
+            )
+        } else {
+            // Return the Chart view
+            return AnyView(
+                Chart(viewModel.placeholderTasks, id:\.self) { task in
+                    SectorMark(
+                        angle: .value("Time Spent", task),
+                        innerRadius: 11,
+                        outerRadius: 17
+                    )
+                    .foregroundStyle(.gray)
+                    .opacity(0.3)
+                    .cornerRadius(5)
+                }
+            )
+        }
     }
 }
 

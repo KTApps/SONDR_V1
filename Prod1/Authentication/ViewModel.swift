@@ -42,9 +42,6 @@ class ViewModel: ObservableObject {
     @Published var weekDayIndexCounter: Int = 0
     
     init() { // Runs at start of program
-        Task {
-            await listenForUser()
-        }
         
         // Initialising weekDayIndexCounter to the current day of the week
         weekDayIndexCounter = weekdayIndex(forDayOfYear: currentDayOfYear, inYear: currentYear) ?? 0
@@ -506,7 +503,7 @@ class ViewModel: ObservableObject {
                 
                 // Create default HabitData and TaskData structures
                 let defaultHabitData: [String: Any] = [
-                    "habitIdArray": [:],
+                    "habitIdArray": [],
                     "habitIdName": [:],
                     "isHabitStriked": [:]  // Default empty habit tracker
                 ]
@@ -1147,7 +1144,7 @@ class ViewModel: ObservableObject {
             print("func newTaskAdder(): Document doesn't exist")
         }
     }
-    
+     
     
     
     @Published var taskMaxTime: [String: Int] = [:] // Dictionary = [Task Title: Max Time]

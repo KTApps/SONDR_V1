@@ -88,7 +88,9 @@ struct HabitTracker: View {
                     .frame(height: 70)
                 
     //            MARK: HABIT ARRAY
-                ForEach(viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdArray ?? [], id: \.self) { habit in
+                let habits = viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdArray ?? []
+                
+                ForEach(habits, id: \.self) { habit in
                     SwipeableRow(
                         content: {
                             HStack {

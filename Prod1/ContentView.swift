@@ -30,6 +30,7 @@ struct ContentView: View {
                             withAnimation {
                                 viewModel.isFriendsVisible.toggle()
                                 viewModel.isTaskDropDownVisible = false
+                                viewModel.selectedTask = nil
                             }
                         } label: {
                             Image(systemName: "person.fill")
@@ -49,6 +50,7 @@ struct ContentView: View {
                                 viewModel.isProfileBlurViewVisible = true
                                 viewModel.isFriendsVisible = false
                                 viewModel.isTaskDropDownVisible = false
+                                viewModel.selectedTask = nil
                             }
                         } label: {
                             Image(systemName: "gear")
@@ -76,6 +78,7 @@ struct ContentView: View {
                         .onTapGesture {
                             withAnimation {
                                 viewModel.isTaskDropDownVisible.toggle()
+                                viewModel.selectedTask = nil
                             }
                         }
                         
@@ -99,6 +102,10 @@ struct ContentView: View {
                                         viewModel.taskTime = viewModel.taskTimer() ?? 0
                                         // Update cumulative progress periodically during timer execution
                                         viewModel.updateCumulativeProgressPeriodically()
+                                    }
+                                    if viewModel.taskName == "Task" {
+                                        viewModel.taskTime = 0
+                                        viewModel.cumulativeTime = viewModel.cumulativeProg
                                     }
                                 }
                         }
@@ -168,6 +175,7 @@ struct ContentView: View {
                                     withAnimation {
                                         viewModel.isBlurViewVisible = true
                                         viewModel.isFriendsVisible = false
+                                        viewModel.selectedTask = nil
                                     }
                                     viewModel.weekDayIndexCounter = viewModel.weekdayIndex(forDayOfYear: viewModel.currentDayOfYear, inYear: viewModel.currentYear) ?? 0
                                     viewModel.currentDayOfWeek = viewModel.currentDayOfYear
@@ -228,6 +236,7 @@ struct ContentView: View {
                                     viewModel.isViewYourProgressVisible = true
                                     viewModel.isFriendsVisible = false
                                     viewModel.isTaskDropDownVisible = false
+                                    viewModel.selectedTask = nil
                                 }) {
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 10)

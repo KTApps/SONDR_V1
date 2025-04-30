@@ -11,6 +11,21 @@ import Charts
 struct ContentView: View {
     @EnvironmentObject var viewModel: ViewModel
     @State var isShowingCumTime: Bool = false
+    @State var playButton: String = "play.circle.fill"
+    
+    func timeFormat(_ seconds: Int) -> String {
+        if seconds >= 60 {
+            let minutes = seconds / 60
+            var result = "\(minutes) \(minutes == 1 ? "min" : "mins")"
+            let remainder = seconds % 60
+            if remainder > 0 {
+                result += " \(remainder) \(remainder == 1 ? "sec" : "secs")"
+            }
+            return result
+        } else {
+            return "\(seconds) \(seconds == 1 ? "second" : "seconds")"
+        }
+    }
     
     var body: some View {
 //        MARK: ZStack for BlurView
@@ -88,26 +103,31 @@ struct ContentView: View {
                         Button(action: {
                             viewModel.isTimerOn.toggle()
                             if viewModel.isTimerOn {
+                                playButton = "pause.circle.fill"
                                 viewModel.timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
                             } else {
+                                playButton = "play.circle.fill"
                                 viewModel.timer.upstream.connect().cancel()
                                 viewModel.progressPercentage()
                                 viewModel.newTimeCalc()
                                 viewModel.cumulativeProgress()
                             }
                         }) {
-                            Text(isShowingCumTime ? "\(viewModel.formattedCumulativeTime)" : "\(viewModel.formattedTaskTime)")
-                                .onReceive(viewModel.timer) { time in
-                                    if viewModel.isTimerOn {
-                                        viewModel.taskTime = viewModel.taskTimer() ?? 0
-                                        // Update cumulative progress periodically during timer execution
-                                        viewModel.updateCumulativeProgressPeriodically()
+                            HStack {
+                                Text(isShowingCumTime ? "\(viewModel.formattedCumulativeTime)" : "\(viewModel.formattedTaskTime)")
+                                    .onReceive(viewModel.timer) { time in
+                                        if viewModel.isTimerOn {
+                                            viewModel.taskTime = viewModel.taskTimer() ?? 0
+                                            // Update cumulative progress periodically during timer execution
+                                            viewModel.updateCumulativeProgressPeriodically()
+                                        }
+                                        if viewModel.taskName == "Task" {
+                                            viewModel.taskTime = 0
+                                            viewModel.cumulativeTime = viewModel.cumulativeProg
+                                        }
                                     }
-                                    if viewModel.taskName == "Task" {
-                                        viewModel.taskTime = 0
-                                        viewModel.cumulativeTime = viewModel.cumulativeProg
-                                    }
-                                }
+                                Image(systemName: playButton)
+                            }
                         }
                         .foregroundColor(.white)
                         .font(.system(size: geometry.size.width * 0.06))
@@ -199,7 +219,7 @@ struct ContentView: View {
                             VStack{
                                 Text(viewModel.selectedTask ?? "")
                                     .font(.system(size: geometry.size.width * 0.05))
-                                Text(isShowingCumTime ? "\(viewModel.cumulativeProg) Seconds" : "\(viewModel.taskTime) Seconds")
+                                Text(isShowingCumTime ? timeFormat(viewModel.cumulativeProg) : timeFormat(viewModel.taskTime))
                                     .font(.system(size: geometry.size.width * 0.05))
                                     .transition(.slide)
                                     .animation(.easeInOut, value: isShowingCumTime)

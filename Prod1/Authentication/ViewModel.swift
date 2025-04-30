@@ -262,7 +262,6 @@ class ViewModel: ObservableObject {
                 } else {
                     self.dayTrackerOffset = 0 // Set to 0 when there are fewer than 2 elements
                 }
-                print("dayTrackerOffset = \(self.dayTrackerOffset)")
                 
                 self.habitStreak = document.get("Analytics.habitStreak") as? Int ?? 0
                 
@@ -1383,7 +1382,7 @@ class ViewModel: ObservableObject {
                 let query = circleDataRef.document(dayToCollect)
                 let documentSnapshot = try await query.getDocument()
                 
-                if let documentData = documentSnapshot.data() {
+                if documentSnapshot.data() != nil {
                     // Document exists, handle the data
                     docTitles.append(Int(dayToCollect))
                 }

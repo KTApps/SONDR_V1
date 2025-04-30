@@ -19,7 +19,7 @@ struct Last10Days: View {
                 HStack(spacing: 15) {
                     ForEach(0..<numberOfColumns, id: \.self) { columnIndex in
                         let index = rowIndex * numberOfColumns + columnIndex
-                        if viewModel.docTitles.count > 1 {
+                        if viewModel.docTitles.count > 0 {
                             withAnimation {
                                 ZStack {
                                     if index < viewModel.docTitles.count {

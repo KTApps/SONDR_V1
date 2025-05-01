@@ -1038,7 +1038,7 @@ class ViewModel: ObservableObject {
             newTimeCalc()
         }
     }
-    let maxTime = 100
+    let maxTime = 3600
     
     func taskAdder() async {
         guard let userId = self.authRef.currentUser?.uid else {
@@ -1172,7 +1172,7 @@ class ViewModel: ObservableObject {
             if let currentTime = progressTimerDictionary[item] {
                 let currentMaxTime = taskMaxTime[item] ?? maxTime
                 if currentTime >= currentMaxTime {
-                    let newMaxTime = ((currentTime / 100) + 1) * 100
+                    let newMaxTime = ((currentTime / 100) + 36) * 100
                     progressTimerDictionary[item] = newMaxTime
                     newTimeCalc()
                     maxTimeAlert.toggle()

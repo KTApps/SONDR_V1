@@ -14,7 +14,16 @@ struct ContentView: View {
     @State var playButton: String = "play.circle.fill"
     
     func timeFormat(_ seconds: Int) -> String {
-        if seconds >= 60 {
+        if seconds >= 3600 {
+            let hours = seconds / 3600
+            var result = "\(hours) \(hours == 1 ? "hr" : "hrs")"
+            let remainder = seconds % 3600
+            let minute = remainder / 60
+            if minute >= 1 {
+                result += " \(minute) \(minute == 1 ? "min" : "mins")"
+            }
+            return result
+        } else if seconds >= 60 {
             let minutes = seconds / 60
             var result = "\(minutes) \(minutes == 1 ? "min" : "mins")"
             let remainder = seconds % 60

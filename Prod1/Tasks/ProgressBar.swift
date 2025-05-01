@@ -43,7 +43,14 @@ struct ProgressBar: View {
                             
                             Capsule()
                                 .fill(Color.blue)
-                                .frame(width: geometry.size.width * ((CGFloat(viewModel.newTimeArray[item] ?? 0))/370), height: geometry.size.height * 0.07)
+                                .frame(
+                                    width: (viewModel.newTimeArray[item] ?? 0) > 0 ?
+                                        max(
+                                            geometry.size.width * ((CGFloat(viewModel.newTimeArray[item] ?? 0))/370),
+                                            geometry.size.width * (viewModel.maxWidth/370) * 0.07
+                                        ) : 0,
+                                    height: geometry.size.height * 0.07
+                                )
                             
                             HStack {
                                 Spacer()

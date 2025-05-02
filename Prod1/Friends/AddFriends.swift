@@ -12,6 +12,19 @@ struct AddFriends: View {
     @EnvironmentObject var viewModel: ViewModel
     @State var friend: String = ""
     @State var link: String = ""
+    
+    func timeFormat(seconds: Int) -> String {
+        if seconds >= 3600 {
+            let hours = seconds / 3600
+            return "\(hours) \(hours == 1 ? "hr" : "hrs")"
+        } else if seconds >= 60 {
+            let minutes = seconds / 60
+            return "\(minutes) \(minutes == 1 ? "min" : "mins")"
+        } else {
+            return "\(seconds) \(seconds == 1 ? "sec" : "secs")"
+        }
+    }
+    
     var body: some View {
         ZStack {
             viewModel.darkGray.ignoresSafeArea()
@@ -63,7 +76,7 @@ struct AddFriends: View {
                             
                             // Display the username and its associated value
                             if let value = viewModel.searchResults[uniqueKey] {
-                                Text("\(username) - \(value) hrs")
+                                Text("\(username) - \(timeFormat(seconds: value))")
                                     .foregroundColor(.white)
                             }
                             

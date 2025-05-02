@@ -1863,4 +1863,63 @@ class ViewModel: ObservableObject {
         }
         return nil
     }
+    
+    /*
+    func migrateUserData(for userId: String) async throws {
+        let userRef = self.databaseRef.collection("users").document(userId)
+        let document = try await userRef.getDocument()
+        let data = document.data()
+        let progress = data?["Progress"] as? [String: Any]
+        let progressTasks = progress?["progressTasks"] as? [String] ?? []
+        let progressTimerDictionary = progress?["progressTimerDictionary"] as? [String: Int] ?? [:]
+        var taskMaxTime = progress?["taskMaxTime"] as? [String: Int] ?? [:]
+        var taskDecimalDict = progress?["taskDecimalDict"] as? [String: Double] ?? [:]
+        
+        for task in progressTasks {
+            print("\(task) = progress: \(progressTimerDictionary[task] ?? 9999)")
+            if progressTimerDictionary[task] ?? 0 >= 3600 {
+                taskMaxTime[task] = 3600 * 2
+            } else {
+                taskMaxTime[task] = 3600
+            }
+            print("\(task) = maxTime: \(taskMaxTime[task] ?? 9999)")
+            taskDecimalDict[task] = Double(progressTimerDictionary[task] ?? 0) / Double(taskMaxTime[task] ?? 0)
+            print("\(task) = decimal: \(taskDecimalDict[task] ?? 9999)")
+        }
+        
+        try await userRef.updateData([
+            "Progress.taskDecimalDict" : taskDecimalDict,
+            "Progress.taskMaxTime" : taskMaxTime
+        ])
+    }
+    
+    func migrateAllUsers() async {
+        do {
+            let usersSnapshot = try await self.databaseRef.collection("users").getDocuments()
+            print("Found \(usersSnapshot.documents.count) users to migrate")
+            
+            let batchSize = 2
+            var processedCount = 0
+            
+            for userDoc in usersSnapshot.documents {
+                let userId = userDoc.documentID
+                
+                do {
+                    try await migrateUserData(for: userId)
+                    processedCount += 1
+                    print("Processed \(processedCount) / \(usersSnapshot.documents.count) users")
+                } catch {
+                    print("Error migrating user \(userId): \(error.localizedDescription)")
+                }
+                
+                if processedCount % batchSize == 0 {
+                    try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+                }
+            }
+            print("Finished migrating all users")
+        } catch {
+            print("error")
+        }
+    }
+     */
 }

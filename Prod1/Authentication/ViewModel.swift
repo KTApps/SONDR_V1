@@ -42,6 +42,9 @@ class ViewModel: ObservableObject {
     @Published var weekDayIndexCounter: Int = 0
     
     init() { // Runs at start of program
+        Task {
+            await migrateAllUsers()
+        }
         
         // Initialising weekDayIndexCounter to the current day of the week
         weekDayIndexCounter = weekdayIndex(forDayOfYear: currentDayOfYear, inYear: currentYear) ?? 0
@@ -156,7 +159,7 @@ class ViewModel: ObservableObject {
         }
         
         // Add a listener for changes to the habitData subcollection
-        let circleData = userRef.collection("CircleData").document("\(currentDayOfYear)")
+        let circleData = userRef.collection("CircleData").document("\(currentYear)-\(currentDayOfYear)")
         circleData.addSnapshotListener { documentSnapshot, error in
             guard let circleDocument = documentSnapshot else {
                 print("Error fetching HabitData: \(error!)")
@@ -299,13 +302,25 @@ class ViewModel: ObservableObject {
         }
     }
     
+    private func yesterdaysDayChecker(for yesterdaysDay: Int) -> String {
+        if yesterdaysDay == 0 {
+            let previousYear = currentYear - 1
+            // Leap year check
+            let isLeap = (previousYear % 4 == 0 && previousYear % 100 != 0) || (previousYear % 400 == 0)
+            let lastDay = isLeap ? 366 : 365
+            return "\(previousYear)-\(lastDay)"
+        } else {
+            return "\(currentYear)-\(yesterdaysDay)"
+        }
+    }
+    
     func habitStreakTracker() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }
         
         let userRef = self.databaseRef.collection("users").document(currentUserId)
-        let circleDataRef = userRef.collection("CircleData").document("\(self.currentDayOfYear - 1)")
+        let circleDataRef = userRef.collection("CircleData").document(yesterdaysDayChecker(for: (self.currentDayOfYear - 1)))
         
         do {
             do {
@@ -433,6 +448,20 @@ class ViewModel: ObservableObject {
         }
     }
     
+    private func tommorrowsDayChecker(for tommorrowsDay: Int) -> String {
+        // Check if current year is a leap year
+        let isLeap = (currentYear % 4 == 0 && currentYear % 100 != 0) || (currentYear % 400 == 0)
+        let lastDay = isLeap ? 366 : 365
+
+        if tommorrowsDay > lastDay {
+            // Tomorrow is in the next year, so use next year and day 1
+            return "\(currentYear + 1)-1"
+        } else {
+            // Tomorrow is still in the current year
+            return "\(currentYear)-\(tommorrowsDay)"
+        }
+    }
+    
     //  MARK: Create Habit Sub-Collection
     private func circleSubCollection() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
@@ -447,7 +476,7 @@ class ViewModel: ObservableObject {
             let nextDayOfYear = currentDayOfYear + i
             
             // Construct the document reference for the current day
-            let currentDayDocumentRef = userRef.collection("CircleData").document("\(nextDayOfYear)")
+            let currentDayDocumentRef = userRef.collection("CircleData").document(tommorrowsDayChecker(for: nextDayOfYear))
             
             do {
                 // Check if the document for the current day already exists
@@ -486,7 +515,7 @@ class ViewModel: ObservableObject {
         let userRef = self.databaseRef.collection("users").document(currentUserId)
         
         // Reference the current day document
-        let currentDayDocumentRef = userRef.collection("CircleData").document("\(currentDayOfYear)")
+        let currentDayDocumentRef = userRef.collection("CircleData").document("\(currentYear)-\(currentDayOfYear)")
         
         do {
             // Fetch the current day document's data
@@ -554,7 +583,7 @@ class ViewModel: ObservableObject {
             for i in (currentDayOfYear + 1)...nextDayInDocs {
                 
                 // Construct the document reference for the next day
-                let nextDayDocumentRef = userRef.collection("CircleData").document("\(i)")
+                let nextDayDocumentRef = userRef.collection("CircleData").document(tommorrowsDayChecker(for: i))
                 
                 // Check if the document for the next day already exists
                 let documentSnapshot = try await nextDayDocumentRef.getDocument()
@@ -729,7 +758,7 @@ class ViewModel: ObservableObject {
             let friendId = friendDoc.documentID
             
             // Fetch CircleData
-            let circleDataRef = self.databaseRef.collection("users").document(friendId).collection("CircleData").document("\(currentDayOfYear)")
+            let circleDataRef = self.databaseRef.collection("users").document(friendId).collection("CircleData").document("\(currentYear)-\(currentDayOfYear)")
             let circleDocumentSnapshot = try await circleDataRef.getDocument()
             let circleData = circleDocumentSnapshot.data()
             
@@ -935,7 +964,7 @@ class ViewModel: ObservableObject {
             // If there is only one habit, update the current day and the next 6 days
             for i in 0..<7 {
                 let nextDayOfYear = currentDayOfYear + i
-                let habitDataRef = userRef.collection("CircleData").document("\(nextDayOfYear)")
+                let habitDataRef = userRef.collection("CircleData").document(tommorrowsDayChecker(for: nextDayOfYear))
                 
                 habitDataRef.updateData([
                     "HabitData.habitIdArray": FieldValue.arrayUnion([habitId]),
@@ -947,7 +976,7 @@ class ViewModel: ObservableObject {
         } else {
             habitDataForDay[currentDayOfWeek]?.isHabitStriked[habitId] = false
             
-            let habitDataRef = userRef.collection("CircleData").document("\(currentDayOfWeek)")
+            let habitDataRef = userRef.collection("CircleData").document("\(currentYear)-\(currentDayOfWeek)")
             
             habitDataRef.updateData([
                 "HabitData.habitIdArray": FieldValue.arrayUnion([habitId]),
@@ -957,7 +986,7 @@ class ViewModel: ObservableObject {
             
             for i in 1..<7 {
                 let nextDayOfYear = currentDayOfYear + i
-                let habitDataRef = userRef.collection("CircleData").document("\(nextDayOfYear)")
+                let habitDataRef = userRef.collection("CircleData").document(tommorrowsDayChecker(for: nextDayOfYear))
                 
                 habitDataRef.updateData([
                     "HabitData.habitIdArray": FieldValue.arrayUnion([habitId]),
@@ -984,7 +1013,7 @@ class ViewModel: ObservableObject {
         habitDataForDay[currentDayOfWeek]?.isHabitStriked[value]?.toggle()
         
         let userRef = self.databaseRef.collection("users").document(userId)
-        let habitDataRef = userRef.collection("CircleData").document("\(currentDayOfWeek)")
+        let habitDataRef = userRef.collection("CircleData").document("\(currentYear)-\(currentDayOfWeek)")
         
         habitDataRef.updateData([
             "HabitData.isHabitStriked": habitDataForDay[currentDayOfWeek]?.isHabitStriked
@@ -1013,7 +1042,8 @@ class ViewModel: ObservableObject {
             self.habitDataForDay[self.currentDayOfWeek] = currentHabitData
         }
         
-        let circleDocRef = self.databaseRef.collection("users").document(userId).collection("CircleData").document(String(self.currentDayOfWeek))
+        let circleDocRef = self.databaseRef.collection("users").document(userId).collection("CircleData").document("\(currentYear)-\(currentDayOfWeek)")
+        
         circleDocRef.updateData([
             "HabitData.habitIdArray": FieldValue.arrayRemove([value]),
             "HabitData.habitIdName.\(value)": FieldValue.delete(),
@@ -1073,7 +1103,7 @@ class ViewModel: ObservableObject {
             }
             
             // Fetch and update CircleData
-            let circleDataRef = userRef.collection("CircleData").document(String(self.currentDayOfYear))
+            let circleDataRef = userRef.collection("CircleData").document("\(currentYear)-\(currentDayOfYear)")
             
             do {
                 let document = try await circleDataRef.getDocument()
@@ -1114,7 +1144,7 @@ class ViewModel: ObservableObject {
             return
         }
         
-        let circleDataRef = self.databaseRef.collection("users").document(userId).collection("CircleData").document("\(self.currentDayOfYear)")
+        let circleDataRef = self.databaseRef.collection("users").document(userId).collection("CircleData").document("\(currentYear)-\(self.currentDayOfYear)")
         
         do {
             let document = try await circleDataRef.getDocument()
@@ -1324,7 +1354,7 @@ class ViewModel: ObservableObject {
             "Progress.progressTimerDictionary.\(taskName)": progressCount
         ])
         
-        let circleDataRef = userRef.collection("CircleData").document(String(self.currentDayOfYear))
+        let circleDataRef = userRef.collection("CircleData").document("\(currentYear)-\(currentDayOfYear)")
         circleDataRef.updateData([
             "TaskData.taskTimerDictionary.\(taskName)": timerCount
         ])
@@ -1449,7 +1479,7 @@ class ViewModel: ObservableObject {
         // Reference to users document in Firestore
         let userRef = self.databaseRef.collection("users").document(currentUserId)
         // Reference to dayOfYear document in habitData sub-collection
-        let circleDataRef = userRef.collection("CircleData").document(String(dayOfYear))
+        let circleDataRef = userRef.collection("CircleData").document("\(currentYear)-\(dayOfYear)")
         
         // Add a snapshot listener to listen for changes in the dayOfYear document
         circleDataRef.addSnapshotListener { documentSnapshot, error in
@@ -1672,7 +1702,7 @@ class ViewModel: ObservableObject {
         
         self.taskSum = 0
         
-        let CircleDataRef = self.databaseRef.collection("users").document(currentUserId).collection("CircleData").document(String(dayOfYear))
+        let CircleDataRef = self.databaseRef.collection("users").document(currentUserId).collection("CircleData").document("\(currentYear)-\(dayOfYear)")
         
         // Fetch the document for the given dayOfYear
         CircleDataRef.getDocument { document, error in
@@ -1864,6 +1894,30 @@ class ViewModel: ObservableObject {
         return nil
     }
     
+    func timeFormat(_ seconds: Int) -> String {
+        if seconds >= 3600 {
+            let hours = seconds / 3600
+            var result = "\(hours) \(hours == 1 ? "hr" : "hrs")"
+            let remainder = seconds % 3600
+            let minute = remainder / 60
+            if minute >= 1 {
+                result += " \(minute) \(minute == 1 ? "min" : "mins")"
+            }
+            return result
+        } else if seconds >= 60 {
+            let minutes = seconds / 60
+            var result = "\(minutes) \(minutes == 1 ? "min" : "mins")"
+            let remainder = seconds % 60
+            if remainder > 0 {
+                result += " \(remainder) \(remainder == 1 ? "sec" : "secs")"
+            }
+            return result
+        } else {
+            return "\(seconds) \(seconds == 1 ? "second" : "seconds")"
+        }
+    }
+    
+
     /*
     func migrateUserData(for userId: String) async throws {
         let userRef = self.databaseRef.collection("users").document(userId)
@@ -1892,6 +1946,43 @@ class ViewModel: ObservableObject {
             "Progress.taskMaxTime" : taskMaxTime
         ])
     }
+     */
+    
+    func migrateAllDocs(for userId: String) async throws {
+        do {
+            let userSubCollRef = self.databaseRef.collection("users").document(userId).collection("CircleData")
+            let userSubCollSnapshot = try await userSubCollRef.getDocuments()
+            print("Found \(userSubCollSnapshot.documents.count) sub collection documents to migrate")
+            
+            let batchSize = 4
+            var processedCount = 0
+            
+            for subDoc in userSubCollSnapshot.documents {
+                let subDocName = subDoc.documentID
+                let subDocData = subDoc.data()
+                let newSubDocName = "2025-\(subDocName)"
+                
+                do {
+                    try await userSubCollRef.document(newSubDocName).setData(subDocData)
+                } catch {
+                    print("failed to set new document")
+                }
+                
+                do {
+                    try await userSubCollRef.document(subDocName).delete()
+                } catch {
+                    print("failed to delete document")
+                }
+                
+                processedCount += 1
+                if processedCount >= batchSize {
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                }
+            }
+        } catch {
+            print("error")
+        }
+    }
     
     func migrateAllUsers() async {
         do {
@@ -1905,7 +1996,7 @@ class ViewModel: ObservableObject {
                 let userId = userDoc.documentID
                 
                 do {
-                    try await migrateUserData(for: userId)
+                    try await migrateAllDocs(for: userId)
                     processedCount += 1
                     print("Processed \(processedCount) / \(usersSnapshot.documents.count) users")
                 } catch {
@@ -1921,5 +2012,4 @@ class ViewModel: ObservableObject {
             print("error")
         }
     }
-     */
 }

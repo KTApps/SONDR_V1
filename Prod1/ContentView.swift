@@ -13,29 +13,6 @@ struct ContentView: View {
     @State var isShowingCumTime: Bool = false
     @State var playButton: String = "play.circle.fill"
     
-    func timeFormat(_ seconds: Int) -> String {
-        if seconds >= 3600 {
-            let hours = seconds / 3600
-            var result = "\(hours) \(hours == 1 ? "hr" : "hrs")"
-            let remainder = seconds % 3600
-            let minute = remainder / 60
-            if minute >= 1 {
-                result += " \(minute) \(minute == 1 ? "min" : "mins")"
-            }
-            return result
-        } else if seconds >= 60 {
-            let minutes = seconds / 60
-            var result = "\(minutes) \(minutes == 1 ? "min" : "mins")"
-            let remainder = seconds % 60
-            if remainder > 0 {
-                result += " \(remainder) \(remainder == 1 ? "sec" : "secs")"
-            }
-            return result
-        } else {
-            return "\(seconds) \(seconds == 1 ? "second" : "seconds")"
-        }
-    }
-    
     var body: some View {
 //        MARK: ZStack for BlurView
         ZStack {
@@ -228,7 +205,7 @@ struct ContentView: View {
                             VStack{
                                 Text(viewModel.selectedTask ?? "")
                                     .font(.system(size: geometry.size.width * 0.05))
-                                Text(isShowingCumTime ? timeFormat(viewModel.cumulativeProg) : timeFormat(viewModel.taskTime))
+                                Text(isShowingCumTime ? viewModel.timeFormat(viewModel.cumulativeProg) : viewModel.timeFormat(viewModel.taskTime))
                                     .font(.system(size: geometry.size.width * 0.05))
                                     .transition(.slide)
                                     .animation(.easeInOut, value: isShowingCumTime)

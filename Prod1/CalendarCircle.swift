@@ -79,7 +79,8 @@ struct CalendarCircle: View {
                             Text(viewModel.selectedCalendarTask ?? "")
                                 .font(.title2)
                                 .fontWeight(.bold)
-                            Text("\(viewModel.taskSum)hrs")
+                            Text(viewModel.timeFormat(viewModel.taskSum))
+                                .font(.system(size: 22))
                                 .fontWeight(.bold)
                         }
                         .font(.title)

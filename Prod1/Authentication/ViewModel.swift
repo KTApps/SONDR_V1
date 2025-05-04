@@ -42,9 +42,6 @@ class ViewModel: ObservableObject {
     @Published var weekDayIndexCounter: Int = 0
     
     init() { // Runs at start of program
-        Task {
-            await migrateAllUsers()
-        }
         
         // Initialising weekDayIndexCounter to the current day of the week
         weekDayIndexCounter = weekdayIndex(forDayOfYear: currentDayOfYear, inYear: currentYear) ?? 0
@@ -210,7 +207,8 @@ class ViewModel: ObservableObject {
             
             Task {
                 await listenForUser()
-                await listenForCircleData(dayOfYear: currentDayOfWeek)
+                let documentTitle = "\(currentYear)\(currentDayOfWeek)"
+                await listenForCircleData(document: documentTitle)
                 
                 await self.dayTrackerMath()
                 if dayConstant < currentDayOfYear {
@@ -431,7 +429,8 @@ class ViewModel: ObservableObject {
                 clearData()
                 
                 await listenForUser()
-                await listenForCircleData(dayOfYear: currentDayOfWeek)
+                let documentTitle = "\(currentYear)\(currentDayOfWeek)"
+                await listenForCircleData(document: documentTitle)
                 
                 await fetchCircleDocRef()
                 
@@ -881,7 +880,8 @@ class ViewModel: ObservableObject {
             currentDayOfWeek -= 1
         }
         Task {
-            await listenForCircleData(dayOfYear: currentDayOfWeek)
+            let documentTitle = "\(currentYear)\(currentDayOfWeek)"
+            await listenForCircleData(document: documentTitle)
         }
     }
     
@@ -892,7 +892,8 @@ class ViewModel: ObservableObject {
             currentDayOfWeek += 1
         }
         Task {
-            await listenForCircleData(dayOfYear: currentDayOfWeek)
+            let documentTitle = "\(currentYear)\(currentDayOfWeek)"
+            await listenForCircleData(document: documentTitle)
         }
     }
     
@@ -974,7 +975,8 @@ class ViewModel: ObservableObject {
                 
             }
         } else {
-            habitDataForDay[currentDayOfWeek]?.isHabitStriked[habitId] = false
+            let documentTitle = "\(currentYear)\(currentDayOfWeek)"
+            habitDataForDay[documentTitle]?.isHabitStriked[habitId] = false
             
             let habitDataRef = userRef.collection("CircleData").document("\(currentYear)-\(currentDayOfWeek)")
             
@@ -999,7 +1001,8 @@ class ViewModel: ObservableObject {
         Task {
             // Assuming `listenForUser` and `listenForHabitData` are asynchronous tasks
             await listenForUser()
-            await listenForCircleData(dayOfYear: currentDayOfYear)
+            let documentTitle = "\(currentYear)\(currentDayOfYear)"
+            await listenForCircleData(document: documentTitle)
         }
     }
     
@@ -1009,22 +1012,23 @@ class ViewModel: ObservableObject {
             print("func habitStriker(): User is not logged in.")
             return
         }
-        
-        habitDataForDay[currentDayOfWeek]?.isHabitStriked[value]?.toggle()
+        let documentTitle = "\(currentYear)\(currentDayOfWeek)"
+        habitDataForDay[documentTitle]?.isHabitStriked[value]?.toggle()
         
         let userRef = self.databaseRef.collection("users").document(userId)
         let habitDataRef = userRef.collection("CircleData").document("\(currentYear)-\(currentDayOfWeek)")
         
         habitDataRef.updateData([
-            "HabitData.isHabitStriked": habitDataForDay[currentDayOfWeek]?.isHabitStriked
+            "HabitData.isHabitStriked": habitDataForDay[documentTitle]?.isHabitStriked
         ])
         
         Task {
             await listenForUser()
-            await listenForCircleData(dayOfYear: currentDayOfWeek)
+            let documentTitle = "\(currentYear)\(currentDayOfWeek)"
+            await listenForCircleData(document: documentTitle)
         }
         
-        self.habitData = habitDataForDay[currentDayOfWeek] // Trigger a re-render by reassigning the object
+        self.habitData = habitDataForDay[documentTitle] // Trigger a re-render by reassigning the object
     }
     
     @Published var offsetX: CGFloat = 0
@@ -1032,14 +1036,14 @@ class ViewModel: ObservableObject {
         guard let userId = userSession?.uid else {
             return
         }
-        
-        if var currentHabitData = self.habitDataForDay[self.currentDayOfWeek] {
+        let documentTitle = "\(currentYear)\(currentDayOfWeek)"
+        if var currentHabitData = self.habitDataForDay[documentTitle] {
             
             currentHabitData.habitIdArray.removeAll { $0 == value }
             currentHabitData.habitIdName.removeValue(forKey: value)
             currentHabitData.isHabitStriked.removeValue(forKey: value)
             
-            self.habitDataForDay[self.currentDayOfWeek] = currentHabitData
+            self.habitDataForDay[documentTitle] = currentHabitData
         }
         
         let circleDocRef = self.databaseRef.collection("users").document(userId).collection("CircleData").document("\(currentYear)-\(currentDayOfWeek)")
@@ -1394,7 +1398,7 @@ class ViewModel: ObservableObject {
     //    MARK: View Your Progress
     @Published var isViewYourProgressVisible = false
     
-    @Published var docTitles: [Int?] = []
+    @Published var docTitles: [String] = []
     func fetchCircleDocRef() async {
         // Ensure the user is logged in
         guard let currentUserId = self.authRef.currentUser?.uid else {
@@ -1406,15 +1410,12 @@ class ViewModel: ObservableObject {
             let circleDataRef = self.databaseRef.collection("users").document(currentUserId).collection("CircleData")
             
             for dayOffset in 1..<11 {
-                let dayToCollect = String(currentDayOfYear - dayOffset)
-                
-                // Create a query to fetch documents with the specific dayToCollect as the document ID
-                let query = circleDataRef.document(dayToCollect)
-                let documentSnapshot = try await query.getDocument()
-                
-                if documentSnapshot.data() != nil {
-                    // Document exists, handle the data
-                    docTitles.append(Int(dayToCollect))
+                let document = circleDataRef.document(yesterdaysDayChecker(for: (currentDayOfYear - dayOffset)))
+                let docSnapshot = try await document.getDocument()
+                let docId = document.documentID
+                let parts = docId.split(separator: "-")
+                if parts.count == 2, let year = Int(parts[0]), let day = Int(parts[1]) {
+                    docTitles.append("\(year)\(day)")
                 }
             }
         } catch {
@@ -1469,9 +1470,9 @@ class ViewModel: ObservableObject {
     
     
     @Published var dictionaryCount: Int = 0
-    @Published var habitDataForDay: [Int: Prod1.HabitData] = [:] // Dictionary = [Day of year: habit data]
-    @Published var taskDataForDay: [Int: Prod1.TaskData] = [:] // Dictionary = [Day of year: task data]
-    func listenForCircleData(dayOfYear: Int) {
+    @Published var habitDataForDay: [String: Prod1.HabitData] = [:] // Dictionary = [Day of year: habit data]
+    @Published var taskDataForDay: [String: Prod1.TaskData] = [:] // Dictionary = [Day of year: task data]
+    func listenForCircleData(document: String) async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }
@@ -1479,7 +1480,9 @@ class ViewModel: ObservableObject {
         // Reference to users document in Firestore
         let userRef = self.databaseRef.collection("users").document(currentUserId)
         // Reference to dayOfYear document in habitData sub-collection
-        let circleDataRef = userRef.collection("CircleData").document("\(currentYear)-\(dayOfYear)")
+        let year = document.prefix(4)
+        let day = document.dropFirst(4)
+        let circleDataRef = userRef.collection("CircleData").document("\(year)-\(day)")
         
         // Add a snapshot listener to listen for changes in the dayOfYear document
         circleDataRef.addSnapshotListener { documentSnapshot, error in
@@ -1502,9 +1505,9 @@ class ViewModel: ObservableObject {
                         // Decode habit data into custom data model
                         let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitData.self, from: habitData)
                         // Update habitDataForDay dictionary with the fetched habit data
-                        self.habitDataForDay[dayOfYear] = decodedHabitData
+                        self.habitDataForDay[document] = decodedHabitData
                     } catch {
-                        print("Error decoding HabitData for day \(dayOfYear): \(error.localizedDescription)")
+                        print("Error decoding HabitData for day \(document): \(error.localizedDescription)")
                     }
                 }
                 
@@ -1512,7 +1515,7 @@ class ViewModel: ObservableObject {
                 if let taskData = circleData["TaskData"] as? [String: Any] {
                     do {
                         let decodedTaskData = try Firestore.Decoder().decode(Prod1.TaskData.self, from: taskData)
-                        self.taskDataForDay[dayOfYear] = decodedTaskData
+                        self.taskDataForDay[document] = decodedTaskData
                     } catch {
                         print("Error decoding TaskData: \(error.localizedDescription)")
                     }
@@ -1946,7 +1949,6 @@ class ViewModel: ObservableObject {
             "Progress.taskMaxTime" : taskMaxTime
         ])
     }
-     */
     
     func migrateAllDocs(for userId: String) async throws {
         do {
@@ -2012,4 +2014,5 @@ class ViewModel: ObservableObject {
             print("error")
         }
     }
+     */
 }

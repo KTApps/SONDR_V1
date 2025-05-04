@@ -23,12 +23,13 @@ struct Last10Days: View {
                             withAnimation {
                                 ZStack {
                                     if index < viewModel.docTitles.count {
-                                        let dayOfYear = viewModel.docTitles[index] ?? 0
+                                        let docTitleIndexValue = viewModel.docTitles[index]
+                                        let dayOfYear = Int(docTitleIndexValue.dropFirst(4)) ?? 0
                                         let date = viewModel.dateFromDayOfYear(index: index, year: viewModel.currentYear, dayOfYear: dayOfYear)
                                         Text(String(date?.day ?? 0))
                                             .font(.custom("smallNumber", size: 13))
                                             .foregroundColor(.white)
-                                        OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 20, outerRadius: 27, cornerRadius: 5)
+                                        OuterCalendarCircle(dayOfYear: docTitleIndexValue, innerRadius: 20, outerRadius: 27, cornerRadius: 5)
                                         Inner10DaysCircle(docTitleIndex: index)
                                     }
                                 }
@@ -48,7 +49,7 @@ struct Inner10DaysCircle: View {
     var docTitleIndex: Int
     
     private func calendarColorReturn(value: String) -> Color {
-        if viewModel.habitDataForDay[viewModel.docTitles[docTitleIndex] ?? 0]?.isHabitStriked[value] == true {
+        if viewModel.habitDataForDay[viewModel.docTitles[docTitleIndex]]?.isHabitStriked[value] == true {
             return .blue
         } else {
             return .gray
@@ -60,14 +61,14 @@ struct Inner10DaysCircle: View {
             return AnyView(Text("Index out of range"))
         }
         
-        let docTitle = viewModel.docTitles[docTitleIndex]
+        let docTitleIndexValue = viewModel.docTitles[docTitleIndex]
         
         Task {
-            await viewModel.listenForCircleData(dayOfYear: docTitle ?? 0)
+            await viewModel.listenForCircleData(document: docTitleIndexValue)
         }
         
         // Check if habit data exists and isn’t empty
-        if let habits = viewModel.habitDataForDay[docTitle ?? 0]?.habitIdArray, !habits.isEmpty {
+        if let habits = viewModel.habitDataForDay[docTitleIndexValue]?.habitIdArray, !habits.isEmpty {
             // Return the Chart view
             return AnyView(
                 Chart(habits, id:\.self) { habit in

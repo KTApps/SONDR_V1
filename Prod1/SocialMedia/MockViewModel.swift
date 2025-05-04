@@ -12,8 +12,9 @@ class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
         let sampleUsername = "TestUser"
         
         // Mock data for habits
-        let sampleHabitData: [Int: HabitData] = [
-            1: HabitData(
+        // Use String keys like "2024-199" to match your real data
+        let sampleHabitData: [String: HabitData] = [
+            "2024-199": HabitData(
                 habitIdArray: ["habit1", "habit2"],
                 habitIdName: [
                     "habit1": "Exercise",
@@ -24,7 +25,7 @@ class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
                     "habit2": false
                 ]
             ),
-            9: HabitData(
+            "2024-198": HabitData(
                 habitIdArray: ["habit3", "habit4"],
                 habitIdName: [
                     "habit3": "Meditate",
@@ -39,10 +40,11 @@ class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
         
         // Assign mock habit data
         self.habitDataForDay = sampleHabitData
-        self.currentDayOfWeek = 1
+        self.currentDayOfWeek = 199 // Use the day part of your string key, or set as needed
         
         // Mock data for other properties
         self.currentUser = UserObject(id: sampleUserId, username: sampleUsername, email: "name@example.com")
-        self.docTitles = Array(1...10) // Example list of document titles
+        // docTitles should be [String], matching your real document title format
+        self.docTitles = ["2024-199", "2024-198"] // Example list of document titles
     }
 }

@@ -229,22 +229,25 @@ struct CalendarDayCell: View {
     }
     
     var body: some View {
+        let dayOfYearString = "\(selectedYear)\(dayOfYear)"
         ZStack {
             Text("\(day)") // Display the day number
                 .font(.system(size: 12))
                 .foregroundColor(.white)
-            OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 18, outerRadius: 24, cornerRadius: 3)
-            InnerCircle(dayOfYear: dayOfYear, innerRadius: 10, outerRadius: 15, cornerRadius: 3)
+            OuterCalendarCircle(dayOfYear: dayOfYearString, innerRadius: 18, outerRadius: 24, cornerRadius: 3)
+            InnerCircle(dayOfYear: dayOfYearString, innerRadius: 10, outerRadius: 15, cornerRadius: 3)
         }
         .onAppear {
-            viewModel.listenForCircleData(dayOfYear: dayOfYear)
+            Task {
+                await viewModel.listenForCircleData(document: dayOfYearString)
+            }
         }
     }
 }
 
 struct InnerCircle: View {
     @EnvironmentObject var viewModel: ViewModel
-    let dayOfYear: Int
+    let dayOfYear: String
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
@@ -270,7 +273,7 @@ struct InnerCircle: View {
             }
             .onAppear {
                 Task {
-                    await viewModel.listenForCircleData(dayOfYear: dayOfYear)
+                    await viewModel.listenForCircleData(document: dayOfYear)
                 }
             }
         } else {
@@ -291,7 +294,7 @@ struct InnerCircle: View {
 
 struct OuterCalendarCircle: View {
     @EnvironmentObject var viewModel: ViewModel
-    let dayOfYear: Int
+    let dayOfYear: String
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat

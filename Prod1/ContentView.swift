@@ -269,7 +269,8 @@ struct ContentView: View {
                 .onAppear {
                     Task {
                         await viewModel.listenForUser()
-                        await viewModel.listenForCircleData(dayOfYear: viewModel.currentDayOfWeek)
+                        let documentTitle = "\(viewModel.currentYear)\(viewModel.currentDayOfWeek)"
+                        await viewModel.listenForCircleData(document: documentTitle)
                     }
                 }
                 

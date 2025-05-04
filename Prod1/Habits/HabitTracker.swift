@@ -88,19 +88,20 @@ struct HabitTracker: View {
                     .frame(height: 70)
                 
     //            MARK: HABIT ARRAY
-                let habits = viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdArray ?? []
+                let documentTitle = "\(viewModel.currentYear)\(viewModel.currentDayOfWeek)"
+                let habits = viewModel.habitDataForDay[documentTitle]?.habitIdArray ?? []
                 
                 ForEach(habits, id: \.self) { habit in
                     SwipeableRow(
                         content: {
                             HStack {
-                                Text(viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.habitIdName[habit] ?? "")
+                                Text(viewModel.habitDataForDay[documentTitle]?.habitIdName[habit] ?? "")
                                     .font(.custom("Big Header", size: 30))
                                     .fontWeight(.black)
                                     .shadow(radius: 3, x: 3, y: 3)
                                     .padding(.vertical, 3)
                                     .overlay(
-                                        viewModel.habitDataForDay[viewModel.currentDayOfWeek]?.isHabitStriked[habit] ?? false ?
+                                        viewModel.habitDataForDay[documentTitle]?.isHabitStriked[habit] ?? false ?
                                             Rectangle()
                                                 .frame(height: 4)
                                                 .colorInvert()

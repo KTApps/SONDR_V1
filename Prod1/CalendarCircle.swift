@@ -84,9 +84,9 @@ struct CalendarCircle: View {
                                 .fontWeight(.bold)
                         }
                         .font(.title)
-                        
-                        OuterCalendarCircle(dayOfYear: dayOfYear, innerRadius: 130, outerRadius: 157, cornerRadius: 1)
-                        InnerCircle(dayOfYear: dayOfYear, innerRadius: 91, outerRadius: 117, cornerRadius: 1)
+                        let documentTitle = "\(selectedYear)\(dayOfYear)"
+                        OuterCalendarCircle(dayOfYear: documentTitle, innerRadius: 130, outerRadius: 157, cornerRadius: 1)
+                        InnerCircle(dayOfYear: documentTitle, innerRadius: 91, outerRadius: 117, cornerRadius: 1)
                     }
                     
                     Spacer()

@@ -1406,16 +1406,21 @@ class ViewModel: ObservableObject {
             return
         }
         
+        docTitles = []
+        
         do {
             let circleDataRef = self.databaseRef.collection("users").document(currentUserId).collection("CircleData")
             
             for dayOffset in 1..<11 {
                 let document = circleDataRef.document(yesterdaysDayChecker(for: (currentDayOfYear - dayOffset)))
                 let docSnapshot = try await document.getDocument()
-                let docId = document.documentID
-                let parts = docId.split(separator: "-")
-                if parts.count == 2, let year = Int(parts[0]), let day = Int(parts[1]) {
-                    docTitles.append("\(year)\(day)")
+                
+                if docSnapshot.exists {
+                    let docId = document.documentID
+                    let parts = docId.split(separator: "-")
+                    if parts.count == 2, let year = Int(parts[0]), let day = Int(parts[1]) {
+                        docTitles.append("\(year)\(day)")
+                    }
                 }
             }
         } catch {
@@ -1629,20 +1634,26 @@ class ViewModel: ObservableObject {
             }
             
             for document in documents {
-                // The document ID is the day of the year, so convert it to an Int
-                if let dayOfYear = Int(document.documentID), dayOfYear >= startDayOfYear, dayOfYear <= endDayOfYear {
-                    // Step 6: Extract the "TaskData" map from each document within the date range
-                    let data = document.data()
-                    
-                    if let taskData = data["TaskData"] as? [String: Any],
-                       let taskTimerDictionary = taskData["taskTimerDictionary"] as? [String: Int] {
+                let docId = document.documentID
+                let parts = docId.split(separator: "-")
+                if parts.count == 2 {
+                    // The document ID is the day of the year, so convert it to an Int
+                    if let dayOfYear = Int(parts[1]), dayOfYear >= startDayOfYear, dayOfYear <= endDayOfYear {
+                        // Step 6: Extract the "TaskData" map from each document within the date range
+                        let data = document.data()
                         
-                        // Step 7: Sum the values in taskTimerDictionary and add them to the total
-                        let documentTotal = taskTimerDictionary.values.reduce(0, +)
-                        totalCumulativeProgress += documentTotal
-                    } else {
-                        print("func cumulativeProgress(): TaskData or taskTimerDictionary not found in document \(document.documentID)")
+                        if let taskData = data["TaskData"] as? [String: Any],
+                           let taskTimerDictionary = taskData["taskTimerDictionary"] as? [String: Int] {
+                            
+                            // Step 7: Sum the values in taskTimerDictionary and add them to the total
+                            let documentTotal = taskTimerDictionary.values.reduce(0, +)
+                            totalCumulativeProgress += documentTotal
+                        } else {
+                            print("func cumulativeProgress(): TaskData or taskTimerDictionary not found in document \(document.documentID)")
+                        }
                     }
+                } else {
+                    print("func cumulativeProgress(): you'll need to migrate the database. The 'CircleData' document IDs are wrong")
                 }
             }
             
@@ -1877,7 +1888,7 @@ class ViewModel: ObservableObject {
     
     @Published var selectedTask: String? = nil
     @Published var selectedCalendarTask: String? = nil
-    func taskForTime(_ time: Double, tasks: [String], timeSpent: [String: Int]) -> String? {
+    func taskForTime(for time: Double, tasks: [String], timeSpent: [String: Int]) -> String? {
         var cumulativeTime: Double = 0
         let timeSpentDouble = timeSpent.mapValues { Double($0) }
         let totalTime = timeSpentDouble.values.reduce(0, +)

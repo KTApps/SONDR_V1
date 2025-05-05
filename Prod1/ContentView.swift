@@ -203,9 +203,12 @@ struct ContentView: View {
                             }
                         
                             VStack{
-                                Text(viewModel.selectedTask ?? "")
+                                let task = viewModel.selectedTask ?? ""
+                                let monthlyTime = viewModel.timeFormat((task != "" ? viewModel.progressTimerDictionary[task] : viewModel.cumulativeProg) ?? 0)
+                                let dailyTime = viewModel.timeFormat((task != "" ? viewModel.taskTimerDictionary[task] : viewModel.taskTime) ?? 0)
+                                Text(task)
                                     .font(.system(size: geometry.size.width * 0.05))
-                                Text(isShowingCumTime ? viewModel.timeFormat(viewModel.cumulativeProg) : viewModel.timeFormat(viewModel.taskTime))
+                                Text(isShowingCumTime ? monthlyTime : dailyTime)
                                     .font(.system(size: geometry.size.width * 0.05))
                                     .transition(.slide)
                                     .animation(.easeInOut, value: isShowingCumTime)

@@ -321,7 +321,7 @@ struct OuterCalendarCircle: View {
             .onChange(of: pieSelection, initial: false) { _ , newValue in
                 withAnimation(.easeInOut(duration: 0.5)) {
                     if let newValue {
-                        viewModel.selectedCalendarTask = viewModel.taskForTime(newValue, tasks: tasks, timeSpent: timeSpent)
+                        viewModel.selectedCalendarTask = viewModel.taskForTime(for: newValue, tasks: tasks, timeSpent: timeSpent)
                     }
                     animatedOpacity = 0.3
                 }

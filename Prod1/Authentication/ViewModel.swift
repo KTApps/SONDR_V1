@@ -206,6 +206,7 @@ class ViewModel: ObservableObject {
             self.userSession = result.user // user session = authenticated user
             
             Task {
+                await monthlyProgressSubCollection()
                 await listenForUser()
                 let documentTitle = "\(currentYear)\(currentDayOfWeek)"
                 await listenForCircleData(document: documentTitle)
@@ -425,6 +426,8 @@ class ViewModel: ObservableObject {
             
             // Create Circle Sub-Collection
             await circleSubCollection()
+            await monthlyProgressSubCollection()
+            
             Task {
                 clearData()
                 
@@ -458,6 +461,28 @@ class ViewModel: ObservableObject {
         } else {
             // Tomorrow is still in the current year
             return "\(currentYear)-\(tommorrowsDay)"
+        }
+    }
+    
+    //  MARK: Create MonthlyProgress Sub-Collection
+    private func monthlyProgressSubCollection() async {
+        guard let userId = self.authRef.currentUser?.uid else {
+            return
+        }
+        
+        let userRef = self.databaseRef.collection("users").document(userId)
+        let monthylProgressDocRef = userRef.collection("MonthlyProgress").document("\(currentYear)-\(currentMonth)")
+        
+        do {
+            let monthylProgressDoc = try await monthylProgressDocRef.getDocument()
+            guard !monthylProgressDoc.exists else {
+                return
+            }
+            try await monthylProgressDocRef.setData([
+                "TaskTimes" : [:]
+            ])
+        } catch {
+            print("func monthlyProgressSubCollection(): error")
         }
     }
     

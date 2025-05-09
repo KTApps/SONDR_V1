@@ -103,7 +103,8 @@ struct ContentView: View {
                                 Text(isShowingCumTime ? "\(viewModel.formattedCumulativeTime)" : "\(viewModel.formattedTaskTime)")
                                     .onReceive(viewModel.timer) { time in
                                         if viewModel.isTimerOn {
-                                            viewModel.taskTime = viewModel.taskTimer() ?? 0
+                                            viewModel.taskTime = viewModel.taskTimer().0 ?? 0
+                                            viewModel.cumulativeTime = viewModel.taskTimer().1 ?? 0
                                             // Update cumulative progress periodically during timer execution
                                             viewModel.updateCumulativeProgressPeriodically()
                                         }
@@ -204,7 +205,7 @@ struct ContentView: View {
                         
                             VStack{
                                 let task = viewModel.selectedTask ?? ""
-                                let monthlyTime = viewModel.timeFormat((task != "" ? viewModel.progressTimerDictionary[task] : viewModel.cumulativeProg) ?? 0)
+                                let monthlyTime = viewModel.timeFormat((task != "" ? viewModel.monthlyProgressTimerDictionary[task] : viewModel.cumulativeProg) ?? 0)
                                 let dailyTime = viewModel.timeFormat((task != "" ? viewModel.taskTimerDictionary[task] : viewModel.taskTime) ?? 0)
                                 Text(task)
                                     .font(.system(size: geometry.size.width * 0.05))

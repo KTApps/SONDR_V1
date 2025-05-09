@@ -1349,7 +1349,7 @@ class ViewModel: ObservableObject {
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
     
-    func taskTimer() -> Int? {
+    func taskTimer() -> (Int?, Int?) {
         for item in progressTasks {
             if item == taskName {
                 
@@ -1375,10 +1375,10 @@ class ViewModel: ObservableObject {
                     updateCumulativeProgressPeriodically()
                 }
                 
-                return timerCount
+                return (timerCount, monthlyProgressCount)
             }
         }
-        return nil
+        return (nil, nil)
     }
     
     @Published var formattedCumulativeTime: String = "00:00:00"
@@ -1392,10 +1392,6 @@ class ViewModel: ObservableObject {
         // Throttle the updates to avoid overloading Firestore
         DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
             self.cumulativeProgress()  // Recalculate cumulative progress
-            
-            DispatchQueue.main.async {
-                self.cumulativeTime = self.cumulativeProg
-            }
         }
     }
     

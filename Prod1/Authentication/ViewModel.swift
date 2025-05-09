@@ -60,6 +60,7 @@ class ViewModel: ObservableObject {
         taskDecimalDict = [:]
         taskPercentageDict = [:]
         progressTimerDictionary = [:]
+        monthlyProgressTimerDictionary = [:]
         taskMaxTime = [:]
         habitIdArray = []
         habitIdName = [:]
@@ -189,6 +190,26 @@ class ViewModel: ObservableObject {
                         print("Error decoding TaskData: \(error.localizedDescription)")
                     }
                 }
+            }
+        }
+        
+        let monthlyProgressDocRef = userRef.collection("MonthlyProgress").document("\(currentYear)-\(currentMonth)")
+        monthlyProgressDocRef.addSnapshotListener { DocumentSnapshot, error in
+            guard let monthlyProgressDoc = DocumentSnapshot else {
+                print("func listenForUser(): error fetching monthlyProgressDoc")
+                return
+            }
+            
+            if !monthlyProgressDoc.exists {
+                print("func listenForUser(): monthlyProgressDoc doesn't exist")
+                return
+            }
+            
+            if let monthlyProgressData = monthlyProgressDoc.data(),
+               let TaskTimes = monthlyProgressData["TaskTimes"] as? [String: Int] {
+                self.monthlyProgressTimerDictionary = TaskTimes
+            } else {
+                print("func listenForUser(): failed to define TaskTimes")
             }
         }
     }
@@ -1308,6 +1329,7 @@ class ViewModel: ObservableObject {
     @Published var isTimerOn: Bool = false
     @Published var timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect() // Just initializing 'timer' variable
     @Published var progressTimerDictionary: [String: Int] = [:] // Dictionary = [Task Title : cumulative TimerCount for task]
+    @Published var monthlyProgressTimerDictionary: [String: Int] = [:] // Dictionary = [Task Title : cumulative TimerCount for task]
     @Published var taskTimerDictionary: [String: Int] = [:] // Dictionary = [Task Title : Timer count for task]
     @Published var taskName = "Task"
     @Published var taskTime: Int = 0 {
@@ -1334,14 +1356,18 @@ class ViewModel: ObservableObject {
                 let existingProgressCount = progressTimerDictionary[item] ?? 0
                 let progressCount = existingProgressCount + 1
                 
+                let existingMonthlyProgressCount = monthlyProgressTimerDictionary[item] ?? 0
+                let monthlyProgressCount = existingMonthlyProgressCount + 1
+                
                 let timerCount = (taskTimerDictionary[item] ?? 0) + 1
                 
                 // Update dictionaries with the new progress
                 progressTimerDictionary[item] = progressCount
+                monthlyProgressTimerDictionary[item] = monthlyProgressCount
                 taskTimerDictionary[item] = timerCount
                 
                 // Update the Firestore documents
-                updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, timerCount: timerCount)
+                updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, monthlyProgressCount: monthlyProgressCount, timerCount: timerCount)
                 
                 // Update cumulative tasks in Firestore periodically
                 Task {
@@ -1373,7 +1399,7 @@ class ViewModel: ObservableObject {
         }
     }
     
-    func updateTaskTimerInFirestore(taskName: String, progressCount: Int, timerCount: Int) {
+    func updateTaskTimerInFirestore(taskName: String, progressCount: Int, monthlyProgressCount: Int, timerCount: Int) {
         guard let userId = userSession?.uid else {
             return
         }
@@ -1381,6 +1407,11 @@ class ViewModel: ObservableObject {
         let userRef = self.databaseRef.collection("users").document(userId)
         userRef.updateData([
             "Progress.progressTimerDictionary.\(taskName)": progressCount
+        ])
+        
+        let monthlyProgressRef = userRef.collection("MonthlyProgress").document("\(currentYear)-\(currentMonth)")
+        monthlyProgressRef.updateData([
+            "TaskTimes.\(taskName)" : monthlyProgressCount
         ])
         
         let circleDataRef = userRef.collection("CircleData").document("\(currentYear)-\(currentDayOfYear)")
@@ -1695,7 +1726,6 @@ class ViewModel: ObservableObject {
         }
         
         // Step 1: Get the current month as a string
-        let calendar = Calendar.current
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "MMMM" // This will give us the full month name, e.g., "September"
         let currentMonth = dateFormatter.string(from: Date())
@@ -1710,14 +1740,10 @@ class ViewModel: ObservableObject {
                 return
             }
             
-            guard let document = document, document.exists, var userData = document.data() else {
+            guard let document = document, document.exists, let userData = document.data() else {
                 print("func updateCumulativeTasks(): Analytics document does not exist or data is nil")
                 return
             }
-            
-            // Step 4: Check if the "cumulativeTasks" map exists, otherwise create a new one
-            let analyticsData = userData["Analytics"] as? [String: Any]
-            var cumulativeTasks = analyticsData?["cumulativeTasks"] as? [String: Int] ?? [:]
             
             // Step 5: Update the map with the current month and cumulative progress
             self.cumulativeTasks[currentMonth] = self.cumulativeProg

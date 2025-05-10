@@ -29,6 +29,7 @@ struct ProgressBar: View {
                         withAnimation {
                             Task {
                                 await viewModel.newTaskAdder(task: item)
+                                await viewModel.taskTimeCaller(for: item)
                             }
                             viewModel.taskName = item
                             viewModel.isTaskDropDownVisible.toggle()

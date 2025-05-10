@@ -44,10 +44,10 @@ class ViewModel: ObservableObject {
     init() { // Runs at start of program
         
         // Initialising weekDayIndexCounter to the current day of the week
-        weekDayIndexCounter = weekdayIndex(forDayOfYear: currentDayOfYear, inYear: currentYear) ?? 0
+        self.weekDayIndexCounter = self.weekdayIndex(forDayOfYear: self.currentDayOfYear, inYear: self.currentYear) ?? 0
         
         // Initialising currentDayOfWeek
-        currentDayOfWeek = currentDayOfYear
+        self.currentDayOfWeek = self.currentDayOfYear
     }
     
     
@@ -1224,7 +1224,36 @@ class ViewModel: ObservableObject {
         }
     }
      
-    
+    func taskTimeCaller(for task: String) async {
+        guard let userId = self.authRef.currentUser?.uid else {
+            return
+        }
+        
+        let userRef = self.databaseRef.collection("users").document(userId)
+        let circleDataRef = userRef.collection("CircleData").document("\(currentYear)-\(currentDayOfYear)")
+        let monthlyProgressRef = userRef.collection("MonthlyProgress").document("\(currentYear)-\(currentMonth)")
+        
+        do {
+            let circleDataDoc = try await circleDataRef.getDocument()
+            if let circleData = circleDataDoc.data(),
+               let taskData = circleData["TaskData"] as? [String: Any] {
+                let taskTimerDict = taskData["taskTimerDictionary"] as? [String: Int]
+                self.taskTime = taskTimerDict?[task] ?? 0
+            } else {
+                print("func taskTimeCaller(): circleData's or taskData's data is missing")
+            }
+            
+            let monthlyProgressDoc = try await monthlyProgressRef.getDocument()
+            if let monthlyProgressData = monthlyProgressDoc.data() {
+                let taskTimes = monthlyProgressData["TaskTimes"] as? [String: Int]
+                self.cumulativeTime = taskTimes?[task] ?? 0
+            } else {
+                print("func taskTimeCaller(): monthlyProgress data is missing")
+            }
+        } catch {
+            print("\(error)")
+        }
+    }
     
     @Published var taskMaxTime: [String: Int] = [:] // Dictionary = [Task Title: Max Time]
     @Published var maxTimeAlert: Bool = false
@@ -1349,60 +1378,21 @@ class ViewModel: ObservableObject {
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
     
-    func taskTimer() -> (Int?, Int?) {
-        for item in progressTasks {
-            if item == taskName {
-                
-                let existingProgressCount = progressTimerDictionary[item] ?? 0
-                let progressCount = existingProgressCount + 1
-                
-                let existingMonthlyProgressCount = monthlyProgressTimerDictionary[item] ?? 0
-                let monthlyProgressCount = existingMonthlyProgressCount + 1
-                
-                let timerCount = (taskTimerDictionary[item] ?? 0) + 1
-                
-                // Update dictionaries with the new progress
-                progressTimerDictionary[item] = progressCount
-                monthlyProgressTimerDictionary[item] = monthlyProgressCount
-                taskTimerDictionary[item] = timerCount
-                
-                // Update the Firestore documents
-                updateTaskTimerInFirestore(taskName: item, progressCount: progressCount, monthlyProgressCount: monthlyProgressCount, timerCount: timerCount)
-                
-                // Update cumulative tasks in Firestore periodically
-                Task {
-                    await listenForUser()
-                    updateCumulativeProgressPeriodically()
-                }
-                
-                return (timerCount, monthlyProgressCount)
-            }
-        }
-        return (nil, nil)
-    }
-    
     @Published var formattedCumulativeTime: String = "00:00:00"
     @Published var cumulativeTime: Int = 0 {
         didSet {
             formattedCumulativeTime = formatTime(cumulativeTime)
         }
     }
-    /// This function updates the cumulative progress periodically (e.g., every second)
-    func updateCumulativeProgressPeriodically() {
-        // Throttle the updates to avoid overloading Firestore
-        DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
-            self.cumulativeProgress()  // Recalculate cumulative progress
-        }
-    }
     
-    func updateTaskTimerInFirestore(taskName: String, progressCount: Int, monthlyProgressCount: Int, timerCount: Int) {
+    func updateTaskTimerInFirestore(taskName: String, monthlyProgressCount: Int, timerCount: Int) {
         guard let userId = userSession?.uid else {
             return
         }
         
         let userRef = self.databaseRef.collection("users").document(userId)
         userRef.updateData([
-            "Progress.progressTimerDictionary.\(taskName)": progressCount
+            "Progress.progressTimerDictionary.\(taskName)": FieldValue.increment(Int64(timerCount))
         ])
         
         let monthlyProgressRef = userRef.collection("MonthlyProgress").document("\(currentYear)-\(currentMonth)")
@@ -1928,6 +1918,26 @@ class ViewModel: ObservableObject {
         } catch {
             print("Error fetching profile picture for \(username): \(error)")
             return nil // If there's any error, return nil
+        }
+    }
+    
+    @Published var monthlyTime: String = ""
+    
+    func monthlyTime(for task: String) -> String {
+        if taskName == "Task" {
+            return timeFormat(cumulativeProg)
+        } else {
+            return timeFormat((task != "" ? monthlyProgressTimerDictionary[task] : cumulativeTime) ?? 0)
+        }
+    }
+    
+    @Published var dailyTime: String = ""
+    
+    func dailyTime(for task: String) -> String {
+        if taskName == "Task" {
+            return timeFormat(taskTimerDictionary.values.reduce(0, +))
+        } else {
+            return timeFormat((task != "" ? taskTimerDictionary[task] : taskTime) ?? 0)
         }
     }
     

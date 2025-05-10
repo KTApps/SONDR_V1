@@ -94,6 +94,7 @@ struct ContentView: View {
                             } else {
                                 playButton = "play.circle.fill"
                                 viewModel.timer.upstream.connect().cancel()
+                                viewModel.updateTaskTimerInFirestore(taskName: viewModel.taskName, monthlyProgressCount: viewModel.cumulativeTime, timerCount: viewModel.taskTime)
                                 viewModel.progressPercentage()
                                 viewModel.newTimeCalc()
                                 viewModel.cumulativeProgress()
@@ -103,10 +104,9 @@ struct ContentView: View {
                                 Text(isShowingCumTime ? "\(viewModel.formattedCumulativeTime)" : "\(viewModel.formattedTaskTime)")
                                     .onReceive(viewModel.timer) { time in
                                         if viewModel.isTimerOn {
-                                            viewModel.taskTime = viewModel.taskTimer().0 ?? 0
-                                            viewModel.cumulativeTime = viewModel.taskTimer().1 ?? 0
-                                            // Update cumulative progress periodically during timer execution
-                                            viewModel.updateCumulativeProgressPeriodically()
+                                            viewModel.taskTime += 1
+                                            viewModel.cumulativeTime += 1
+                                            viewModel.cumulativeProg += 1
                                         }
                                         if viewModel.taskName == "Task" {
                                             viewModel.taskTime = 0
@@ -205,11 +205,10 @@ struct ContentView: View {
                         
                             VStack{
                                 let task = viewModel.selectedTask ?? ""
-                                let monthlyTime = viewModel.timeFormat((task != "" ? viewModel.monthlyProgressTimerDictionary[task] : viewModel.cumulativeProg) ?? 0)
-                                let dailyTime = viewModel.timeFormat((task != "" ? viewModel.taskTimerDictionary[task] : viewModel.taskTime) ?? 0)
+                                
                                 Text(task)
                                     .font(.system(size: geometry.size.width * 0.05))
-                                Text(isShowingCumTime ? monthlyTime : dailyTime)
+                                Text(isShowingCumTime ? viewModel.monthlyTime(for: task) : viewModel.dailyTime(for: task))
                                     .font(.system(size: geometry.size.width * 0.05))
                                     .transition(.slide)
                                     .animation(.easeInOut, value: isShowingCumTime)

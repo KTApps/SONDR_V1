@@ -23,7 +23,11 @@ struct OuterCircle: View {
             !tasks.isEmpty, !timeSpent.isEmpty {
             Chart(tasks, id: \.self) { task in
                 SectorMark(
-                    angle: .value("Time Spent", timeSpent[task] ?? 0),
+                    angle: .value("Time Spent", 
+                        (task == viewModel.taskName && viewModel.isTimerOn) 
+                        ? viewModel.taskTime 
+                        : (timeSpent[task] ?? 0)
+                    ),
                     innerRadius: innerRadius,
                     outerRadius: outerRadius,
                     angularInset: 1

@@ -239,6 +239,7 @@ class ViewModel: ObservableObject {
                 
                 await self.fetchCircleDocRef()
                 self.cumulativeProgress()
+                await fetchAllFriendsData()
             }
             self.isFriendsVisible = false
         } catch {
@@ -711,6 +712,7 @@ class ViewModel: ObservableObject {
             print("func addFriends(): Successfully added friend.")
             self.friendMessage = "Friend Added!"
             self.friendAdded = true
+            await fetchAllFriendsData()
 
         } catch {
             print("func addFriends(): Error adding friend: \(error)")
@@ -1939,6 +1941,10 @@ class ViewModel: ObservableObject {
         } else {
             return timeFormat((task != "" ? taskTimerDictionary[task] : taskTime) ?? 0)
         }
+    }
+    
+    func calendarCircleDailyTime(for task: String) -> String {
+        return timeFormat((task != "" ? taskTimerDictionary[task] : taskSum) ?? 0)
     }
     
     @Published var placeholderTasks: [Int] = [1]

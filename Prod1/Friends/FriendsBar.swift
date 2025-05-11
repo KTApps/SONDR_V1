@@ -50,9 +50,6 @@ struct FriendsBar: View {
                 .offset(y: -22)
             }
             .padding(.vertical, 8)
-            .task {
-                await viewModel.fetchAllFriendsData()
-            }
         }
     }
 }

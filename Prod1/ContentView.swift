@@ -25,9 +25,6 @@ struct ContentView: View {
                         Spacer()
                         
                         Button {
-                            Task {
-                                await viewModel.fetchAllFriendsData()
-                            }
                             withAnimation {
                                 viewModel.isFriendsVisible.toggle()
                                 viewModel.isTaskDropDownVisible = false
@@ -44,9 +41,6 @@ struct ContentView: View {
                             .frame(width: geometry.size.width * 0.05)
                         
                         Button {
-                            Task {
-                                await viewModel.fetchAllFriendsData()
-                            }
                             withAnimation {
                                 viewModel.isProfileBlurViewVisible = true
                                 viewModel.isFriendsVisible = false
@@ -205,7 +199,7 @@ struct ContentView: View {
                                 )
                             }
                         
-                            VStack{
+                            VStack {
                                 let task = viewModel.selectedTask ?? ""
                                 
                                 Text(task)

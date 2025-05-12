@@ -66,8 +66,6 @@ struct LogInView: View {
                                 
                                 Button {
                                     eyeball.toggle()
-                                    print("week index is: ", viewModel.weekDayIndexCounter)
-                                    print("current day is: ", viewModel.currentDayOfWeek)
                                 } label: {
                                     VStack {
                                         Spacer()

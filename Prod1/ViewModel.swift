@@ -26,11 +26,11 @@ class ViewModel: ObservableObject {
     let storageRef = Storage.storage().reference()
     
     @Published var userSession: FirebaseAuth.User? = nil
-    @Published var currentUser: UserObject?
-    @Published var taskData: TaskData?
-    @Published var progressData: ProgressData?
-    @Published var habitData: HabitData?
-    @Published var analytics: Analytics?
+    @Published var currentUser: AuthModel?
+    @Published var taskData: TaskDataModel?
+    @Published var progressData: ProgressDataModel?
+    @Published var habitData: HabitDataModel?
+    @Published var analytics: AnalyticsModel?
     @Published var currentYear: Int = Calendar.current.component(.year, from: Date())
     @Published var currentMonth: Int = Calendar.current.component(.month, from: Date())
     var month: String {
@@ -125,7 +125,7 @@ class ViewModel: ObservableObject {
                 // Fetch and decode authentication data
                 if let authenticationData = userData["AuthenticationData"] as? [String: Any] {
                     do {
-                        let decodedAuthenticationData = try Firestore.Decoder().decode(Prod1.UserObject.self, from: authenticationData)
+                        let decodedAuthenticationData = try Firestore.Decoder().decode(Prod1.AuthModel.self, from: authenticationData)
                         self.currentUser = decodedAuthenticationData
                     } catch {
                         print("Error decoding AuthenticationData: \(error.localizedDescription)")
@@ -135,7 +135,7 @@ class ViewModel: ObservableObject {
                 // Fetch and decode Analytics
                 if let analytics = userData["Analytics"] as? [String: Any] {
                     do {
-                        let decodedAnalytics = try Firestore.Decoder().decode(Prod1.Analytics.self, from: analytics)
+                        let decodedAnalytics = try Firestore.Decoder().decode(Prod1.AnalyticsModel.self, from: analytics)
                         self.dayTracker = decodedAnalytics.dayTracker
                     } catch {
                         print("Error decoding Analytics: \(error.localizedDescription)")
@@ -145,7 +145,7 @@ class ViewModel: ObservableObject {
                 // Fetch and decode progress data
                 if let progressData = userData["Progress"] as? [String: Any] {
                     do {
-                        let decodedProgressData = try Firestore.Decoder().decode(Prod1.ProgressData.self, from: progressData)
+                        let decodedProgressData = try Firestore.Decoder().decode(Prod1.ProgressDataModel.self, from: progressData)
                         self.progressData = decodedProgressData
                         self.progressTasks = decodedProgressData.progressTasks
                         self.progressTimerDictionary = decodedProgressData.progressTimerDictionary
@@ -174,7 +174,7 @@ class ViewModel: ObservableObject {
                 if let habitData = circleData["HabitData"] as? [String: Any] {
                     do {
                         // Decode habit data into custom data model
-                        let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitData.self, from: habitData)
+                        let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitDataModel.self, from: habitData)
                         self.habitData = decodedHabitData
                     } catch {
                         print("Error decoding HabitData: \(error.localizedDescription)")
@@ -184,7 +184,7 @@ class ViewModel: ObservableObject {
                 // Fetch and decode task data
                 if let taskData = circleData["TaskData"] as? [String: Any] {
                     do {
-                        let decodedTaskData = try Firestore.Decoder().decode(Prod1.TaskData.self, from: taskData)
+                        let decodedTaskData = try Firestore.Decoder().decode(Prod1.TaskDataModel.self, from: taskData)
                         self.taskData = decodedTaskData
                         self.tasks = decodedTaskData.tasks
                         self.taskTimerDictionary = decodedTaskData.taskTimerDictionary
@@ -427,21 +427,21 @@ class ViewModel: ObservableObject {
             self.profileImage = nil
             
             // Store user data
-            let user = UserObject(id: result.user.uid,
+            let user = AuthModel(id: result.user.uid,
                                   username: username,
                                   email: email) // initializes the raw data for encoding
             let encodedUser = try Firestore.Encoder().encode(user) // encodes raw data to encrypted data
             let userRef = self.databaseRef.collection("users").document(user.id)
             try await userRef.setData(["AuthenticationData": encodedUser])
             
-            let analytics = Prod1.Analytics(dayTracker: dayTracker,
+            let analytics = Prod1.AnalyticsModel(dayTracker: dayTracker,
                                             dayTrackerOffset: dayTrackerOffset,
                                             habitStreak: habitStreak,
                                             cumulativeTasks: cumulativeTasks)
             let encodedAnalytics = try Firestore.Encoder().encode(analytics)
             try await userRef.updateData(["Analytics": encodedAnalytics])
             
-            let progress = Prod1.ProgressData(progressTasks: progressTasks,
+            let progress = Prod1.ProgressDataModel(progressTasks: progressTasks,
                                               progressTimerDictionary: progressTimerDictionary,
                                               taskDecimalDict: taskDecimalDict,
                                               taskMaxTime: taskMaxTime)
@@ -533,7 +533,7 @@ class ViewModel: ObservableObject {
                 // If the document for the current day doesn't exist, create it
                 if !documentSnapshot.exists {
                     // Store habit data as a subcollection within the current day document
-                    let habitData = Prod1.HabitData(habitIdArray: habitIdArray,
+                    let habitData = Prod1.HabitDataModel(habitIdArray: habitIdArray,
                                                     habitIdName: habitIdName,
                                                     isHabitStriked: isHabitStriked)
                     
@@ -541,7 +541,7 @@ class ViewModel: ObservableObject {
                     try await currentDayDocumentRef.setData(["HabitData": encodedHabitData])
                     
                     // Store task data
-                    let taskData = Prod1.TaskData(tasks: tasks,
+                    let taskData = Prod1.TaskDataModel(tasks: tasks,
                                                   taskTimerDictionary: taskTimerDictionary)
                     let encodedTaskData = try Firestore.Encoder().encode(taskData)
                     try await currentDayDocumentRef.updateData(["TaskData": encodedTaskData])
@@ -791,8 +791,8 @@ class ViewModel: ObservableObject {
         }
     }
     
-    @Published var friendsHabitData: [String: HabitData] = [:]
-    @Published var friendsTaskData: [String: TaskData] = [:]
+    @Published var friendsHabitData: [String: HabitDataModel] = [:]
+    @Published var friendsTaskData: [String: TaskDataModel] = [:]
     
     func fetchFriendData(friendUsername: String) async {
         let query = self.databaseRef.collection("users").whereField("AuthenticationData.username", isEqualTo: friendUsername)
@@ -813,7 +813,7 @@ class ViewModel: ObservableObject {
             
             // Fetch HabitData
             if let habitDataMap = circleData?["HabitData"] as? [String: Any] {
-                let decodedHabitData = try Firestore.Decoder().decode(HabitData.self, from: habitDataMap)
+                let decodedHabitData = try Firestore.Decoder().decode(HabitDataModel.self, from: habitDataMap)
                 DispatchQueue.main.async {
                     self.friendsHabitData[friendUsername] = decodedHabitData
                 }
@@ -821,7 +821,7 @@ class ViewModel: ObservableObject {
             
             // Fetch TaskData
             if let taskDataMap = circleData?["TaskData"] as? [String: Any] {
-                let decodedTaskData = try Firestore.Decoder().decode(TaskData.self, from: taskDataMap)
+                let decodedTaskData = try Firestore.Decoder().decode(TaskDataModel.self, from: taskDataMap)
                 DispatchQueue.main.async {
                     self.friendsTaskData[friendUsername] = decodedTaskData
                 }
@@ -1521,8 +1521,8 @@ class ViewModel: ObservableObject {
     
     
     @Published var dictionaryCount: Int = 0
-    @Published var habitDataForDay: [String: Prod1.HabitData] = [:] // Dictionary = [Day of year: habit data]
-    @Published var taskDataForDay: [String: Prod1.TaskData] = [:] // Dictionary = [Day of year: task data]
+    @Published var habitDataForDay: [String: Prod1.HabitDataModel] = [:] // Dictionary = [Day of year: habit data]
+    @Published var taskDataForDay: [String: Prod1.TaskDataModel] = [:] // Dictionary = [Day of year: task data]
     func listenForCircleData(document: String) async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
@@ -1554,7 +1554,7 @@ class ViewModel: ObservableObject {
                 if let habitData = circleData["HabitData"] as? [String: Any] {
                     do {
                         // Decode habit data into custom data model
-                        let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitData.self, from: habitData)
+                        let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitDataModel.self, from: habitData)
                         // Update habitDataForDay dictionary with the fetched habit data
                         self.habitDataForDay[document] = decodedHabitData
                     } catch {
@@ -1565,7 +1565,7 @@ class ViewModel: ObservableObject {
                 // Fetch and decode task data
                 if let taskData = circleData["TaskData"] as? [String: Any] {
                     do {
-                        let decodedTaskData = try Firestore.Decoder().decode(Prod1.TaskData.self, from: taskData)
+                        let decodedTaskData = try Firestore.Decoder().decode(Prod1.TaskDataModel.self, from: taskData)
                         self.taskDataForDay[document] = decodedTaskData
                     } catch {
                         print("Error decoding TaskData: \(error.localizedDescription)")
@@ -1607,7 +1607,7 @@ class ViewModel: ObservableObject {
     }
     
     
-    @Published var habitDataForDayTimeline: [String: Prod1.HabitData] = [:] // Dictionary = [Day of year: habit data]
+    @Published var habitDataForDayTimeline: [String: Prod1.HabitDataModel] = [:] // Dictionary = [Day of year: habit data]
     func listenForTimelineHabitData(id: String, userId: String, dayOfYear: Int) async {
         
         let userRef = self.databaseRef.collection("users").document(userId)
@@ -1623,7 +1623,7 @@ class ViewModel: ObservableObject {
             if let habitData = habitDocument.data() {
                 do {
                     // Decode habit data into custom data model
-                    let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitData.self, from: habitData)
+                    let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitDataModel.self, from: habitData)
                     
                     // Update habitDataForDay dictionary with the fetched habit data
                     self.habitDataForDayTimeline[id] = decodedHabitData

@@ -28,13 +28,19 @@
 		086FA1222BA2204A005B26EB /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 086FA1212BA2204A005B26EB /* FirebaseStorage */; };
 		086FA1262BA221A6005B26EB /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 086FA1252BA221A6005B26EB /* SignUpView.swift */; };
 		087305262C18890F00F6DFEE /* FriendsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 087305252C18890F00F6DFEE /* FriendsBar.swift */; };
+		08A3447B2DF4B4C7005B80D2 /* HabitDataModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A3447A2DF4B4C7005B80D2 /* HabitDataModel.swift */; };
+		08A3447D2DF4B5CF005B80D2 /* TaskDataModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A3447C2DF4B5CF005B80D2 /* TaskDataModel.swift */; };
+		08A3447F2DF4B61E005B80D2 /* ProgressDataModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A3447E2DF4B61E005B80D2 /* ProgressDataModel.swift */; };
+		08A344812DF4B644005B80D2 /* FriendsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A344802DF4B644005B80D2 /* FriendsModel.swift */; };
+		08A344832DF4B65C005B80D2 /* AnalyticsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A344822DF4B65C005B80D2 /* AnalyticsModel.swift */; };
+		08A344872DF4B68D005B80D2 /* TaskTimesModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A344862DF4B68D005B80D2 /* TaskTimesModel.swift */; };
 		08B8419F2BA5F15E009B4419 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 08B8419E2BA5F15E009B4419 /* GoogleService-Info.plist */; };
 		08BE44152C62719D00DD9457 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08BE44142C62719D00DD9457 /* CalendarView.swift */; };
 		08C5911D2BBC8376000EE1B9 /* LogInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C5911C2BBC8376000EE1B9 /* LogInView.swift */; };
 		08C5911F2BBC84AD000EE1B9 /* FirebaseFirestoreSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 08C5911E2BBC84AD000EE1B9 /* FirebaseFirestoreSwift */; };
 		08CD3D222C3444D800D48FAD /* BlurEffect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08CD3D212C3444D800D48FAD /* BlurEffect.swift */; };
 		08DC9D4B2C3306BD00AFDA0F /* OuterCircle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08DC9D4A2C3306BD00AFDA0F /* OuterCircle.swift */; };
-		08E2D3E52BA0CE3D0097327A /* UserObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08E2D3E42BA0CE3D0097327A /* UserObject.swift */; };
+		08E2D3E52BA0CE3D0097327A /* AuthModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08E2D3E42BA0CE3D0097327A /* AuthModel.swift */; };
 		08EB383E2B7FCF6700141B28 /* HabitTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08EB383D2B7FCF6700141B28 /* HabitTracker.swift */; };
 		08F0487C2C612773008F5CFD /* ProfileOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F0487B2C612773008F5CFD /* ProfileOptions.swift */; };
 		08F36E4E2C90952000067902 /* GeometryReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F36E4D2C90952000067902 /* GeometryReader.swift */; };
@@ -54,19 +60,25 @@
 		084F54982C5FF5D600E44385 /* MockViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MockViewModel.swift; path = SocialMedia/MockViewModel.swift; sourceTree = "<group>"; };
 		0855693C2C95FC2100D5E40F /* CalendarCircle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarCircle.swift; sourceTree = "<group>"; };
 		085ACA3B2C90A9700024C508 /* SwipeGeometryReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeGeometryReader.swift; sourceTree = "<group>"; };
-		085D8E0D2BA0DF580028AD03 /* ViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ViewModel.swift; path = Authentication/ViewModel.swift; sourceTree = "<group>"; };
+		085D8E0D2BA0DF580028AD03 /* ViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewModel.swift; sourceTree = "<group>"; };
 		085D8E112BA0E8540028AD03 /* StartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartView.swift; sourceTree = "<group>"; };
 		086FA10D2BA2178F005B26EB /* Input.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Input.swift; sourceTree = "<group>"; };
 		086FA1112BA217D5005B26EB /* SettingsButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsButton.swift; sourceTree = "<group>"; };
 		086FA1132BA217F9005B26EB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		086FA1252BA221A6005B26EB /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
 		087305252C18890F00F6DFEE /* FriendsBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsBar.swift; sourceTree = "<group>"; };
+		08A3447A2DF4B4C7005B80D2 /* HabitDataModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitDataModel.swift; sourceTree = "<group>"; };
+		08A3447C2DF4B5CF005B80D2 /* TaskDataModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDataModel.swift; sourceTree = "<group>"; };
+		08A3447E2DF4B61E005B80D2 /* ProgressDataModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressDataModel.swift; sourceTree = "<group>"; };
+		08A344802DF4B644005B80D2 /* FriendsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsModel.swift; sourceTree = "<group>"; };
+		08A344822DF4B65C005B80D2 /* AnalyticsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsModel.swift; sourceTree = "<group>"; };
+		08A344862DF4B68D005B80D2 /* TaskTimesModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskTimesModel.swift; sourceTree = "<group>"; };
 		08B8419E2BA5F15E009B4419 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		08BE44142C62719D00DD9457 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
 		08C5911C2BBC8376000EE1B9 /* LogInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogInView.swift; sourceTree = "<group>"; };
 		08CD3D212C3444D800D48FAD /* BlurEffect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlurEffect.swift; sourceTree = "<group>"; };
 		08DC9D4A2C3306BD00AFDA0F /* OuterCircle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OuterCircle.swift; sourceTree = "<group>"; };
-		08E2D3E42BA0CE3D0097327A /* UserObject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserObject.swift; sourceTree = "<group>"; };
+		08E2D3E42BA0CE3D0097327A /* AuthModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthModel.swift; sourceTree = "<group>"; };
 		08EB383D2B7FCF6700141B28 /* HabitTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitTracker.swift; sourceTree = "<group>"; };
 		08F0487B2C612773008F5CFD /* ProfileOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileOptions.swift; sourceTree = "<group>"; };
 		08F36E4D2C90952000067902 /* GeometryReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometryReader.swift; sourceTree = "<group>"; };
@@ -97,6 +109,7 @@
 		08018FF12C7A604C00D489C6 /* Friends */ = {
 			isa = PBXGroup;
 			children = (
+				08A344802DF4B644005B80D2 /* FriendsModel.swift */,
 				087305252C18890F00F6DFEE /* FriendsBar.swift */,
 				082CB7332C1AFF8A00EB0622 /* AddFriends.swift */,
 			);
@@ -106,6 +119,7 @@
 		082D11B52B82912D00E39B40 /* Habits */ = {
 			isa = PBXGroup;
 			children = (
+				08A3447A2DF4B4C7005B80D2 /* HabitDataModel.swift */,
 				08EB383D2B7FCF6700141B28 /* HabitTracker.swift */,
 				085ACA3B2C90A9700024C508 /* SwipeGeometryReader.swift */,
 				082D11B32B82910100E39B40 /* HabitAdder.swift */,
@@ -160,6 +174,9 @@
 		08A4308C2C46FF7700D22B23 /* Tasks */ = {
 			isa = PBXGroup;
 			children = (
+				08A3447C2DF4B5CF005B80D2 /* TaskDataModel.swift */,
+				08A344862DF4B68D005B80D2 /* TaskTimesModel.swift */,
+				08A3447E2DF4B61E005B80D2 /* ProgressDataModel.swift */,
 				080E02642BAA0F840044ADFB /* ProgressBar.swift */,
 				082C36312BAFBC2F00CD7621 /* AddTask.swift */,
 				08DC9D4A2C3306BD00AFDA0F /* OuterCircle.swift */,
@@ -178,10 +195,10 @@
 		08E5A3662B9FC9A000F3B5C5 /* Authentication */ = {
 			isa = PBXGroup;
 			children = (
+				08E2D3E42BA0CE3D0097327A /* AuthModel.swift */,
 				08C5911C2BBC8376000EE1B9 /* LogInView.swift */,
 				086FA10D2BA2178F005B26EB /* Input.swift */,
 				086FA1252BA221A6005B26EB /* SignUpView.swift */,
-				08F36E4D2C90952000067902 /* GeometryReader.swift */,
 			);
 			path = Authentication;
 			sourceTree = "<group>";
@@ -218,8 +235,9 @@
 				086FA12B2BA225B1005B26EB /* Settings */,
 				08E5A3662B9FC9A000F3B5C5 /* Authentication */,
 				086FA12E2BA2262A005B26EB /* ViewModels */,
-				08E2D3E42BA0CE3D0097327A /* UserObject.swift */,
+				08A344822DF4B65C005B80D2 /* AnalyticsModel.swift */,
 				08CD3D212C3444D800D48FAD /* BlurEffect.swift */,
+				08F36E4D2C90952000067902 /* GeometryReader.swift */,
 				7646F2B02B7837D40075908C /* Assets.xcassets */,
 				7646F2B22B7837D40075908C /* Preview Content */,
 			);
@@ -321,18 +339,24 @@
 				08C5911D2BBC8376000EE1B9 /* LogInView.swift in Sources */,
 				08BE44152C62719D00DD9457 /* CalendarView.swift in Sources */,
 				086FA10E2BA2178F005B26EB /* Input.swift in Sources */,
+				08A3447F2DF4B61E005B80D2 /* ProgressDataModel.swift in Sources */,
 				084F54992C5FF5D600E44385 /* MockViewModel.swift in Sources */,
 				082D11B42B82910100E39B40 /* HabitAdder.swift in Sources */,
 				08DC9D4B2C3306BD00AFDA0F /* OuterCircle.swift in Sources */,
+				08A3447B2DF4B4C7005B80D2 /* HabitDataModel.swift in Sources */,
+				08A344812DF4B644005B80D2 /* FriendsModel.swift in Sources */,
 				0855693D2C95FC2100D5E40F /* CalendarCircle.swift in Sources */,
 				087305262C18890F00F6DFEE /* FriendsBar.swift in Sources */,
-				08E2D3E52BA0CE3D0097327A /* UserObject.swift in Sources */,
+				08E2D3E52BA0CE3D0097327A /* AuthModel.swift in Sources */,
 				085ACA3C2C90A9700024C508 /* SwipeGeometryReader.swift in Sources */,
+				08A3447D2DF4B5CF005B80D2 /* TaskDataModel.swift in Sources */,
 				086FA1262BA221A6005B26EB /* SignUpView.swift in Sources */,
 				08CD3D222C3444D800D48FAD /* BlurEffect.swift in Sources */,
 				086FA1142BA217F9005B26EB /* SettingsView.swift in Sources */,
 				085D8E0E2BA0DF580028AD03 /* ViewModel.swift in Sources */,
+				08A344832DF4B65C005B80D2 /* AnalyticsModel.swift in Sources */,
 				08F0487C2C612773008F5CFD /* ProfileOptions.swift in Sources */,
+				08A344872DF4B68D005B80D2 /* TaskTimesModel.swift in Sources */,
 				08F36E4E2C90952000067902 /* GeometryReader.swift in Sources */,
 				7646F2AF2B7837D20075908C /* ContentView.swift in Sources */,
 				080E02652BAA0F840044ADFB /* ProgressBar.swift in Sources */,

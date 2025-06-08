@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct HabitAdder: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
         
     var body: some View {
         ZStack {
@@ -59,6 +59,6 @@ struct HabitAdder: View {
 struct HabitAdder_Previews: PreviewProvider {
     static var previews: some View {
         HabitAdder()
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }

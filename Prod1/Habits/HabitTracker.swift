@@ -10,7 +10,7 @@ import Firebase
 import FirebaseFirestoreSwift
 
 struct HabitTracker: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
         
     var body: some View {
         ZStack {
@@ -163,6 +163,6 @@ struct HabitTracker: View {
 struct HabitTracker_Previews: PreviewProvider {
     static var previews: some View {
         return HabitTracker()
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }

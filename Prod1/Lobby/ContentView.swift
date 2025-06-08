@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
 
 struct ContentView: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     @State var isShowingCumTime: Bool = false
     @State var playButton: String = "play.circle.fill"
     
@@ -101,8 +101,10 @@ struct ContentView: View {
                                             viewModel.taskTime += 1
                                             viewModel.cumulativeTime += 1
                                             viewModel.cumulativeProg += 1
-                                            viewModel.taskTimerDictionary[viewModel.taskName]! += 1
-                                            viewModel.monthlyProgressTimerDictionary[viewModel.taskName]! += 1
+                                            var nilCoalescingOp = viewModel.taskTimerDictionary[viewModel.taskName] ?? 0
+                                            nilCoalescingOp += 1
+                                            var nilCoalescingOp2 = viewModel.monthlyProgressTimerDictionary[viewModel.taskName] ?? 0
+                                            nilCoalescingOp2 += 1
                                         }
                                         if viewModel.taskName == "Task" {
                                             viewModel.taskTime = 0
@@ -323,6 +325,6 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         return ContentView()
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }

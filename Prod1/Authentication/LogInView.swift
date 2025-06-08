@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct LogInView: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     
     @State var email: String = ""
     @State var password: String = ""
@@ -142,7 +142,7 @@ struct LogInView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             LogInView()
-                .environmentObject(MockViewModel() as ViewModel)
+                .environmentObject(MockViewModel() as AuthState)
         }
     }
 }

@@ -1,7 +1,7 @@
 import SwiftUI
 import Firebase
 
-class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
+class MockViewModel: AuthState { // Ensure ViewModel is correctly inherited
     override init() {
         super.init()
         loadMockData()

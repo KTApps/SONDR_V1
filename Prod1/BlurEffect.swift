@@ -23,5 +23,5 @@ struct BlurEffect: UIViewRepresentable {
 
 #Preview {
     BlurEffect(style: .systemMaterialDark)
-        .environmentObject(MockViewModel() as ViewModel)
+        .environmentObject(MockViewModel() as AuthState)
 }

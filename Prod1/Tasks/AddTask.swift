@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct AddTask: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     
     var body: some View {
         VStack {
@@ -44,6 +44,6 @@ struct AddTask: View {
 struct AddTask_Previews: PreviewProvider {
     static var previews: some View {
         AddTask()
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }

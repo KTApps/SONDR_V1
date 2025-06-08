@@ -9,7 +9,7 @@ import SwiftUI
 import PhotosUI
 
 struct ProfileOptions: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     var body: some View {
         ZStack {
             Button {
@@ -102,7 +102,7 @@ struct ProfileOptions: View {
 struct ProfileOptions_Previews: PreviewProvider {
     static var previews: some View {
         return ProfileOptions()
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }
 

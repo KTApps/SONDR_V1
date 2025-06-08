@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
  
 struct ViewYourProgress: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     
     var body: some View {
         ZStack{
@@ -34,6 +34,6 @@ struct ViewYourProgress: View {
 struct ViewYourProgress_Previews: PreviewProvider {
     static var previews: some View {
         return ViewYourProgress()
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }

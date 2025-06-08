@@ -9,10 +9,10 @@
 
 import SwiftUI
 import Foundation
-import Firebase
-import FirebaseFirestoreSwift
-import PhotosUI
+import FirebaseAuth
+import FirebaseFirestore
 import FirebaseStorage
+import PhotosUI
 
 //  MARK: User Input Validator
 protocol AuthFormValidation {
@@ -20,7 +20,7 @@ protocol AuthFormValidation {
 }
 
 @MainActor
-class ViewModel: ObservableObject {
+class AuthState: ObservableObject {
     
     // MARK: AuthState
     let authRef = Auth.auth()

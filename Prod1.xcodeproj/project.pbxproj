@@ -167,6 +167,7 @@
 			isa = PBXGroup;
 			children = (
 				085D8E112BA0E8540028AD03 /* StartView.swift */,
+				7646F2AE2B7837D20075908C /* ContentView.swift */,
 			);
 			path = Lobby;
 			sourceTree = "<group>";
@@ -226,7 +227,6 @@
 				08B8419E2BA5F15E009B4419 /* GoogleService-Info.plist */,
 				7646F2AC2B7837D20075908C /* Prod1App.swift */,
 				08A4308A2C46FF4500D22B23 /* Lobby */,
-				7646F2AE2B7837D20075908C /* ContentView.swift */,
 				08A4308C2C46FF7700D22B23 /* Tasks */,
 				082D11B52B82912D00E39B40 /* Habits */,
 				086FA12F2BA226C9005B26EB /* ViewProgress */,

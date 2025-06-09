@@ -5,6 +5,7 @@
 //  Created by Kelvin Mahaja on 08/06/2025.
 //
 
+import SwiftUI
 import FirebaseFirestore
 
 protocol HabitDataViewModel {
@@ -17,6 +18,7 @@ protocol HabitDataViewModel {
     func habitStriker(value: String)
     func habitRemover(value: String)
     func listenForTimelineHabitData(id: String, userId: String, dayOfYear: Int) async
+    func colorReturn(value: String) -> Color
 }
 
 extension AuthState: HabitDataViewModel {
@@ -353,6 +355,14 @@ extension AuthState: HabitDataViewModel {
         } catch {
             print("func listenForTimelineHabitData(): Error fetching HabitData: \(error.localizedDescription)")
             return
+        }
+    }
+    
+    func colorReturn(value: String) -> Color {
+        if habitData?.isHabitStriked[value] == true {
+            return .blue
+        } else {
+            return .gray
         }
     }
 }

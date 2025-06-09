@@ -9,15 +9,15 @@ import SwiftUI
 import PhotosUI
 
 struct SettingsView: View {
-    @EnvironmentObject var viewModel: AuthState
+    @ObservedObject var authState: AuthState
     
     var body: some View {
-        if let user = viewModel.currentUser {
+        if let user = authState.currentUser {
             List {
                 Section {
                     HStack {
-                        PhotosPicker(selection: $viewModel.selectedItem) {
-                            if let profileImage = viewModel.profileImage {
+                        PhotosPicker(selection: $authState.selectedItem) {
+                            if let profileImage = authState.profileImage {
                                 profileImage
                                     .resizable()
                                     .scaledToFill()
@@ -44,9 +44,9 @@ struct SettingsView: View {
                     
                     Button(role: .destructive) {
                         withAnimation {
-                            viewModel.isSettingsVisible = false
-                            viewModel.isProfileBlurViewVisible = false
-                            viewModel.signOut()
+                            authState.isSettingsVisible = false
+                            authState.isProfileBlurViewVisible = false
+                            authState.signOut()
                         }
                     } label: {
                         SettingsButton(image: "arrow.left.circle.fill", action: "Log off")
@@ -54,11 +54,11 @@ struct SettingsView: View {
                     
                     Button(role: .destructive) {
                         withAnimation {
-                            viewModel.isSettingsVisible = false
-                            viewModel.isProfileBlurViewVisible = false
+                            authState.isSettingsVisible = false
+                            authState.isProfileBlurViewVisible = false
                         }
                         Task {
-                            try await viewModel.deleteAccount()
+                            try await authState.deleteAccount()
                         }
                     } label: {
                         SettingsButton(image: "x.circle.fill", action: "Delete Account")
@@ -72,8 +72,7 @@ struct SettingsView: View {
 
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
-        return SettingsView()
-            .environmentObject(MockViewModel() as AuthState) // Inject authViewModel as environment object
+        return SettingsView(authState: AuthState())
     }
 }
 

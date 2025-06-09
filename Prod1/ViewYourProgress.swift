@@ -9,11 +9,11 @@ import SwiftUI
 import Charts
  
 struct ViewYourProgress: View {
-    @EnvironmentObject var viewModel: AuthState
+    @ObservedObject var authState: AuthState
     
     var body: some View {
         ZStack{
-            viewModel.darkGray.ignoresSafeArea()
+            authState.darkGray.ignoresSafeArea()
             VStack {
                 Text("SONDR")
                     .font(.title)
@@ -22,7 +22,7 @@ struct ViewYourProgress: View {
                 Spacer()
                     .frame(height: 20)
                 
-                CalendarView()
+                CalendarView(authState: authState)
                 
                 Spacer()
             }
@@ -33,7 +33,6 @@ struct ViewYourProgress: View {
 
 struct ViewYourProgress_Previews: PreviewProvider {
     static var previews: some View {
-        return ViewYourProgress()
-            .environmentObject(MockViewModel() as AuthState)
+        return ViewYourProgress(authState: AuthState())
     }
 }

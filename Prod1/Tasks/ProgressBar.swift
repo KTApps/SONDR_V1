@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ProgressBar: View {
-    @EnvironmentObject var viewModel: AuthState
+    @ObservedObject var authState: AuthState
 
     var body: some View {
         GeometryReader { geometry in
@@ -23,32 +23,32 @@ struct ProgressBar: View {
                 .padding(.horizontal, geometry.size.width * 0.04)
                 .padding(.vertical, geometry.size.height * 0.04)
                 
-                ForEach(viewModel.progressTasks.indices, id:\.self) {index in
-                    let item = viewModel.progressTasks[index]
+                ForEach(authState.progressTasks.indices, id:\.self) {index in
+                    let item = authState.progressTasks[index]
                     Button {
                         withAnimation {
                             Task {
-                                await viewModel.newTaskAdder(task: item)
-                                await viewModel.taskTimeCaller(for: item)
+                                await authState.newTaskAdder(task: item)
+                                await authState.taskTimeCaller(for: item)
                             }
-                            viewModel.taskName = item
-                            viewModel.isTaskDropDownVisible.toggle()
-                            viewModel.taskTime = viewModel.resetTimer() ?? 0
+                            authState.taskName = item
+                            authState.isTaskDropDownVisible.toggle()
+                            authState.taskTime = authState.resetTimer() ?? 0
                         }
                     } label: {
                         ZStack(alignment: .leading) {
                             
                             Capsule()
                                 .fill(Color.gray)
-                                .frame(width: geometry.size.width * (viewModel.maxWidth/370), height: geometry.size.height * 0.07)
+                                .frame(width: geometry.size.width * (authState.maxWidth/370), height: geometry.size.height * 0.07)
                             
                             Capsule()
                                 .fill(Color.blue)
                                 .frame(
-                                    width: (viewModel.newTimeArray[item] ?? 0) > 0 ?
+                                    width: (authState.newTimeArray[item] ?? 0) > 0 ?
                                         max(
-                                            geometry.size.width * ((CGFloat(viewModel.newTimeArray[item] ?? 0))/370),
-                                            geometry.size.width * (viewModel.maxWidth/370) * 0.07
+                                            geometry.size.width * ((CGFloat(authState.newTimeArray[item] ?? 0))/370),
+                                            geometry.size.width * (authState.maxWidth/370) * 0.07
                                         ) : 0,
                                     height: geometry.size.height * 0.07
                                 )
@@ -67,8 +67,8 @@ struct ProgressBar: View {
                 }
                 
                 Button(action: {
-                    viewModel.taskString = "" // Clear the task input field
-                    viewModel.isAddTaskVisible.toggle()
+                    authState.taskString = "" // Clear the task input field
+                    authState.isAddTaskVisible.toggle()
                 }) {
                     ZStack {
                         Capsule()
@@ -81,8 +81,8 @@ struct ProgressBar: View {
                     }
                 }
                 .padding(.vertical, geometry.size.height * 0.03)
-                .sheet(isPresented:  $viewModel.isAddTaskVisible) {
-                    AddTask()
+                .sheet(isPresented:  $authState.isAddTaskVisible) {
+                    AddTask(authState: authState)
                         .presentationDetents([.fraction(1/4)])
                 }
             }
@@ -92,7 +92,6 @@ struct ProgressBar: View {
 
 struct ProgressBar_Previews: PreviewProvider {
     static var previews: some View {
-        ProgressBar()
-            .environmentObject(MockViewModel() as AuthState)
+        ProgressBar(authState: AuthState())
     }
 }

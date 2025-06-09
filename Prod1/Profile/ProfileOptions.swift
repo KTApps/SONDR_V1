@@ -9,19 +9,19 @@ import SwiftUI
 import PhotosUI
 
 struct ProfileOptions: View {
-    @EnvironmentObject var viewModel: AuthState
+    @ObservedObject var authState: AuthState
     var body: some View {
         ZStack {
             Button {
-                viewModel.isProfileBlurViewVisible = false
-                viewModel.isBlurViewVisible = false
+                authState.isProfileBlurViewVisible = false
+                authState.isBlurViewVisible = false
             } label: {
                 BlurEffect(style: .systemMaterialDark)
             }
-            if let user = viewModel.currentUser {
+            if let user = authState.currentUser {
                 VStack {
-                    PhotosPicker(selection: $viewModel.selectedItem) {
-                        if let profileImage = viewModel.profileImage {
+                    PhotosPicker(selection: $authState.selectedItem) {
+                        if let profileImage = authState.profileImage {
                             profileImage
                                 .resizable()
                                 .scaledToFill()
@@ -37,14 +37,14 @@ struct ProfileOptions: View {
                         }
                     }
                     Text(user.username)
-                    Text("\(viewModel.friendCount) \(viewModel.friendOrFriends)")
+                    Text("\(authState.friendCount) \(authState.friendOrFriends)")
                     
                     Spacer()
                         .frame(height: 60)
                     
                     Button {
                         withAnimation {
-                            viewModel.comingSoonAlert = true
+                            authState.comingSoonAlert = true
                         }
                     } label: {
                         Text("MILESTONES")
@@ -57,15 +57,15 @@ struct ProfileOptions: View {
                     
                     Button {
                         withAnimation {
-                            viewModel.isAddFriendsVisible.toggle()
+                            authState.isAddFriendsVisible.toggle()
                         }
                     } label: {
                         Text("ADD FRIENDS")
                             .font(.title)
                             .fontWeight(.heavy)
                     }
-                    .sheet(isPresented: $viewModel.isAddFriendsVisible) {
-                        AddFriends()
+                    .sheet(isPresented: $authState.isAddFriendsVisible) {
+                        AddFriends(authState: authState)
                     }
                     
                     Spacer()
@@ -73,25 +73,25 @@ struct ProfileOptions: View {
 
                     Button {
                         withAnimation {
-                            viewModel.isSettingsVisible = true
+                            authState.isSettingsVisible = true
                         }
                     } label: {
                         Text("SETTINGS")
                             .font(.title)
                             .fontWeight(.heavy)
                     }
-                    .sheet(isPresented: $viewModel.isSettingsVisible) {
-                        SettingsView()
+                    .sheet(isPresented: $authState.isSettingsVisible) {
+                        SettingsView(authState: authState)
                             .presentationDetents([.fraction(4/10)])
                     }
                 }
                 .foregroundColor(.white)
                 .task {
-                    await viewModel.friendsCounter()
+                    await authState.friendsCounter()
                 }
-                .alert("Coming Soon...", isPresented: $viewModel.comingSoonAlert) {
+                .alert("Coming Soon...", isPresented: $authState.comingSoonAlert) {
                     Button("Continue") {
-                        viewModel.comingSoonAlert.toggle()
+                        authState.comingSoonAlert.toggle()
                     }
                 }
             }
@@ -101,8 +101,7 @@ struct ProfileOptions: View {
 
 struct ProfileOptions_Previews: PreviewProvider {
     static var previews: some View {
-        return ProfileOptions()
-            .environmentObject(MockViewModel() as AuthState)
+        return ProfileOptions(authState: AuthState())
     }
 }
 

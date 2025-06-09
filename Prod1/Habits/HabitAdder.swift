@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct HabitAdder: View {
-    @EnvironmentObject var viewModel: AuthState
+    @ObservedObject var authState: AuthState
         
     var body: some View {
         ZStack {
@@ -24,7 +24,7 @@ struct HabitAdder: View {
                 .shadow(radius: 3, x: 3, y: 3)
                 .padding(.horizontal, 2)
                 
-                TextField("Task Name", text: $viewModel.habitName)
+                TextField("Task Name", text: $authState.habitName)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .colorInvert()
                     .shadow(radius: 5, x: 3, y: 3)
@@ -35,9 +35,9 @@ struct HabitAdder: View {
                 
 //                MARK: SAVE Button
                 Button(action: {
-                    viewModel.habitAppender()
-                    viewModel.isAddHabitVisible = false
-                    viewModel.habitName = ""
+                    authState.habitAppender()
+                    authState.isAddHabitVisible = false
+                    authState.habitName = ""
                 }) {
                     Text("ADD")
                         .font(.title3)
@@ -58,7 +58,6 @@ struct HabitAdder: View {
 
 struct HabitAdder_Previews: PreviewProvider {
     static var previews: some View {
-        HabitAdder()
-            .environmentObject(MockViewModel() as AuthState)
+        HabitAdder(authState: AuthState())
     }
 }

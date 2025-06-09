@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
 
 struct OuterCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
@@ -63,6 +63,6 @@ struct OuterCircle: View {
 struct OuterCircle_Previews: PreviewProvider {
     static var previews: some View {
         return OuterCircle(innerRadius: 140, outerRadius: 170, cornerRadius: 5)
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }

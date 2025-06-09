@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
 
 struct FriendsBar: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     var body: some View {
         ScrollView {
             VStack {
@@ -55,7 +55,7 @@ struct FriendsBar: View {
 }
 
 struct OuterFriendsCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     var username: String
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
@@ -93,7 +93,7 @@ struct OuterFriendsCircle: View {
 }
 
 struct InnerFriendsCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     var username: String
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
@@ -130,6 +130,6 @@ struct InnerFriendsCircle: View {
 struct FriendsBar_Previews: PreviewProvider {
     static var previews: some View {
         return FriendsBar()
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }

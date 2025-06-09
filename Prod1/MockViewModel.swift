@@ -1,7 +1,7 @@
 import SwiftUI
 import Firebase
 
-class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
+class MockViewModel: AuthState { // Ensure ViewModel is correctly inherited
     override init() {
         super.init()
         loadMockData()
@@ -13,8 +13,8 @@ class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
         
         // Mock data for habits
         // Use String keys like "2024-199" to match your real data
-        let sampleHabitData: [String: HabitData] = [
-            "2024-199": HabitData(
+        let sampleHabitData: [String: HabitDataModel] = [
+            "2024-199": HabitDataModel(
                 habitIdArray: ["habit1", "habit2"],
                 habitIdName: [
                     "habit1": "Exercise",
@@ -25,7 +25,7 @@ class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
                     "habit2": false
                 ]
             ),
-            "2024-198": HabitData(
+            "2024-198": HabitDataModel(
                 habitIdArray: ["habit3", "habit4"],
                 habitIdName: [
                     "habit3": "Meditate",
@@ -43,7 +43,7 @@ class MockViewModel: ViewModel { // Ensure ViewModel is correctly inherited
         self.currentDayOfWeek = 199 // Use the day part of your string key, or set as needed
         
         // Mock data for other properties
-        self.currentUser = UserObject(id: sampleUserId, username: sampleUsername, email: "name@example.com")
+        self.currentUser = AuthModel(id: sampleUserId, username: sampleUsername, email: "name@example.com")
         // docTitles should be [String], matching your real document title format
         self.docTitles = ["2024-199", "2024-198"] // Example list of document titles
     }

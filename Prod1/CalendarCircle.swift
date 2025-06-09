@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
 
 struct CalendarCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     let day: Int
     let selectedMonth: Int
     let selectedYear: Int

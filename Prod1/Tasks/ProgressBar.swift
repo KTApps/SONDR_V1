@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ProgressBar: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
 
     var body: some View {
         GeometryReader { geometry in
@@ -93,6 +93,6 @@ struct ProgressBar: View {
 struct ProgressBar_Previews: PreviewProvider {
     static var previews: some View {
         ProgressBar()
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }

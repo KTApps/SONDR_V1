@@ -9,7 +9,7 @@ import SwiftUI
 import Combine
 
 struct AddFriends: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     @State var friend: String = ""
     @State var link: String = ""
     
@@ -154,5 +154,5 @@ struct AddFriends: View {
 
 #Preview {
     AddFriends()
-        .environmentObject(MockViewModel() as ViewModel)
+        .environmentObject(MockViewModel() as AuthState)
 }

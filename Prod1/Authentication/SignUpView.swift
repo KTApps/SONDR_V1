@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SignUpView: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     
     @State private var username = ""
     @State private var email = ""
@@ -143,6 +143,6 @@ extension SignUpView: AuthFormValidation {
 struct SignUpView_Previews: PreviewProvider {
     static var previews: some View {
         return SignUpView()
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }

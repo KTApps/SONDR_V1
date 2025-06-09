@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
 
 struct Last10Days: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     var body: some View {
         let numberOfColumns = 5
         let numberOfRows = (viewModel.docTitles.count + numberOfColumns - 1) / numberOfColumns
@@ -45,7 +45,7 @@ struct Last10Days: View {
 }
 
 struct Inner10DaysCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     var docTitleIndex: Int
     
     private func calendarColorReturn(value: String) -> Color {
@@ -102,6 +102,6 @@ struct Inner10DaysCircle: View {
 struct Last10Days_Previews: PreviewProvider {
     static var previews: some View {
         return Last10Days()
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }

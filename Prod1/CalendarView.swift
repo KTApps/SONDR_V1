@@ -2,7 +2,7 @@ import SwiftUI
 import Charts
 
 struct CalendarView: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     @State private var selectedDate = Date() // Selected date
     @State private var monthOffset = 0 // Offset to switch between months
     @State private var selectedMonthIndex: Int // e.g. 0 = Jan; 1 = Feb
@@ -220,7 +220,7 @@ struct CalendarView: View {
 }
 
 struct CalendarDayCell: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     let day: Int
     let selectedMonth: Int
     let selectedYear: Int
@@ -246,7 +246,7 @@ struct CalendarDayCell: View {
 }
 
 struct InnerCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     let dayOfYear: String
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
@@ -293,7 +293,7 @@ struct InnerCircle: View {
 }
 
 struct OuterCalendarCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     let dayOfYear: String
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
@@ -353,6 +353,6 @@ extension Date {
 struct CalendarView_Previews: PreviewProvider {
     static var previews: some View {
         return CalendarView()
-            .environmentObject(MockViewModel() as ViewModel)
+            .environmentObject(MockViewModel() as AuthState)
     }
 }

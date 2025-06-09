@@ -9,7 +9,7 @@ import SwiftUI
 import PhotosUI
 
 struct SettingsView: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @EnvironmentObject var viewModel: AuthState
     
     var body: some View {
         if let user = viewModel.currentUser {
@@ -73,7 +73,7 @@ struct SettingsView: View {
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
         return SettingsView()
-            .environmentObject(MockViewModel() as ViewModel) // Inject authViewModel as environment object
+            .environmentObject(MockViewModel() as AuthState) // Inject authViewModel as environment object
     }
 }
 

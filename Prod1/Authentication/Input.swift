@@ -44,5 +44,5 @@ struct CustomTextFieldStyle: TextFieldStyle {
 
 #Preview {
     Input(text: .constant(""), title: "Email Address", placeHolder: "name@example.com")
-        .environmentObject(MockViewModel() as ViewModel)
+        .environmentObject(MockViewModel() as AuthState)
 }

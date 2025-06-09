@@ -101,6 +101,12 @@ struct ContentView: View {
                                             viewModel.taskTime += 1
                                             viewModel.cumulativeTime += 1
                                             viewModel.cumulativeProg += 1
+                                            if viewModel.taskTimerDictionary[viewModel.taskName] == nil {
+                                                viewModel.taskTimerDictionary[viewModel.taskName] = 0
+                                            }
+                                            if viewModel.monthlyProgressTimerDictionary[viewModel.taskName] == nil {
+                                                viewModel.monthlyProgressTimerDictionary[viewModel.taskName] = 0
+                                            }
                                             viewModel.taskTimerDictionary[viewModel.taskName]! += 1
                                             viewModel.monthlyProgressTimerDictionary[viewModel.taskName]! += 1
                                         }

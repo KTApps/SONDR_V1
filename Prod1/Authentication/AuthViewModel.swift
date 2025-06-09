@@ -12,12 +12,12 @@ protocol AuthStateExtension {
     var userSession: FirebaseAuth.User? { get }
     var currentUser: AuthModel? { get }
     
-    func signUp(withEmail email: String, username: String, password: String) async throws
+    func signUp(withEmail email: String, password: String, username: String) async throws
     func logIn(withEmail email: String, password: String) async throws
 }
 
 extension AuthState: AuthStateExtension {
-    func signUp(withEmail email: String, username: String, password: String) async throws {
+    func signUp(withEmail email: String, password: String, username: String) async throws {
         do {
             // Check if the username already exists
             let querySnapshot = try await self.databaseRef.collection("users")

@@ -5,6 +5,7 @@
 //  Created by Kelvin Mahaja on 08/06/2025.
 //
 
+import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 
@@ -14,6 +15,7 @@ protocol AuthStateExtension {
     
     func signUp(withEmail email: String, password: String, username: String) async throws
     func logIn(withEmail email: String, password: String) async throws
+    func listenForUser() async
 }
 
 extension AuthState: AuthStateExtension {
@@ -130,6 +132,146 @@ extension AuthState: AuthStateExtension {
         } catch {
             self.logInError.toggle()
             print("LOG IN Failed... \(error.localizedDescription)")
+        }
+    }
+    
+    func listenForUser() async {
+        // Checks if User is logged in
+        guard let currentUserId = self.authRef.currentUser?.uid else {
+            return
+        }
+        
+        // Add a listener for changes to the user document
+        let userRef = self.databaseRef.collection("users").document(currentUserId)
+        
+        userRef.getDocument { document, error in
+            if let error = error {
+                print("func retrieveImage(): error fetching document: \(error)")
+                return
+            }
+            guard let document = document, document.exists, let data = document.data() else {
+                return
+            }
+            if let path = data["profilePic"] as? String {
+                let imageRef = self.storageRef.child(path)
+                imageRef.getData(maxSize: 10 * 1024 * 1024) { data, error in
+                    if let error = error {
+                        print("func retrieveImage(): error fetching imageRef: \(error)")
+                        return
+                    }
+                    guard let data = data, let uiImage = UIImage(data: data) else {
+                        print("func retrieveImage(): error converting imageRef to UiImage: \(error)")
+                        return
+                    }
+                    DispatchQueue.main.async {
+                        self.profileImage = Image(uiImage: uiImage)
+                    }
+                }
+            }
+        }
+        
+        userRef.addSnapshotListener { documentSnapshot, error in
+            guard let document = documentSnapshot else {
+                print("Error fetching document: \(error!)")
+                return
+            }
+            guard document.exists else {
+                return
+            }
+            
+            // Fetch user data from the document
+            if let userData = document.data() {
+                // Fetch and decode authentication data
+                if let authenticationData = userData["AuthenticationData"] as? [String: Any] {
+                    do {
+                        let decodedAuthenticationData = try Firestore.Decoder().decode(Prod1.AuthModel.self, from: authenticationData)
+                        self.currentUser = decodedAuthenticationData
+                    } catch {
+                        print("Error decoding AuthenticationData: \(error.localizedDescription)")
+                    }
+                }
+                
+                // Fetch and decode Analytics
+                if let analytics = userData["Analytics"] as? [String: Any] {
+                    do {
+                        let decodedAnalytics = try Firestore.Decoder().decode(Prod1.AnalyticsModel.self, from: analytics)
+                        self.dayTracker = decodedAnalytics.dayTracker
+                    } catch {
+                        print("Error decoding Analytics: \(error.localizedDescription)")
+                    }
+                }
+                
+                // Fetch and decode progress data
+                if let progressData = userData["Progress"] as? [String: Any] {
+                    do {
+                        let decodedProgressData = try Firestore.Decoder().decode(Prod1.ProgressDataModel.self, from: progressData)
+                        self.progressData = decodedProgressData
+                        self.progressTasks = decodedProgressData.progressTasks
+                        self.progressTimerDictionary = decodedProgressData.progressTimerDictionary
+                        self.taskDecimalDict = decodedProgressData.taskDecimalDict
+                        self.taskMaxTime = decodedProgressData.taskMaxTime
+                    } catch {
+                        print("Error decoding progress data: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+        
+        // Add a listener for changes to the habitData subcollection
+        let circleData = userRef.collection("CircleData").document("\(currentYear)-\(currentDayOfYear)")
+        circleData.addSnapshotListener { documentSnapshot, error in
+            guard let circleDocument = documentSnapshot else {
+                print("Error fetching HabitData: \(error!)")
+                return
+            }
+            guard circleDocument.exists else {
+                return
+            }
+            
+            if let circleData = circleDocument.data() {
+                // Fetch and decode habit data
+                if let habitData = circleData["HabitData"] as? [String: Any] {
+                    do {
+                        // Decode habit data into custom data model
+                        let decodedHabitData = try Firestore.Decoder().decode(Prod1.HabitDataModel.self, from: habitData)
+                        self.habitData = decodedHabitData
+                    } catch {
+                        print("Error decoding HabitData: \(error.localizedDescription)")
+                    }
+                }
+                
+                // Fetch and decode task data
+                if let taskData = circleData["TaskData"] as? [String: Any] {
+                    do {
+                        let decodedTaskData = try Firestore.Decoder().decode(Prod1.TaskDataModel.self, from: taskData)
+                        self.taskData = decodedTaskData
+                        self.tasks = decodedTaskData.tasks
+                        self.taskTimerDictionary = decodedTaskData.taskTimerDictionary
+                    } catch {
+                        print("Error decoding TaskData: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+        
+        let monthlyProgressDocRef = userRef.collection("MonthlyProgress").document("\(currentYear)-\(currentMonth)")
+        monthlyProgressDocRef.addSnapshotListener { DocumentSnapshot, error in
+            guard let monthlyProgressDoc = DocumentSnapshot else {
+                print("func listenForUser(): error fetching monthlyProgressDoc")
+                return
+            }
+            
+            if !monthlyProgressDoc.exists {
+                print("func listenForUser(): monthlyProgressDoc doesn't exist")
+                return
+            }
+            
+            if let monthlyProgressData = monthlyProgressDoc.data(),
+               let TaskTimes = monthlyProgressData["TaskTimes"] as? [String: Int] {
+                self.monthlyProgressTimerDictionary = TaskTimes
+            } else {
+                print("func listenForUser(): failed to define TaskTimes")
+            }
         }
     }
 }

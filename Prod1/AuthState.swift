@@ -26,16 +26,19 @@ class AuthState: ObservableObject {
     let authRef = Auth.auth()
     let databaseRef = Firestore.firestore()
     let storageRef = Storage.storage().reference()
+    
     @Published var userSession: FirebaseAuth.User? = nil
     @Published var currentUser: AuthModel?
     @Published var currentYear: Int = Calendar.current.component(.year, from: Date())
     @Published var currentMonth: Int = Calendar.current.component(.month, from: Date())
+    
     var month: String {
         let date = Date()
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "LLLL" // This gives the full month name (e.g., "September")
         return dateFormatter.string(from: date)
     }
+    
     @Published var currentDayOfYear: Int = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
     @Published var currentDayOfWeek: Int = 0
     @Published var weekDayIndexCounter: Int = 0
@@ -193,125 +196,12 @@ class AuthState: ObservableObject {
     // MARK: AuthenticationViewModel
     @Published var secureField: Bool = false
     @Published var logInError: Bool = false
-    func logIn(withEmail email: String, password: String) async throws {
-        do {
-            taskName = "Task"
-            taskTime = 0
-            taskString = ""
-            
-            let result = try await self.authRef.signIn(withEmail: email, password: password) // signs into the authenticated user from firebase
-            self.userSession = result.user // user session = authenticated user
-            
-            Task {
-                await monthlyProgressSubCollection()
-                await listenForUser()
-                let documentTitle = "\(currentYear)\(currentDayOfWeek)"
-                await listenForCircleData(document: documentTitle)
-                
-                await self.dayTrackerMath()
-                if dayConstant < currentDayOfYear {
-                    await newCircleDoc()
-                }
-                
-                await self.fetchCircleDocRef()
-                self.cumulativeProgress()
-                await fetchAllFriendsData()
-            }
-            self.isFriendsVisible = false
-        } catch {
-            self.logInError.toggle()
-            print("LOG IN Failed... \(error.localizedDescription)")
-        }
-    }
     
     @Published var signUpError: Bool = false
     @Published var usernameExists: Bool = false
+    
     enum usernameExistsError: Error {
         case usernameAlreadyExists
-    }
-    func signUp(withEmail email: String, password: String, username: String) async throws {
-        do {
-            // Check if the username already exists
-            let querySnapshot = try await self.databaseRef.collection("users")
-                .whereField("AuthenticationData.username", isEqualTo: username)
-                .getDocuments()
-
-            if !querySnapshot.isEmpty {
-                throw usernameExistsError.usernameAlreadyExists // Custom error
-            }
-            
-            let result = try await self.authRef.createUser(withEmail: email, password: password) // Authenticates user
-            self.userSession = result.user // user session = authenticated user
-            
-            taskName = "Task"
-            taskTime = 0
-            taskString = ""
-            
-            dayTracker = []
-            
-            progressTasks = []
-            progressTimerDictionary = [:]
-            taskDecimalDict = [:]
-            taskMaxTime = [:]
-            
-            habitIdArray = []
-            habitIdName = [:]
-            isHabitStriked = [:]
-            
-            taskTimerDictionary = [:]
-            tasks = []
-            
-            habitStreak = 0
-            cumulativeTasks = [:]
-            
-            self.profileImage = nil
-            
-            // Store user data
-            let user = AuthModel(id: result.user.uid,
-                                  username: username,
-                                  email: email) // initializes the raw data for encoding
-            let encodedUser = try Firestore.Encoder().encode(user) // encodes raw data to encrypted data
-            let userRef = self.databaseRef.collection("users").document(user.id)
-            try await userRef.setData(["AuthenticationData": encodedUser])
-            
-            let analytics = Prod1.AnalyticsModel(dayTracker: dayTracker,
-                                            dayTrackerOffset: dayTrackerOffset,
-                                            habitStreak: habitStreak,
-                                            cumulativeTasks: cumulativeTasks)
-            let encodedAnalytics = try Firestore.Encoder().encode(analytics)
-            try await userRef.updateData(["Analytics": encodedAnalytics])
-            
-            let progress = Prod1.ProgressDataModel(progressTasks: progressTasks,
-                                              progressTimerDictionary: progressTimerDictionary,
-                                              taskDecimalDict: taskDecimalDict,
-                                              taskMaxTime: taskMaxTime)
-            let encodedProgress = try Firestore.Encoder().encode(progress)
-            try await userRef.updateData(["Progress": encodedProgress])
-            
-            // Create Circle Sub-Collection
-            await circleSubCollection()
-            await monthlyProgressSubCollection()
-            
-            Task {
-                clearData()
-                
-                await listenForUser()
-                let documentTitle = "\(currentYear)\(currentDayOfWeek)"
-                await listenForCircleData(document: documentTitle)
-                
-                await fetchCircleDocRef()
-                
-                self.dayConstant = currentDayOfYear
-                dayTracker.append(currentDayOfYear)
-                await analyticsUpdate()
-            }
-        } catch usernameExistsError.usernameAlreadyExists {
-            usernameExists.toggle()
-            print("SIGN UP Failed... Username already exists.")
-        } catch {
-            signUpError.toggle()
-            print("SIGN UP Failed... \(error.localizedDescription)")
-        }
     }
     
     
@@ -742,7 +632,7 @@ class AuthState: ObservableObject {
     
     // MARK: ProgressDataViewModel
     @Published var progressData: ProgressDataModel?
-    private func monthlyProgressSubCollection() async {
+    func monthlyProgressSubCollection() async {
         guard let userId = self.authRef.currentUser?.uid else {
             return
         }
@@ -1018,7 +908,7 @@ class AuthState: ObservableObject {
     // MARK: HabitDataViewModel
     @Published var habitData: HabitDataModel?
     //  MARK: Create Habit Sub-Collection
-    private func circleSubCollection() async {
+    func circleSubCollection() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }
@@ -1061,7 +951,7 @@ class AuthState: ObservableObject {
     }
     
     @Published var dayConstant: Int = 0
-    private func newCircleDoc() async {
+    func newCircleDoc() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }
@@ -1377,7 +1267,7 @@ class AuthState: ObservableObject {
     @Published var dayTracker: [Int] = []
     @Published var dayTrackerOffset: Int = 0
     @Published var habitStreak: Int = 0
-    private func dayTrackerMath() async {
+    func dayTrackerMath() async {
         // Checks if User is logged in
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
@@ -1425,7 +1315,7 @@ class AuthState: ObservableObject {
         }
     }
     
-    private func analyticsUpdate() async {
+    func analyticsUpdate() async {
         guard let currentUserId = self.authRef.currentUser?.uid else {
             return
         }

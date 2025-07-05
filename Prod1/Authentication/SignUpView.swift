@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SignUpView: View {
-    @EnvironmentObject var viewModel: AuthState
+    @ObservedObject var authState: AuthState
     
     @State private var username = ""
     @State private var email = ""
@@ -80,7 +80,7 @@ struct SignUpView: View {
                         
                         Button {
                             Task {
-                                try await viewModel.signUp(withEmail: email,
+                                try await authState.signUp(withEmail: email,
                                                            password: password,
                                                            username: username)
                             }
@@ -101,7 +101,7 @@ struct SignUpView: View {
                         
                     // MARK: Navigation Group
                     NavigationLink {
-                        LogInView()
+                        LogInView(authState: authState)
                             .navigationBarBackButtonHidden(true)
                     } label: {
                         HStack {
@@ -115,14 +115,14 @@ struct SignUpView: View {
                 }
                 .padding(.horizontal, geometry.size.width * 0.05)  // 5% horizontal padding
                 .padding(.vertical, geometry.size.height * 0.05)  // 5% vertical padding
-                .alert("Email already exists", isPresented: $viewModel.signUpError) {
+                .alert("Email already exists", isPresented: $authState.signUpError) {
                     Button("Try again") {
-                        viewModel.signUpError.toggle()
+                        authState.signUpError.toggle()
                     }
                 }
-                .alert("Username is taken", isPresented: $viewModel.usernameExists) {
+                .alert("Username is taken", isPresented: $authState.usernameExists) {
                     Button("Try again") {
-                        viewModel.usernameExists.toggle()
+                        authState.usernameExists.toggle()
                     }
                 }
             }
@@ -142,7 +142,6 @@ extension SignUpView: AuthFormValidation {
 
 struct SignUpView_Previews: PreviewProvider {
     static var previews: some View {
-        return SignUpView()
-            .environmentObject(MockViewModel() as AuthState)
+        return SignUpView(authState: AuthState())
     }
 }

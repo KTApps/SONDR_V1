@@ -2,7 +2,8 @@ import SwiftUI
 import Charts
 
 struct CalendarView: View {
-    @EnvironmentObject var viewModel: AuthState
+    @ObservedObject var authState: AuthState
+    
     @State private var selectedDate = Date() // Selected date
     @State private var monthOffset = 0 // Offset to switch between months
     @State private var selectedMonthIndex: Int // e.g. 0 = Jan; 1 = Feb
@@ -14,7 +15,8 @@ struct CalendarView: View {
     private let daysOfWeek = Calendar.current.shortWeekdaySymbols // Array of short weekday names
     
     // Initialize with current month and year by default
-    init() {
+    init(authState: AuthState) {
+        self.authState = authState
         let currentDate = Date() // defines current date & time
         self._selectedMonthIndex = State(initialValue: Calendar.current.component(.month, from: currentDate) - 1)
         self._selectedYear = State(initialValue: Calendar.current.component(.year, from: currentDate))
@@ -82,13 +84,15 @@ struct CalendarView: View {
     
     var body: some View {
         let currentMonth = Calendar.current.date(byAdding: .month, value: monthOffset, to: selectedDate)! // calculates new date
-        let daysInMonth = daysInMonthForMonthIndex(monthIndex: selectedMonthIndex, year: selectedYear)
-        let firstWeekday = firstWeekdayOfMonth(for: selectedYear, month: selectedMonthIndex + 1)
+        let daysInMonth = daysInMonthForMonthIndex(monthIndex: selectedMonthIndex, 
+                                                   year: selectedYear)
+        let firstWeekday = firstWeekdayOfMonth(for: selectedYear, 
+                                               month: selectedMonthIndex + 1)
         let daysToDisplay = calculateDaysToDisplay(daysInMonth: daysInMonth,
                                                    firstWeekday: firstWeekday)
         return NavigationView {
             ZStack {
-                viewModel.darkGray.ignoresSafeArea()
+                authState.darkGray.ignoresSafeArea()
                 VStack {
                     Text("SONDR")
                         .font(.title)
@@ -188,10 +192,16 @@ struct CalendarView: View {
                                     ForEach(0..<7) { column in
                                         if let day = daysToDisplay[row * 7 + column] {
                                             NavigationLink {
-                                                CalendarCircle(day: day, selectedMonth: selectedMonthIndex + 1, selectedYear: selectedYear)
+                                                CalendarCircle(authState: authState,
+                                                               day: day,
+                                                               selectedMonth: selectedMonthIndex + 1,
+                                                               selectedYear: selectedYear)
                                             } label: {
                                                 // Display a CalendarDayCell if day exists
-                                                CalendarDayCell(day: day, selectedMonth: selectedMonthIndex + 1, selectedYear: selectedYear)
+                                                CalendarDayCell(authState: authState,
+                                                                day: day, 
+                                                                selectedMonth: selectedMonthIndex + 1,
+                                                                selectedYear: selectedYear)
                                                     .frame(width: UIScreen.main.bounds.width / CGFloat(7),
                                                            height: UIScreen.main.bounds.width / CGFloat(7))
                                             }
@@ -220,12 +230,12 @@ struct CalendarView: View {
 }
 
 struct CalendarDayCell: View {
-    @EnvironmentObject var viewModel: AuthState
+    @ObservedObject var authState: AuthState
     let day: Int
     let selectedMonth: Int
     let selectedYear: Int
     private var dayOfYear: Int {
-        return viewModel.dayOfYear(year: selectedYear, month: selectedMonth, day: day)
+        return authState.dayOfYear(year: selectedYear, month: selectedMonth, day: day)
     }
     
     var body: some View {
@@ -234,25 +244,25 @@ struct CalendarDayCell: View {
             Text("\(day)") // Display the day number
                 .font(.system(size: 12))
                 .foregroundColor(.white)
-            OuterCalendarCircle(dayOfYear: dayOfYearString, innerRadius: 18, outerRadius: 24, cornerRadius: 3)
-            InnerCircle(dayOfYear: dayOfYearString, innerRadius: 10, outerRadius: 15, cornerRadius: 3)
+            OuterCalendarCircle(authState: authState, dayOfYear: dayOfYearString, innerRadius: 18, outerRadius: 24, cornerRadius: 3)
+            InnerCircle(authState: authState, dayOfYear: dayOfYearString, innerRadius: 10, outerRadius: 15, cornerRadius: 3)
         }
         .onAppear {
             Task {
-                await viewModel.listenForCircleData(document: dayOfYearString)
+                await authState.listenForCircleData(document: dayOfYearString)
             }
         }
     }
 }
 
 struct InnerCircle: View {
-    @EnvironmentObject var viewModel: AuthState
+    @ObservedObject var authState: AuthState
     let dayOfYear: String
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
     private func calendarColorReturn(value: String) -> Color {
-        if viewModel.habitDataForDay[dayOfYear]?.isHabitStriked[value] == true {
+        if authState.habitDataForDay[dayOfYear]?.isHabitStriked[value] == true {
             return .blue
         } else {
             return .gray
@@ -260,7 +270,7 @@ struct InnerCircle: View {
     }
     
     var body: some View {
-        if let habits = viewModel.habitDataForDay[dayOfYear]?.habitIdArray, !habits.isEmpty {
+        if let habits = authState.habitDataForDay[dayOfYear]?.habitIdArray, !habits.isEmpty {
             Chart(habits, id:\.self) { habit in
                 SectorMark(
                     angle: .value("Time Spent", 10),
@@ -273,11 +283,11 @@ struct InnerCircle: View {
             }
             .onAppear {
                 Task {
-                    await viewModel.listenForCircleData(document: dayOfYear)
+                    await authState.listenForCircleData(document: dayOfYear)
                 }
             }
         } else {
-            Chart(viewModel.placeholderTasks, id: \.self) { task in
+            Chart(authState.placeholderTasks, id: \.self) { task in
                 SectorMark(
                     angle: .value("Time Spent", task),
                     innerRadius: innerRadius,
@@ -293,7 +303,7 @@ struct InnerCircle: View {
 }
 
 struct OuterCalendarCircle: View {
-    @EnvironmentObject var viewModel: AuthState
+    @ObservedObject var authState: AuthState
     let dayOfYear: String
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
@@ -303,8 +313,8 @@ struct OuterCalendarCircle: View {
     @State private var animatedOpacity: Double = 1.0
     
     var body: some View {
-        if let tasks = viewModel.taskDataForDay[dayOfYear]?.tasks, !tasks.isEmpty {
-            let timeSpent = viewModel.taskDataForDay[dayOfYear]?.taskTimerDictionary ?? [:]
+        if let tasks = authState.taskDataForDay[dayOfYear]?.tasks, !tasks.isEmpty {
+            let timeSpent = authState.taskDataForDay[dayOfYear]?.taskTimerDictionary ?? [:]
             Chart(tasks, id: \.self) { task in
                 if let taskTime = timeSpent[task] {
                     SectorMark(
@@ -314,20 +324,22 @@ struct OuterCalendarCircle: View {
                         angularInset: 1
                     )
                     .cornerRadius(cornerRadius)
-                    .opacity(viewModel.selectedCalendarTask == nil || viewModel.selectedCalendarTask == task ? 1 : animatedOpacity)
+                    .opacity(authState.selectedCalendarTask == nil || authState.selectedCalendarTask == task ? 1 : animatedOpacity)
                 }
             }
             .chartAngleSelection(value: $pieSelection)
             .onChange(of: pieSelection, initial: false) { _ , newValue in
                 withAnimation(.easeInOut(duration: 0.5)) {
                     if let newValue {
-                        viewModel.selectedCalendarTask = viewModel.taskForTime(for: newValue, tasks: tasks, timeSpent: timeSpent)
+                        authState.selectedCalendarTask = authState.taskForTime(for: newValue, 
+                                                                               tasks: tasks,
+                                                                               timeSpent: timeSpent)
                     }
                     animatedOpacity = 0.3
                 }
             }
         } else {
-            Chart(viewModel.placeholderTasks, id: \.self) { task in
+            Chart(authState.placeholderTasks, id: \.self) { task in
                 SectorMark(
                     angle: .value("Time Spent", task),
                     innerRadius: innerRadius,
@@ -352,7 +364,6 @@ extension Date {
 
 struct CalendarView_Previews: PreviewProvider {
     static var previews: some View {
-        return CalendarView()
-            .environmentObject(MockViewModel() as AuthState)
+        return CalendarView(authState: AuthState())
     }
 }

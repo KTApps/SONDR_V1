@@ -18,8 +18,7 @@ struct Prod1App: App {
     
     var body: some Scene {
         WindowGroup {
-            StartView()
-                .environmentObject(authState)
+            StartView(authState: authState)
         }
     }
 }

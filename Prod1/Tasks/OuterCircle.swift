@@ -18,14 +18,13 @@ struct OuterCircle: View {
     @State private var animatedOpacity: Double = 1.0
     
     var body: some View {
-        if let tasks = authState.taskData?.tasks,
-           let timeSpent = authState.taskData?.taskTimerDictionary,
-            !tasks.isEmpty, !timeSpent.isEmpty {
+        if let tasks = authState.taskData?.tasks, !tasks.isEmpty {
+            let timeSpent = authState.taskData?.taskTimerDictionary ?? [:]
             Chart(tasks, id: \.self) { task in
                 SectorMark(
-                    angle: .value("Time Spent", 
-                        (task == authState.taskName && authState.isTimerOn) 
-                        ? authState.taskTime 
+                    angle: .value("Time Spent",
+                        (task == authState.taskName && authState.isTimerOn)
+                        ? authState.taskTime
                         : (timeSpent[task] ?? 0)
                     ),
                     innerRadius: innerRadius,

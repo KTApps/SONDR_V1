@@ -11,7 +11,7 @@ import Charts
 struct ContentView: View {
     @ObservedObject var authState: AuthState
     @State var isShowingCumTime: Bool = false
-    @State var playButton: String = "play.circle.fill"
+    @State var playButton: String = "play.fill"
     
     var body: some View {
 //        MARK: ZStack for BlurView
@@ -83,10 +83,10 @@ struct ContentView: View {
                         Button(action: {
                             authState.isTimerOn.toggle()
                             if authState.isTimerOn {
-                                playButton = "pause.circle.fill"
+                                playButton = "pause.fill"
                                 authState.timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
                             } else {
-                                playButton = "play.circle.fill"
+                                playButton = "play.fill"
                                 authState.timer.upstream.connect().cancel()
                                 authState.updateTaskTimerInFirestore(taskName: authState.taskName, 
                                                                      monthlyProgressCount: authState.cumulativeTime,
@@ -114,6 +114,7 @@ struct ContentView: View {
                                         }
                                     }
                                 Image(systemName: playButton)
+                                    .font(.system(size: geometry.size.width * 0.04))
                             }
                         }
                         .foregroundColor(.white)

@@ -9,12 +9,12 @@ import SwiftUI
 import Charts
 
 struct CalendarCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @ObservedObject var authState: AuthState
     let day: Int
     let selectedMonth: Int
     let selectedYear: Int
     private var dayOfYear: Int {
-        return viewModel.dayOfYear(year: selectedYear, month: selectedMonth, day: day)
+        return authState.dayOfYear(year: selectedYear, month: selectedMonth, day: day)
     }
     
     // Function to convert the selected day, month, and year to "MM/dd/yyyy" format
@@ -38,7 +38,7 @@ struct CalendarCircle: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                viewModel.darkGray.ignoresSafeArea()
+                authState.darkGray.ignoresSafeArea()
                 VStack {
                     Spacer()
                         .frame(height: 40)
@@ -76,17 +76,17 @@ struct CalendarCircle: View {
                     
                     ZStack {
                         VStack {
-                            Text(viewModel.selectedCalendarTask ?? "")
+                            Text(authState.selectedCalendarTask ?? "")
                                 .font(.title2)
                                 .fontWeight(.bold)
-                            Text(viewModel.calendarCircleDailyTime(for: viewModel.selectedCalendarTask ?? ""))
+                            Text(authState.calendarCircleDailyTime(for: authState.selectedCalendarTask ?? ""))
                                 .font(.system(size: 22))
                                 .fontWeight(.bold)
                         }
                         .font(.title)
                         let documentTitle = "\(selectedYear)\(dayOfYear)"
-                        OuterCalendarCircle(dayOfYear: documentTitle, innerRadius: 130, outerRadius: 157, cornerRadius: 1)
-                        InnerCircle(dayOfYear: documentTitle, innerRadius: 91, outerRadius: 117, cornerRadius: 1)
+                        OuterCalendarCircle(authState: authState, dayOfYear: documentTitle, innerRadius: 130, outerRadius: 157, cornerRadius: 1)
+                        InnerCircle(authState: authState, dayOfYear: documentTitle, innerRadius: 91, outerRadius: 117, cornerRadius: 1)
                     }
                     
                     Spacer()
@@ -94,10 +94,10 @@ struct CalendarCircle: View {
                 }
                 .navigationBarBackButtonHidden(true)
                 .onAppear {
-                    viewModel.taskTimerDictionarySum(dayOfYear: dayOfYear)
+                    authState.taskTimerDictionarySum(dayOfYear: dayOfYear)
                 }
                 .onDisappear {
-                    viewModel.selectedCalendarTask = ""
+                    authState.selectedCalendarTask = ""
                 }
             }
         }
@@ -105,5 +105,5 @@ struct CalendarCircle: View {
 }
 
 #Preview {
-    CalendarCircle(day: 1, selectedMonth: 1, selectedYear: 2024)
+    CalendarCircle(authState: AuthState(), day: 1, selectedMonth: 1, selectedYear: 2024)
 }

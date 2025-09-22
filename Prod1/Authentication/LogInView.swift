@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct LogInView: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @ObservedObject var authState: AuthState
     
     @State var email: String = ""
     @State var password: String = ""
@@ -87,7 +87,7 @@ struct LogInView: View {
                 //            MARK: LOGN IN Button
                             Button {
                                 Task {
-                                    try await viewModel.logIn(withEmail: email, password: password)
+                                    try await authState.logIn(withEmail: email, password: password)
                                 }
                             } label: {
                                 Text("LOG IN")
@@ -106,7 +106,7 @@ struct LogInView: View {
                         
             //            MARK: SIGN UP Button
                         NavigationLink {
-                            SignUpView()
+                            SignUpView(authState: authState)
                                 .navigationBarBackButtonHidden(true)
                         } label: {
                             HStack {
@@ -118,9 +118,9 @@ struct LogInView: View {
                     }
                     .padding(.horizontal, geometry.size.width * 0.05)
                     .padding(.vertical, geometry.size.height * 0.05)
-                    .alert("User doesn't exist", isPresented: $viewModel.logInError) {
+                    .alert("User doesn't exist", isPresented: $authState.logInError) {
                         Button("Try again") {
-                            viewModel.logInError.toggle()
+                            authState.logInError.toggle()
                         }
                     }
                 }
@@ -141,8 +141,7 @@ extension LogInView: AuthFormValidation {
 struct LogInView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            LogInView()
-                .environmentObject(MockViewModel() as ViewModel)
+            LogInView(authState: AuthState())
         }
     }
 }

@@ -8,20 +8,20 @@
 import SwiftUI
 
 struct StartView: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @ObservedObject var authState: AuthState
     
     var body: some View {
         // checks if a user is logged in or not
         Group {
-            if viewModel.userSession != nil {
-                ContentView()
+            if authState.userSession != nil {
+                ContentView(authState: authState)
             } else {
-                LogInView()
+                LogInView(authState: authState)
             }
         }
     }
 }
 
 #Preview {
-    StartView()
+    StartView(authState: AuthState())
 }

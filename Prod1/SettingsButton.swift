@@ -24,5 +24,5 @@ struct SettingsButton: View {
 
 #Preview {
     SettingsButton(image: "arrow.left.circle.fill", action: "Sign Out")
-        .environmentObject(MockViewModel() as ViewModel)
+        .environmentObject(MockViewModel() as AuthState)
 }

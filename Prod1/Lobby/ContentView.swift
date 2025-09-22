@@ -9,9 +9,9 @@ import SwiftUI
 import Charts
 
 struct ContentView: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @ObservedObject var authState: AuthState
     @State var isShowingCumTime: Bool = false
-    @State var playButton: String = "play.circle.fill"
+    @State var playButton: String = "play.fill"
     
     var body: some View {
 //        MARK: ZStack for BlurView
@@ -26,9 +26,9 @@ struct ContentView: View {
                         
                         Button {
                             withAnimation {
-                                viewModel.isFriendsVisible.toggle()
-                                viewModel.isTaskDropDownVisible = false
-                                viewModel.selectedTask = nil
+                                authState.isFriendsVisible.toggle()
+                                authState.isTaskDropDownVisible = false
+                                authState.selectedTask = nil
                             }
                         } label: {
                             Image(systemName: "person.fill")
@@ -42,10 +42,10 @@ struct ContentView: View {
                         
                         Button {
                             withAnimation {
-                                viewModel.isProfileBlurViewVisible = true
-                                viewModel.isFriendsVisible = false
-                                viewModel.isTaskDropDownVisible = false
-                                viewModel.selectedTask = nil
+                                authState.isProfileBlurViewVisible = true
+                                authState.isFriendsVisible = false
+                                authState.isTaskDropDownVisible = false
+                                authState.selectedTask = nil
                             }
                         } label: {
                             Image(systemName: "gear")
@@ -62,7 +62,7 @@ struct ContentView: View {
                         HStack{
                             Spacer()
                                 .frame(width: geometry.size.width * 0.03)
-                            Text(viewModel.taskName)
+                            Text(authState.taskName)
                                 .font(.system(size: geometry.size.width * 0.06))
                             
                             Image(systemName: "chevron.down")
@@ -72,8 +72,8 @@ struct ContentView: View {
                         .foregroundColor(.white)
                         .onTapGesture {
                             withAnimation {
-                                viewModel.isTaskDropDownVisible.toggle()
-                                viewModel.selectedTask = nil
+                                authState.isTaskDropDownVisible.toggle()
+                                authState.selectedTask = nil
                             }
                         }
                         
@@ -81,41 +81,40 @@ struct ContentView: View {
                             .frame(height: geometry.size.width * 0.01)
                         
                         Button(action: {
-                            viewModel.isTimerOn.toggle()
-                            if viewModel.isTimerOn {
-                                playButton = "pause.circle.fill"
-                                viewModel.timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+                            authState.isTimerOn.toggle()
+                            if authState.isTimerOn {
+                                playButton = "pause.fill"
+                                authState.timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
                             } else {
-                                playButton = "play.circle.fill"
-                                viewModel.timer.upstream.connect().cancel()
-                                viewModel.updateTaskTimerInFirestore(taskName: viewModel.taskName, monthlyProgressCount: viewModel.cumulativeTime, timerCount: viewModel.taskTime)
-                                viewModel.progressPercentage()
-                                viewModel.newTimeCalc()
-                                viewModel.cumulativeProgress()
+                                playButton = "play.fill"
+                                authState.timer.upstream.connect().cancel()
+                                authState.updateTaskTimerInFirestore(taskName: authState.taskName, 
+                                                                     monthlyProgressCount: authState.cumulativeTime,
+                                                                     timerCount: authState.taskTime)
+                                authState.progressPercentage()
+                                authState.newTimeCalc()
+                                authState.cumulativeProgress()
                             }
                         }) {
                             HStack {
-                                Text(isShowingCumTime ? "\(viewModel.formattedCumulativeTime)" : "\(viewModel.formattedTaskTime)")
-                                    .onReceive(viewModel.timer) { time in
-                                        if viewModel.isTimerOn {
-                                            viewModel.taskTime += 1
-                                            viewModel.cumulativeTime += 1
-                                            viewModel.cumulativeProg += 1
-                                            if viewModel.taskTimerDictionary[viewModel.taskName] == nil {
-                                                viewModel.taskTimerDictionary[viewModel.taskName] = 0
-                                            }
-                                            if viewModel.monthlyProgressTimerDictionary[viewModel.taskName] == nil {
-                                                viewModel.monthlyProgressTimerDictionary[viewModel.taskName] = 0
-                                            }
-                                            viewModel.taskTimerDictionary[viewModel.taskName]! += 1
-                                            viewModel.monthlyProgressTimerDictionary[viewModel.taskName]! += 1
+                                Text(isShowingCumTime ? "\(authState.formattedCumulativeTime)" : "\(authState.formattedTaskTime)")
+                                    .onReceive(authState.timer) { time in
+                                        if authState.isTimerOn {
+                                            authState.taskTime += 1
+                                            authState.cumulativeTime += 1
+                                            authState.cumulativeProg += 1
+                                            var nilCoalescingOp = authState.taskTimerDictionary[authState.taskName] ?? 0
+                                            nilCoalescingOp += 1
+                                            var nilCoalescingOp2 = authState.monthlyProgressTimerDictionary[authState.taskName] ?? 0
+                                            nilCoalescingOp2 += 1
                                         }
-                                        if viewModel.taskName == "Task" {
-                                            viewModel.taskTime = 0
-                                            viewModel.cumulativeTime = viewModel.cumulativeProg
+                                        if authState.taskName == "Task" {
+                                            authState.taskTime = 0
+                                            authState.cumulativeTime = authState.cumulativeProg
                                         }
                                     }
                                 Image(systemName: playButton)
+                                    .font(.system(size: geometry.size.width * 0.04))
                             }
                         }
                         .foregroundColor(.white)
@@ -131,9 +130,12 @@ struct ContentView: View {
                     VStack {
                         ZStack {
                             
-                            OuterCircle(innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.4), cornerRadius: 1)
+                            OuterCircle(authState: authState, 
+                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29),
+                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.4),
+                                        cornerRadius: 1)
                             
-                            if let habits = viewModel.habitData?.habitIdArray, !habits.isEmpty {
+                            if let habits = authState.habitData?.habitIdArray, !habits.isEmpty {
                                 Chart(habits, id:\.self) { habit in
                                     SectorMark(
                                         angle: .value("isTicked", 1),
@@ -141,17 +143,17 @@ struct ContentView: View {
                                         outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.27),
                                         angularInset: 1
                                     )
-                                    .foregroundStyle(viewModel.colorReturn(value: habit))
+                                    .foregroundStyle(authState.colorReturn(value: habit))
                                     .cornerRadius(1)
                                 }
                                 .frame(width: geometry.size.width * 0.51, height: geometry.size.width * 0.51)
                                 .onTapGesture {
                                     withAnimation {
-                                        viewModel.isBlurViewVisible = true
-                                        viewModel.isFriendsVisible = false
+                                        authState.isBlurViewVisible = true
+                                        authState.isFriendsVisible = false
                                     }
-                                    viewModel.weekDayIndexCounter = viewModel.weekdayIndex(forDayOfYear: viewModel.currentDayOfYear, inYear: viewModel.currentYear) ?? 0
-                                    viewModel.currentDayOfWeek = viewModel.currentDayOfYear
+                                    authState.weekDayIndexCounter = authState.weekdayIndex(forDayOfYear: authState.currentDayOfYear, inYear: authState.currentYear) ?? 0
+                                    authState.currentDayOfWeek = authState.currentDayOfYear
                                 }
                                 .gesture(
                                     DragGesture()
@@ -168,7 +170,7 @@ struct ContentView: View {
                                         }
                                 )
                             } else {
-                                Chart(viewModel.placeholderTasks, id:\.self) { habit in
+                                Chart(authState.placeholderTasks, id:\.self) { habit in
                                     SectorMark(
                                         angle: .value("isTicked", 1),
                                         innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.19),
@@ -182,12 +184,12 @@ struct ContentView: View {
                                 .frame(width: geometry.size.width * 0.51, height: geometry.size.width * 0.51)
                                 .onTapGesture {
                                     withAnimation {
-                                        viewModel.isBlurViewVisible = true
-                                        viewModel.isFriendsVisible = false
-                                        viewModel.selectedTask = nil
+                                        authState.isBlurViewVisible = true
+                                        authState.isFriendsVisible = false
+                                        authState.selectedTask = nil
                                     }
-                                    viewModel.weekDayIndexCounter = viewModel.weekdayIndex(forDayOfYear: viewModel.currentDayOfYear, inYear: viewModel.currentYear) ?? 0
-                                    viewModel.currentDayOfWeek = viewModel.currentDayOfYear
+                                    authState.weekDayIndexCounter = authState.weekdayIndex(forDayOfYear: authState.currentDayOfYear, inYear: authState.currentYear) ?? 0
+                                    authState.currentDayOfWeek = authState.currentDayOfYear
                                 }
                                 .gesture(
                                     DragGesture()
@@ -206,15 +208,15 @@ struct ContentView: View {
                             }
                         
                             VStack {
-                                let task = viewModel.selectedTask ?? ""
+                                let task = authState.selectedTask ?? ""
                                 
                                 Text(task)
                                     .font(.system(size: geometry.size.width * 0.05))
-                                Text(isShowingCumTime ? viewModel.monthlyTime(for: task) : viewModel.dailyTime(for: task))
+                                Text(isShowingCumTime ? authState.monthlyTime(for: task) : authState.dailyTime(for: task))
                                     .font(.system(size: geometry.size.width * 0.05))
                                     .transition(.slide)
                                     .animation(.easeInOut, value: isShowingCumTime)
-                                Text(isShowingCumTime ? "\(viewModel.month)" : "Today")
+                                Text(isShowingCumTime ? "\(authState.month)" : "Today")
                                     .font(.system(size: geometry.size.width * 0.05))
                                     .transition(.slide)
                                     .animation(.easeInOut, value: isShowingCumTime)
@@ -235,19 +237,19 @@ struct ContentView: View {
                         
                         ZStack{
                             RoundedRectangle(cornerRadius: 10)
-                                .foregroundColor(viewModel.darkGray)
+                                .foregroundColor(authState.darkGray)
                                 .frame(width: geometry.size.width * 0.92, height: geometry.size.height * 0.27)
                             
                             VStack {
-                                Last10Days()
+                                Last10Days(authState: authState)
                                 
                                 Spacer()
                                 
                                 Button(action: {
-                                    viewModel.isViewYourProgressVisible = true
-                                    viewModel.isFriendsVisible = false
-                                    viewModel.isTaskDropDownVisible = false
-                                    viewModel.selectedTask = nil
+                                    authState.isViewYourProgressVisible = true
+                                    authState.isFriendsVisible = false
+                                    authState.isTaskDropDownVisible = false
+                                    authState.selectedTask = nil
                                 }) {
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 10)
@@ -262,8 +264,8 @@ struct ContentView: View {
                                 }
                             }
                             .padding(.vertical, geometry.size.height * 0.05)
-                            .sheet(isPresented: $viewModel.isViewYourProgressVisible) {
-                                CalendarView()
+                            .sheet(isPresented: $authState.isViewYourProgressVisible) {
+                                CalendarView(authState: authState)
                             }
                         }
                     }
@@ -273,51 +275,51 @@ struct ContentView: View {
                 .preferredColorScheme(.dark)
                 .onAppear {
                     Task {
-                        await viewModel.listenForUser()
-                        let documentTitle = "\(viewModel.currentYear)\(viewModel.currentDayOfWeek)"
-                        await viewModel.listenForCircleData(document: documentTitle)
+                        await authState.listenForUser()
+                        let documentTitle = "\(authState.currentYear)\(authState.currentDayOfWeek)"
+                        await authState.listenForCircleData(document: documentTitle)
                     }
                 }
                 
                 //            MARK: BlurView Button
-                if viewModel.isBlurViewVisible {
+                if authState.isBlurViewVisible {
                     withAnimation {
-                        HabitTracker()
+                        HabitTracker(authState: authState)
                             .ignoresSafeArea()
                     }
                 }
-                if viewModel.isProfileBlurViewVisible {
+                if authState.isProfileBlurViewVisible {
                     withAnimation {
-                        ProfileOptions()
+                        ProfileOptions(authState: authState)
                             .ignoresSafeArea()
                     }
                 }
     //                    MARK: TASK DROP DOWN ZStack
                 ZStack{
                     RoundedRectangle(cornerRadius: 10)
-                        .foregroundColor(viewModel.darkGray)
+                        .foregroundColor(authState.darkGray)
                         .padding(.horizontal, geometry.size.width * 0.04)
                     
-                    ProgressBar()
+                    ProgressBar(authState: authState)
                         .padding(.horizontal, geometry.size.width * 0.04)
                 }
-                .frame(height: viewModel.isTaskDropDownVisible ? geometry.size.height * 0.48 : 0) // Control Transition of Height
-                .offset(y: viewModel.isTaskDropDownVisible ? geometry.size.height * 0.14 : geometry.size.height * 0.13) // Control Transition of DropDown
+                .frame(height: authState.isTaskDropDownVisible ? geometry.size.height * 0.48 : 0) // Control Transition of Height
+                .offset(y: authState.isTaskDropDownVisible ? geometry.size.height * 0.14 : geometry.size.height * 0.13) // Control Transition of DropDown
                 
                 ZStack{
                     RoundedRectangle(cornerRadius: 10)
-                        .foregroundColor(viewModel.darkGray)
+                        .foregroundColor(authState.darkGray)
                         .padding(.horizontal, geometry.size.width * 0.04)
                     
-                    FriendsBar()
+                    FriendsBar(authState: authState)
                         .padding(.horizontal, geometry.size.width * 0.04)
                 }
-                .frame(height: viewModel.isFriendsVisible ? geometry.size.height * 0.17 : 0) // Control Transition of Height
-                .offset(y: viewModel.isFriendsVisible ? geometry.size.height * 0.09 : geometry.size.height * 0.08) // Control Transition of DropDown
-                .alert("Congrats, youv've completed the milestone. Your next milestone is in 100 seconds", isPresented: $viewModel.maxTimeAlert) {
+                .frame(height: authState.isFriendsVisible ? geometry.size.height * 0.17 : 0) // Control Transition of Height
+                .offset(y: authState.isFriendsVisible ? geometry.size.height * 0.09 : geometry.size.height * 0.08) // Control Transition of DropDown
+                .alert("Congrats, youv've completed the milestone. Your next milestone is in 100 seconds", isPresented: $authState.maxTimeAlert) {
                     Button("Continue") {
-                        viewModel.maxTimeAlert.toggle()
-                        viewModel.updateTaskDecimalDict()
+                        authState.maxTimeAlert.toggle()
+                        authState.updateTaskDecimalDict()
                     }
                 }
             }
@@ -328,7 +330,6 @@ struct ContentView: View {
         
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        return ContentView()
-            .environmentObject(MockViewModel() as ViewModel)
+        return ContentView(authState: AuthState())
     }
 }

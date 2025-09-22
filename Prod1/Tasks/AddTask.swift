@@ -8,11 +8,11 @@
 import SwiftUI
 
 struct AddTask: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @ObservedObject var authState: AuthState
     
     var body: some View {
         VStack {
-            TextField("Task name", text: $viewModel.taskString)
+            TextField("Task name", text: $authState.taskString)
                 .padding(10)
                 .border(Color.white)
             
@@ -21,9 +21,9 @@ struct AddTask: View {
             
             Button {
                 Task {
-                    await viewModel.taskAdder()
+                    await authState.taskAdder()
                 }
-                viewModel.isAddTaskVisible = false
+                authState.isAddTaskVisible = false
             } label: {
                 ZStack {
                     Capsule()
@@ -43,7 +43,6 @@ struct AddTask: View {
 
 struct AddTask_Previews: PreviewProvider {
     static var previews: some View {
-        AddTask()
-            .environmentObject(MockViewModel() as ViewModel)
+        AddTask(authState: AuthState())
     }
 }

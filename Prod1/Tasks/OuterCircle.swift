@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
 
 struct OuterCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @ObservedObject var authState: AuthState
     let innerRadius: MarkDimension
     let outerRadius: MarkDimension
     let cornerRadius: CGFloat
@@ -18,14 +18,13 @@ struct OuterCircle: View {
     @State private var animatedOpacity: Double = 1.0
     
     var body: some View {
-        if let tasks = viewModel.taskData?.tasks,
-           let timeSpent = viewModel.taskData?.taskTimerDictionary,
-            !tasks.isEmpty, !timeSpent.isEmpty {
+        if let tasks = authState.taskData?.tasks, !tasks.isEmpty {
+            let timeSpent = authState.taskData?.taskTimerDictionary ?? [:]
             Chart(tasks, id: \.self) { task in
                 SectorMark(
-                    angle: .value("Time Spent", 
-                        (task == viewModel.taskName && viewModel.isTimerOn) 
-                        ? viewModel.taskTime 
+                    angle: .value("Time Spent",
+                        (task == authState.taskName && authState.isTimerOn)
+                        ? authState.taskTime
                         : (timeSpent[task] ?? 0)
                     ),
                     innerRadius: innerRadius,
@@ -33,19 +32,19 @@ struct OuterCircle: View {
                     angularInset: 1
                 )
                 .cornerRadius(cornerRadius)
-                .opacity(viewModel.selectedTask == nil || viewModel.selectedTask == task ? 1 : animatedOpacity)
+                .opacity(authState.selectedTask == nil || authState.selectedTask == task ? 1 : animatedOpacity)
             }
             .chartAngleSelection(value: $pieSelection)
             .onChange(of: pieSelection, initial: false) { _ , newValue in
                 withAnimation(.easeInOut(duration: 0.5)) {
                     if let newValue {
-                        viewModel.selectedTask = viewModel.taskForTime(for: newValue, tasks: tasks, timeSpent: timeSpent)
+                        authState.selectedTask = authState.taskForTime(for: newValue, tasks: tasks, timeSpent: timeSpent)
                     }
                     animatedOpacity = 0.3
                 }
             }
         } else {
-            Chart(viewModel.placeholderTasks, id: \.self) { task in
+            Chart(authState.placeholderTasks, id: \.self) { task in
                 SectorMark(
                     angle: .value("Time Spent", task),
                     innerRadius: innerRadius,
@@ -62,7 +61,6 @@ struct OuterCircle: View {
 
 struct OuterCircle_Previews: PreviewProvider {
     static var previews: some View {
-        return OuterCircle(innerRadius: 140, outerRadius: 170, cornerRadius: 5)
-            .environmentObject(MockViewModel() as ViewModel)
+        return OuterCircle(authState: AuthState(), innerRadius: 140, outerRadius: 170, cornerRadius: 5)
     }
 }

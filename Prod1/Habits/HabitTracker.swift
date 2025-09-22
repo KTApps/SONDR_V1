@@ -10,12 +10,12 @@ import Firebase
 import FirebaseFirestoreSwift
 
 struct HabitTracker: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @ObservedObject var authState: AuthState
         
     var body: some View {
         ZStack {
             Button(action: {
-                viewModel.isBlurViewVisible = false
+                authState.isBlurViewVisible = false
             }) {
                 BlurEffect(style: .systemMaterialDark)
             }
@@ -36,13 +36,13 @@ struct HabitTracker: View {
                     
     //                MARK: LEFT CHEVRON
                     Button(action: {
-                        if viewModel.weekDayIndexCounter != 0 {
-                            viewModel.weekDayIndexCounter -= 1
+                        if authState.weekDayIndexCounter != 0 {
+                            authState.weekDayIndexCounter -= 1
                         } else {
-                            viewModel.weekDayIndexCounter += 6
+                            authState.weekDayIndexCounter += 6
                         }
                         
-                        viewModel.weekdayMinus()
+                        authState.weekdayMinus()
                                             
                     }) {
                         Image(systemName: "chevron.left")
@@ -53,7 +53,7 @@ struct HabitTracker: View {
                     Spacer()
                     
     //                MARK: WEEKDAY ARRAY
-                    Text(viewModel.weekDay[viewModel.weekDayIndexCounter])
+                    Text(authState.weekDay[authState.weekDayIndexCounter])
                         .font(.custom("medium Header", size: 25))
                         .shadow(radius: 3, x: 3, y: 3)
                         .fontWeight(.black)
@@ -62,13 +62,13 @@ struct HabitTracker: View {
                     
     //                MARK: RIGHT CHEVRON
                     Button(action: {
-                        if viewModel.weekDayIndexCounter != 6 {
-                            viewModel.weekDayIndexCounter += 1
+                        if authState.weekDayIndexCounter != 6 {
+                            authState.weekDayIndexCounter += 1
                         } else {
-                            viewModel.weekDayIndexCounter = 0
+                            authState.weekDayIndexCounter = 0
                         }
                         
-                        viewModel.weekdayPlus()
+                        authState.weekdayPlus()
                         
                     }) {
                         Image(systemName: "chevron.right")
@@ -81,27 +81,27 @@ struct HabitTracker: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, -10)
                 
-                Text("Day \(viewModel.habitStreak)")
+                Text("Day \(authState.habitStreak)")
                     .font(.callout)
                 
                 Spacer()
                     .frame(height: 70)
                 
     //            MARK: HABIT ARRAY
-                let documentTitle = "\(viewModel.currentYear)\(viewModel.currentDayOfWeek)"
-                let habits = viewModel.habitDataForDay[documentTitle]?.habitIdArray ?? []
+                let documentTitle = "\(authState.currentYear)\(authState.currentDayOfWeek)"
+                let habits = authState.habitDataForDay[documentTitle]?.habitIdArray ?? []
                 
                 ForEach(habits, id: \.self) { habit in
                     SwipeableRow(
                         content: {
                             HStack {
-                                Text(viewModel.habitDataForDay[documentTitle]?.habitIdName[habit] ?? "")
+                                Text(authState.habitDataForDay[documentTitle]?.habitIdName[habit] ?? "")
                                     .font(.custom("Big Header", size: 30))
                                     .fontWeight(.black)
                                     .shadow(radius: 3, x: 3, y: 3)
                                     .padding(.vertical, 3)
                                     .overlay(
-                                        viewModel.habitDataForDay[documentTitle]?.isHabitStriked[habit] ?? false ?
+                                        authState.habitDataForDay[documentTitle]?.isHabitStriked[habit] ?? false ?
                                             Rectangle()
                                                 .frame(height: 4)
                                                 .colorInvert()
@@ -109,15 +109,15 @@ struct HabitTracker: View {
                                             : nil
                                     )
                                     .onTapGesture {
-                                        viewModel.habitStriker(value: habit)
+                                        authState.habitStriker(value: habit)
                                     }
                             }
                         },
                         onSwipeLeft: {
-                            viewModel.habitRemover(value: habit)
+                            authState.habitRemover(value: habit)
                         },
                         onSwipeRight: {
-                            viewModel.habitRemover(value: habit)
+                            authState.habitRemover(value: habit)
                         }
                     )
                 }
@@ -127,17 +127,17 @@ struct HabitTracker: View {
     //            MARK: ADD HABIT Button
                 HStack {
                     Button(action: {
-                        viewModel.isAddHabitVisible = true
+                        authState.isAddHabitVisible = true
                     }) {
                         Text("Add Habit")
                             .font(.title)
                             .fontWeight(.bold)
                     }
                     .padding(20)
-                    .sheet(isPresented: $viewModel.isAddHabitVisible) {
+                    .sheet(isPresented: $authState.isAddHabitVisible) {
                         ZStack {
                             BlurEffect(style: .light)
-                            HabitAdder()
+                            HabitAdder(authState: authState)
                                 .presentationDetents([.height(160)])
                         }
                     }
@@ -150,9 +150,9 @@ struct HabitTracker: View {
             .padding(.vertical, 10)
 
     //        MARK: REMOVE HABIT CODE
-            .onChange(of: viewModel.selectedHabit) { habitToRemove in
+            .onChange(of: authState.selectedHabit) { habitToRemove in
                 if let habitToRemove = habitToRemove {
-                    viewModel.habitData?.habitIdArray.removeAll { $0 == habitToRemove }
+                    authState.habitData?.habitIdArray.removeAll { $0 == habitToRemove }
                 }
             }
         }
@@ -162,7 +162,6 @@ struct HabitTracker: View {
 
 struct HabitTracker_Previews: PreviewProvider {
     static var previews: some View {
-        return HabitTracker()
-            .environmentObject(MockViewModel() as ViewModel)
+        return HabitTracker(authState: AuthState())
     }
 }

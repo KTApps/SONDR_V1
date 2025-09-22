@@ -9,28 +9,35 @@ import SwiftUI
 import Charts
 
 struct Last10Days: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @ObservedObject var authState: AuthState
     var body: some View {
         let numberOfColumns = 5
-        let numberOfRows = (viewModel.docTitles.count + numberOfColumns - 1) / numberOfColumns
+        let numberOfRows = (authState.docTitles.count + numberOfColumns - 1) / numberOfColumns
         
         VStack(alignment: .leading, spacing: 15) {
             ForEach(0..<numberOfRows, id: \.self) { rowIndex in
                 HStack(spacing: 15) {
                     ForEach(0..<numberOfColumns, id: \.self) { columnIndex in
                         let index = rowIndex * numberOfColumns + columnIndex
-                        if viewModel.docTitles.count > 0 {
+                        if authState.docTitles.count > 0 {
                             withAnimation {
                                 ZStack {
-                                    if index < viewModel.docTitles.count {
-                                        let docTitleIndexValue = viewModel.docTitles[index]
+                                    if index < authState.docTitles.count {
+                                        let docTitleIndexValue = authState.docTitles[index]
                                         let dayOfYear = Int(docTitleIndexValue.dropFirst(4)) ?? 0
-                                        let date = viewModel.dateFromDayOfYear(index: index, year: viewModel.currentYear, dayOfYear: dayOfYear)
+                                        let date = authState.dateFromDayOfYear(index: index, 
+                                                                               year: authState.currentYear,
+                                                                               dayOfYear: dayOfYear)
                                         Text(String(date?.day ?? 0))
                                             .font(.custom("smallNumber", size: 13))
                                             .foregroundColor(.white)
-                                        OuterCalendarCircle(dayOfYear: docTitleIndexValue, innerRadius: 20, outerRadius: 27, cornerRadius: 5)
-                                        Inner10DaysCircle(docTitleIndex: index)
+                                        OuterCalendarCircle(authState: authState,
+                                                            dayOfYear: docTitleIndexValue,
+                                                            innerRadius: 20,
+                                                            outerRadius: 27,
+                                                            cornerRadius: 5)
+                                        Inner10DaysCircle(authState: authState,
+                                                          docTitleIndex: index)
                                     }
                                 }
                                 .frame(width: UIScreen.main.bounds.width / CGFloat(7),
@@ -45,11 +52,11 @@ struct Last10Days: View {
 }
 
 struct Inner10DaysCircle: View {
-    @EnvironmentObject var viewModel: ViewModel
+    @ObservedObject var authState: AuthState
     var docTitleIndex: Int
     
     private func calendarColorReturn(value: String) -> Color {
-        if viewModel.habitDataForDay[viewModel.docTitles[docTitleIndex]]?.isHabitStriked[value] == true {
+        if authState.habitDataForDay[authState.docTitles[docTitleIndex]]?.isHabitStriked[value] == true {
             return .blue
         } else {
             return .gray
@@ -57,18 +64,18 @@ struct Inner10DaysCircle: View {
     }
     
     var body: some View {
-        guard docTitleIndex < viewModel.docTitles.count else {
+        guard docTitleIndex < authState.docTitles.count else {
             return AnyView(Text("Index out of range"))
         }
         
-        let docTitleIndexValue = viewModel.docTitles[docTitleIndex]
+        let docTitleIndexValue = authState.docTitles[docTitleIndex]
         
         Task {
-            await viewModel.listenForCircleData(document: docTitleIndexValue)
+            await authState.listenForCircleData(document: docTitleIndexValue)
         }
         
         // Check if habit data exists and isn’t empty
-        if let habits = viewModel.habitDataForDay[docTitleIndexValue]?.habitIdArray, !habits.isEmpty {
+        if let habits = authState.habitDataForDay[docTitleIndexValue]?.habitIdArray, !habits.isEmpty {
             // Return the Chart view
             return AnyView(
                 Chart(habits, id:\.self) { habit in
@@ -84,7 +91,7 @@ struct Inner10DaysCircle: View {
         } else {
             // Return the Chart view
             return AnyView(
-                Chart(viewModel.placeholderTasks, id:\.self) { task in
+                Chart(authState.placeholderTasks, id:\.self) { task in
                     SectorMark(
                         angle: .value("Time Spent", task),
                         innerRadius: 11,
@@ -101,7 +108,6 @@ struct Inner10DaysCircle: View {
 
 struct Last10Days_Previews: PreviewProvider {
     static var previews: some View {
-        return Last10Days()
-            .environmentObject(MockViewModel() as ViewModel)
+        return Last10Days(authState: AuthState())
     }
 }

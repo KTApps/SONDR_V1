@@ -10,7 +10,7 @@ import Firebase
 
 @main
 struct Prod1App: App {
-    @StateObject var viewModel = ViewModel()
+    @StateObject var authState = AuthState()
         
     init() {
         FirebaseApp.configure()
@@ -18,8 +18,7 @@ struct Prod1App: App {
     
     var body: some Scene {
         WindowGroup {
-            StartView()
-                .environmentObject(viewModel)
+            StartView(authState: authState)
         }
     }
 }

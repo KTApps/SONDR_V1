@@ -380,13 +380,9 @@ extension AuthState: TaskDataViewModel {
         } else if seconds >= 60 {
             let minutes = seconds / 60
             var result = "\(minutes) \(minutes == 1 ? "min" : "mins")"
-            let remainder = seconds % 60
-            if remainder > 0 {
-                result += " \(remainder) \(remainder == 1 ? "sec" : "secs")"
-            }
             return result
         } else {
-            return "\(seconds) \(seconds == 1 ? "second" : "seconds")"
+            return "0 mins"
         }
     }
 }

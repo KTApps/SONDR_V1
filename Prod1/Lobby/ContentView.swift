@@ -61,9 +61,9 @@ struct ContentView: View {
                     VStack {
                         HStack{
                             Spacer()
-                                .frame(width: geometry.size.width * 0.03)
+                                .frame(width: geometry.size.width * 0.04)
                             Text(authState.taskName)
-                                .font(.system(size: geometry.size.width * 0.06))
+                                .font(AuthState.Typography.font_1_bold)
                             
                             Image(systemName: "chevron.down")
                                 .font(.system(size: geometry.size.width * 0.04))
@@ -78,7 +78,7 @@ struct ContentView: View {
                         }
                         
                         Spacer()
-                            .frame(height: geometry.size.width * 0.01)
+                            .frame(height: geometry.size.width * 0.02)
                         
                         Button(action: {
                             authState.isTimerOn.toggle()
@@ -97,6 +97,9 @@ struct ContentView: View {
                             }
                         }) {
                             HStack {
+                                Spacer()
+                                    .frame(width: geometry.size.width * 0.04)
+                                
                                 Text(isShowingCumTime ? "\(authState.formattedCumulativeTime)" : "\(authState.formattedTaskTime)")
                                     .onReceive(authState.timer) { time in
                                         if authState.isTimerOn {
@@ -114,12 +117,11 @@ struct ContentView: View {
                                         }
                                     }
                                 Image(systemName: playButton)
-                                    .font(.system(size: geometry.size.width * 0.04))
+                                    .font(AuthState.Typography.font_3_bold)
                             }
                         }
                         .foregroundColor(.white)
-                        .font(.system(size: geometry.size.width * 0.06))
-                        .bold()
+                        .font(AuthState.Typography.font_3_bold)
                     }
                         
                     Spacer()
@@ -131,16 +133,16 @@ struct ContentView: View {
                         ZStack {
                             
                             OuterCircle(authState: authState, 
-                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29),
-                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.4),
+                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.30),
+                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.36),
                                         cornerRadius: 1)
                             
                             if let habits = authState.habitData?.habitIdArray, !habits.isEmpty {
                                 Chart(habits, id:\.self) { habit in
                                     SectorMark(
                                         angle: .value("isTicked", 1),
-                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.19),
-                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.27),
+                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.20),
+                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29),
                                         angularInset: 1
                                     )
                                     .foregroundStyle(authState.colorReturn(value: habit))
@@ -211,13 +213,13 @@ struct ContentView: View {
                                 let task = authState.selectedTask ?? ""
                                 
                                 Text(task)
-                                    .font(.system(size: geometry.size.width * 0.05))
+                                    .font(AuthState.Typography.font_1_bold)
                                 Text(isShowingCumTime ? authState.monthlyTime(for: task) : authState.dailyTime(for: task))
-                                    .font(.system(size: geometry.size.width * 0.05))
+                                    .font(AuthState.Typography.font_3_bold)
                                     .transition(.slide)
                                     .animation(.easeInOut, value: isShowingCumTime)
                                 Text(isShowingCumTime ? "\(authState.month)" : "Today")
-                                    .font(.system(size: geometry.size.width * 0.05))
+                                    .font(AuthState.Typography.font_4_bold)
                                     .transition(.slide)
                                     .animation(.easeInOut, value: isShowingCumTime)
                             }
@@ -228,13 +230,15 @@ struct ContentView: View {
                     
                     // MARK: GROUP 4
                     VStack{
+                        /*
                         HStack{
                             Text("Last 10 Days")
-                                .font(.system(size: geometry.size.width * 0.05))
-                                .fontWeight(.bold)
+                                .font(AuthState.Typography.font_3_bold)
                             Spacer()
                         }
-                        
+                        */
+                        Spacer()
+                            .frame(height: 47)
                         ZStack{
                             RoundedRectangle(cornerRadius: 10)
                                 .foregroundColor(authState.darkGray)
@@ -252,13 +256,13 @@ struct ContentView: View {
                                     authState.selectedTask = nil
                                 }) {
                                     ZStack {
+                                        /*
                                         RoundedRectangle(cornerRadius: 10)
                                             .stroke(lineWidth: geometry.size.width * 0.002)
                                             .frame(width: geometry.size.width * 0.5, height: geometry.size.height * 0.04)
-                                        
+                                        */
                                         Text("View Your Progress")
-                                            .font(.system(size: geometry.size.width * 0.04))
-                                            .fontWeight(.bold)
+                                            .font(AuthState.Typography.font_2_light)
                                     }
                                     .foregroundColor(.white)
                                 }

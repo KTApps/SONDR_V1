@@ -33,10 +33,9 @@ struct AddFriends: View {
                     .frame(height: 20)
                 
                 Text("SONDR")
-                    .font(.title)
+                    .font(AuthState.Typography.font_1_bold)
                     .foregroundColor(.white)
                     .shadow(radius: 3, x: 3, y: 3)
-                    .fontWeight(.black)
                 
                 Spacer()
                     .frame(height: 40)
@@ -78,6 +77,7 @@ struct AddFriends: View {
                             if let value = authState.searchResults[uniqueKey] {
                                 Text("\(username) - \(timeFormat(seconds: value))")
                                     .foregroundColor(.white)
+                                    .font(AuthState.Typography.font_4_bold)
                             }
                             
                             Spacer()
@@ -113,6 +113,7 @@ struct AddFriends: View {
                             .cornerRadius(10)
                             .foregroundColor(.gray)
                         Text("Invite your friends to SONDR")
+                            .font(AuthState.Typography.font_4_bold)
                             .foregroundColor(.white)
                     }
                 }

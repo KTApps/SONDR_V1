@@ -17,7 +17,7 @@ struct ProgressBar: View {
                     .frame(height: geometry.size.height * 0.01)
                 HStack {
                     Text("Select Your Task")
-                        .font(.system(size: geometry.size.width * 0.04))
+                        .font(AuthState.Typography.font_1_bold)
                     Spacer()
                 }
                 .padding(.horizontal, geometry.size.width * 0.04)
@@ -56,7 +56,7 @@ struct ProgressBar: View {
                             HStack {
                                 Spacer()
                                 Text("\(item)")
-                                    .font(.system(size: geometry.size.width * 0.05))
+                                    .font(AuthState.Typography.font_1_bold)
                                     .foregroundColor(.white)
                                 Spacer()
                             }
@@ -71,12 +71,13 @@ struct ProgressBar: View {
                     authState.isAddTaskVisible.toggle()
                 }) {
                     ZStack {
+                        /*
                         Capsule()
                             .fill(Color.gray)
                             .frame(width: geometry.size.width * 0.5, height: geometry.size.height * 0.07)
-                        
+                        */
                         Text("Add Task")
-                            .font(.system(size: geometry.size.width * 0.05))
+                            .font(AuthState.Typography.font_1_bold)
                             .foregroundColor(Color.white)
                     }
                 }

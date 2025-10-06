@@ -29,13 +29,13 @@ struct Last10Days: View {
                                                                                year: authState.currentYear,
                                                                                dayOfYear: dayOfYear)
                                         Text(String(date?.day ?? 0))
-                                            .font(.custom("smallNumber", size: 13))
+                                            .font(.custom("smallNumber", size: 11))
                                             .foregroundColor(.white)
                                         OuterCalendarCircle(authState: authState,
                                                             dayOfYear: docTitleIndexValue,
                                                             innerRadius: 20,
                                                             outerRadius: 27,
-                                                            cornerRadius: 5)
+                                                            cornerRadius: 1)
                                         Inner10DaysCircle(authState: authState,
                                                           docTitleIndex: index)
                                     }
@@ -81,11 +81,12 @@ struct Inner10DaysCircle: View {
                 Chart(habits, id:\.self) { habit in
                     SectorMark(
                         angle: .value("Time Spent", 10),
-                        innerRadius: 11,
-                        outerRadius: 17
+                        innerRadius: 10,
+                        outerRadius: 15,
+                        angularInset: 1
                     )
                     .foregroundStyle(calendarColorReturn(value: habit))
-                    .cornerRadius(5)
+                    .cornerRadius(1)
                 }
             )
         } else {
@@ -94,12 +95,13 @@ struct Inner10DaysCircle: View {
                 Chart(authState.placeholderTasks, id:\.self) { task in
                     SectorMark(
                         angle: .value("Time Spent", task),
-                        innerRadius: 11,
-                        outerRadius: 17
+                        innerRadius: 10,
+                        outerRadius: 15,
+                        angularInset: 1
                     )
                     .foregroundStyle(.gray)
                     .opacity(0.3)
-                    .cornerRadius(5)
+                    .cornerRadius(1)
                 }
             )
         }

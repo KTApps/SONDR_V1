@@ -54,13 +54,12 @@ struct CalendarCircle: View {
                         }
                         
                         Spacer()
-                            .frame(width: 110)
+                            .frame(width: 130)
                         
                         Text("SONDR")
-                            .font(.title)
+                            .font(AuthState.Typography.font_1_bold)
                             .foregroundColor(.white)
                             .shadow(radius: 3, x: 3, y: 3)
-                            .fontWeight(.black)
                         
                         Spacer()
                     }
@@ -71,22 +70,21 @@ struct CalendarCircle: View {
                     
                     // Display the formatted date above the ZStack
                     Text(formattedDate)
-                        .font(.title)
+                        .font(AuthState.Typography.font_3_bold)
                         .foregroundColor(.white)
                     
                     ZStack {
                         VStack {
                             Text(authState.selectedCalendarTask ?? "")
-                                .font(.title2)
+                                .font(AuthState.Typography.font_1_bold)
                                 .fontWeight(.bold)
                             Text(authState.calendarCircleDailyTime(for: authState.selectedCalendarTask ?? ""))
-                                .font(.system(size: 22))
-                                .fontWeight(.bold)
+                                .font(AuthState.Typography.font_3_bold)
                         }
                         .font(.title)
                         let documentTitle = "\(selectedYear)\(dayOfYear)"
-                        OuterCalendarCircle(authState: authState, dayOfYear: documentTitle, innerRadius: 130, outerRadius: 157, cornerRadius: 1)
-                        InnerCircle(authState: authState, dayOfYear: documentTitle, innerRadius: 91, outerRadius: 117, cornerRadius: 1)
+                        OuterCalendarCircle(authState: authState, dayOfYear: documentTitle, innerRadius: 129, outerRadius: 154, cornerRadius: 1)
+                        InnerCircle(authState: authState, dayOfYear: documentTitle, innerRadius: 87, outerRadius: 112, cornerRadius: 1)
                     }
                     
                     Spacer()

@@ -27,7 +27,7 @@ struct SignUpView: View {
                             .frame(width: geometry.size.width * 0.40)
                         
                         Text("SONDR")
-                            .font(AuthState.Typography.font_1_auth_bold)
+                            .font(AuthState.Typography.font_1_bold)
                     }
                     
                     Spacer()
@@ -85,7 +85,7 @@ struct SignUpView: View {
                         } label: {
                             Text("SIGN UP")
                                 .foregroundColor(.white)
-                                .font(AuthState.Typography.font_1_auth_bold)
+                                .font(AuthState.Typography.font_1_bold)
                         }
                         //.disabled(!isFormValid)
                         //.opacity(isFormValid ? 1 : 0.5)
@@ -100,9 +100,9 @@ struct SignUpView: View {
                     } label: {
                         HStack {
                             Text("Already have an account?")
-                                .font(AuthState.Typography.font_1_auth_light)
+                                .font(AuthState.Typography.font_1_light)
                             Text("LOG IN")
-                                .font(AuthState.Typography.font_1_auth_bold)
+                                .font(AuthState.Typography.font_1_bold)
                         }
                         .foregroundColor(.white)
                     }

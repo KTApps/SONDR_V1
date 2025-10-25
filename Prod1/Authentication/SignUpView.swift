@@ -27,7 +27,7 @@ struct SignUpView: View {
                             .frame(width: geometry.size.width * 0.40)
                         
                         Text("SONDR")
-                            .font(AuthState.Typography.font_1_bold)
+                            .font(AuthState.Typography.font_1_bold_sondr)
                     }
                     
                     Spacer()
@@ -85,7 +85,7 @@ struct SignUpView: View {
                         } label: {
                             Text("SIGN UP")
                                 .foregroundColor(.white)
-                                .font(AuthState.Typography.font_1_bold)
+                                .font(AuthState.Typography.font_1_bold_sondr)
                         }
                         //.disabled(!isFormValid)
                         //.opacity(isFormValid ? 1 : 0.5)

@@ -34,7 +34,7 @@ struct LogInView: View {
                                 .frame(width: geometry.size.width * 0.40)
                             
                             Text("SONDR")
-                                .font(AuthState.Typography.font_1_bold)
+                                .font(AuthState.Typography.font_1_bold_sondr)
                         }
                         
                         Spacer()
@@ -80,7 +80,7 @@ struct LogInView: View {
                             } label: {
                                 Text("LOG IN")
                                     .foregroundColor(.white)
-                                    .font(AuthState.Typography.font_1_bold)
+                                    .font(AuthState.Typography.font_1_bold_sondr)
                             }
                             //.disabled(!isFormValid)
                             //.opacity(isFormValid ? 1 : 0.5)

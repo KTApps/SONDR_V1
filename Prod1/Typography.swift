@@ -10,6 +10,7 @@ import SwiftUI
 // MARK: Typography namespace within AuthState
 extension AuthState {
     enum Typography {
+        static var font_1_bold_sondr: Font { .system(size: 20, weight: .bold) }
         static var font_1_bold: Font { .system(size: 17, weight: .bold) }
         static var font_1_light: Font { .system(size: 17, weight: .light) }
         static var font_2_light: Font { .system(size: 17, weight: .bold) }

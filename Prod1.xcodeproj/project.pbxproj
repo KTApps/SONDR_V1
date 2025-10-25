@@ -27,6 +27,7 @@
 		085ACA3C2C90A9700024C508 /* SwipeGeometryReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085ACA3B2C90A9700024C508 /* SwipeGeometryReader.swift */; };
 		085D8E0E2BA0DF580028AD03 /* AuthState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085D8E0D2BA0DF580028AD03 /* AuthState.swift */; };
 		085D8E122BA0E8540028AD03 /* StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085D8E112BA0E8540028AD03 /* StartView.swift */; };
+		08601AD32E9425B400545B9B /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08601AD22E9425B400545B9B /* Typography.swift */; };
 		086FA10E2BA2178F005B26EB /* Input.swift in Sources */ = {isa = PBXBuildFile; fileRef = 086FA10D2BA2178F005B26EB /* Input.swift */; };
 		086FA1122BA217D5005B26EB /* SettingsButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 086FA1112BA217D5005B26EB /* SettingsButton.swift */; };
 		086FA1142BA217F9005B26EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 086FA1132BA217F9005B26EB /* SettingsView.swift */; };
@@ -76,6 +77,7 @@
 		085ACA3B2C90A9700024C508 /* SwipeGeometryReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeGeometryReader.swift; sourceTree = "<group>"; };
 		085D8E0D2BA0DF580028AD03 /* AuthState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthState.swift; sourceTree = "<group>"; };
 		085D8E112BA0E8540028AD03 /* StartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartView.swift; sourceTree = "<group>"; };
+		08601AD22E9425B400545B9B /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		086FA10D2BA2178F005B26EB /* Input.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Input.swift; sourceTree = "<group>"; };
 		086FA1112BA217D5005B26EB /* SettingsButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsButton.swift; sourceTree = "<group>"; };
 		086FA1132BA217F9005B26EB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -247,6 +249,7 @@
 				08B8419E2BA5F15E009B4419 /* GoogleService-Info.plist */,
 				7646F2AC2B7837D20075908C /* Prod1App.swift */,
 				085D8E0D2BA0DF580028AD03 /* AuthState.swift */,
+				08601AD22E9425B400545B9B /* Typography.swift */,
 				08A4308A2C46FF4500D22B23 /* Lobby */,
 				08E5A3662B9FC9A000F3B5C5 /* Authentication */,
 				08A4308C2C46FF7700D22B23 /* Tasks */,
@@ -366,6 +369,7 @@
 				084F54992C5FF5D600E44385 /* MockViewModel.swift in Sources */,
 				082D11B42B82910100E39B40 /* HabitAdder.swift in Sources */,
 				08DC9D4B2C3306BD00AFDA0F /* OuterCircle.swift in Sources */,
+				08601AD32E9425B400545B9B /* Typography.swift in Sources */,
 				08A3447B2DF4B4C7005B80D2 /* HabitDataModel.swift in Sources */,
 				08A344812DF4B644005B80D2 /* FriendsModel.swift in Sources */,
 				0855693D2C95FC2100D5E40F /* CalendarCircle.swift in Sources */,

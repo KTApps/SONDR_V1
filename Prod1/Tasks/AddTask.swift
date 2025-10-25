@@ -26,12 +26,13 @@ struct AddTask: View {
                 authState.isAddTaskVisible = false
             } label: {
                 ZStack {
+                    /*
                     Capsule()
                         .fill(Color.gray)
                     .frame(width: 150, height: 32)
-                    
+                    */
                     Text("Add Task")
-                        .font(.title3)
+                        .font(AuthState.Typography.font_1_bold)
                         .foregroundColor(Color.white)
                 }
             }

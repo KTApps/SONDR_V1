@@ -24,9 +24,7 @@ struct HabitTracker: View {
                     .frame(height: 70)
                 
                 Text("SONDR")
-                    .font(.title)
-                    .shadow(radius: 3, x: 3, y: 3)
-                    .fontWeight(.black)
+                    .font(AuthState.Typography.font_1_bold)
                 
                 Spacer()
                     .frame(height: 30)
@@ -54,9 +52,8 @@ struct HabitTracker: View {
                     
     //                MARK: WEEKDAY ARRAY
                     Text(authState.weekDay[authState.weekDayIndexCounter])
-                        .font(.custom("medium Header", size: 25))
+                        .font(AuthState.Typography.font_5_bold)
                         .shadow(radius: 3, x: 3, y: 3)
-                        .fontWeight(.black)
                     
                     Spacer()
                     
@@ -76,14 +73,14 @@ struct HabitTracker: View {
                     }
                     .padding(20)
                 }
-                .font(.custom("Big title", size: 35))
-                .fontWeight(.black)
+                .font(AuthState.Typography.font_5_bold)
                 .padding(.horizontal, 20)
                 .padding(.vertical, -10)
                 
+                /*
                 Text("Day \(authState.habitStreak)")
                     .font(.callout)
-                
+                */
                 Spacer()
                     .frame(height: 70)
                 
@@ -96,15 +93,14 @@ struct HabitTracker: View {
                         content: {
                             HStack {
                                 Text(authState.habitDataForDay[documentTitle]?.habitIdName[habit] ?? "")
-                                    .font(.custom("Big Header", size: 30))
-                                    .fontWeight(.black)
+                                    .font(AuthState.Typography.font_5_bold)
                                     .shadow(radius: 3, x: 3, y: 3)
                                     .padding(.vertical, 3)
                                     .overlay(
                                         authState.habitDataForDay[documentTitle]?.isHabitStriked[habit] ?? false ?
                                             Rectangle()
                                                 .frame(height: 4)
-                                                .colorInvert()
+                                                .foregroundColor(.white)
                                                 .padding(.horizontal, -10)
                                             : nil
                                     )
@@ -130,8 +126,7 @@ struct HabitTracker: View {
                         authState.isAddHabitVisible = true
                     }) {
                         Text("Add Habit")
-                            .font(.title)
-                            .fontWeight(.bold)
+                            .font(AuthState.Typography.font_1_bold)
                     }
                     .padding(20)
                     .sheet(isPresented: $authState.isAddHabitVisible) {

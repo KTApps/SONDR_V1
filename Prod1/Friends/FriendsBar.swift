@@ -20,6 +20,7 @@ struct FriendsBar: View {
                         }
                     } label: {
                         Text("Add Friends")
+                            .font(AuthState.Typography.font_4_bold)
                     }
                     .foregroundColor(.white)
                     .sheet(isPresented: $authState.isAddFriendsVisible) {
@@ -31,6 +32,8 @@ struct FriendsBar: View {
                     Spacer()
                 }
                 .padding(.horizontal, 13)
+                
+                Spacer()
                 
                 ScrollView(.horizontal) {
                     HStack(spacing: -30) {
@@ -49,7 +52,7 @@ struct FriendsBar: View {
                                                        cornerRadius: 1)
                                 }
                                 Text(friendUsername)
-                                    .font(.system(size: 14))
+                                    .font(AuthState.Typography.font_4_bold)
                             }
                         }
                         Spacer()

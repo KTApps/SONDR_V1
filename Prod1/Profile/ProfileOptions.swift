@@ -20,6 +20,16 @@ struct ProfileOptions: View {
             }
             if let user = authState.currentUser {
                 VStack {
+                    Spacer()
+                        .frame(height: 100)
+                    
+                    Text("SONDR")
+                        .font(AuthState.Typography.font_1_bold)
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                        .frame(height: 130)
+                    
                     PhotosPicker(selection: $authState.selectedItem) {
                         if let profileImage = authState.profileImage {
                             profileImage
@@ -36,8 +46,11 @@ struct ProfileOptions: View {
                                 .clipShape(Circle())
                         }
                     }
+                    
                     Text(user.username)
+                        .font(AuthState.Typography.font_1_bold)
                     Text("\(authState.friendCount) \(authState.friendOrFriends)")
+                        .font(AuthState.Typography.font_1_bold)
                     
                     Spacer()
                         .frame(height: 60)
@@ -48,8 +61,7 @@ struct ProfileOptions: View {
                         }
                     } label: {
                         Text("MILESTONES")
-                            .font(.title)
-                            .fontWeight(.heavy)
+                            .font(AuthState.Typography.font_5_bold)
                     }
                     
                     Spacer()
@@ -61,8 +73,7 @@ struct ProfileOptions: View {
                         }
                     } label: {
                         Text("ADD FRIENDS")
-                            .font(.title)
-                            .fontWeight(.heavy)
+                            .font(AuthState.Typography.font_5_bold)
                     }
                     .sheet(isPresented: $authState.isAddFriendsVisible) {
                         AddFriends(authState: authState)
@@ -77,13 +88,15 @@ struct ProfileOptions: View {
                         }
                     } label: {
                         Text("SETTINGS")
-                            .font(.title)
-                            .fontWeight(.heavy)
+                            .font(AuthState.Typography.font_5_bold)
                     }
                     .sheet(isPresented: $authState.isSettingsVisible) {
                         SettingsView(authState: authState)
                             .presentationDetents([.fraction(4/10)])
                     }
+                    
+                    Spacer()
+                    
                 }
                 .foregroundColor(.white)
                 .task {

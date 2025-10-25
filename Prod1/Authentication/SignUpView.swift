@@ -17,19 +17,17 @@ struct SignUpView: View {
                     // MARK: Logo Group
                     ZStack {
                         Circle()
-                            .stroke(lineWidth: 25)
+                            .stroke(lineWidth: 22)
                             .foregroundColor(.blue)
-                            .frame(width: geometry.size.width * 0.65, height: geometry.size.width * 0.65)  // Dynamic Circle
+                            .frame(width: geometry.size.width * 0.57)
                         
                         Circle()
-                            .stroke(lineWidth: 25)
+                            .stroke(lineWidth: 22)
                             .foregroundColor(.blue)
-                            .frame(width: geometry.size.width * 0.45, height: geometry.size.width * 0.45)  // Dynamic Circle
+                            .frame(width: geometry.size.width * 0.40)
                         
                         Text("SONDR")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
+                            .font(AuthState.Typography.font_1_bold)
                     }
                     
                     Spacer()
@@ -76,7 +74,7 @@ struct SignUpView: View {
                         }
                         
                         Spacer()
-                            .frame(height: geometry.size.width * 0.05)
+                            .frame(height: geometry.size.width * 0.08)
                         
                         Button {
                             Task {
@@ -86,15 +84,11 @@ struct SignUpView: View {
                             }
                         } label: {
                             Text("SIGN UP")
-                                .font(/*@START_MENU_TOKEN@*/.title/*@END_MENU_TOKEN@*/)
-                                .fontWeight(.bold)
-                                .foregroundColor(.black)
-                                .frame(width: geometry.size.width * 0.85, height: 50)
-                                .background(Color.blue)
-                                .cornerRadius(20)
+                                .foregroundColor(.white)
+                                .font(AuthState.Typography.font_1_bold)
                         }
-                        .disabled(!isFormValid)
-                        .opacity(isFormValid ? 1 : 0.5)
+                        //.disabled(!isFormValid)
+                        //.opacity(isFormValid ? 1 : 0.5)
                     }
                     
                     Spacer()
@@ -106,8 +100,9 @@ struct SignUpView: View {
                     } label: {
                         HStack {
                             Text("Already have an account?")
+                                .font(AuthState.Typography.font_1_light)
                             Text("LOG IN")
-                                .fontWeight(.bold)
+                                .font(AuthState.Typography.font_1_bold)
                         }
                         .foregroundColor(.white)
                     }

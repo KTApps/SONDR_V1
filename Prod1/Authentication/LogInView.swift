@@ -24,22 +24,21 @@ struct LogInView: View {
             //            MARK: PLAY BUTTON
                         ZStack {
                             Circle()
-                                .stroke(lineWidth: 25)
+                                .stroke(lineWidth: 22)
                                 .foregroundColor(.blue)
-                                .frame(width: geometry.size.width * 0.65, height: geometry.size.width * 0.65)
+                                .frame(width: geometry.size.width * 0.57)
                             
                             Circle()
-                                .stroke(lineWidth: 25)
+                                .stroke(lineWidth: 22)
                                 .foregroundColor(.blue)
-                                .frame(width: geometry.size.width * 0.45, height: geometry.size.width * 0.45)
+                                .frame(width: geometry.size.width * 0.40)
                             
                             Text("SONDR")
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
+                                .font(AuthState.Typography.font_1_bold)
                         }
                         
                         Spacer()
+                            .frame(height: 150)
                         
             //            MARK: USER INPUT Section
                         VStack {
@@ -48,38 +47,27 @@ struct LogInView: View {
                                   placeHolder: "name@example.com",
                                   secureField: false)
                                 .foregroundColor(.white)
+                                .font(.custom("1st_font", size: 20))
+                                .fontWeight(.bold)
                             
-                            ZStack(alignment: .trailing) {
-                                if eyeball {
-                                    Input(text: $password,
-                                          title: "Password",
-                                          placeHolder: "******",
-                                          secureField: false)
-                                        .foregroundColor(.white)
-                                } else {
-                                    Input(text: $password,
-                                          title: "Password",
-                                          placeHolder: "******",
-                                          secureField: true)
-                                        .foregroundColor(.white)
-                                }
-                                
-                                Button {
-                                    eyeball.toggle()
-                                } label: {
-                                    VStack {
-                                        Spacer()
-                                            .frame(height: geometry.size.height * 0.03)
-                                        
+                            Input(text: $password,
+                                  title: "Password",
+                                  placeHolder: "******",
+                                  secureField: !eyeball)
+                                .foregroundColor(.white)
+                                .overlay(
+                                    Button {
+                                        eyeball.toggle()
+                                    } label: {
                                         Image(systemName: "eye")
                                             .font(.system(size: 15))
                                             .opacity(0.5)
                                             .foregroundColor(eyeball ? Color.white : Color.red)
                                     }
-                                }
-                                .padding(.top, 7)
-                                .padding(.horizontal, 9)
-                            }
+                                    .padding(.top, 33)
+                                    .padding(.trailing, 9),
+                                    alignment: .trailing
+                                )
                             
                             Spacer()
                                 .frame(height: geometry.size.height * 0.05)
@@ -91,15 +79,11 @@ struct LogInView: View {
                                 }
                             } label: {
                                 Text("LOG IN")
-                                    .font(/*@START_MENU_TOKEN@*/.title/*@END_MENU_TOKEN@*/)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.black)
-                                    .frame(width: geometry.size.width * 0.85, height: 50)
-                                    .background(Color.blue)
-                                    .cornerRadius(20)
+                                    .foregroundColor(.white)
+                                    .font(AuthState.Typography.font_1_bold)
                             }
-                            .disabled(!isFormValid)
-                            .opacity(isFormValid ? 1 : 0.5)
+                            //.disabled(!isFormValid)
+                            //.opacity(isFormValid ? 1 : 0.5)
                         }
                         
                         Spacer()
@@ -111,7 +95,9 @@ struct LogInView: View {
                         } label: {
                             HStack {
                                 Text("Don't have an Account?")
+                                    .font(AuthState.Typography.font_1_light)
                                 Text("SIGN UP")
+                                    .font(AuthState.Typography.font_1_bold)
                             }
                         }
                         .foregroundColor(.white)

@@ -16,7 +16,7 @@ struct ViewYourProgress: View {
             authState.darkGray.ignoresSafeArea()
             VStack {
                 Text("SONDR")
-                    .font(.title)
+                    .font(AuthState.Typography.font_1_bold)
                     .foregroundColor(.white)
 
                 Spacer()

@@ -16,6 +16,7 @@ struct Input: View {
     var body: some View {
         VStack(alignment: .leading) {
             Text(title)
+                .font(AuthState.Typography.font_1_bold)
             
             if secureField {
                 SecureField(placeHolder, text: $text)

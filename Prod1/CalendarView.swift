@@ -95,10 +95,9 @@ struct CalendarView: View {
                 authState.darkGray.ignoresSafeArea()
                 VStack {
                     Text("SONDR")
-                        .font(.title)
+                        .font(AuthState.Typography.font_1_bold)
                         .foregroundColor(.white)
                         .shadow(radius: 3, x: 3, y: 3)
-                        .fontWeight(.black)
 
                     Spacer()
                         .frame(height: 20)
@@ -109,6 +108,7 @@ struct CalendarView: View {
                         } label: {
                             Text(String("\(selectedMonth) \(selectedYear)"))
                                 .foregroundColor(.white)
+                                .font(AuthState.Typography.font_1_bold)
                         }
                         .sheet(isPresented: $isMonthChangerVisible) {
                             VStack {
@@ -139,7 +139,8 @@ struct CalendarView: View {
                                     isMonthChangerVisible.toggle()
                                 } label: {
                                     Text("Submit")
-                                        .font(.title)
+                                        .font(AuthState.Typography.font_1_bold)
+                                        .foregroundColor(.white)
                                 }
                             }
                             .presentationDetents([.medium])

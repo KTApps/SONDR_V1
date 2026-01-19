@@ -3,3 +3,6 @@
 
 # Xcode user state (per-user, should never be committed)
 *.xcuserstate
+
+# Node.js dependencies
+functions/node_modules/

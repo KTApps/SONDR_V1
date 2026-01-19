@@ -1,0 +1,5 @@
+# macOS
+.DS_Store
+
+# Xcode user state (per-user, should never be committed)
+*.xcuserstate

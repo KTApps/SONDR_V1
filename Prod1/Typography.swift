@@ -2,7 +2,7 @@
 //  Typography.swift
 //  Prod1
 //
-//  Created by Kelvin Mahaja on 06/10/2025.
+//  Created by Kelvin Mahaja on 06/10/2025
 //
 
 import SwiftUI

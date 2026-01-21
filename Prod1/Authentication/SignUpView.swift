@@ -28,6 +28,7 @@ struct SignUpView: View {
                         
                         Text("SONDR")
                             .font(AuthState.Typography.font_1_bold_sondr)
+                            .foregroundColor(.white)
                     }
                     
                     Spacer()

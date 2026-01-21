@@ -23,6 +23,18 @@ Complete guide for setting up Firebase CLI and MCP integration with Cursor IDE.
 
 **Slash command:** `/setup-firebase` - Quick interactive setup via AI assistant
 
+### 📱 [xcodebuild-mcp-setup.md](./xcodebuild-mcp-setup.md)
+Complete guide for setting up XcodeBuildMCP to control Xcode, simulators, and iOS builds through AI agents in Cursor.
+
+**What it covers:**
+- Installing Node.js and prerequisites
+- Configuring Xcode developer path
+- Setting up XcodeBuildMCP in Cursor
+- Building, running, and testing iOS apps via AI
+- UI automation and simulator control
+
+**Slash command:** `/setup-xcodebuild-mcp` - Quick interactive setup via AI assistant
+
 ---
 
 ## How to Use These Guides
@@ -33,6 +45,7 @@ Open any guide in this folder and follow the step-by-step instructions.
 ### Option 2: Use Slash Commands (Recommended)
 In Cursor chat, type `/` and select the relevant command:
 - `/setup-firebase` - Interactive Firebase setup with AI guidance
+- `/setup-xcodebuild-mcp` - Interactive XcodeBuildMCP setup with AI guidance
 
 The AI assistant will guide you through each step interactively.
 
@@ -54,6 +67,8 @@ When documenting new repeatable processes:
 - **Project:** SONDR_V1 (iOS Habit Tracking App)
 - **Tech Stack:** SwiftUI, Firebase
 - **Firebase Project:** ProdApp (prodapp-b90ac)
+- **Xcode Project:** Prod1.xcodeproj
+- **Development Tools:** Cursor IDE with Firebase MCP & XcodeBuildMCP
 - **Development Branch:** Development
 - **Repository:** /Users/kmaha/Dev/SONDR_V1
 

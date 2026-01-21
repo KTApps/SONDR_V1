@@ -11,34 +11,36 @@ struct AddTask: View {
     @ObservedObject var authState: AuthState
     
     var body: some View {
-        VStack {
-            TextField("Task name", text: $authState.taskString)
-                .padding(10)
-                .border(Color.white)
-            
-            Spacer()
-                .frame(height: 20)
-            
-            Button {
-                Task {
-                    await authState.taskAdder()
+        GeometryReader { geometry in
+            VStack {
+                TextField("Task name", text: $authState.taskString)
+                    .padding(geometry.size.width * 0.025)
+                    .border(Color.white)
+                
+                Spacer()
+                    .frame(height: geometry.size.height * 0.08)
+                
+                Button {
+                    Task {
+                        await authState.taskAdder()
+                    }
+                    authState.isAddTaskVisible = false
+                } label: {
+                    ZStack {
+                        /*
+                        Capsule()
+                            .fill(Color.gray)
+                        .frame(width: 150, height: 32)
+                        */
+                        Text("Add Task")
+                            .font(AuthState.Typography.font_1_bold)
+                            .foregroundColor(Color.white)
+                    }
                 }
-                authState.isAddTaskVisible = false
-            } label: {
-                ZStack {
-                    /*
-                    Capsule()
-                        .fill(Color.gray)
-                    .frame(width: 150, height: 32)
-                    */
-                    Text("Add Task")
-                        .font(AuthState.Typography.font_1_bold)
-                        .foregroundColor(Color.white)
-                }
+                Spacer()
             }
-            Spacer()
+            .padding(geometry.size.width * 0.05)
         }
-        .padding(20)
     }
 }
 

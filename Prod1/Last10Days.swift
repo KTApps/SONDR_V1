@@ -11,42 +11,48 @@ import Charts
 struct Last10Days: View {
     @ObservedObject var authState: AuthState
     var body: some View {
-        let numberOfColumns = 5
-        let numberOfRows = (authState.docTitles.count + numberOfColumns - 1) / numberOfColumns
-        
-        VStack(alignment: .leading, spacing: 15) {
-            ForEach(0..<numberOfRows, id: \.self) { rowIndex in
-                HStack(spacing: 15) {
-                    ForEach(0..<numberOfColumns, id: \.self) { columnIndex in
-                        let index = rowIndex * numberOfColumns + columnIndex
-                        if authState.docTitles.count > 0 {
-                            withAnimation {
-                                ZStack {
-                                    if index < authState.docTitles.count {
-                                        let docTitleIndexValue = authState.docTitles[index]
-                                        let dayOfYear = Int(docTitleIndexValue.dropFirst(4)) ?? 0
-                                        let date = authState.dateFromDayOfYear(index: index, 
-                                                                               year: authState.currentYear,
-                                                                               dayOfYear: dayOfYear)
-                                        Text(String(date?.day ?? 0))
-                                            .font(.custom("smallNumber", size: 11))
-                                            .foregroundColor(.white)
-                                        OuterCalendarCircle(authState: authState,
-                                                            dayOfYear: docTitleIndexValue,
-                                                            innerRadius: 20,
-                                                            outerRadius: 27,
-                                                            cornerRadius: 1)
-                                        Inner10DaysCircle(authState: authState,
-                                                          docTitleIndex: index)
+        GeometryReader { geometry in
+            let numberOfColumns = 5
+            let numberOfRows = (authState.docTitles.count + numberOfColumns - 1) / numberOfColumns
+            
+            VStack(alignment: .leading, spacing: geometry.size.width * 0.04) {
+                ForEach(0..<numberOfRows, id: \.self) { rowIndex in
+                    HStack(spacing: geometry.size.width * 0.04) {
+                        ForEach(0..<numberOfColumns, id: \.self) { columnIndex in
+                            let index = rowIndex * numberOfColumns + columnIndex
+                            if authState.docTitles.count > 0 {
+                                withAnimation {
+                                    ZStack {
+                                        if index < authState.docTitles.count {
+                                            let docTitleIndexValue = authState.docTitles[index]
+                                            let dayOfYear = Int(docTitleIndexValue.dropFirst(4)) ?? 0
+                                            let date = authState.dateFromDayOfYear(index: index, 
+                                                                                   year: authState.currentYear,
+                                                                                   dayOfYear: dayOfYear)
+                                            Text(String(date?.day ?? 0))
+                                                .font(.system(size: geometry.size.width * 0.03))
+                                                .foregroundColor(.white)
+                                            OuterCalendarCircle(authState: authState,
+                                                                dayOfYear: docTitleIndexValue,
+                                                                innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.05),
+                                                                outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.07),
+                                                                cornerRadius: 1)
+                                            Inner10DaysCircle(authState: authState,
+                                                              docTitleIndex: index,
+                                                              innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.025),
+                                                              outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.04))
+                                        }
                                     }
+                                    .frame(width: geometry.size.width / CGFloat(7),
+                                           height: geometry.size.width / CGFloat(7))
                                 }
-                                .frame(width: UIScreen.main.bounds.width / CGFloat(7),
-                                       height: UIScreen.main.bounds.width / CGFloat(7))
                             }
                         }
                     }
                 }
             }
+            .padding(.horizontal, geometry.size.width * 0.04)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 }
@@ -54,6 +60,8 @@ struct Last10Days: View {
 struct Inner10DaysCircle: View {
     @ObservedObject var authState: AuthState
     var docTitleIndex: Int
+    var innerRadius: MarkDimension
+    var outerRadius: MarkDimension
     
     private func calendarColorReturn(value: String) -> Color {
         if authState.habitDataForDay[authState.docTitles[docTitleIndex]]?.isHabitStriked[value] == true {
@@ -81,8 +89,8 @@ struct Inner10DaysCircle: View {
                 Chart(habits, id:\.self) { habit in
                     SectorMark(
                         angle: .value("Time Spent", 10),
-                        innerRadius: 10,
-                        outerRadius: 15,
+                        innerRadius: innerRadius,
+                        outerRadius: outerRadius,
                         angularInset: 1
                     )
                     .foregroundStyle(calendarColorReturn(value: habit))
@@ -95,8 +103,8 @@ struct Inner10DaysCircle: View {
                 Chart(authState.placeholderTasks, id:\.self) { task in
                     SectorMark(
                         angle: .value("Time Spent", task),
-                        innerRadius: 10,
-                        outerRadius: 15,
+                        innerRadius: innerRadius,
+                        outerRadius: outerRadius,
                         angularInset: 1
                     )
                     .foregroundStyle(.gray)

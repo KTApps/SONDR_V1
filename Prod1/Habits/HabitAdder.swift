@@ -11,47 +11,49 @@ struct HabitAdder: View {
     @ObservedObject var authState: AuthState
         
     var body: some View {
-        ZStack {
-            Color.gray.ignoresSafeArea()
-            
-            VStack {
+        GeometryReader { geometry in
+            ZStack {
+                Color.gray.ignoresSafeArea()
                 
+                VStack {
+                    
 //                MARK: TASK HStack
-                HStack {
-                    Text("Task")
+                    HStack {
+                        Text("Task")
+                        Spacer()
+                    }
+                    .shadow(radius: 3, x: 3, y: 3)
+                    .padding(.horizontal, 2)
+                    
+                    TextField("Task Name", text: $authState.habitName)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .colorInvert()
+                        .shadow(radius: 5, x: 3, y: 3)
+                        .autocapitalization(.none)
+                    
+                    Spacer()
+                        .frame(height: geometry.size.height * 0.08)
+                    
+//                MARK: SAVE Button
+                    Button(action: {
+                        authState.habitAppender()
+                        authState.isAddHabitVisible = false
+                        authState.habitName = ""
+                    }) {
+                        Text("ADD")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .padding(geometry.size.width * 0.04)
+                            .foregroundColor(.white)
+                            .background(Color.accentColor)
+                            .cornerRadius(geometry.size.width * 0.06)
+                            .shadow(radius: 5, x: 3, y: 3)
+                    }
                     Spacer()
                 }
-                .shadow(radius: 3, x: 3, y: 3)
-                .padding(.horizontal, 2)
-                
-                TextField("Task Name", text: $authState.habitName)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .colorInvert()
-                    .shadow(radius: 5, x: 3, y: 3)
-                    .autocapitalization(.none)
-                
-                Spacer()
-                    .frame(height: 30)
-                
-//                MARK: SAVE Button
-                Button(action: {
-                    authState.habitAppender()
-                    authState.isAddHabitVisible = false
-                    authState.habitName = ""
-                }) {
-                    Text("ADD")
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .padding(15)
-                        .foregroundColor(.white)
-                        .background(Color.accentColor)
-                        .cornerRadius(25)
-                        .shadow(radius: 5, x: 3, y: 3)
-                }
-                Spacer()
+                .padding(.top, geometry.size.height * 0.08)
+                .padding(.horizontal, geometry.size.width * 0.08)
             }
-            .padding(.top, 30)
-            .padding(.horizontal, 30)
         }
     }
 }

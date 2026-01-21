@@ -17,12 +17,12 @@ struct SignUpView: View {
                     // MARK: Logo Group
                     ZStack {
                         Circle()
-                            .stroke(lineWidth: 22)
+                            .stroke(lineWidth: geometry.size.width * 0.055)
                             .foregroundColor(.blue)
                             .frame(width: geometry.size.width * 0.57)
                         
                         Circle()
-                            .stroke(lineWidth: 22)
+                            .stroke(lineWidth: geometry.size.width * 0.055)
                             .foregroundColor(.blue)
                             .frame(width: geometry.size.width * 0.40)
                         
@@ -70,8 +70,8 @@ struct SignUpView: View {
                                     }
                                 }
                             }
-                            .padding(.top, 28)
-                            .padding(.horizontal, 10)
+                            .padding(.top, geometry.size.height * 0.035)
+                            .padding(.horizontal, geometry.size.width * 0.025)
                         }
                         
                         Spacer()

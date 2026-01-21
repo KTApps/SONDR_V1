@@ -91,139 +91,141 @@ struct CalendarView: View {
         let daysToDisplay = calculateDaysToDisplay(daysInMonth: daysInMonth,
                                                    firstWeekday: firstWeekday)
         return NavigationView {
-            ZStack {
-                authState.darkGray.ignoresSafeArea()
-                VStack {
-                    Text("SONDR")
-                        .font(AuthState.Typography.font_1_bold)
-                        .foregroundColor(.white)
-                        .shadow(radius: 3, x: 3, y: 3)
+            GeometryReader { geometry in
+                ZStack {
+                    authState.darkGray.ignoresSafeArea()
+                    VStack {
+                        Text("SONDR")
+                            .font(AuthState.Typography.font_1_bold)
+                            .foregroundColor(.white)
+                            .shadow(radius: 3, x: 3, y: 3)
 
-                    Spacer()
-                        .frame(height: 20)
-                    
-                    HStack {
-                        Button {
-                            isMonthChangerVisible.toggle()
-                        } label: {
-                            Text(String("\(selectedMonth) \(selectedYear)"))
-                                .foregroundColor(.white)
-                                .font(AuthState.Typography.font_1_bold)
-                        }
-                        .sheet(isPresented: $isMonthChangerVisible) {
-                            VStack {
-                                HStack {
-                                    Picker(selection: $selectedMonthIndex, label: Text("\(selectedMonth)")) {
-                                        ForEach(0..<months.count) { index in
-                                            Text(months[index]).tag(index)
+                        Spacer()
+                            .frame(height: geometry.size.height * 0.025)
+                        
+                        HStack {
+                            Button {
+                                isMonthChangerVisible.toggle()
+                            } label: {
+                                Text(String("\(selectedMonth) \(selectedYear)"))
+                                    .foregroundColor(.white)
+                                    .font(AuthState.Typography.font_1_bold)
+                            }
+                            .sheet(isPresented: $isMonthChangerVisible) {
+                                VStack {
+                                    HStack {
+                                        Picker(selection: $selectedMonthIndex, label: Text("\(selectedMonth)")) {
+                                            ForEach(0..<months.count) { index in
+                                                Text(months[index]).tag(index)
+                                            }
                                         }
-                                    }
-                                    .pickerStyle(WheelPickerStyle())
-                                    .onChange(of: selectedMonthIndex) { newValue in
-                                        selectedMonth = months[newValue]
+                                        .pickerStyle(WheelPickerStyle())
+                                        .onChange(of: selectedMonthIndex) { newValue in
+                                            selectedMonth = months[newValue]
+                                        }
+                                        
+                                        Picker(selection: $selectedYear, label: Text(String("\(selectedYear)"))) {
+                                            ForEach(selectedYear - 10..<selectedYear + 10, id: \.self) { year in
+                                                Text(String("\(year)"))
+                                                    .tag(year)
+                                            }
+                                        }
+                                        .pickerStyle(WheelPickerStyle())
                                     }
                                     
-                                    Picker(selection: $selectedYear, label: Text(String("\(selectedYear)"))) {
-                                        ForEach(selectedYear - 10..<selectedYear + 10, id: \.self) { year in
-                                            Text(String("\(year)"))
-                                                .tag(year)
-                                        }
+                                    Spacer()
+                                        .frame(height: 10)
+                                    
+                                    Button {
+                                        isMonthChangerVisible.toggle()
+                                    } label: {
+                                        Text("Submit")
+                                            .font(AuthState.Typography.font_1_bold)
+                                            .foregroundColor(.white)
                                     }
-                                    .pickerStyle(WheelPickerStyle())
                                 }
-                                
-                                Spacer()
-                                    .frame(height: 10)
-                                
-                                Button {
-                                    isMonthChangerVisible.toggle()
-                                } label: {
-                                    Text("Submit")
-                                        .font(AuthState.Typography.font_1_bold)
-                                        .foregroundColor(.white)
-                                }
+                                .presentationDetents([.medium])
                             }
-                            .presentationDetents([.medium])
-                        }
-                        
-                        Spacer()
-                        
-                        Button {
-                            monthOffset -= 1
-                            selectedMonthIndex -= 1
-                            if selectedMonthIndex < 0 {
-                                selectedMonthIndex = months.count - 1
-                                selectedYear -= 1
-                            }
-                            updateSelectedMonthAndYear()
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .foregroundColor(.white)
-                        }
-
-                        Button {
-                            monthOffset += 1
-                            selectedMonthIndex += 1
-                            if selectedMonthIndex >= months.count {
-                                selectedMonthIndex = 0
-                                selectedYear += 1
-                            }
-                            updateSelectedMonthAndYear()
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(.horizontal)
-                    
-                    ScrollView {
-                        VStack {
-                            // Display weekday labels row
-                            HStack(spacing: 0) {
-                                ForEach(0..<7) { column in
-                                    Text(abbreviatedWeekday(for: column))
-                                        .frame(width: UIScreen.main.bounds.width / CGFloat(7), height: UIScreen.main.bounds.width / CGFloat(7))
-                                }
-                            }
-                            .foregroundColor(.gray)
                             
-                            // Display days in the calendar
-                            ForEach(0..<((daysInMonth + firstWeekday - 1) / 7) + 1) { row in // Calculates the number of rows needed to display all the days of the month
+                            Spacer()
+                            
+                            Button {
+                                monthOffset -= 1
+                                selectedMonthIndex -= 1
+                                if selectedMonthIndex < 0 {
+                                    selectedMonthIndex = months.count - 1
+                                    selectedYear -= 1
+                                }
+                                updateSelectedMonthAndYear()
+                            } label: {
+                                Image(systemName: "chevron.left")
+                                    .foregroundColor(.white)
+                            }
+
+                            Button {
+                                monthOffset += 1
+                                selectedMonthIndex += 1
+                                if selectedMonthIndex >= months.count {
+                                    selectedMonthIndex = 0
+                                    selectedYear += 1
+                                }
+                                updateSelectedMonthAndYear()
+                            } label: {
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .padding(.horizontal)
+                        
+                        ScrollView {
+                            VStack {
+                                // Display weekday labels row
                                 HStack(spacing: 0) {
                                     ForEach(0..<7) { column in
-                                        if let day = daysToDisplay[row * 7 + column] {
-                                            NavigationLink {
-                                                CalendarCircle(authState: authState,
-                                                               day: day,
-                                                               selectedMonth: selectedMonthIndex + 1,
-                                                               selectedYear: selectedYear)
-                                            } label: {
-                                                // Display a CalendarDayCell if day exists
-                                                CalendarDayCell(authState: authState,
-                                                                day: day, 
-                                                                selectedMonth: selectedMonthIndex + 1,
-                                                                selectedYear: selectedYear)
-                                                    .frame(width: UIScreen.main.bounds.width / CGFloat(7),
-                                                           height: UIScreen.main.bounds.width / CGFloat(7))
+                                        Text(abbreviatedWeekday(for: column))
+                                            .frame(width: geometry.size.width / CGFloat(7), height: geometry.size.width / CGFloat(7))
+                                    }
+                                }
+                                .foregroundColor(.gray)
+                                
+                                // Display days in the calendar
+                                ForEach(0..<((daysInMonth + firstWeekday - 1) / 7) + 1) { row in // Calculates the number of rows needed to display all the days of the month
+                                    HStack(spacing: 0) {
+                                        ForEach(0..<7) { column in
+                                            if let day = daysToDisplay[row * 7 + column] {
+                                                NavigationLink {
+                                                    CalendarCircle(authState: authState,
+                                                                   day: day,
+                                                                   selectedMonth: selectedMonthIndex + 1,
+                                                                   selectedYear: selectedYear)
+                                                } label: {
+                                                    // Display a CalendarDayCell if day exists
+                                                    CalendarDayCell(authState: authState,
+                                                                    day: day, 
+                                                                    selectedMonth: selectedMonthIndex + 1,
+                                                                    selectedYear: selectedYear)
+                                                        .frame(width: geometry.size.width / CGFloat(7),
+                                                               height: geometry.size.width / CGFloat(7))
+                                                }
+                                            } else {
+                                                // Display an empty view when day is doesnt exist
+                                                Color.clear
                                             }
-                                        } else {
-                                            // Display an empty view when day is doesnt exist
-                                            Color.clear
                                         }
                                     }
                                 }
                             }
                         }
                     }
+                    .padding(.vertical, geometry.size.height * 0.035)
                 }
-                .padding(.vertical, 30)
-            }
-            .onAppear {
-                // Update selectedDate when the view appears
-                let newDateComponents = DateComponents(year: selectedYear,
-                                                       month: selectedMonthIndex + 1)
-                if let newDate = Calendar.current.date(from: newDateComponents) {
-                    selectedDate = newDate
+                .onAppear {
+                    // Update selectedDate when the view appears
+                    let newDateComponents = DateComponents(year: selectedYear,
+                                                           month: selectedMonthIndex + 1)
+                    if let newDate = Calendar.current.date(from: newDateComponents) {
+                        selectedDate = newDate
+                    }
                 }
             }
         }

@@ -318,7 +318,7 @@ struct ContentView: View {
                     FriendsBar(authState: authState)
                         .padding(.horizontal, geometry.size.width * 0.04)
                 }
-                .frame(height: authState.isFriendsVisible ? geometry.size.height * 0.17 : 0) // Control Transition of Height
+                .frame(height: authState.isFriendsVisible ? geometry.size.height * 0.15 : 0) // Control Transition of Height
                 .offset(y: authState.isFriendsVisible ? geometry.size.height * 0.09 : geometry.size.height * 0.08) // Control Transition of DropDown
                 .alert("Congrats, youv've completed the milestone. Your next milestone is in 100 seconds", isPresented: $authState.maxTimeAlert) {
                     Button("Continue") {

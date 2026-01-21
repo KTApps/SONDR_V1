@@ -24,12 +24,12 @@ struct LogInView: View {
             //            MARK: PLAY BUTTON
                         ZStack {
                             Circle()
-                                .stroke(lineWidth: 22)
+                                .stroke(lineWidth: geometry.size.width * 0.055)
                                 .foregroundColor(.blue)
                                 .frame(width: geometry.size.width * 0.57)
                             
                             Circle()
-                                .stroke(lineWidth: 22)
+                                .stroke(lineWidth: geometry.size.width * 0.055)
                                 .foregroundColor(.blue)
                                 .frame(width: geometry.size.width * 0.40)
                             
@@ -39,7 +39,7 @@ struct LogInView: View {
                         }
                         
                         Spacer()
-                            .frame(height: 150)
+                            .frame(height: geometry.size.height * 0.18)
                         
             //            MARK: USER INPUT Section
                         VStack {
@@ -48,8 +48,7 @@ struct LogInView: View {
                                   placeHolder: "name@example.com",
                                   secureField: false)
                                 .foregroundColor(.white)
-                                .font(.custom("1st_font", size: 20))
-                                .fontWeight(.bold)
+                                .font(.system(size: geometry.size.width * 0.05, weight: .bold))
                             
                             Input(text: $password,
                                   title: "Password",
@@ -61,12 +60,12 @@ struct LogInView: View {
                                         eyeball.toggle()
                                     } label: {
                                         Image(systemName: "eye")
-                                            .font(.system(size: 15))
+                                            .font(.system(size: geometry.size.width * 0.04))
                                             .opacity(0.5)
                                             .foregroundColor(eyeball ? Color.white : Color.red)
                                     }
-                                    .padding(.top, 33)
-                                    .padding(.trailing, 9),
+                                    .padding(.top, geometry.size.height * 0.04)
+                                    .padding(.trailing, geometry.size.width * 0.025),
                                     alignment: .trailing
                                 )
                             

@@ -11,56 +11,57 @@ import Charts
 struct FriendsBar: View {
     @ObservedObject var authState: AuthState
     var body: some View {
-        ScrollView {
-            VStack {
-                HStack {
-                    Button {
-                        withAnimation {
-                            authState.isAddFriendsVisible.toggle()
+        GeometryReader { geometry in
+            ScrollView {
+                VStack {
+                    HStack {
+                        Button {
+                            withAnimation {
+                                authState.isAddFriendsVisible.toggle()
+                            }
+                        } label: {
+                            Text("Add Friends")
+                                .font(AuthState.Typography.font_4_bold)
                         }
-                    } label: {
-                        Text("Add Friends")
-                            .font(AuthState.Typography.font_4_bold)
-                    }
-                    .foregroundColor(.white)
-                    .sheet(isPresented: $authState.isAddFriendsVisible) {
-                        AddFriends(authState: authState)
-                            .onDisappear {
-                                authState.searchResults = [:]
-                            }
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 13)
-                
-                Spacer()
-                
-                ScrollView(.horizontal) {
-                    HStack(spacing: -30) {
-                        ForEach(authState.friendsHabitData.keys.sorted(), id: \.self) { friendUsername in
-                            VStack(spacing: -15) {
-                                ZStack {
-                                    OuterFriendsCircle(authState: authState,
-                                                       username: friendUsername,
-                                                       innerRadius: 22,
-                                                       outerRadius: 29,
-                                                       cornerRadius: 1)
-                                    InnerFriendsCircle(authState: authState,
-                                                       username: friendUsername,
-                                                       innerRadius: 12,
-                                                       outerRadius: 19,
-                                                       cornerRadius: 1)
+                        .foregroundColor(.white)
+                        .sheet(isPresented: $authState.isAddFriendsVisible) {
+                            AddFriends(authState: authState)
+                                .onDisappear {
+                                    authState.searchResults = [:]
                                 }
-                                Text(friendUsername)
-                                    .font(AuthState.Typography.font_4_bold)
-                            }
                         }
                         Spacer()
                     }
+                    .padding(.horizontal, geometry.size.width * 0.035)
+                    .padding(.top, geometry.size.height * 0.04)
+                    
+                    ScrollView(.horizontal) {
+                        HStack(spacing: geometry.size.width * -0.08) {
+                            ForEach(authState.friendsHabitData.keys.sorted(), id: \.self) { friendUsername in
+                                VStack(spacing: geometry.size.width * -0.05) {
+                                    ZStack {
+                                        OuterFriendsCircle(authState: authState,
+                                                           username: friendUsername,
+                                                           innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.055),
+                                                           outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.073),
+                                                           cornerRadius: 1)
+                                        InnerFriendsCircle(authState: authState,
+                                                           username: friendUsername,
+                                                           innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.03),
+                                                           outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.048),
+                                                           cornerRadius: 1)
+                                    }
+                                    Text(friendUsername)
+                                        .font(AuthState.Typography.font_4_bold)
+                                }
+                            }
+                            Spacer()
+                        }
+                    }
+                    .offset(y: geometry.size.width * -0.055)
                 }
-                .offset(y: -22)
+                .padding(.top, geometry.size.height * 0.01)
             }
-            .padding(.vertical, 8)
         }
     }
 }

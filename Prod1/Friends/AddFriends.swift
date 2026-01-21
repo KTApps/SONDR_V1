@@ -104,9 +104,7 @@ struct AddFriends: View {
                 
                 Spacer()
                 
-                Button {
-                    
-                } label: {
+                ShareLink(item: "Join me on SONDR! Download the app and let's connect: https://apps.apple.com/app/sondr") {
                     ZStack {
                         Rectangle()
                             .frame(width: 300, height: 40)

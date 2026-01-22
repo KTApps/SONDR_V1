@@ -10,61 +10,62 @@ import Charts
 
 struct FriendsBar: View {
     @ObservedObject var authState: AuthState
+    
+    // Fixed sizes for circles
+    private let circleInnerRadius: CGFloat = 22
+    private let circleOuterRadius: CGFloat = 29
+    private let innerCircleInnerRadius: CGFloat = 12
+    private let innerCircleOuterRadius: CGFloat = 19
+    
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(spacing: 0) {
-                    HStack {
-                        Button {
-                            withAnimation {
-                                authState.isAddFriendsVisible.toggle()
+        VStack(alignment: .leading, spacing: 0) {
+            // "Add Friends" button
+            HStack {
+                Button {
+                    withAnimation {
+                        authState.isAddFriendsVisible.toggle()
+                    }
+                } label: {
+                    Text("Add Friends")
+                        .font(AuthState.Typography.font_4_bold)
+                }
+                .foregroundColor(.white)
+                .sheet(isPresented: $authState.isAddFriendsVisible) {
+                    AddFriends(authState: authState)
+                        .onDisappear {
+                            authState.searchResults = [:]
+                        }
+                }
+                Spacer()
+            }
+            .padding(.top, 12)
+            .padding(.leading, 14)
+            
+            // Friend circles
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: -30) {
+                    ForEach(authState.friendsHabitData.keys.sorted(), id: \.self) { friendUsername in
+                        VStack(spacing: 0) {
+                            ZStack {
+                                OuterFriendsCircle(authState: authState,
+                                                   username: friendUsername,
+                                                   innerRadius: MarkDimension(floatLiteral: circleInnerRadius),
+                                                   outerRadius: MarkDimension(floatLiteral: circleOuterRadius),
+                                                   cornerRadius: 1)
+                                InnerFriendsCircle(authState: authState,
+                                                   username: friendUsername,
+                                                   innerRadius: MarkDimension(floatLiteral: innerCircleInnerRadius),
+                                                   outerRadius: MarkDimension(floatLiteral: innerCircleOuterRadius),
+                                                   cornerRadius: 1)
                             }
-                        } label: {
-                            Text("Add Friends")
+                            Text(friendUsername)
                                 .font(AuthState.Typography.font_4_bold)
-                        }
-                        .foregroundColor(.white)
-                        .sheet(isPresented: $authState.isAddFriendsVisible) {
-                            AddFriends(authState: authState)
-                                .onDisappear {
-                                    authState.searchResults = [:]
-                                }
-                        }
-                        Spacer()
-                    }
-                    .padding(.horizontal, geometry.size.width * 0.035)
-                    .padding(.top, 8)  // Fixed: consistent visual separation from top
-                    
-                    //Spacer().frame(height: 1)  // Fixed: consistent gap between text and circles
-                    
-                    ScrollView(.horizontal) {
-                        HStack(spacing: geometry.size.width * -0.08) {
-                            ForEach(authState.friendsHabitData.keys.sorted(), id: \.self) { friendUsername in
-                                VStack(spacing: geometry.size.width * -0.05) {
-                                    ZStack {
-                                        OuterFriendsCircle(authState: authState,
-                                                           username: friendUsername,
-                                                           innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.055),
-                                                           outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.073),
-                                                           cornerRadius: 1)
-                                        InnerFriendsCircle(authState: authState,
-                                                           username: friendUsername,
-                                                           innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.03),
-                                                           outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.048),
-                                                           cornerRadius: 1)
-                                    }
-                                    Text(friendUsername)
-                                        .font(AuthState.Typography.font_4_bold)
-                                }
-                            }
-                            Spacer()
+                                .padding(.top, -30)
                         }
                     }
-                    .padding(.top, -8)  // Pull circles up closer to "Add Friends" text
-                    
-                    Spacer()
                 }
             }
+            .padding(.top, -24)
         }
     }
 }

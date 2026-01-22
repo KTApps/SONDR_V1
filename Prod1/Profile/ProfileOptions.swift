@@ -62,7 +62,7 @@ struct ProfileOptions: View {
                             }
                         } label: {
                             Text("MILESTONES")
-                                .font(AuthState.Typography.font_5_bold)
+                                .font(AuthState.Typography.font_1_bold_sondr)
                         }
                         
                         Spacer()
@@ -74,7 +74,7 @@ struct ProfileOptions: View {
                             }
                         } label: {
                             Text("ADD FRIENDS")
-                                .font(AuthState.Typography.font_5_bold)
+                                .font(AuthState.Typography.font_1_bold_sondr)
                         }
                         .sheet(isPresented: $authState.isAddFriendsVisible) {
                             AddFriends(authState: authState)
@@ -89,7 +89,7 @@ struct ProfileOptions: View {
                             }
                         } label: {
                             Text("SETTINGS")
-                                .font(AuthState.Typography.font_5_bold)
+                                .font(AuthState.Typography.font_1_bold_sondr)
                         }
                         .sheet(isPresented: $authState.isSettingsVisible) {
                             SettingsView(authState: authState)

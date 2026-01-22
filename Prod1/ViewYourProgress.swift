@@ -12,21 +12,23 @@ struct ViewYourProgress: View {
     @ObservedObject var authState: AuthState
     
     var body: some View {
-        ZStack{
-            authState.darkGray.ignoresSafeArea()
-            VStack {
-                Text("SONDR")
-                    .font(AuthState.Typography.font_1_bold)
-                    .foregroundColor(.white)
+        GeometryReader { geometry in
+            ZStack{
+                authState.darkGray.ignoresSafeArea()
+                VStack {
+                    Text("SONDR")
+                        .font(AuthState.Typography.font_1_bold)
+                        .foregroundColor(.white)
 
-                Spacer()
-                    .frame(height: 20)
-                
-                CalendarView(authState: authState)
-                
-                Spacer()
+                    Spacer()
+                        .frame(height: geometry.size.height * 0.025)
+                    
+                    CalendarView(authState: authState)
+                    
+                    Spacer()
+                }
+                .padding(.vertical, geometry.size.height * 0.035)
             }
-            .padding(.vertical, 30)
         }
     }
 }

@@ -1,0 +1,8 @@
+# Project Rules for SONDR
+
+## Testing with XcodeBuildMCP
+When testing with XcodeBuildMCP:
+- Build, install, and launch the app on the simulator
+- Tell the user what to click/navigate to test the changes
+- Do not take screenshots or verify visually - the user will test manually
+- Wait for user feedback before proceeding

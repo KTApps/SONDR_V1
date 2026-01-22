@@ -131,24 +131,28 @@ struct ContentView: View {
 
                     VStack {
                         ZStack {
+                            // Calculate scale factor to prevent clipping on smaller screens
+                            let availableHeight = geometry.size.height * 0.42
+                            let idealDiameter = geometry.size.width * 0.78 // outer diameter (0.39 * 2)
+                            let scaleFactor = min(1.0, availableHeight / idealDiameter)
                             
                             OuterCircle(authState: authState, 
-                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.30),
-                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.36),
+                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.30 * scaleFactor),
+                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.39 * scaleFactor),
                                         cornerRadius: 1)
                             
                             if let habits = authState.habitData?.habitIdArray, !habits.isEmpty {
                                 Chart(habits, id:\.self) { habit in
                                     SectorMark(
                                         angle: .value("isTicked", 1),
-                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.20),
-                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29),
+                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.20 * scaleFactor),
+                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.29 * scaleFactor),
                                         angularInset: 1
                                     )
                                     .foregroundStyle(authState.colorReturn(value: habit))
                                     .cornerRadius(1)
                                 }
-                                .frame(width: geometry.size.width * 0.51, height: geometry.size.width * 0.51)
+                                .frame(width: geometry.size.width * 0.51 * scaleFactor, height: geometry.size.width * 0.51 * scaleFactor)
                                 .onTapGesture {
                                     withAnimation {
                                         authState.isBlurViewVisible = true
@@ -175,15 +179,15 @@ struct ContentView: View {
                                 Chart(authState.placeholderTasks, id:\.self) { habit in
                                     SectorMark(
                                         angle: .value("isTicked", 1),
-                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.19),
-                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.27),
+                                        innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.19 * scaleFactor),
+                                        outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.27 * scaleFactor),
                                         angularInset: 1
                                     )
                                     .foregroundStyle(.gray)
                                     .opacity(0.3)
                                     .cornerRadius(1)
                                 }
-                                .frame(width: geometry.size.width * 0.51, height: geometry.size.width * 0.51)
+                                .frame(width: geometry.size.width * 0.51 * scaleFactor, height: geometry.size.width * 0.51 * scaleFactor)
                                 .onTapGesture {
                                     withAnimation {
                                         authState.isBlurViewVisible = true
@@ -318,7 +322,7 @@ struct ContentView: View {
                     FriendsBar(authState: authState)
                         .padding(.horizontal, geometry.size.width * 0.04)
                 }
-                .frame(height: authState.isFriendsVisible ? geometry.size.height * 0.15 : 0) // Control Transition of Height
+                .frame(height: authState.isFriendsVisible ? geometry.size.height * 0.17 : 0) // Control Transition of Height
                 .offset(y: authState.isFriendsVisible ? geometry.size.height * 0.09 : geometry.size.height * 0.08) // Control Transition of DropDown
                 .alert("Congrats, youv've completed the milestone. Your next milestone is in 100 seconds", isPresented: $authState.maxTimeAlert) {
                     Button("Continue") {

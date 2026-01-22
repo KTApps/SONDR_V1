@@ -8,14 +8,15 @@
 import SwiftUI
 
 // MARK: Typography namespace within AuthState
+// Uses Dynamic Type for responsive font scaling based on user accessibility settings
 extension AuthState {
     enum Typography {
-        static var font_1_bold_sondr: Font { .system(size: 22, weight: .bold) }
-        static var font_1_bold: Font { .system(size: 17, weight: .bold) }
-        static var font_1_light: Font { .system(size: 17, weight: .light) }
-        static var font_2_light: Font { .system(size: 17, weight: .bold) }
-        static var font_3_bold: Font { .system(size: 19, weight: .bold) }
-        static var font_4_bold: Font { .system(size: 12, weight: .bold) }
-        static var font_5_bold: Font { .system(size: 30, weight: .bold) }
+        static var font_1_bold_sondr: Font { .title2.bold() }      // ~22pt, scales with Dynamic Type
+        static var font_1_bold: Font { .headline }                  // ~17pt bold, scales with Dynamic Type
+        static var font_1_light: Font { .body }                     // ~17pt light, scales with Dynamic Type
+        static var font_2_light: Font { .headline }                 // ~17pt bold, scales with Dynamic Type
+        static var font_3_bold: Font { .title3.bold() }            // ~19pt, scales with Dynamic Type
+        static var font_4_bold: Font { .caption.bold() }           // ~12pt, scales with Dynamic Type
+        static var font_5_bold: Font { .largeTitle.bold() }        // ~30pt, scales with Dynamic Type
     }
 }

@@ -100,7 +100,7 @@ struct HabitTracker: View {
                                         .overlay(
                                             authState.habitDataForDay[documentTitle]?.isHabitStriked[habit] ?? false ?
                                                 Rectangle()
-                                                    .frame(height: 4)
+                                                    .frame(height: geometry.size.height * 0.005)
                                                     .foregroundColor(.white)
                                                     .padding(.horizontal, -10)
                                                 : nil

@@ -41,7 +41,7 @@ struct CalendarCircle: View {
                 authState.darkGray.ignoresSafeArea()
                 VStack {
                     Spacer()
-                        .frame(height: 40)
+                        .frame(height: geometry.size.height * 0.05)
                     
                     HStack {
                         Button {
@@ -49,12 +49,12 @@ struct CalendarCircle: View {
                         } label: {
                             Image(systemName: "chevron.left")
                                 .resizable()
-                                .frame(width: 15, height: 23)
+                                .frame(width: geometry.size.width * 0.04, height: geometry.size.width * 0.06)
                                 .foregroundColor(.white)
                         }
                         
                         Spacer()
-                            .frame(width: 130)
+                            .frame(width: geometry.size.width * 0.33)
                         
                         Text("SONDR")
                             .font(AuthState.Typography.font_1_bold)
@@ -63,10 +63,10 @@ struct CalendarCircle: View {
                         
                         Spacer()
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, geometry.size.width * 0.05)
 
                     Spacer()
-                        .frame(height: 110)
+                        .frame(height: geometry.size.height * 0.13)
                     
                     // Display the formatted date above the ZStack
                     Text(formattedDate)
@@ -83,12 +83,12 @@ struct CalendarCircle: View {
                         }
                         .font(.title)
                         let documentTitle = "\(selectedYear)\(dayOfYear)"
-                        OuterCalendarCircle(authState: authState, dayOfYear: documentTitle, innerRadius: 129, outerRadius: 154, cornerRadius: 1)
-                        InnerCircle(authState: authState, dayOfYear: documentTitle, innerRadius: 87, outerRadius: 112, cornerRadius: 1)
+                        OuterCalendarCircle(authState: authState, dayOfYear: documentTitle, innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.33), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.39), cornerRadius: 1)
+                        InnerCircle(authState: authState, dayOfYear: documentTitle, innerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.22), outerRadius: MarkDimension(floatLiteral: geometry.size.width * 0.28), cornerRadius: 1)
                     }
                     
                     Spacer()
-                        .frame(height: 180)
+                        .frame(height: geometry.size.height * 0.21)
                 }
                 .navigationBarBackButtonHidden(true)
                 .onAppear {

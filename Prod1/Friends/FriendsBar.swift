@@ -13,7 +13,7 @@ struct FriendsBar: View {
     var body: some View {
         GeometryReader { geometry in
             ScrollView {
-                VStack {
+                VStack(spacing: 0) {
                     HStack {
                         Button {
                             withAnimation {
@@ -33,7 +33,9 @@ struct FriendsBar: View {
                         Spacer()
                     }
                     .padding(.horizontal, geometry.size.width * 0.035)
-                    .padding(.top, geometry.size.height * 0.04)
+                    .padding(.top, 8)  // Fixed: consistent visual separation from top
+                    
+                    //Spacer().frame(height: 1)  // Fixed: consistent gap between text and circles
                     
                     ScrollView(.horizontal) {
                         HStack(spacing: geometry.size.width * -0.08) {
@@ -58,9 +60,10 @@ struct FriendsBar: View {
                             Spacer()
                         }
                     }
-                    .offset(y: geometry.size.width * -0.055)
+                    .padding(.top, -8)  // Pull circles up closer to "Add Friends" text
+                    
+                    Spacer()
                 }
-                .padding(.top, geometry.size.height * 0.01)
             }
         }
     }

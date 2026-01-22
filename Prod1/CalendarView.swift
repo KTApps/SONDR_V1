@@ -134,7 +134,7 @@ struct CalendarView: View {
                                     }
                                     
                                     Spacer()
-                                        .frame(height: 10)
+                                        .frame(height: geometry.size.height * 0.012)
                                     
                                     Button {
                                         isMonthChangerVisible.toggle()

@@ -6,3 +6,8 @@ When testing with XcodeBuildMCP:
 - Tell the user what to click/navigate to test the changes
 - Do not take screenshots or verify visually - the user will test manually
 - Wait for user feedback before proceeding
+
+## File Locations
+- All project-specific files (plans, documentation, etc.) must be saved in the project directory: `/Users/kmaha/Dev/SONDR_V1/.cursor/` or subdirectories within the project
+- Never save project-specific files to `/Users/kmaha/.cursor/` (home directory) - that is for global Cursor configuration only
+- When creating plans, save them to `.cursor/plans/` within the project directory

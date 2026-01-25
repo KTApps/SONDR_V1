@@ -60,12 +60,13 @@ struct FriendsBar: View {
                             }
                             Text(friendUsername)
                                 .font(AuthState.Typography.font_4_bold)
-                                .padding(.top, -30)
+                                .padding(.top, -22)
                         }
                     }
                 }
             }
             .padding(.top, -24)
+            Spacer()
         }
     }
 }

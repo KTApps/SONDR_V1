@@ -6,3 +6,14 @@
 
 # Node.js dependencies
 functions/node_modules/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.iml
+
+# IDE / editor
+.idea/
+.cursor/

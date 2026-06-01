@@ -2,37 +2,45 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import 'ring_painter.dart';
+import 'ring_palette.dart';
 
 /// The signature component of Sondr: the dual-ring effort dial.
 ///
-/// This is built once and reused everywhere — home screen, feed cards, and
-/// profiles — so it must stay self-contained and presentational. It takes two
-/// progress values and renders them against the greyscale ladder:
+/// Built once and reused everywhere — home screen, feed cards, profiles — so it
+/// stays self-contained and presentational. It renders against the greyscale
+/// ladder:
 ///
-///  * **Outer ring** = time logged toward the current task's milestone today
-///    (the brightest fill).
-///  * **Inner ring** = daily habits completed today, completed ÷ total (one
-///    step dimmer).
-///  * **Centre** = the task's time figure (e.g. "13 hrs" over "today").
+///  * **Outer ring** = a proportional pie of how the day's time is split across
+///    tasks. Each value in [taskSegments] is one task's time; segments are
+///    sized by share. With [highlightedSegment] set (a specific task selected)
+///    that slice is the brightest tone and the rest dim, so the day's whole
+///    split stays visible while the selection stands out.
+///  * **Inner ring** = daily habits completed today, [habitProgress] (0..1),
+///    one step dimmer — fully independent of the task split.
+///  * **Centre** = whatever [center] widget the caller supplies (the screen
+///    owns the today/month figure and its gestures).
 ///
-/// Set [onPhoto] when the dial sits over a photo backdrop: fills switch to
-/// near-white regardless of theme and the painter adds contrast halos, so the
-/// ring stays legible over any image.
+/// Set [onPhoto] over a photo backdrop: fills go near-white and the painter
+/// adds contrast halos so the ring stays legible over any image.
 class RingDial extends StatelessWidget {
   const RingDial({
     super.key,
-    required this.taskProgress,
+    required this.taskSegments,
+    this.highlightedSegment,
     required this.habitProgress,
     this.size = 280,
     this.onPhoto = false,
-    this.centerValue,
-    this.centerLabel,
     this.center,
-    this.animate = true,
   });
 
-  /// 0..1 — time on the current task today toward its active milestone.
-  final double taskProgress;
+  /// Per-task values for the day (e.g. seconds logged today). Order is stable
+  /// and matches [highlightedSegment]'s index. Empty → the ring shows just its
+  /// track.
+  final List<double> taskSegments;
+
+  /// Index into [taskSegments] to emphasise (the selected task). Null renders
+  /// the even collective ramp with nothing emphasised.
+  final int? highlightedSegment;
 
   /// 0..1 — habits checked off today ÷ today's total habits.
   final double habitProgress;
@@ -43,17 +51,8 @@ class RingDial extends StatelessWidget {
   /// Render the photo-backdrop variant (light fills + contrast halos).
   final bool onPhoto;
 
-  /// Big centre figure, e.g. "13 hrs". Ignored if [center] is supplied.
-  final String? centerValue;
-
-  /// Small label under the figure, e.g. "today". Ignored if [center] is set.
-  final String? centerLabel;
-
-  /// Replaces the default centre content entirely.
+  /// Centre content (the screen builds the today/month figure here).
   final Widget? center;
-
-  /// Animate progress changes (disable for static feed/profile dials).
-  final bool animate;
 
   // Stroke widths scale with the dial so the component looks right at any size.
   double get _outerThickness => size * 0.090;
@@ -62,13 +61,23 @@ class RingDial extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
-
-    // On a photo the fills go near-white (with halos) regardless of app theme;
-    // on a solid surface they follow the ladder (outer brightest, inner dimmer).
-    final outerFill = onPhoto ? const Color(0xFFFFFFFF) : tokens.ringFillOuter;
-    final innerFill = onPhoto ? const Color(0xFFE6E6E6) : tokens.ringFillInner;
     final track =
         onPhoto ? Colors.white.withValues(alpha: 0.30) : tokens.ringTrack;
+    final innerFill = onPhoto ? const Color(0xFFE6E6E6) : tokens.ringFillInner;
+
+    final count = taskSegments.length;
+    final colors = highlightedSegment != null
+        ? RingPalette.highlighted(tokens, count, highlightedSegment!,
+            onPhoto: onPhoto)
+        : RingPalette.ramp(tokens, count, onPhoto: onPhoto);
+
+    final segments = <RingSegment>[
+      for (var i = 0; i < count; i++)
+        RingSegment(
+          value: taskSegments[i] < 0 ? 0 : taskSegments[i],
+          color: colors[i],
+        ),
+    ];
 
     return SizedBox(
       width: size,
@@ -76,125 +85,28 @@ class RingDial extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          _AnimatedRings(
-            taskProgress: taskProgress.clamp(0.0, 1.0),
-            habitProgress: habitProgress.clamp(0.0, 1.0),
-            size: size,
-            onPhoto: onPhoto,
-            outerThickness: _outerThickness,
-            innerThickness: _innerThickness,
-            outerTrack: track,
-            innerTrack: track,
-            outerFill: outerFill,
-            innerFill: innerFill,
-            animate: animate,
+          CustomPaint(
+            size: Size.square(size),
+            painter: RingPainter(
+              onPhoto: onPhoto,
+              layers: [
+                SegmentRingLayer(
+                  thickness: _outerThickness,
+                  segments: segments,
+                  track: track,
+                ),
+                ProgressRingLayer(
+                  thickness: _innerThickness,
+                  progress: habitProgress.clamp(0.0, 1.0),
+                  track: track,
+                  fill: innerFill,
+                ),
+              ],
+            ),
           ),
-          _buildCenter(context, tokens),
+          ?center,
         ],
       ),
-    );
-  }
-
-  Widget _buildCenter(BuildContext context, GreyscaleTokens tokens) {
-    if (center != null) return center!;
-    if (centerValue == null && centerLabel == null) {
-      return const SizedBox.shrink();
-    }
-
-    final textColor = onPhoto ? const Color(0xFFFFFFFF) : tokens.textPrimary;
-    final labelColor =
-        onPhoto ? Colors.white.withValues(alpha: 0.85) : tokens.textSecondary;
-    final shadows = onPhoto
-        ? const [Shadow(color: Colors.black54, blurRadius: 8)]
-        : const <Shadow>[];
-
-    final theme = Theme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (centerValue != null)
-          Text(
-            centerValue!,
-            style: theme.textTheme.displayMedium?.copyWith(
-              color: textColor,
-              shadows: shadows,
-            ),
-          ),
-        if (centerLabel != null)
-          Padding(
-            padding: EdgeInsets.only(top: size * 0.012),
-            child: Text(
-              centerLabel!,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: labelColor,
-                shadows: shadows,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// Drives the implicit progress animation and hands flat values to the painter.
-class _AnimatedRings extends StatelessWidget {
-  const _AnimatedRings({
-    required this.taskProgress,
-    required this.habitProgress,
-    required this.size,
-    required this.onPhoto,
-    required this.outerThickness,
-    required this.innerThickness,
-    required this.outerTrack,
-    required this.innerTrack,
-    required this.outerFill,
-    required this.innerFill,
-    required this.animate,
-  });
-
-  final double taskProgress;
-  final double habitProgress;
-  final double size;
-  final bool onPhoto;
-  final double outerThickness;
-  final double innerThickness;
-  final Color outerTrack;
-  final Color innerTrack;
-  final Color outerFill;
-  final Color innerFill;
-  final bool animate;
-
-  @override
-  Widget build(BuildContext context) {
-    final duration =
-        animate ? const Duration(milliseconds: 650) : Duration.zero;
-    // Animate both progress values together off a single 0..1 driver.
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: duration,
-      curve: Curves.easeOutCubic,
-      builder: (context, t, _) {
-        return CustomPaint(
-          size: Size.square(size),
-          painter: RingPainter(
-            onPhoto: onPhoto,
-            layers: [
-              RingLayer(
-                progress: taskProgress * t,
-                thickness: outerThickness,
-                track: outerTrack,
-                fill: outerFill,
-              ),
-              RingLayer(
-                progress: habitProgress * t,
-                thickness: innerThickness,
-                track: innerTrack,
-                fill: innerFill,
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

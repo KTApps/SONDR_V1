@@ -1,91 +1,191 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// One concentric ring's drawing recipe: a full-circle [track] with a
-/// progress [fill] arc on top. Both rings on a dial share this shape and differ
-/// only by brightness and radius — never by hue.
+/// Base for one concentric ring on a dial. Rings are drawn outermost-first and
+/// stepped inward by the painter.
 @immutable
-class RingLayer {
-  const RingLayer({
+sealed class RingLayer {
+  const RingLayer({required this.thickness});
+
+  /// Stroke width of this ring.
+  final double thickness;
+}
+
+/// A single proportional slice of a [SegmentRingLayer].
+@immutable
+class RingSegment {
+  const RingSegment({required this.value, required this.color});
+
+  /// Relative magnitude (e.g. seconds logged on a task today). Slices are sized
+  /// by each value's share of the total.
+  final double value;
+  final Color color;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RingSegment && other.value == value && other.color == color;
+
+  @override
+  int get hashCode => Object.hash(value, color);
+}
+
+/// A pie/donut ring: the full circle split into proportional [segments]. Used
+/// for the outer ring, which shows how a day's time is divided across tasks.
+class SegmentRingLayer extends RingLayer {
+  const SegmentRingLayer({
+    required super.thickness,
+    required this.segments,
+    required this.track,
+  });
+
+  final List<RingSegment> segments;
+
+  /// Shown when nothing has been logged (every segment zero).
+  final Color track;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SegmentRingLayer &&
+      other.thickness == thickness &&
+      other.track == track &&
+      listEquals(other.segments, segments);
+
+  @override
+  int get hashCode => Object.hash(thickness, track, Object.hashAll(segments));
+}
+
+/// A track + single progress arc. Used for the inner habit ring
+/// (completed ÷ total).
+class ProgressRingLayer extends RingLayer {
+  const ProgressRingLayer({
+    required super.thickness,
     required this.progress,
-    required this.thickness,
     required this.track,
     required this.fill,
   });
 
-  /// 0..1 portion filled, drawn clockwise from 12 o'clock.
   final double progress;
-
-  /// Stroke width of this ring.
-  final double thickness;
-
-  /// Empty-portion colour (the muted mid-grey from the ladder).
   final Color track;
-
-  /// Progress colour (outer = brightest, inner = one step dimmer).
   final Color fill;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ProgressRingLayer &&
+      other.thickness == thickness &&
+      other.progress == progress &&
+      other.track == track &&
+      other.fill == fill;
+
+  @override
+  int get hashCode => Object.hash(thickness, progress, track, fill);
 }
 
-/// Paints the dual ring. Two responsibilities live here so the rest of the app
-/// never re-implements ring geometry:
-///
-///  * The plain greyscale dial used on solid surfaces (home, history, profile).
-///  * The **double-stroke** variant for photo backdrops — under each fill arc
-///    sits a slightly wider semi-transparent dark stroke, and under each track
-///    a faint light stroke, so every ring carries its own contrast halo and
-///    never relies on the photo behind it cooperating (the film-subtitle
-///    outline trick). Enable with [onPhoto].
+/// Paints the dual ring. Outer ring is typically a [SegmentRingLayer] (the
+/// task split), inner a [ProgressRingLayer] (habits). The double-stroke
+/// contrast-halo variant for photo backdrops is kept built-in via [onPhoto] so
+/// the same component renders legibly over any image in phase 2.
 class RingPainter extends CustomPainter {
   RingPainter({
     required this.layers,
     this.onPhoto = false,
   });
 
-  /// Rings drawn outermost-first. Typically [outerTask, innerHabit].
   final List<RingLayer> layers;
-
-  /// When true, draws the dark/light contrast halos described above.
   final bool onPhoto;
 
-  // Start at 12 o'clock; sweep clockwise (positive, since canvas y points down).
+  // Start at 12 o'clock; sweep clockwise (positive — canvas y points down).
   static const double _startAngle = -math.pi / 2;
+  // Angular gap between adjacent pie segments.
+  static const double _segmentGap = 0.05;
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (layers.isEmpty) return;
     final center = Offset(size.width / 2, size.height / 2);
-    // Keep the outermost stroke (plus any halo) inside the bounds.
-    final maxThickness = layers.isEmpty
-        ? 0.0
-        : layers.map((l) => l.thickness).reduce(math.max);
+    final maxThickness = layers.map((l) => l.thickness).reduce(math.max);
     final haloPad = onPhoto ? maxThickness * 0.18 : 0.0;
-    var radius = (math.min(size.width, size.height) / 2) -
-        (maxThickness / 2) -
-        haloPad;
-
+    var radius =
+        (math.min(size.width, size.height) / 2) - (maxThickness / 2) - haloPad;
     final gap = size.shortestSide * 0.035;
 
     for (var i = 0; i < layers.length; i++) {
       final layer = layers[i];
-      _paintLayer(canvas, center, radius, layer);
-      // Step inward: clear this ring's inner edge, the gap, then the next
-      // ring's outer edge.
+      switch (layer) {
+        case SegmentRingLayer():
+          _paintSegments(canvas, center, radius, layer);
+        case ProgressRingLayer():
+          _paintProgress(canvas, center, radius, layer);
+      }
       if (i + 1 < layers.length) {
-        radius -= (layer.thickness / 2) + gap + (layers[i + 1].thickness / 2);
+        radius -=
+            (layer.thickness / 2) + gap + (layers[i + 1].thickness / 2);
       }
     }
   }
 
-  void _paintLayer(
+  void _paintSegments(
     Canvas canvas,
     Offset center,
     double radius,
-    RingLayer layer,
+    SegmentRingLayer layer,
+  ) {
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    if (onPhoto) {
+      final trackHalo = Paint()
+        ..style = PaintingStyle.stroke
+        ..color = Colors.white.withValues(alpha: 0.18)
+        ..strokeWidth = layer.thickness * 1.18;
+      canvas.drawArc(rect, _startAngle, 2 * math.pi, false, trackHalo);
+    }
+
+    // Track underneath, so a partially-filled day still reads as a full ring.
+    final trackPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = layer.track
+      ..strokeWidth = layer.thickness;
+    canvas.drawArc(rect, _startAngle, 2 * math.pi, false, trackPaint);
+
+    final segs = layer.segments.where((s) => s.value > 0).toList();
+    final total = segs.fold<double>(0, (sum, s) => sum + s.value);
+    if (total <= 0) return;
+
+    final count = segs.length;
+    final gap = count > 1 ? _segmentGap : 0.0;
+    final available = (2 * math.pi) - (gap * count);
+    var start = _startAngle + (gap / 2);
+
+    for (final seg in segs) {
+      final sweep = (seg.value / total) * available;
+      if (onPhoto) {
+        final halo = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..color = Colors.black.withValues(alpha: 0.45)
+          ..strokeWidth = layer.thickness * 1.3;
+        canvas.drawArc(rect, start, sweep, false, halo);
+      }
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = count > 1 ? StrokeCap.round : StrokeCap.butt
+        ..color = seg.color
+        ..strokeWidth = layer.thickness;
+      canvas.drawArc(rect, start, sweep, false, paint);
+      start += sweep + gap;
+    }
+  }
+
+  void _paintProgress(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    ProgressRingLayer layer,
   ) {
     final rect = Rect.fromCircle(center: center, radius: radius);
     final sweep = layer.progress.clamp(0.0, 1.0) * 2 * math.pi;
 
-    // --- Halos (photo case only): drawn first so the real strokes sit atop. ---
     if (onPhoto) {
       final trackHalo = Paint()
         ..style = PaintingStyle.stroke
@@ -93,7 +193,6 @@ class RingPainter extends CustomPainter {
         ..color = Colors.white.withValues(alpha: 0.18)
         ..strokeWidth = layer.thickness * 1.18;
       canvas.drawArc(rect, _startAngle, 2 * math.pi, false, trackHalo);
-
       if (sweep > 0) {
         final fillHalo = Paint()
           ..style = PaintingStyle.stroke
@@ -104,7 +203,6 @@ class RingPainter extends CustomPainter {
       }
     }
 
-    // --- Track: full circle of the empty tone. ---
     final trackPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -112,7 +210,6 @@ class RingPainter extends CustomPainter {
       ..strokeWidth = layer.thickness;
     canvas.drawArc(rect, _startAngle, 2 * math.pi, false, trackPaint);
 
-    // --- Fill: the progress arc, rounded cap, clockwise from the top. ---
     if (sweep > 0) {
       final fillPaint = Paint()
         ..style = PaintingStyle.stroke
@@ -125,19 +222,6 @@ class RingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(RingPainter old) {
-    if (old.onPhoto != onPhoto || old.layers.length != layers.length) {
-      return true;
-    }
-    for (var i = 0; i < layers.length; i++) {
-      final a = layers[i];
-      final b = old.layers[i];
-      if (a.progress != b.progress ||
-          a.thickness != b.thickness ||
-          a.track != b.track ||
-          a.fill != b.fill) {
-        return true;
-      }
-    }
-    return false;
+    return old.onPhoto != onPhoto || !listEquals(old.layers, layers);
   }
 }

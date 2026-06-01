@@ -1,0 +1,86 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../tasks/tasks_providers.dart';
+
+/// Lifecycle of the manual timer for the current session.
+enum TimerStatus { idle, running, paused }
+
+/// Immutable snapshot of the running timer. [sessionElapsed] is the time of the
+/// in-progress session only; it is committed to the selected task's history on
+/// [TimerController.stop].
+class TimerState {
+  const TimerState({
+    this.status = TimerStatus.idle,
+    this.sessionElapsed = Duration.zero,
+  });
+
+  final TimerStatus status;
+  final Duration sessionElapsed;
+
+  bool get isRunning => status == TimerStatus.running;
+
+  /// True when a session exists (running or paused) — i.e. there is elapsed
+  /// time not yet committed. Used to lock task switching mid-session.
+  bool get isActive => status != TimerStatus.idle;
+
+  TimerState copyWith({TimerStatus? status, Duration? sessionElapsed}) {
+    return TimerState(
+      status: status ?? this.status,
+      sessionElapsed: sessionElapsed ?? this.sessionElapsed,
+    );
+  }
+}
+
+/// Drives the manual timer. Manual by design — no GPS or sensors; the user
+/// starts, pauses, and stops to record real effort. While running, a 1-second
+/// ticker advances [TimerState.sessionElapsed]; the screen folds that live time
+/// into the dial so the ring climbs as you work. Stopping commits the session
+/// to the currently selected task and resets to idle.
+class TimerController extends Notifier<TimerState> {
+  Timer? _ticker;
+
+  @override
+  TimerState build() {
+    ref.onDispose(() => _ticker?.cancel());
+    return const TimerState();
+  }
+
+  /// Start a new session or resume a paused one.
+  void start() {
+    if (state.isRunning) return;
+    state = state.copyWith(status: TimerStatus.running);
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      state = state.copyWith(
+        sessionElapsed: state.sessionElapsed + const Duration(seconds: 1),
+      );
+    });
+  }
+
+  /// Pause without committing — the elapsed time is kept.
+  void pause() {
+    if (!state.isRunning) return;
+    _ticker?.cancel();
+    state = state.copyWith(status: TimerStatus.paused);
+  }
+
+  /// Stop and commit the session's whole seconds to the selected task's history
+  /// for today, then reset. Returns the committed duration's whole seconds.
+  Future<int> stop() async {
+    _ticker?.cancel();
+    final seconds = state.sessionElapsed.inSeconds;
+    final task = ref.read(selectedTaskProvider);
+    if (task != null && seconds > 0) {
+      await ref
+          .read(tasksProvider.notifier)
+          .logSeconds(task.id, seconds, DateTime.now());
+    }
+    state = const TimerState();
+    return seconds;
+  }
+}
+
+final timerControllerProvider =
+    NotifierProvider<TimerController, TimerState>(TimerController.new);

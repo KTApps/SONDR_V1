@@ -6,6 +6,8 @@ import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../shared/ring/mini_ring.dart';
 import '../../shared/ring/ring_dial.dart';
+import '../focus/focus_providers.dart';
+import '../focus/focus_view.dart';
 import '../habits/habits_overlay.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
@@ -39,6 +41,11 @@ class TimerScreen extends ConsumerWidget {
     final timer = ref.watch(timerControllerProvider);
     final habitProgress = ref.watch(habitsTodayProgressProvider);
     final period = ref.watch(centrePeriodProvider);
+
+    // Focus Mode replaces the whole home with the quietened focused view.
+    if (ref.watch(focusModeProvider)) {
+      return FocusView(onStop: () => _onStop(context, ref, selectedTask));
+    }
 
     final isCollective = selectedTask == null;
     final liveSeconds = timer.sessionElapsed.inSeconds;
@@ -113,7 +120,8 @@ class TimerScreen extends ConsumerWidget {
               else
                 _TimerControls(
                   timer: timer,
-                  onStart: () =>
+                  onStart: () => _onStartPressed(context, ref),
+                  onResume: () =>
                       ref.read(timerControllerProvider.notifier).start(),
                   onPause: () =>
                       ref.read(timerControllerProvider.notifier).pause(),
@@ -158,9 +166,42 @@ class TimerScreen extends ConsumerWidget {
 
   int? _indexOrNull(int i) => i < 0 ? null : i;
 
+  /// Pressing Start on a fresh (idle) session offers Focus Mode first, then
+  /// starts. Resuming a paused session doesn't re-prompt.
+  Future<void> _onStartPressed(BuildContext context, WidgetRef ref) async {
+    final tokens = GreyscaleTokens.of(context);
+    final enableFocus = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: tokens.surface,
+        title: const Text('Focus mode'),
+        content: const Text(
+          'Lock into this task — the app quietens to just pause and stop until '
+          'you finish.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Not now'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Enable'),
+          ),
+        ],
+      ),
+    );
+    ref.read(timerControllerProvider.notifier).start();
+    if (enableFocus == true) {
+      ref.read(focusModeProvider.notifier).enable();
+    }
+  }
+
   Future<void> _onStop(
       BuildContext context, WidgetRef ref, Task? task) async {
     final outcome = await ref.read(timerControllerProvider.notifier).stop();
+    // Always leave Focus Mode when the session ends.
+    ref.read(focusModeProvider.notifier).disable();
     if (!context.mounted || outcome.loggedSeconds <= 0) return;
 
     // Crossing a 20-hour boundary takes over with the celebration moment;
@@ -326,12 +367,18 @@ class _TimerControls extends StatelessWidget {
   const _TimerControls({
     required this.timer,
     required this.onStart,
+    required this.onResume,
     required this.onPause,
     required this.onStop,
   });
 
   final TimerState timer;
+
+  /// Fresh start (idle) — offers Focus Mode.
   final VoidCallback onStart;
+
+  /// Resume from pause — no Focus prompt.
+  final VoidCallback onResume;
   final VoidCallback onPause;
   final VoidCallback onStop;
 
@@ -362,7 +409,7 @@ class _TimerControls extends StatelessWidget {
             _SecondaryControl(
                 icon: Icons.play_arrow_rounded,
                 label: 'Resume',
-                onPressed: onStart),
+                onPressed: onResume),
             const SizedBox(width: 16),
             _PrimaryControl(
                 icon: Icons.stop_rounded, label: 'Stop', onPressed: onStop),

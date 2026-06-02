@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 
 /// Lifecycle of the manual timer for the current session.
@@ -67,19 +68,63 @@ class TimerController extends Notifier<TimerState> {
   }
 
   /// Stop and commit the session's whole seconds to the selected task's history
-  /// for today, then reset. Returns the committed duration's whole seconds.
-  Future<int> stop() async {
+  /// for today, then reset. Reports what was logged and whether the commit
+  /// pushed the task across a 20-hour milestone, so the screen can celebrate.
+  Future<StopOutcome> stop() async {
     _ticker?.cancel();
     final seconds = state.sessionElapsed.inSeconds;
     final task = ref.read(selectedTaskProvider);
+
+    var milestoneHours = 0;
+    var wasFirst = false;
     if (task != null && seconds > 0) {
+      final before = task.milestonesReached;
       await ref
           .read(tasksProvider.notifier)
           .logSeconds(task.id, seconds, DateTime.now());
+      final after = ref
+              .read(tasksProvider)
+              .value
+              ?.where((t) => t.id == task.id)
+              .firstOrNull
+              ?.milestonesReached ??
+          before;
+      if (after > before) {
+        milestoneHours = after * Task.milestoneStepHours;
+        wasFirst = before == 0;
+      }
     }
+
     state = const TimerState();
-    return seconds;
+    return StopOutcome(
+      loggedSeconds: seconds,
+      taskName: task?.name,
+      milestoneHours: milestoneHours == 0 ? null : milestoneHours,
+      isFirstMilestone: wasFirst,
+    );
   }
+}
+
+/// Result of stopping the timer: what was committed and, if the session pushed
+/// the task past a 20-hour boundary, the milestone just reached.
+class StopOutcome {
+  const StopOutcome({
+    required this.loggedSeconds,
+    required this.taskName,
+    required this.milestoneHours,
+    required this.isFirstMilestone,
+  });
+
+  final int loggedSeconds;
+  final String? taskName;
+
+  /// The milestone hours just crossed (20, 40, …), or null if none.
+  final int? milestoneHours;
+
+  /// True when [milestoneHours] is the task's very first milestone (20h).
+  final bool isFirstMilestone;
+
+  bool get reachedMilestone => milestoneHours != null;
 }
 
 final timerControllerProvider =

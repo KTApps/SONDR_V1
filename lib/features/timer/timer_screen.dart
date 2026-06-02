@@ -9,6 +9,7 @@ import '../../shared/ring/ring_dial.dart';
 import '../habits/habits_overlay.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
+import '../milestone/milestone_celebration.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'centre_period.dart';
@@ -159,13 +160,26 @@ class TimerScreen extends ConsumerWidget {
 
   Future<void> _onStop(
       BuildContext context, WidgetRef ref, Task? task) async {
-    final seconds = await ref.read(timerControllerProvider.notifier).stop();
-    if (!context.mounted || seconds <= 0) return;
-    final logged = DurationFormat.hm(Duration(seconds: seconds));
-    final name = task?.name ?? 'task';
+    final outcome = await ref.read(timerControllerProvider.notifier).stop();
+    if (!context.mounted || outcome.loggedSeconds <= 0) return;
+
+    // Crossing a 20-hour boundary takes over with the celebration moment;
+    // otherwise just confirm the logged time.
+    if (outcome.reachedMilestone) {
+      await showMilestoneCelebration(
+        context,
+        taskName: outcome.taskName ?? 'task',
+        milestoneHours: outcome.milestoneHours!,
+        isFirst: outcome.isFirstMilestone,
+      );
+      return;
+    }
+
+    final logged = DurationFormat.hm(Duration(seconds: outcome.loggedSeconds));
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text('Logged $logged to $name')));
+      ..showSnackBar(
+          SnackBar(content: Text('Logged $logged to ${outcome.taskName}')));
   }
 
   void _stub(BuildContext context, String message) {

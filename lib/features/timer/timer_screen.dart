@@ -8,6 +8,7 @@ import '../../shared/ring/mini_ring.dart';
 import '../../shared/ring/ring_dial.dart';
 import '../habits/habits_overlay.dart';
 import '../habits/habits_providers.dart';
+import '../history/calendar_screen.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'centre_period.dart';
@@ -131,7 +132,9 @@ class TimerScreen extends ConsumerWidget {
               const SizedBox(height: 28),
 
               OutlinedButton(
-                onPressed: () => _stub(context, 'Calendar history — step 4'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CalendarScreen()),
+                ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: tokens.textPrimary,
                   side: BorderSide(color: tokens.ringTrack),

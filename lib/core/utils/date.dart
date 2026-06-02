@@ -27,4 +27,24 @@ abstract final class DayKey {
       (i) => of(today.subtract(Duration(days: count - 1 - i))),
     );
   }
+
+  /// Parse a "yyyy-mm-dd" key back to a local [DateTime] (midnight).
+  static DateTime parse(String dayKey) {
+    final p = dayKey.split('-');
+    return DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
+  }
+
+  static const _weekdays = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+  ];
+  static const _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  /// Full weekday name for [DateTime.weekday] (1 = Monday).
+  static String weekday(int w) => _weekdays[w - 1];
+
+  /// Full month name for a 1-based month number.
+  static String monthName(int m) => _months[m - 1];
 }

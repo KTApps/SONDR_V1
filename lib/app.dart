@@ -13,9 +13,11 @@ class SondrApp extends StatelessWidget {
     return MaterialApp(
       title: 'Sondr',
       debugShowCheckedModeBanner: false,
+      // Sondr is a dark greyscale app. Dark is the design; light exists only as
+      // the inverted ladder for completeness, but the app runs dark.
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.dark,
       home: const TimerScreen(),
     );
   }

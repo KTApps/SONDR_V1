@@ -31,6 +31,7 @@ class RingDial extends StatelessWidget {
     this.size = 280,
     this.onPhoto = false,
     this.center,
+    this.onInnerRingTap,
   });
 
   /// Per-task values for the day (e.g. seconds logged today). Order is stable
@@ -54,9 +55,27 @@ class RingDial extends StatelessWidget {
   /// Centre content (the screen builds the today/month figure here).
   final Widget? center;
 
+  /// Called when the user taps the inner (habit) ring band. The centre figure
+  /// is excluded, so its own gestures (e.g. the today/month swipe) are
+  /// unaffected.
+  final VoidCallback? onInnerRingTap;
+
   // Stroke widths scale with the dial so the component looks right at any size.
   double get _outerThickness => size * 0.090;
   double get _innerThickness => size * 0.074;
+
+  /// True if [p] (local to the dial) falls within the inner ring's band, with a
+  /// little tolerance so it's easy to hit. Mirrors the painter's geometry.
+  bool _hitsInnerRing(Offset p) {
+    final c = size / 2;
+    final dist = (p - Offset(c, c)).distance;
+    final gap = size * 0.035;
+    final outerR = size / 2 - _outerThickness / 2;
+    final innerR = outerR - _outerThickness / 2 - gap - _innerThickness / 2;
+    final low = innerR - _innerThickness / 2 - 16;
+    final high = innerR + _innerThickness / 2 + 16;
+    return dist >= low && dist <= high;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,23 +104,33 @@ class RingDial extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          CustomPaint(
-            size: Size.square(size),
-            painter: RingPainter(
-              onPhoto: onPhoto,
-              layers: [
-                SegmentRingLayer(
-                  thickness: _outerThickness,
-                  segments: segments,
-                  track: track,
-                ),
-                ProgressRingLayer(
-                  thickness: _innerThickness,
-                  progress: habitProgress.clamp(0.0, 1.0),
-                  track: track,
-                  fill: innerFill,
-                ),
-              ],
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapUp: onInnerRingTap == null
+                ? null
+                : (details) {
+                    if (_hitsInnerRing(details.localPosition)) {
+                      onInnerRingTap!();
+                    }
+                  },
+            child: CustomPaint(
+              size: Size.square(size),
+              painter: RingPainter(
+                onPhoto: onPhoto,
+                layers: [
+                  SegmentRingLayer(
+                    thickness: _outerThickness,
+                    segments: segments,
+                    track: track,
+                  ),
+                  ProgressRingLayer(
+                    thickness: _innerThickness,
+                    progress: habitProgress.clamp(0.0, 1.0),
+                    track: track,
+                    fill: innerFill,
+                  ),
+                ],
+              ),
             ),
           ),
           ?center,

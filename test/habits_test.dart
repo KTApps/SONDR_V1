@@ -40,6 +40,25 @@ void main() {
       expect(today.ticks.last.done, isFalse);
     });
 
+    test('streak counts complete days up to yesterday; today does not bump it',
+        () async {
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      await c.read(habitsProvider.future);
+
+      // Seeded: the previous three days are fully complete → streak 3.
+      expect(c.read(habitStreakProvider), 3);
+
+      // Completing every habit today must NOT change the streak (today only
+      // counts once the day has passed).
+      final today = c.read(todayHabitsProvider)!;
+      for (final t in today.ticks.where((t) => !t.done)) {
+        await c.read(habitsProvider.notifier).toggle(t.habitId);
+      }
+      expect(c.read(todayHabitsProvider)!.progress, 1.0);
+      expect(c.read(habitStreakProvider), 3);
+    });
+
     test('removing a habit drops it today but past days keep it (immutable)',
         () async {
       final c = ProviderContainer();

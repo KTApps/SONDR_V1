@@ -51,3 +51,30 @@ final todayHabitsProvider = Provider<DailyHabits?>((ref) {
 final habitsTodayProgressProvider = Provider<double>((ref) {
   return ref.watch(todayHabitsProvider)?.progress ?? 0.0;
 });
+
+/// Day streak: the number of consecutive **fully-completed** days ending **at
+/// yesterday** (a day is complete only if it had at least one habit and every
+/// one was checked). It counts up to and including yesterday, so it is stable
+/// all day and only changes at midnight — completing today's list does not bump
+/// it until the day passes. A missing or incomplete day stops the count; an
+/// empty-list day can't extend it. Editing the live list leaves it untouched
+/// (it reads only frozen past days). Starts at 0.
+final habitStreakProvider = Provider<int>((ref) {
+  final state = ref.watch(habitsProvider).value;
+  if (state == null) return 0;
+
+  final now = DateTime.now();
+  var cursor = DateTime(now.year, now.month, now.day)
+      .subtract(const Duration(days: 1));
+  var streak = 0;
+  while (true) {
+    final record = state.days[DayKey.of(cursor)];
+    if (record == null || record.total == 0 || record.completed != record.total) {
+      break;
+    }
+    streak++;
+    cursor = DateTime(cursor.year, cursor.month, cursor.day)
+        .subtract(const Duration(days: 1));
+  }
+  return streak;
+});

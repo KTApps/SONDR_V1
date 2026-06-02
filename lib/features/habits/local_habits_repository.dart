@@ -30,21 +30,20 @@ class LocalHabitsRepository implements HabitsRepository {
       Habit(id: _nextId(), name: '50 press ups'),
     ]);
 
-    // Seed yesterday as a frozen snapshot (4 of 5 done) to exercise the
-    // per-day history; it stays put when the live list later changes.
-    final yesterday =
-        DayKey.of(DateTime.now().subtract(const Duration(days: 1)));
-    _days[yesterday] = DailyHabits(
-      dayKey: yesterday,
-      ticks: [
-        for (var i = 0; i < _live.length; i++)
-          HabitTick(
-            habitId: _live[i].id,
-            name: _live[i].name,
-            done: i < 4,
-          ),
-      ],
-    );
+    // Seed the previous three days as fully-completed frozen snapshots, so the
+    // streak (consecutive complete days up to yesterday) reads 3. These stay
+    // put when the live list later changes (immutable history).
+    final now = DateTime.now();
+    for (var ago = 1; ago <= 3; ago++) {
+      final key = DayKey.of(now.subtract(Duration(days: ago)));
+      _days[key] = DailyHabits(
+        dayKey: key,
+        ticks: [
+          for (final h in _live)
+            HabitTick(habitId: h.id, name: h.name, done: true),
+        ],
+      );
+    }
 
     // Today starts with the first two checked.
     _syncToday();

@@ -6,7 +6,9 @@ import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../shared/ring/mini_ring.dart';
 import '../../shared/ring/ring_dial.dart';
+import '../habits/habits_checklist_screen.dart';
 import '../habits/habits_providers.dart';
+import '../habits/models/daily_habits.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'centre_period.dart';
@@ -115,7 +117,11 @@ class TimerScreen extends ConsumerWidget {
                       ref.read(timerControllerProvider.notifier).pause(),
                   onStop: () => _onStop(context, ref, selectedTask),
                 ),
-              const SizedBox(height: 36),
+              const SizedBox(height: 32),
+
+              // --- Daily habits entry point (drives the inner ring). ---
+              const _HabitsSummary(),
+              const SizedBox(height: 28),
 
               // --- Last 10 days: each ring is that day's task split. ---
               _SectionLabel('Last 10 days'),
@@ -446,6 +452,51 @@ class _LastTenDays extends StatelessWidget {
             ],
           ),
       ],
+    );
+  }
+}
+
+/// Home-screen entry to the daily-habits checklist. Shows today's completion
+/// (which is also what the inner ring reflects) and opens the checklist.
+class _HabitsSummary extends ConsumerWidget {
+  const _HabitsSummary();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final DailyHabits? today = ref.watch(todayHabitsProvider);
+    final summary = today == null || today.total == 0
+        ? 'None yet'
+        : '${today.completed} of ${today.total} today';
+
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const HabitsChecklistScreen()),
+      ),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(color: tokens.ringTrack),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: tokens.textSecondary),
+            const SizedBox(width: 12),
+            Text('Daily habits', style: theme.textTheme.titleMedium),
+            const Spacer(),
+            Text(
+              summary,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: tokens.textSecondary),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right, color: tokens.textTertiary),
+          ],
+        ),
+      ),
     );
   }
 }

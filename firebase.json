@@ -1,8 +1,1 @@
-{
-  "firestore": {
-    "database": "(default)",
-    "location": "us-central",
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  }
-}
+{"flutter":{"platforms":{"android":{"default":{"projectId":"sondr-cd439","appId":"1:1083804427316:android:f03d300bb1feb924721661","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"sondr-cd439","appId":"1:1083804427316:ios:4d167ad09f42483e721661","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"sondr-cd439","configurations":{"android":"1:1083804427316:android:f03d300bb1feb924721661","ios":"1:1083804427316:ios:4d167ad09f42483e721661"}}}}}}

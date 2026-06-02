@@ -7,4 +7,11 @@ class Habit {
 
   final String id;
   final String name;
+
+  Map<String, dynamic> toMap() => {'id': id, 'name': name};
+
+  factory Habit.fromMap(Map<String, dynamic> map) => Habit(
+        id: (map['id'] as String?) ?? '',
+        name: (map['name'] as String?) ?? '',
+      );
 }

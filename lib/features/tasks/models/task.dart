@@ -78,4 +78,26 @@ class Task {
     next[key] = (next[key] ?? 0) + extraSeconds;
     return Task(id: id, name: name, secondsByDay: next);
   }
+
+  /// Document body for persistence (the id is the doc key, kept separate).
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'secondsByDay': secondsByDay,
+      };
+
+  /// Rebuild from a stored document. Tolerates numbers coming back as `num`.
+  factory Task.fromMap(String id, Map<String, dynamic> map) {
+    final raw = map['secondsByDay'];
+    final seconds = <String, int>{};
+    if (raw is Map) {
+      raw.forEach((k, v) {
+        if (v is num) seconds['$k'] = v.toInt();
+      });
+    }
+    return Task(
+      id: id,
+      name: (map['name'] as String?) ?? '',
+      secondsByDay: seconds,
+    );
+  }
 }

@@ -1,15 +1,22 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../core/utils/date.dart';
+import 'firestore_habits_repository.dart';
 import 'habits_repository.dart';
 import 'local_habits_repository.dart';
 import 'models/daily_habits.dart';
 
-/// The active [HabitsRepository]. Swapping to Firebase later is a one-line
-/// change here.
-final habitsRepositoryProvider = Provider<HabitsRepository>(
-  (ref) => LocalHabitsRepository(),
-);
+/// The active [HabitsRepository]. Firestore when Firebase is ready and
+/// selected, otherwise the local in-memory implementation.
+final habitsRepositoryProvider = Provider<HabitsRepository>((ref) {
+  final uid = ref.watch(currentUidProvider);
+  if (kUseFirebase && ref.watch(firebaseReadyProvider) && uid != null) {
+    return FirestoreHabitsRepository(db: FirebaseFirestore.instance, uid: uid);
+  }
+  return LocalHabitsRepository();
+});
 
 /// Owns the habit list and per-day records, exposing the mutations the
 /// checklist needs. Async to match the eventual backend; the local repository

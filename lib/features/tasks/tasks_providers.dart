@@ -1,14 +1,22 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
+import 'firestore_tasks_repository.dart';
 import 'local_tasks_repository.dart';
 import 'models/task.dart';
 import 'tasks_repository.dart';
 
-/// The active [TasksRepository] implementation. Swapping to Firebase later is a
-/// one-line change here; nothing downstream needs to know.
-final tasksRepositoryProvider = Provider<TasksRepository>(
-  (ref) => LocalTasksRepository(),
-);
+/// The active [TasksRepository]. Firestore when Firebase is ready and selected,
+/// otherwise the local in-memory implementation (tests, offline, init failure).
+/// Nothing downstream knows or cares which one it is.
+final tasksRepositoryProvider = Provider<TasksRepository>((ref) {
+  final uid = ref.watch(currentUidProvider);
+  if (kUseFirebase && ref.watch(firebaseReadyProvider) && uid != null) {
+    return FirestoreTasksRepository(db: FirebaseFirestore.instance, uid: uid);
+  }
+  return LocalTasksRepository();
+});
 
 /// Owns the task list and the mutations the timer screen needs. Async to match
 /// the eventual backend; the local repository resolves instantly so no loading

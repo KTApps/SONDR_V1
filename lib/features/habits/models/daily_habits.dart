@@ -20,6 +20,18 @@ class HabitTick {
         name: name,
         done: done ?? this.done,
       );
+
+  Map<String, dynamic> toMap() => {
+        'habitId': habitId,
+        'name': name,
+        'done': done,
+      };
+
+  factory HabitTick.fromMap(Map<String, dynamic> map) => HabitTick(
+        habitId: (map['habitId'] as String?) ?? '',
+        name: (map['name'] as String?) ?? '',
+        done: (map['done'] as bool?) ?? false,
+      );
 }
 
 /// A single day's habit record: the frozen list of habits that applied that day
@@ -46,6 +58,23 @@ class DailyHabits {
             t.habitId == habitId ? t.copyWith(done: !t.done) : t,
         ],
       );
+
+  /// Document body for a `habitDays/{dayKey}` record (the key is the dayKey).
+  Map<String, dynamic> toMap() => {
+        'ticks': [for (final t in ticks) t.toMap()],
+      };
+
+  factory DailyHabits.fromMap(String dayKey, Map<String, dynamic> map) {
+    final raw = map['ticks'];
+    return DailyHabits(
+      dayKey: dayKey,
+      ticks: [
+        if (raw is List)
+          for (final t in raw)
+            if (t is Map) HabitTick.fromMap(Map<String, dynamic>.from(t)),
+      ],
+    );
+  }
 }
 
 /// The whole habits feature's state: the live ordered list plus every day's

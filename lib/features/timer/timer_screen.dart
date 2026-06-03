@@ -6,6 +6,7 @@ import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../shared/ring/mini_ring.dart';
 import '../../shared/ring/ring_dial.dart';
+import '../auth/account_screen.dart';
 import '../focus/focus_providers.dart';
 import '../focus/focus_view.dart';
 import '../habits/habits_overlay.dart';
@@ -72,9 +73,11 @@ class TimerScreen extends ConsumerWidget {
             onPressed: () => _stub(context, 'Friends & milestones — phase 2'),
           ),
           IconButton(
-            tooltip: 'Settings',
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => _stub(context, 'Settings — coming soon'),
+            tooltip: 'Account',
+            icon: const Icon(Icons.person_outline),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AccountScreen()),
+            ),
           ),
           const SizedBox(width: 4),
         ],

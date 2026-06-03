@@ -10,34 +10,30 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Bring up Firebase and an anonymous session. On any failure (missing config,
-  // offline first launch, init error) we fall through to the local in-memory
-  // backend so the app always runs. ProviderScope overrides flip the repository
-  // providers to Firestore only when this succeeds.
-  String? uid;
+  // Bring up Firebase and ensure there's always a user: a guest (anonymous)
+  // session if no one is signed in, so data always has a home and can later be
+  // upgraded in place to a permanent account. On any failure we fall through to
+  // the local backend so the app still runs; tests never initialise Firebase.
+  var initialized = false;
   if (kUseFirebase) {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      final auth = FirebaseAuth.instance;
-      final user =
-          auth.currentUser ?? (await auth.signInAnonymously()).user;
-      uid = user?.uid;
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance.signInAnonymously();
+      }
+      initialized = true;
     } catch (e) {
       debugPrint('Firebase unavailable, using local backend: $e');
     }
   }
 
-  final resolvedUid = uid;
   runApp(
     ProviderScope(
-      overrides: resolvedUid == null
-          ? const []
-          : [
-              firebaseReadyProvider.overrideWithValue(true),
-              currentUidProvider.overrideWithValue(resolvedUid),
-            ],
+      overrides: initialized
+          ? [firebaseInitializedProvider.overrideWithValue(true)]
+          : const [],
       child: const SondrApp(),
     ),
   );

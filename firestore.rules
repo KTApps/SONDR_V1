@@ -42,5 +42,21 @@ service cloud.firestore {
                     && request.resource.data.users == resource.data.users
                     && request.resource.data.requestedBy == resource.data.requestedBy;
     }
+
+    // Feed posts. Friends-only: each post carries an `audience` array (the
+    // author's accepted friends at post time + self), so the feed is a single
+    // `audience array-contains uid` query and the read rule needs no per-post
+    // friendship lookup. Only the author writes their own posts.
+    match /posts/{postId} {
+      allow read: if request.auth != null
+                  && request.auth.uid in resource.data.audience;
+
+      allow create: if request.auth != null
+                    && request.resource.data.authorUid == request.auth.uid
+                    && request.auth.uid in request.resource.data.audience;
+
+      allow update, delete: if request.auth != null
+                            && resource.data.authorUid == request.auth.uid;
+    }
   }
 }

@@ -6,7 +6,6 @@ import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../shared/ring/mini_ring.dart';
 import '../../shared/ring/ring_dial.dart';
-import '../auth/account_screen.dart';
 import '../focus/focus_providers.dart';
 import '../focus/focus_view.dart';
 import '../habits/habits_overlay.dart';
@@ -66,21 +65,9 @@ class TimerScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        actions: [
-          IconButton(
-            tooltip: 'Friends & milestones',
-            icon: const Icon(Icons.people_outline),
-            onPressed: () => _stub(context, 'Friends & milestones — phase 2'),
-          ),
-          IconButton(
-            tooltip: 'Account',
-            icon: const Icon(Icons.person_outline),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AccountScreen()),
-            ),
-          ),
-          const SizedBox(width: 4),
-        ],
+        // Account & friends/milestones now live in the Profile tab (step 2);
+        // the timer is the Home tab and carries no top-right actions.
+        title: const Text('Sondr'),
       ),
       body: SafeArea(
         top: false,
@@ -226,11 +213,6 @@ class TimerScreen extends ConsumerWidget {
           SnackBar(content: Text('Logged $logged to ${outcome.taskName}')));
   }
 
-  void _stub(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
 }
 
 /// Centre of the dial. While a specific task's session runs, the live stopwatch

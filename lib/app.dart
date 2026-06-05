@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/timer/timer_screen.dart';
+import 'features/shell/main_shell.dart';
 
 /// Root widget. Wires both greyscale themes and lets the OS pick light/dark.
-/// The home is the timer screen — Sondr's main surface (step 2).
+/// The home is the tab shell (Home · Feed · Profile).
 class SondrApp extends StatelessWidget {
   const SondrApp({super.key});
 
@@ -18,7 +18,7 @@ class SondrApp extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.dark,
-      home: const TimerScreen(),
+      home: const MainShell(),
     );
   }
 }

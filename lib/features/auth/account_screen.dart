@@ -9,12 +9,15 @@ import 'auth_screen.dart';
 import 'handle_screen.dart';
 import 'profile_repository.dart';
 
-/// Account hub. For a guest it offers creating an account or signing in; for a
-/// permanent account it shows the email, the handle (or a prompt to set one),
-/// and sign-out. Temporary home for this — it moves into the Profile tab in
-/// step 2.
-class AccountScreen extends ConsumerWidget {
-  const AccountScreen({super.key});
+/// Account management — sign-in/out, the email, and the handle. For a guest it
+/// offers creating an account or signing in; for a permanent account it shows
+/// the email, the handle (or a prompt to set one), and sign-out.
+///
+/// As of step 2 this is **embedded in the Profile tab** rather than pushed as
+/// its own screen, so it's just the body (no Scaffold/AppBar). The hosting
+/// screen supplies a bounded height for the sign-out [Spacer].
+class AccountBody extends ConsumerWidget {
+  const AccountBody({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,22 +27,10 @@ class AccountScreen extends ConsumerWidget {
     final user = auth.currentUser;
     final isGuest = user == null || user.isAnonymous;
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Account'),
-      ),
-      body: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          child: isGuest
-              ? _GuestView()
-              : _SignedInView(email: user.email ?? ''),
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child:
+          isGuest ? _GuestView() : _SignedInView(email: user.email ?? ''),
     );
   }
 }

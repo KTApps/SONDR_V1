@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/ring/mini_ring.dart';
 import '../auth/account_screen.dart';
+import '../friends/friends_repository.dart';
+import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
@@ -42,6 +44,8 @@ class ProfileScreen extends ConsumerWidget {
                 streak: streak,
                 milestones: milestones,
               ),
+              const SizedBox(height: 12),
+              const _FriendsRow(),
               const SizedBox(height: 28),
               _TasksInProgress(tasks: tasks),
               const SizedBox(height: 8),
@@ -96,6 +100,62 @@ class _EffortSummary extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Tappable row into the Friends hub, showing the friend count and a badge for
+/// any requests awaiting the user.
+class _FriendsRow extends ConsumerWidget {
+  const _FriendsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final count = ref.watch(friendCountProvider);
+    final pending = ref.watch(incomingRequestsProvider).length;
+
+    return Material(
+      color: tokens.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const FriendsScreen()),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Row(
+            children: [
+              Icon(Icons.people_outline, color: tokens.textSecondary),
+              const SizedBox(width: 14),
+              Text('Friends', style: theme.textTheme.bodyLarge),
+              const Spacer(),
+              if (pending > 0) ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: tokens.ringFillOuter,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$pending new',
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: tokens.background),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Text('$count',
+                  style: theme.textTheme.bodyLarge
+                      ?.copyWith(color: tokens.textSecondary)),
+              Icon(Icons.chevron_right, color: tokens.textTertiary),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -41,6 +41,7 @@ class _GuestView extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
@@ -106,6 +107,7 @@ class _SignedInView extends ConsumerWidget {
     final profile = ref.watch(currentProfileProvider);
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
@@ -147,12 +149,12 @@ class _SignedInView extends ConsumerWidget {
             );
           },
         ),
-        const Spacer(),
+        const SizedBox(height: 32),
         TextButton(
-          onPressed: () async {
-            await ref.read(authRepositoryProvider).signOut();
-            if (context.mounted) Navigator.of(context).maybePop();
-          },
+          // Sign-out starts a fresh guest session; AccountBody watches the auth
+          // stream and rebuilds itself into the guest view — nothing to pop now
+          // that this lives inside the Profile tab.
+          onPressed: () => ref.read(authRepositoryProvider).signOut(),
           style: TextButton.styleFrom(foregroundColor: tokens.textSecondary),
           child: const Text('Sign out'),
         ),

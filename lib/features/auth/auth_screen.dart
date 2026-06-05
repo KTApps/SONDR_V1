@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
+import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
 import 'handle_screen.dart';
 
@@ -175,6 +176,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 child: Text(_signUp
                     ? 'I already have an account'
                     : 'Create a new account'),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: Divider(color: tokens.ringTrack)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text('or',
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(color: tokens.textSecondary)),
+                  ),
+                  Expanded(child: Divider(color: tokens.ringTrack)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              AppleSignInButton(
+                enabled: !_busy,
+                onError: (message) => setState(() => _error = message),
               ),
             ],
           ),

@@ -9,7 +9,11 @@ import 'profile_repository.dart';
 /// Pick a unique handle. Validates format client-side, then claims it
 /// atomically via [ProfileRepository.claimHandle] (rejecting duplicates).
 class HandleScreen extends ConsumerStatefulWidget {
-  const HandleScreen({super.key});
+  const HandleScreen({super.key, this.suggestedDisplayName});
+
+  /// Pre-fills the profile display name (e.g. the name Apple returned on first
+  /// sign-in). The handle itself is always chosen by the user.
+  final String? suggestedDisplayName;
 
   @override
   ConsumerState<HandleScreen> createState() => _HandleScreenState();
@@ -47,7 +51,11 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
       _error = null;
     });
     try {
-      await repo.claimHandle(uid: uid, handle: handle);
+      await repo.claimHandle(
+        uid: uid,
+        handle: handle,
+        displayName: widget.suggestedDisplayName,
+      );
       ref.invalidate(currentProfileProvider);
       // Land on Home (the timer) after finishing sign-up + handle setup.
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);

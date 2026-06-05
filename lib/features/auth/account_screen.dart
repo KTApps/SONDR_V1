@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import '../../core/theme/greyscale_tokens.dart';
+import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
 import 'auth_screen.dart';
 import 'handle_screen.dart';
@@ -83,6 +84,21 @@ class _GuestView extends StatelessWidget {
           style: TextButton.styleFrom(foregroundColor: tokens.textPrimary),
           child: const Text('I already have an account'),
         ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(child: Divider(color: tokens.ringTrack)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text('or',
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: tokens.textSecondary)),
+            ),
+            Expanded(child: Divider(color: tokens.ringTrack)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const AppleSignInButton(),
       ],
     );
   }

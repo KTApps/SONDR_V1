@@ -1,0 +1,17 @@
+rules_version = '2';
+
+// Sondr photos. Milestone-post images live under the uploader's own space.
+// Note: Firebase download URLs carry an access token that bypasses these read
+// rules, so friends-only-ness for photos rests on the post's `audience` gating
+// (only friends ever receive the URL) rather than on `allow read` here.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/posts/{file} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == uid
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

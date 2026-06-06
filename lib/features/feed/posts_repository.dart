@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
@@ -151,6 +154,16 @@ class PostsRepository {
     batch.update(
         _posts.doc(postId), {'commentCount': FieldValue.increment(-1)});
     await batch.commit();
+  }
+
+  /// Upload a milestone photo to the user's own Storage space and return its
+  /// download URL, to pass straight into [createMilestonePost]. Path is keyed by
+  /// a fresh id so each post gets its own file.
+  Future<String> uploadPostPhoto(File file) async {
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final ref = FirebaseStorage.instance.ref('users/$uid/posts/$id.jpg');
+    await ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
+    return ref.getDownloadURL();
   }
 
   Future<String> createMilestonePost({

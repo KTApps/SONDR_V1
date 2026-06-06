@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/ring/ring_dial.dart';
@@ -70,21 +73,48 @@ class _MilestoneCelebrationScreenState
       _toast('Sign in to share milestones.');
       return;
     }
-    setState(() => _busy = true);
+
+    // Capture + upload first (if asked), so the post is created once, already
+    // carrying its photo — friends never see a photoless flash.
+    String? photoUrl;
+    if (withPhoto) {
+      final source = await _pickSource();
+      if (source == null) return; // backed out of the source sheet
+      final XFile? picked;
+      try {
+        picked = await ImagePicker()
+            .pickImage(source: source, maxWidth: 1080, imageQuality: 80);
+      } catch (e) {
+        debugPrint('SONDR photo pick error: $e');
+        _toast('Couldn’t open the camera or library.');
+        return;
+      }
+      if (picked == null) return; // backed out of the picker
+      setState(() => _busy = true);
+      try {
+        photoUrl = await repo.uploadPostPhoto(File(picked.path));
+      } catch (e) {
+        debugPrint('SONDR photo upload error: $e');
+        if (mounted) {
+          setState(() => _busy = false);
+          _toast('Couldn’t upload the photo. Please try again.');
+        }
+        return;
+      }
+    } else {
+      setState(() => _busy = true);
+    }
+
     try {
-      // Photo capture/upload is a later (Storage) step; for now both share
-      // paths publish a photoless post. When capture lands, the with-photo
-      // path will attach to this returned id.
       await repo.createMilestonePost(
         taskName: widget.taskName,
         milestoneHours: widget.milestoneHours,
         totalHours: widget.totalHours,
+        photoUrl: photoUrl,
       );
       if (!mounted) return;
       Navigator.of(context).maybePop();
-      _toast(withPhoto
-          ? 'Milestone shared — photo capture arrives with the next step.'
-          : 'Milestone shared.');
+      _toast(withPhoto ? 'Milestone shared with your photo.' : 'Milestone shared.');
     } catch (e) {
       debugPrint('SONDR milestone post error: $e');
       if (mounted) {
@@ -92,6 +122,30 @@ class _MilestoneCelebrationScreenState
         _toast('Couldn’t share the milestone. Please try again.');
       }
     }
+  }
+
+  /// Camera vs photo library (library is the simulator-testable path).
+  Future<ImageSource?> _pickSource() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from library'),
+              onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _toast(String message) {

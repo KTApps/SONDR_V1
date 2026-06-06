@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/utils/date.dart';
 import 'package:sondr/features/milestone/milestone_celebration.dart';
 import 'package:sondr/features/tasks/models/task.dart';
@@ -65,6 +64,7 @@ void main() {
     expect(outcome.reachedMilestone, isTrue);
     expect(outcome.milestoneHours, 20);
     expect(outcome.isFirstMilestone, isTrue);
+    expect(outcome.totalHours, 20);
   });
 
   test('stopping without crossing a boundary reports no milestone', () async {
@@ -83,20 +83,45 @@ void main() {
     expect(outcome.milestoneHours, isNull);
   });
 
-  testWidgets('celebration screen renders the moment', (tester) async {
+  testWidgets('celebration screen offers the share-or-not choice',
+      (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.dark(),
-        home: const MilestoneCelebrationScreen(
-          taskName: 'Spanish',
-          milestoneHours: 20,
-          isFirst: true,
+      const ProviderScope(
+        child: MaterialApp(
+          home: MilestoneCelebrationScreen(
+            taskName: 'Spanish',
+            milestoneHours: 20,
+            totalHours: 21,
+            isFirst: true,
+            canShare: true,
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
     expect(find.text('Congratulations!'), findsOneWidget);
     expect(find.text('20 hrs'), findsOneWidget);
-    expect(find.text('Take a photo to mark the moment'), findsOneWidget);
+    expect(find.text('Share with a photo'), findsOneWidget);
+    expect(find.text('Share without a photo'), findsOneWidget);
+    expect(find.text('Not now'), findsOneWidget);
+  });
+
+  testWidgets('celebration without sharing just shows Done', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: MilestoneCelebrationScreen(
+            taskName: 'Piano',
+            milestoneHours: 40,
+            totalHours: 41,
+            isFirst: false,
+            canShare: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Share with a photo'), findsNothing);
+    expect(find.text('Done'), findsOneWidget);
   });
 }

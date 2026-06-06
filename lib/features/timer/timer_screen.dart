@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
@@ -117,6 +118,21 @@ class TimerScreen extends ConsumerWidget {
                       ref.read(timerControllerProvider.notifier).pause(),
                   onStop: () => _onStop(context, ref, selectedTask),
                 ),
+
+              // Dev-only: push the selected task to just below its first 20h
+              // milestone so a short session crosses it (DEBUG_TOOLS only).
+              if (kDebugTools && selectedTask != null) ...[
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () =>
+                      _primeMilestone(context, ref, selectedTask),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: tokens.textTertiary,
+                    side: BorderSide(color: tokens.ringTrack),
+                  ),
+                  child: const Text('DEBUG · prime to milestone edge'),
+                ),
+              ],
               const SizedBox(height: 36),
 
               // --- Last 10 days: each ring is that day's task split. ---
@@ -201,7 +217,11 @@ class TimerScreen extends ConsumerWidget {
         context,
         taskName: outcome.taskName ?? 'task',
         milestoneHours: outcome.milestoneHours!,
+        totalHours: outcome.totalHours,
         isFirst: outcome.isFirstMilestone,
+        // For now only the first 20h milestone offers a post; the widening
+        // milestone ladder (and posting on later rungs) is a separate step.
+        canShare: outcome.isFirstMilestone,
       );
       return;
     }
@@ -213,6 +233,23 @@ class TimerScreen extends ConsumerWidget {
           SnackBar(content: Text('Logged $logged to ${outcome.taskName}')));
   }
 
+  /// DEBUG_TOOLS only: log enough time to leave [task] ~90s below its first 20h
+  /// milestone, so a short live session crosses it and exercises the real
+  /// milestone → post → feed loop.
+  void _primeMilestone(BuildContext context, WidgetRef ref, Task task) {
+    final edgeSeconds = Task.milestoneStepHours * 3600 - 90;
+    final needed = edgeSeconds - task.totalSeconds;
+    final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+    if (needed <= 0) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Already at/past the first milestone')));
+      return;
+    }
+    ref.read(tasksProvider.notifier).logSeconds(task.id, needed, DateTime.now());
+    messenger.showSnackBar(SnackBar(
+        content: Text(
+            'Primed ${task.name} near 20h — run a short session to cross')));
+  }
 }
 
 /// Centre of the dial. While a specific task's session runs, the live stopwatch

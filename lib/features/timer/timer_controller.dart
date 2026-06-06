@@ -77,18 +77,19 @@ class TimerController extends Notifier<TimerState> {
 
     var milestoneHours = 0;
     var wasFirst = false;
+    var totalHours = 0;
     if (task != null && seconds > 0) {
       final before = task.milestonesReached;
       await ref
           .read(tasksProvider.notifier)
           .logSeconds(task.id, seconds, DateTime.now());
-      final after = ref
-              .read(tasksProvider)
-              .value
-              ?.where((t) => t.id == task.id)
-              .firstOrNull
-              ?.milestonesReached ??
-          before;
+      final updated = ref
+          .read(tasksProvider)
+          .value
+          ?.where((t) => t.id == task.id)
+          .firstOrNull;
+      final after = updated?.milestonesReached ?? before;
+      totalHours = ((updated?.totalSeconds ?? 0) / 3600).round();
       if (after > before) {
         milestoneHours = after * Task.milestoneStepHours;
         wasFirst = before == 0;
@@ -101,6 +102,7 @@ class TimerController extends Notifier<TimerState> {
       taskName: task?.name,
       milestoneHours: milestoneHours == 0 ? null : milestoneHours,
       isFirstMilestone: wasFirst,
+      totalHours: totalHours,
     );
   }
 }
@@ -113,6 +115,7 @@ class StopOutcome {
     required this.taskName,
     required this.milestoneHours,
     required this.isFirstMilestone,
+    required this.totalHours,
   });
 
   final int loggedSeconds;
@@ -123,6 +126,10 @@ class StopOutcome {
 
   /// True when [milestoneHours] is the task's very first milestone (20h).
   final bool isFirstMilestone;
+
+  /// The task's lifetime hours after this session was committed — carried so a
+  /// milestone post can show the real total.
+  final int totalHours;
 
   bool get reachedMilestone => milestoneHours != null;
 }

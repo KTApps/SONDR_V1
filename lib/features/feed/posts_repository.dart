@@ -58,7 +58,9 @@ class PostsRepository {
     return ids.toList();
   }
 
-  Future<void> _create(
+  /// Returns the new post's id, so a later step can attach a photo by updating
+  /// that post once Storage upload exists.
+  Future<String> _create(
     String type,
     Map<String, dynamic> payload, {
     String? caption,
@@ -66,7 +68,7 @@ class PostsRepository {
   }) async {
     final author = await _author();
     final audience = await _audience();
-    await _posts.add({
+    final ref = await _posts.add({
       'authorUid': uid,
       'author': author.toMap(),
       'type': type,
@@ -76,9 +78,10 @@ class PostsRepository {
       'audience': audience,
       ...payload,
     });
+    return ref.id;
   }
 
-  Future<void> createMilestonePost({
+  Future<String> createMilestonePost({
     required String taskName,
     required int milestoneHours,
     required int totalHours,
@@ -91,7 +94,7 @@ class PostsRepository {
         'totalHours': totalHours,
       }, caption: caption, photoUrl: photoUrl);
 
-  Future<void> createStreakPost({
+  Future<String> createStreakPost({
     required int streakDays,
     required List<String> habits,
     String? caption,
@@ -102,7 +105,7 @@ class PostsRepository {
         'habits': habits,
       }, caption: caption, photoUrl: photoUrl);
 
-  Future<void> createSessionPost({
+  Future<String> createSessionPost({
     required String taskName,
     required int sessionSeconds,
     String? caption,

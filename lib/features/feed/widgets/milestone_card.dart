@@ -101,7 +101,7 @@ class MilestoneCard extends StatelessWidget {
           Center(child: _ring(context, onPhoto: false)),
           _caption(context, onPhoto: false),
           const SizedBox(height: 16),
-          const PostInteractions(),
+          PostInteractions(post: post),
         ],
       ),
     );
@@ -146,7 +146,7 @@ class MilestoneCard extends StatelessWidget {
                 Expanded(child: Center(child: _ring(context, onPhoto: true))),
                 _caption(context, onPhoto: true),
                 const SizedBox(height: 12),
-                const PostInteractions(onPhoto: true),
+                PostInteractions(post: post, onPhoto: true),
               ],
             ),
           ),

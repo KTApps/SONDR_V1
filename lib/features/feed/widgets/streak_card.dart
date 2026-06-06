@@ -56,7 +56,7 @@ class StreakCard extends StatelessWidget {
                       ?.copyWith(color: tokens.textSecondary)),
             ],
             const SizedBox(height: 16),
-            const PostInteractions(),
+            PostInteractions(post: post),
           ],
         ),
       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
@@ -7,8 +8,11 @@ import 'package:sondr/features/feed/widgets/streak_card.dart';
 
 const _author = PostAuthor(username: 'tom', displayName: 'Tom Hardy');
 
+// Cards now use the interactive PostInteractions (a ConsumerWidget), so a
+// ProviderScope is required. With no Firebase the interaction providers resolve
+// to empty/null and the affordances simply render inert.
 Future<void> _pump(WidgetTester tester, Widget child) => tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: child)),
+      ProviderScope(child: MaterialApp(home: Scaffold(body: child))),
     );
 
 void main() {

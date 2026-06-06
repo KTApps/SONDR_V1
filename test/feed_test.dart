@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sondr/features/feed/models/comment.dart';
 import 'package:sondr/features/feed/models/post.dart';
 
 Map<String, dynamic> _base(String type) => {
@@ -66,6 +67,53 @@ void main() {
         'sessionSeconds': 600,
       });
       expect(post.createdAt, isNull);
+    });
+
+    test('reads like/comment counts, defaulting to 0 when absent', () {
+      final withCounts = Post.fromMap('p5', {
+        ..._base('milestone'),
+        'taskName': 'Spanish',
+        'milestoneHours': 20,
+        'totalHours': 20,
+        'likeCount': 3,
+        'commentCount': 2,
+      });
+      expect(withCounts.likeCount, 3);
+      expect(withCounts.commentCount, 2);
+
+      // Older posts written before counters existed read as 0.
+      final legacy = Post.fromMap('p6', {
+        ..._base('streak'),
+        'streakDays': 5,
+        'habits': const ['Run'],
+      });
+      expect(legacy.likeCount, 0);
+      expect(legacy.commentCount, 0);
+    });
+  });
+
+  group('Comment.fromMap', () {
+    test('parses author, text and timestamp', () {
+      final c = Comment.fromMap('c1', {
+        'authorUid': 'bob',
+        'author': {'username': 'bob', 'displayName': 'Bob'},
+        'text': 'Strong work',
+        'createdAt': 1700000000000,
+      });
+      expect(c.authorUid, 'bob');
+      expect(c.author.label, 'Bob');
+      expect(c.text, 'Strong work');
+      expect(c.createdAt, DateTime.fromMillisecondsSinceEpoch(1700000000000));
+    });
+
+    test('falls back to handle and tolerates a missing timestamp', () {
+      final c = Comment.fromMap('c2', {
+        'authorUid': 'tom',
+        'author': {'username': 'tom'},
+        'text': 'nice',
+      });
+      expect(c.author.label, '@tom');
+      expect(c.createdAt, isNull);
     });
   });
 }

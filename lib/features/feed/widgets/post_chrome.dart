@@ -1,8 +1,12 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/utils/relative_time.dart';
 import '../models/post.dart';
+import '../posts_repository.dart';
+import 'comments_sheet.dart';
 
 /// Soft dark halo behind text that sits over a photo (spec technique #3), so
 /// captions/usernames stay legible on bright images.
@@ -67,43 +71,84 @@ class PostAuthorRow extends StatelessWidget {
   }
 }
 
-/// Like + comment affordances with counts. Static for now — the interaction
-/// backend (likes/comments) is a later step.
-class PostInteractions extends StatelessWidget {
-  const PostInteractions({
-    super.key,
-    this.likes = 0,
-    this.comments = 0,
-    this.onPhoto = false,
-  });
+/// Like + comment row. The heart reflects the post's likeCount and whether this
+/// user has liked it (tap toggles); the comment icon shows commentCount and
+/// opens the comments sheet.
+class PostInteractions extends ConsumerWidget {
+  const PostInteractions({super.key, required this.post, this.onPhoto = false});
 
-  final int likes;
-  final int comments;
+  final Post post;
   final bool onPhoto;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final color = onPhoto ? Colors.white : tokens.textSecondary;
+    final activeColor = onPhoto ? Colors.white : tokens.textPrimary;
     final shadows = onPhoto ? kTextShadows : null;
 
-    Widget item(IconData icon, int count) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: color, shadows: shadows),
-            const SizedBox(width: 6),
-            Text('$count',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: color, shadows: shadows)),
-          ],
+    final liked = ref.watch(myLikedPostsProvider).maybeWhen(
+          data: (ids) => ids.contains(post.id),
+          orElse: () => false,
+        );
+    final repo = ref.read(postsRepositoryProvider);
+
+    Widget item({
+      required IconData icon,
+      required int count,
+      required Color iconColor,
+      required VoidCallback? onTap,
+    }) =>
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 18, color: iconColor, shadows: shadows),
+                const SizedBox(width: 6),
+                Text('$count',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: color, shadows: shadows)),
+              ],
+            ),
+          ),
         );
 
     return Row(
       children: [
-        item(Icons.favorite_border, likes),
-        const SizedBox(width: 20),
-        item(Icons.mode_comment_outlined, comments),
+        item(
+          icon: liked ? Icons.favorite : Icons.favorite_border,
+          count: post.likeCount,
+          iconColor: liked ? activeColor : color,
+          onTap: repo == null
+              ? null
+              : () async {
+                  // TEMP diagnostic: surface the real Firebase code on-screen.
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await repo.setLike(post.id, !liked);
+                  } on FirebaseException catch (e) {
+                    debugPrint('SONDR like error: ${e.code} :: ${e.message}');
+                    messenger
+                      ..clearSnackBars()
+                      ..showSnackBar(
+                          SnackBar(content: Text('Like failed: ${e.code}')));
+                  } catch (e) {
+                    debugPrint('SONDR like error: $e');
+                  }
+                },
+        ),
+        const SizedBox(width: 16),
+        item(
+          icon: Icons.mode_comment_outlined,
+          count: post.commentCount,
+          iconColor: color,
+          onTap: () => showCommentsSheet(context, post.id),
+        ),
       ],
     );
   }

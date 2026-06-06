@@ -32,6 +32,8 @@ sealed class Post {
     required this.createdAt,
     required this.caption,
     required this.photoUrl,
+    this.likeCount = 0,
+    this.commentCount = 0,
   });
 
   final String id;
@@ -43,6 +45,12 @@ sealed class Post {
   final String? caption;
   final String? photoUrl;
 
+  /// Denormalized interaction counts, bumped ±1 via batched writes alongside the
+  /// like mirror / comment doc. They ride the feed stream, so cards show live
+  /// counts with no extra reads.
+  final int likeCount;
+  final int commentCount;
+
   PostType get type;
 
   factory Post.fromMap(String id, Map<String, dynamic> map) {
@@ -52,6 +60,8 @@ sealed class Post {
     final createdAt = _parseTime(map['createdAt']);
     final caption = map['caption'] as String?;
     final photoUrl = map['photoUrl'] as String?;
+    final likeCount = _int(map['likeCount']);
+    final commentCount = _int(map['commentCount']);
 
     switch (map['type']) {
       case 'milestone':
@@ -62,6 +72,8 @@ sealed class Post {
           createdAt: createdAt,
           caption: caption,
           photoUrl: photoUrl,
+          likeCount: likeCount,
+          commentCount: commentCount,
           taskName: (map['taskName'] as String?) ?? '',
           milestoneHours: _int(map['milestoneHours']),
           totalHours: _int(map['totalHours']),
@@ -74,6 +86,8 @@ sealed class Post {
           createdAt: createdAt,
           caption: caption,
           photoUrl: photoUrl,
+          likeCount: likeCount,
+          commentCount: commentCount,
           streakDays: _int(map['streakDays']),
           habits: ((map['habits'] as List?) ?? const [])
               .map((e) => '$e')
@@ -87,6 +101,8 @@ sealed class Post {
           createdAt: createdAt,
           caption: caption,
           photoUrl: photoUrl,
+          likeCount: likeCount,
+          commentCount: commentCount,
           taskName: (map['taskName'] as String?) ?? '',
           sessionSeconds: _int(map['sessionSeconds']),
         );
@@ -103,6 +119,8 @@ class MilestonePost extends Post {
     required super.createdAt,
     required super.caption,
     required super.photoUrl,
+    super.likeCount,
+    super.commentCount,
     required this.taskName,
     required this.milestoneHours,
     required this.totalHours,
@@ -129,6 +147,8 @@ class StreakPost extends Post {
     required super.createdAt,
     required super.caption,
     required super.photoUrl,
+    super.likeCount,
+    super.commentCount,
     required this.streakDays,
     required this.habits,
   });
@@ -149,6 +169,8 @@ class SessionPost extends Post {
     required super.createdAt,
     required super.caption,
     required super.photoUrl,
+    super.likeCount,
+    super.commentCount,
     required this.taskName,
     required this.sessionSeconds,
   });

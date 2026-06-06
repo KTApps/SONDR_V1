@@ -63,6 +63,11 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Sample photos used only by the mock feed (--dart-define=MOCK_FEED=true) to
+  # preview the photo-backdrop milestone card. Not referenced by real builds.
+  assets:
+    - assets/mock/
+
   fonts:
     - family: Inter
       fonts:

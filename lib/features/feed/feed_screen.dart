@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
+import 'feed_mocks.dart';
+import 'posts_repository.dart';
+import 'widgets/feed_view.dart';
 
-/// The Feed tab. Placeholder for now — the real feed (milestone / streak /
-/// session-log cards) is a later phase-2 sub-step. Kept as its own screen so
-/// the tab shell is complete and the feed slots straight in.
-class FeedScreen extends StatelessWidget {
+/// The Feed tab: a friends-only vertical scroll of milestone / streak / session
+/// posts. Wired to the live [feedProvider]; with `--dart-define=MOCK_FEED=true`
+/// it renders sample posts instead, for previewing the cards on the simulator.
+class FeedScreen extends ConsumerWidget {
   const FeedScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
-
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -22,24 +23,34 @@ class FeedScreen extends StatelessWidget {
       ),
       body: SafeArea(
         top: false,
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.dynamic_feed_outlined,
-                    size: 48, color: tokens.textTertiary),
-                const SizedBox(height: 16),
-                Text(
-                  'Your friends’ effort will appear here',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: tokens.textSecondary),
+        child: kMockFeed
+            ? FeedView(posts: mockPosts())
+            : ref.watch(feedProvider).when(
+                  data: (posts) => FeedView(posts: posts),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (_, _) => const _Error(),
                 ),
-              ],
-            ),
-          ),
+      ),
+    );
+  }
+}
+
+class _Error extends StatelessWidget {
+  const _Error();
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Text(
+          'Couldn’t load the feed. Pull to refresh or try again later.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(color: tokens.textSecondary),
         ),
       ),
     );

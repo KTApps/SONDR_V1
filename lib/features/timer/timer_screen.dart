@@ -72,99 +72,110 @@ class TimerScreen extends ConsumerWidget {
       ),
       body: SafeArea(
         top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              const SizedBox(height: 4),
-              const Center(child: TaskDropdown()),
-              const SizedBox(height: 28),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Responsive dial: take a share of the available height, capped, so
+            // the whole screen fits statically (no scroll) on any phone while
+            // the ring stays the hero. It only shrinks when space is tight.
+            final dialSize = (constraints.maxHeight * 0.42).clamp(220.0, 300.0);
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  const Center(child: TaskDropdown()),
+                  const SizedBox(height: 16),
 
-              // --- The hero dial. Swipe the centre to toggle today/month. ---
-              RingDial(
-                taskSegments: segments,
-                highlightedSegment: highlightIndex,
-                habitProgress: habitProgress,
-                size: 300,
-                onInnerRingTap: () => showHabitsOverlay(context),
-                center: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onHorizontalDragEnd: (_) =>
-                      ref.read(centrePeriodProvider.notifier).toggle(),
-                  child: _DialCentre(
+                  // --- The hero dial. Swipe the centre to toggle today/month. ---
+                  RingDial(
+                    taskSegments: segments,
+                    highlightedSegment: highlightIndex,
+                    habitProgress: habitProgress,
+                    size: dialSize,
+                    onInnerRingTap: () => showHabitsOverlay(context),
+                    center: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onHorizontalDragEnd: (_) =>
+                          ref.read(centrePeriodProvider.notifier).toggle(),
+                      child: _DialCentre(
+                        tasks: tasks,
+                        selectedTask: selectedTask,
+                        isCollective: isCollective,
+                        timer: timer,
+                        period: period,
+                        now: now,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _PeriodDots(period: period),
+                  const SizedBox(height: 18),
+
+                  // --- Controls: only a specific task can run a session. ---
+                  if (isCollective)
+                    _CollectiveHint(hasTasks: tasks.isNotEmpty)
+                  else
+                    _TimerControls(
+                      timer: timer,
+                      onStart: () => _onStartPressed(context, ref),
+                      onResume: () =>
+                          ref.read(timerControllerProvider.notifier).start(),
+                      onPause: () =>
+                          ref.read(timerControllerProvider.notifier).pause(),
+                      onStop: () => _onStop(context, ref, selectedTask),
+                    ),
+
+                  // Dev-only: push the selected task to just below its first 20h
+                  // milestone so a short session crosses it (DEBUG_TOOLS only).
+                  if (kDebugTools && selectedTask != null) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: () =>
+                          _primeMilestone(context, ref, selectedTask),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: tokens.textTertiary,
+                        side: BorderSide(color: tokens.ringTrack),
+                      ),
+                      child: const Text('DEBUG · prime to milestone edge'),
+                    ),
+                  ],
+
+                  // Slack collapses here so the progress block anchors just
+                  // above the tab bar, with breathing room beneath the button.
+                  const Spacer(),
+
+                  // --- Last 10 days: each ring is that day's task split. ---
+                  _SectionLabel('Last 10 days'),
+                  const SizedBox(height: 12),
+                  _LastTenDays(
                     tasks: tasks,
-                    selectedTask: selectedTask,
-                    isCollective: isCollective,
-                    timer: timer,
-                    period: period,
+                    selectedId: selectedId,
+                    liveSeconds: liveSeconds,
                     now: now,
                   ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              _PeriodDots(period: period),
-              const SizedBox(height: 28),
+                  const SizedBox(height: 18),
 
-              // --- Controls: only a specific task can run a session. ---
-              if (isCollective)
-                _CollectiveHint(hasTasks: tasks.isNotEmpty)
-              else
-                _TimerControls(
-                  timer: timer,
-                  onStart: () => _onStartPressed(context, ref),
-                  onResume: () =>
-                      ref.read(timerControllerProvider.notifier).start(),
-                  onPause: () =>
-                      ref.read(timerControllerProvider.notifier).pause(),
-                  onStop: () => _onStop(context, ref, selectedTask),
-                ),
-
-              // Dev-only: push the selected task to just below its first 20h
-              // milestone so a short session crosses it (DEBUG_TOOLS only).
-              if (kDebugTools && selectedTask != null) ...[
-                const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: () =>
-                      _primeMilestone(context, ref, selectedTask),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: tokens.textTertiary,
-                    side: BorderSide(color: tokens.ringTrack),
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CalendarScreen()),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: tokens.textPrimary,
+                      side: BorderSide(color: tokens.ringTrack),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text('View your progress',
+                        style: theme.textTheme.labelLarge),
                   ),
-                  child: const Text('DEBUG · prime to milestone edge'),
-                ),
-              ],
-              const SizedBox(height: 36),
-
-              // --- Last 10 days: each ring is that day's task split. ---
-              _SectionLabel('Last 10 days'),
-              const SizedBox(height: 14),
-              _LastTenDays(
-                tasks: tasks,
-                selectedId: selectedId,
-                liveSeconds: liveSeconds,
-                now: now,
+                  const SizedBox(height: 16),
+                ],
               ),
-              const SizedBox(height: 28),
-
-              OutlinedButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const CalendarScreen()),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: tokens.textPrimary,
-                  side: BorderSide(color: tokens.ringTrack),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: Text('View your progress',
-                    style: theme.textTheme.labelLarge),
-              ),
-              const SizedBox(height: 28),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

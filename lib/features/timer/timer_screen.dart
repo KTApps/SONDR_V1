@@ -33,7 +33,6 @@ class TimerScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
     final now = DateTime.now();
 
     final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
@@ -77,7 +76,7 @@ class TimerScreen extends ConsumerWidget {
             // Responsive dial: take a share of the available height, capped, so
             // the whole screen fits statically (no scroll) on any phone while
             // the ring stays the hero. It only shrinks when space is tight.
-            final dialSize = (constraints.maxHeight * 0.42).clamp(220.0, 300.0);
+            final dialSize = (constraints.maxHeight * 0.35).clamp(190.0, 265.0);
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
@@ -140,38 +139,15 @@ class TimerScreen extends ConsumerWidget {
                     ),
                   ],
 
-                  // Slack collapses here so the progress block anchors just
-                  // above the tab bar, with breathing room beneath the button.
-                  const Spacer(),
+                  // Most of the slack goes below the block, so the whole group
+                  // rises into the empty space just under the hint while a
+                  // comfortable gap remains above the tab bar (never touching).
+                  const Spacer(flex: 1),
 
-                  // --- Last 10 days: each ring is that day's task split. ---
-                  _SectionLabel('Last 10 days'),
-                  const SizedBox(height: 12),
-                  _LastTenDays(
-                    tasks: tasks,
-                    selectedId: selectedId,
-                    liveSeconds: liveSeconds,
-                    now: now,
-                  ),
-                  const SizedBox(height: 18),
-
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const CalendarScreen()),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: tokens.textPrimary,
-                      side: BorderSide(color: tokens.ringTrack),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: Text('View your progress',
-                        style: theme.textTheme.labelLarge),
-                  ),
-                  const SizedBox(height: 16),
+                  // --- Last 10 days: minimal grid of mini dual-rings on the
+                  // plain background, with a "View your progress" text CTA. ---
+                  _LastTenDays(now: now),
+                  const Spacer(flex: 2),
                 ],
               ),
             );
@@ -514,50 +490,88 @@ class _SecondaryControl extends StatelessWidget {
   }
 }
 
-class _LastTenDays extends StatelessWidget {
-  const _LastTenDays({
-    required this.tasks,
-    required this.selectedId,
-    required this.liveSeconds,
-    required this.now,
-  });
+/// The "Last 10 days" module: a label, two rows of five mini dual-rings, and a
+/// plain-text "View your progress" CTA, all sitting directly on the background
+/// (no border, no panel). Each cell mirrors the hero dial at small scale —
+/// outer ring = that day's task split, inner ring = that day's habits — with a
+/// days-ago number in the centre. Today is excluded (it's the big dial above):
+/// the grid reads 1 (yesterday) at top-left across to 10 (oldest) at
+/// bottom-right. The day circles are display-only; only the CTA navigates.
+class _LastTenDays extends ConsumerWidget {
+  const _LastTenDays({required this.now});
 
-  final List<Task> tasks;
-  final String? selectedId;
-  final int liveSeconds;
   final DateTime now;
 
   @override
-  Widget build(BuildContext context) {
-    final keys = DayKey.lastDays(10, now);
-    final today = DayKey.of(now);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        for (final key in keys)
-          MiniRing(
-            size: 26,
-            segments: [
-              for (final t in tasks)
-                ((t.secondsByDay[key] ?? 0) +
-                        (key == today && t.id == selectedId ? liveSeconds : 0))
-                    .toDouble(),
-            ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
+    final habitsState = ref.watch(habitsProvider).value;
+    final today = DateTime(now.year, now.month, now.day);
+
+    Widget cell(int daysAgo) {
+      final key = DayKey.of(today.subtract(Duration(days: daysAgo)));
+      final segments = <double>[
+        for (final t in tasks) (t.secondsByDay[key] ?? 0).toDouble(),
+      ];
+      // 0 (or no record) renders only the faint inner track — never a fill.
+      final habitProgress = habitsState?.days[key]?.progress ?? 0.0;
+      return MiniRing(
+        size: 46,
+        segments: segments,
+        habitProgress: habitProgress,
+        child: Text(
+          '$daysAgo',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: tokens.textSecondary,
+            fontWeight: FontWeight.w600,
           ),
-      ],
-    );
-  }
-}
+        ),
+      );
+    }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-  final String text;
+    Widget row(Iterable<int> daysAgo) => Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [for (final d in daysAgo) cell(d)],
+        );
 
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Last 10 days', style: theme.textTheme.titleMedium),
+          // Top gap (label → first row) matches the bottom gap (last row → CTA).
+          const SizedBox(height: 22),
+          row(const [1, 2, 3, 4, 5]),
+          const SizedBox(height: 10),
+          row(const [6, 7, 8, 9, 10]),
+          // A touch more separation here drops the CTA slightly lower than the
+          // label→first-row gap, using the space above the tab bar.
+          const SizedBox(height: 30),
+
+          // Plain-text CTA; opens the calendar/progress screen (same
+          // destination the standalone button used to). The day circles
+          // themselves stay display-only.
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const CalendarScreen()),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: Text(
+                'View your progress',
+                textAlign: TextAlign.center,
+                // Same size as the "Last 10 days" label (titleMedium), white.
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(color: tokens.textPrimary),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

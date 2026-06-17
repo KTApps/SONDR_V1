@@ -127,7 +127,6 @@ class PostInteractions extends ConsumerWidget {
           onTap: repo == null
               ? null
               : () async {
-                  // TEMP diagnostic: surface the real Firebase code on-screen.
                   final messenger = ScaffoldMessenger.of(context);
                   try {
                     await repo.setLike(post.id, !liked);
@@ -136,7 +135,7 @@ class PostInteractions extends ConsumerWidget {
                     messenger
                       ..clearSnackBars()
                       ..showSnackBar(
-                          SnackBar(content: Text('Like failed: ${e.code}')));
+                          const SnackBar(content: Text('Couldn’t update like.')));
                   } catch (e) {
                     debugPrint('SONDR like error: $e');
                   }

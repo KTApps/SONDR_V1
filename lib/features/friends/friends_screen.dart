@@ -51,9 +51,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       _toast(e.message);
     } on FirebaseException catch (e) {
       debugPrint('SONDR friends firebase error: ${e.code} :: ${e.message}');
-      _toast(e.code == 'permission-denied'
-          ? 'Permission denied — check the Firestore rules are deployed.'
-          : 'Something went wrong. Please try again.');
+      _toast('Something went wrong. Please try again.');
     } catch (e) {
       debugPrint('SONDR friends error: $e');
       _toast('Something went wrong. Please try again.');

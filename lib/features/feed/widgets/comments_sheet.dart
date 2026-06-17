@@ -51,11 +51,10 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       await repo.addComment(widget.postId, text);
       _input.clear();
     } on FirebaseException catch (e) {
-      // TEMP diagnostic: surface the real Firebase code on-screen.
       debugPrint('SONDR comment error: ${e.code} :: ${e.message}');
       messenger
         ..clearSnackBars()
-        ..showSnackBar(SnackBar(content: Text('Comment failed: ${e.code}')));
+        ..showSnackBar(const SnackBar(content: Text('Couldn’t post comment.')));
     } catch (e) {
       debugPrint('SONDR comment error: $e');
       messenger

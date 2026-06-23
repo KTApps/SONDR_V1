@@ -33,6 +33,7 @@ class TimerScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
     final now = DateTime.now();
 
     final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
@@ -61,60 +62,77 @@ class TimerScreen extends ConsumerWidget {
         : _indexOrNull(tasks.indexWhere((t) => t.id == selectedTask.id));
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        // Account & friends/milestones now live in the Profile tab (step 2);
-        // the timer is the Home tab and carries no top-right actions.
-        title: const Text('Sondr'),
-      ),
-      body: SafeArea(
-        top: false,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // Responsive dial: take a share of the available height, capped, so
-            // the whole screen fits statically (no scroll) on any phone while
-            // the ring stays the hero. It only shrinks when space is tight.
-            final dialSize = (constraints.maxHeight * 0.35).clamp(190.0, 265.0);
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  const SizedBox(height: 8),
-                  const Center(child: TaskDropdown()),
-                  const SizedBox(height: 16),
-
-                  // --- The hero dial. Swipe the centre to toggle today/month. ---
-                  RingDial(
-                    taskSegments: segments,
-                    highlightedSegment: highlightIndex,
-                    habitProgress: habitProgress,
-                    size: dialSize,
-                    onInnerRingTap: () => showHabitsOverlay(context),
-                    center: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onHorizontalDragEnd: (_) =>
-                          ref.read(centrePeriodProvider.notifier).toggle(),
-                      child: _DialCentre(
-                        tasks: tasks,
-                        selectedTask: selectedTask,
-                        isCollective: isCollective,
-                        timer: timer,
-                        period: period,
-                        now: now,
-                      ),
-                    ),
+      // Absolute layout matching the Figma's measured positions on the 393x852
+      // reference (no AppBar/SafeArea, so coordinates are screen-global). Dial
+      // size/position here is layout only — ring rendering is untouched.
+      body: Stack(
+        children: [
+          // "Sondr" — Inter Bold 15.
+          Positioned(
+            top: 30,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Text(
+                'Sondr',
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          // Task selector — nudged down slightly to tighten the gap to the dial.
+          const Positioned(
+            top: 102,
+            left: 0,
+            right: 0,
+            child: Center(child: TaskDropdown()),
+          ),
+          // Hero dial. Swipe the centre to toggle today/month. Its top sits
+          // below the open dropdown's top (146) and its bottom (412) above the
+          // period dots (421), so the open dropdown fully covers it.
+          Positioned(
+            top: 152,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: RingDial(
+                taskSegments: segments,
+                highlightedSegment: highlightIndex,
+                habitProgress: habitProgress,
+                size: 260,
+                onInnerRingTap: () => showHabitsOverlay(context),
+                center: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragEnd: (_) =>
+                      ref.read(centrePeriodProvider.notifier).toggle(),
+                  child: _DialCentre(
+                    tasks: tasks,
+                    selectedTask: selectedTask,
+                    isCollective: isCollective,
+                    timer: timer,
+                    period: period,
+                    now: now,
                   ),
-                  const SizedBox(height: 12),
-                  _PeriodDots(period: period),
-                  const SizedBox(height: 18),
-
-                  // --- Controls: only a specific task can run a session. ---
-                  if (isCollective)
-                    _CollectiveHint(hasTasks: tasks.isNotEmpty)
-                  else
-                    _TimerControls(
+                ),
+              ),
+            ),
+          ),
+          // Period dots (today⟷month swipe affordance).
+          Positioned(
+            top: 421,
+            left: 0,
+            right: 0,
+            child: Center(child: _PeriodDots(period: period)),
+          ),
+          // Control: collective hint, or the running/paused timer controls.
+          Positioned(
+            top: 444,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: isCollective
+                  ? _CollectiveHint(hasTasks: tasks.isNotEmpty)
+                  : _TimerControls(
                       timer: timer,
                       onStart: () => _onStartPressed(context, ref),
                       onResume: () =>
@@ -123,36 +141,33 @@ class TimerScreen extends ConsumerWidget {
                           ref.read(timerControllerProvider.notifier).pause(),
                       onStop: () => _onStop(context, ref, selectedTask),
                     ),
-
-                  // Dev-only: push the selected task to just below its first 20h
-                  // milestone so a short session crosses it (DEBUG_TOOLS only).
-                  if (kDebugTools && selectedTask != null) ...[
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: () =>
-                          _primeMilestone(context, ref, selectedTask),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: tokens.textTertiary,
-                        side: BorderSide(color: tokens.ringTrack),
-                      ),
-                      child: const Text('DEBUG · prime to milestone edge'),
-                    ),
-                  ],
-
-                  // Most of the slack goes below the block, so the whole group
-                  // rises into the empty space just under the hint while a
-                  // comfortable gap remains above the tab bar (never touching).
-                  const Spacer(flex: 1),
-
-                  // --- Last 10 days: minimal grid of mini dual-rings on the
-                  // plain background, with a "View your progress" text CTA. ---
-                  _LastTenDays(now: now),
-                  const Spacer(flex: 2),
-                ],
+            ),
+          ),
+          // "Last 10 days" block — Figma Y positions, shifted up with the stack.
+          Positioned(
+            top: 511,
+            left: 24,
+            right: 24,
+            child: _LastTenDays(now: now),
+          ),
+          // Dev-only milestone primer (DEBUG_TOOLS builds only; off by default).
+          if (kDebugTools && selectedTask != null)
+            Positioned(
+              top: 116,
+              left: 24,
+              right: 24,
+              child: Center(
+                child: OutlinedButton(
+                  onPressed: () => _primeMilestone(context, ref, selectedTask),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: tokens.textTertiary,
+                    side: BorderSide(color: tokens.ringTrack),
+                  ),
+                  child: const Text('DEBUG · prime to milestone edge'),
+                ),
               ),
-            );
-          },
-        ),
+            ),
+        ],
       ),
     );
   }
@@ -307,12 +322,19 @@ class _DialCentre extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(value, style: theme.textTheme.displayMedium),
+        Text(
+          value,
+          style: theme.textTheme.titleLarge
+              ?.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: theme.textTheme.labelMedium
-              ?.copyWith(color: tokens.textSecondary),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: tokens.textSecondary,
+          ),
         ),
       ],
     );
@@ -523,9 +545,10 @@ class _LastTenDays extends ConsumerWidget {
         habitProgress: habitProgress,
         child: Text(
           '$daysAgo',
-          style: theme.textTheme.labelSmall?.copyWith(
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
             color: tokens.textSecondary,
-            fontWeight: FontWeight.w600,
           ),
         ),
       );
@@ -541,15 +564,18 @@ class _LastTenDays extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Last 10 days', style: theme.textTheme.titleMedium),
-          // Top gap (label → first row) matches the bottom gap (last row → CTA).
-          const SizedBox(height: 22),
-          row(const [1, 2, 3, 4, 5]),
-          const SizedBox(height: 10),
-          row(const [6, 7, 8, 9, 10]),
-          // A touch more separation here drops the CTA slightly lower than the
-          // label→first-row gap, using the space above the tab bar.
+          Text(
+            'Last 10 days',
+            style: theme.textTheme.titleLarge
+                ?.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
+          ),
+          // Exact Figma pitch: label→row1 30, row1→row2 25, row2→CTA 42
+          // (with 46px rows this lands the rows at Y599 / Y670 and CTA at Y758).
           const SizedBox(height: 30),
+          row(const [1, 2, 3, 4, 5]),
+          const SizedBox(height: 25),
+          row(const [6, 7, 8, 9, 10]),
+          const SizedBox(height: 42),
 
           // Plain-text CTA; opens the calendar/progress screen (same
           // destination the standalone button used to). The day circles
@@ -564,9 +590,12 @@ class _LastTenDays extends ConsumerWidget {
               child: Text(
                 'View your progress',
                 textAlign: TextAlign.center,
-                // Same size as the "Last 10 days" label (titleMedium), white.
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(color: tokens.textPrimary),
+                // Bold 15 — deliberately smaller than the Bold 20 section label.
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: tokens.textPrimary,
+                ),
               ),
             ),
           ),

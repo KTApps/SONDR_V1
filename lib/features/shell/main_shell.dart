@@ -32,8 +32,6 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
     final focused = ref.watch(focusModeProvider);
 
     return Scaffold(
@@ -43,50 +41,102 @@ class _MainShellState extends ConsumerState<MainShell> {
         index: focused ? 0 : _index,
         children: _tabs,
       ),
+      // Slim, text-only tab bar (no icons) — reclaims vertical space and keeps
+      // the minimal greyscale identity.
       bottomNavigationBar: focused
           ? null
-          : NavigationBarTheme(
-              data: NavigationBarThemeData(
-                backgroundColor: tokens.surface,
-                indicatorColor: tokens.ringTrack,
-                surfaceTintColor: Colors.transparent,
-                iconTheme: WidgetStateProperty.resolveWith(
-                  (states) => IconThemeData(
-                    color: states.contains(WidgetState.selected)
-                        ? tokens.textPrimary
-                        : tokens.textTertiary,
-                  ),
-                ),
-                labelTextStyle: WidgetStateProperty.resolveWith(
-                  (states) => theme.textTheme.labelSmall?.copyWith(
-                    color: states.contains(WidgetState.selected)
-                        ? tokens.textPrimary
-                        : tokens.textTertiary,
-                  ),
-                ),
-              ),
-              child: NavigationBar(
-                selectedIndex: _index,
-                onDestinationSelected: (i) => setState(() => _index = i),
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.timer_outlined),
-                    selectedIcon: Icon(Icons.timer),
-                    label: 'Home',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.dynamic_feed_outlined),
-                    selectedIcon: Icon(Icons.dynamic_feed),
-                    label: 'Feed',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.person_outline),
-                    selectedIcon: Icon(Icons.person),
-                    label: 'Profile',
-                  ),
-                ],
-              ),
+          : _TextTabBar(
+              currentIndex: _index,
+              onSelect: (i) => setState(() => _index = i),
             ),
+    );
+  }
+}
+
+/// A minimal text-only bottom tab bar: "Home · Feed · Profile" as labels, no
+/// icons. The selected tab is brighter (white, bold) with a short underline;
+/// unselected tabs are dim grey. Pure greyscale, surface-toned, and slim.
+class _TextTabBar extends StatelessWidget {
+  const _TextTabBar({required this.currentIndex, required this.onSelect});
+
+  final int currentIndex;
+  final ValueChanged<int> onSelect;
+
+  static const List<String> _labels = ['Home', 'Feed', 'Profile'];
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+
+    return Material(
+      color: tokens.surface,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 40,
+          child: Row(
+            children: [
+              for (var i = 0; i < _labels.length; i++)
+                Expanded(
+                  child: InkWell(
+                    onTap: () => onSelect(i),
+                    child: _TabLabel(
+                      text: _labels[i],
+                      selected: i == currentIndex,
+                      style: theme.textTheme.labelLarge,
+                      activeColor: tokens.textPrimary,
+                      inactiveColor: tokens.textTertiary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TabLabel extends StatelessWidget {
+  const _TabLabel({
+    required this.text,
+    required this.selected,
+    required this.style,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
+  final String text;
+  final bool selected;
+  final TextStyle? style;
+  final Color activeColor;
+  final Color inactiveColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          text,
+          style: style?.copyWith(
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? activeColor : inactiveColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Short underline only under the selected tab.
+        Container(
+          height: 2,
+          width: 16,
+          decoration: BoxDecoration(
+            color: selected ? activeColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(1),
+          ),
+        ),
+      ],
     );
   }
 }

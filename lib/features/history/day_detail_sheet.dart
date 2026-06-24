@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
-import '../../shared/ring/ring_dial.dart';
+import '../../shared/ring/segmented_dial.dart';
 import 'history_providers.dart';
 
 /// Shows a day's detail as a bottom sheet: the date, that day's dual ring
@@ -54,11 +54,15 @@ class DayDetailSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
 
-            // The day's dual ring, static.
+            // The day's dual ring, static — same data-driven segmented style as
+            // the main dial. Collective view (no task selected), so every
+            // task slice is filled; the inner ring is per-habit segments.
             Center(
-              child: RingDial(
-                taskSegments: history.segments,
-                habitProgress: habits?.progress ?? 0.0,
+              child: SegmentedDial(
+                taskTodaySeconds: history.segments,
+                habitStates: [
+                  for (final tick in habits?.ticks ?? const []) tick.done,
+                ],
                 size: 200,
                 center: Column(
                   mainAxisSize: MainAxisSize.min,

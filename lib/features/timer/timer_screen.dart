@@ -6,7 +6,7 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../shared/ring/mini_ring.dart';
-import '../../shared/ring/ring_dial.dart';
+import '../../shared/ring/segmented_dial.dart';
 import '../focus/focus_providers.dart';
 import '../focus/focus_view.dart';
 import '../habits/habits_overlay.dart';
@@ -40,7 +40,10 @@ class TimerScreen extends ConsumerWidget {
     final selectedId = ref.watch(selectedTaskIdProvider);
     final selectedTask = ref.watch(selectedTaskProvider);
     final timer = ref.watch(timerControllerProvider);
-    final habitProgress = ref.watch(habitsTodayProgressProvider);
+    final todayHabits = ref.watch(todayHabitsProvider);
+    final habitStates = <bool>[
+      for (final t in todayHabits?.ticks ?? const []) t.done,
+    ];
     final period = ref.watch(centrePeriodProvider);
 
     // Focus Mode replaces the whole home with the quietened focused view.
@@ -95,10 +98,10 @@ class TimerScreen extends ConsumerWidget {
             left: 0,
             right: 0,
             child: Center(
-              child: RingDial(
-                taskSegments: segments,
-                highlightedSegment: highlightIndex,
-                habitProgress: habitProgress,
+              child: SegmentedDial(
+                taskTodaySeconds: segments,
+                selectedTaskIndex: highlightIndex,
+                habitStates: habitStates,
                 size: 260,
                 onInnerRingTap: () => showHabitsOverlay(context),
                 center: GestureDetector(

@@ -5,7 +5,6 @@ import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
-import '../../shared/ring/mini_ring.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../focus/focus_providers.dart';
 import '../focus/focus_view.dart';
@@ -540,13 +539,17 @@ class _LastTenDays extends ConsumerWidget {
       final segments = <double>[
         for (final t in tasks) (t.secondsByDay[key] ?? 0).toDouble(),
       ];
-      // 0 (or no record) renders only the faint inner track — never a fill.
-      final habitProgress = habitsState?.days[key]?.progress ?? 0.0;
-      return MiniRing(
-        size: 46,
-        segments: segments,
-        habitProgress: habitProgress,
-        child: Text(
+      // That day's habits as per-habit done/not-done segments (empty list →
+      // solid empty inner ring), matching the main dial.
+      final habitStates = <bool>[
+        for (final tick in habitsState?.days[key]?.ticks ?? const []) tick.done,
+      ];
+      return SegmentedDial(
+        size: 57,
+        compact: true,
+        taskTodaySeconds: segments,
+        habitStates: habitStates,
+        center: Text(
           '$daysAgo',
           style: theme.textTheme.bodyMedium?.copyWith(
             fontSize: 12,

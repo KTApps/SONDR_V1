@@ -24,6 +24,8 @@ class SegmentedDial extends StatelessWidget {
     this.selectedTaskIndex,
     required this.habitStates,
     this.size = 260,
+    this.compact = false,
+    this.stroke,
     this.center,
     this.onInnerRingTap,
   });
@@ -41,6 +43,16 @@ class SegmentedDial extends StatelessWidget {
   /// Overall diameter of the dial box.
   final double size;
 
+  /// Use the smaller-circle proportions (Last-10-days / calendar minis): a
+  /// heavier stroke and a tighter inner ring per the Figma mini (outer 50 /
+  /// inner 28 / stroke 7, extent 57). False → the main dial proportions.
+  final bool compact;
+
+  /// Optional explicit stroke weight, overriding the proportional value. Used
+  /// to fine-tune one surface (e.g. slightly thinner calendar rings) without
+  /// affecting the others. Gap and slit stay proportional.
+  final double? stroke;
+
   /// Centre content (the screen owns the today/month figure and its gestures).
   final Widget? center;
 
@@ -51,15 +63,15 @@ class SegmentedDial extends StatelessWidget {
   static const Color _filled = Color(0xFF777777);
   static const Color _empty = Color(0xFF232323);
 
-  // Figma geometry. 290 / 220 are the ring path (centreline) diameters and the
-  // stroke (22) straddles them, so the outer ring's true extent is 312 (290+22).
-  // Scaling by size/312 fits that extent to the box and preserves the concentric
-  // gap: centreline radii 145 vs 110 → a 35px-per-side inset, matching the
-  // Figma. The 35px centreline gap is independent of stroke weight.
-  double get _stroke => size * 22 / 312;
-  double get _outerRadius => size * 145 / 312; // centreline; outer edge = size/2
-  double get _innerRadius => size * 110 / 312;
-  double get _slit => size * 5 / 312;
+  // Both proportion sets scale fully with the box, so stroke, gap and slit all
+  // shrink together and the circles look proportionally identical at any size:
+  //  * main dial — outer 290 / inner 220 / stroke 22 / slit 5 (extent 312)
+  //  * compact   — outer 50 / inner 28 / stroke 7 / slit 3.5 (extent 57)
+  // e.g. at size 57 the compact stroke is 7; at size 49 it is 49×7/57 ≈ 6.
+  double get _stroke => stroke ?? size * (compact ? 7 / 57 : 22 / 312);
+  double get _outerRadius => size * (compact ? 25 / 57 : 145 / 312);
+  double get _innerRadius => size * (compact ? 14 / 57 : 110 / 312);
+  double get _slit => size * (compact ? 3.5 / 57 : 5 / 312);
 
   bool _hitsInnerRing(Offset p) {
     final c = size / 2;

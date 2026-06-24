@@ -3,43 +3,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
-import '../../shared/ring/mini_ring.dart';
+import '../../shared/ring/segmented_dial.dart';
+import '../habits/habits_providers.dart';
+import '../habits/models/daily_habits.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'day_detail_sheet.dart';
 
-/// Calendar history: a month grid where each day is a mini ring of that day's
-/// task split. Tap a day to see its detail. Future days are dimmed and inert.
-class CalendarScreen extends ConsumerStatefulWidget {
+/// Calendar history: a vertically scrolling list of months. The current month
+/// is pinned at the top (it's the newest — there are no future months above it)
+/// and scrolling down reveals progressively older months, stopping at the
+/// earliest month that has any recorded data. Each day is a segmented mini ring
+/// of that day's task split + habits; tap a day for its detail. Future days in
+/// the current month are dimmed and inert.
+class CalendarScreen extends ConsumerWidget {
   const CalendarScreen({super.key});
 
   @override
-  ConsumerState<CalendarScreen> createState() => _CalendarScreenState();
-}
-
-class _CalendarScreenState extends ConsumerState<CalendarScreen> {
-  late DateTime _month; // first day of the focused month
-
-  @override
-  void initState() {
-    super.initState();
-    final now = DateTime.now();
-    _month = DateTime(now.year, now.month);
-  }
-
-  bool get _atCurrentMonth {
-    final now = DateTime.now();
-    return _month.year == now.year && _month.month == now.month;
-  }
-
-  void _shiftMonth(int by) {
-    setState(() => _month = DateTime(_month.year, _month.month + by));
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
+    final habits = ref.watch(habitsProvider).value;
+
+    final months = _monthsToShow(tasks, habits);
 
     return Scaffold(
       appBar: AppBar(
@@ -50,45 +36,107 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            children: [
-              _MonthHeader(
-                label: '${DayKey.monthName(_month.month)} ${_month.year}',
-                onPrev: () => _shiftMonth(-1),
-                // Don't browse past the current month — nothing to show there.
-                onNext: _atCurrentMonth ? null : () => _shiftMonth(1),
+        // Tighter horizontal inset so the 7-column grid fits the larger circles.
+        child: ListView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 32),
+          itemCount: months.length,
+          itemBuilder: (context, i) {
+            final month = months[i];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Center(
+                      child: Text(
+                        '${DayKey.monthName(month.month)} ${month.year}',
+                        style: theme.textTheme.titleLarge,
+                      ),
+                    ),
+                  ),
+                  const _WeekdayLabels(),
+                  const SizedBox(height: 8),
+                  _monthGrid(context, month, tasks, habits, theme),
+                ],
               ),
-              const SizedBox(height: 12),
-              const _WeekdayLabels(),
-              const SizedBox(height: 8),
-              Expanded(child: _grid(tasks, theme)),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _grid(List<Task> tasks, ThemeData theme) {
+  /// Months to show, newest first: the current month down to the earliest month
+  /// with any recorded data (task time or a habit record). Falls back to just
+  /// the current month when there's no data yet.
+  List<DateTime> _monthsToShow(List<Task> tasks, HabitsState? habits) {
+    final now = DateTime.now();
+    final current = DateTime(now.year, now.month);
+
+    String? earliestKey;
+    void consider(String key) {
+      if (earliestKey == null || key.compareTo(earliestKey!) < 0) {
+        earliestKey = key;
+      }
+    }
+
+    for (final t in tasks) {
+      t.secondsByDay.keys.forEach(consider);
+    }
+    if (habits != null) {
+      habits.days.keys.forEach(consider);
+    }
+
+    final DateTime earliest;
+    if (earliestKey == null) {
+      earliest = current;
+    } else {
+      final d = DayKey.parse(earliestKey!);
+      earliest = DateTime(d.year, d.month);
+    }
+
+    final months = <DateTime>[];
+    var m = current;
+    while (!m.isBefore(earliest)) {
+      months.add(m);
+      m = DateTime(m.year, m.month - 1);
+    }
+    return months;
+  }
+
+  /// One month's grid. Non-scrolling — it lives inside the outer month scroll.
+  /// The day-circle rendering is unchanged from the single-month version.
+  Widget _monthGrid(
+    BuildContext context,
+    DateTime month,
+    List<Task> tasks,
+    HabitsState? habits,
+    ThemeData theme,
+  ) {
     final tokens = GreyscaleTokens.of(context);
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
-    final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
-    final leadingBlanks = _month.weekday - 1; // Monday-start grid
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final firstDay = DateTime(month.year, month.month, 1);
+    final leadingBlanks = firstDay.weekday - 1; // Monday-start grid
 
     final cells = <Widget>[];
     for (var i = 0; i < leadingBlanks; i++) {
       cells.add(const SizedBox.shrink());
     }
     for (var day = 1; day <= daysInMonth; day++) {
-      final date = DateTime(_month.year, _month.month, day);
+      final date = DateTime(month.year, month.month, day);
       final key = DayKey.of(date);
       final isFuture = date.isAfter(todayDate);
       final isToday = date == todayDate;
       final segments = <double>[
         for (final t in tasks) (t.secondsByDay[key] ?? 0).toDouble(),
+      ];
+      // That day's habits as per-habit done/not-done segments, like the dial.
+      final habitStates = <bool>[
+        for (final tick in habits?.days[key]?.ticks ?? const []) tick.done,
       ];
 
       cells.add(
@@ -98,14 +146,19 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             behavior: HitTestBehavior.opaque,
             onTap: isFuture ? null : () => showDayDetailSheet(context, key),
             child: Center(
-              child: MiniRing(
-                size: 40,
-                segments: segments,
-                child: Text(
+              child: SegmentedDial(
+                size: 49,
+                compact: true,
+                stroke: 5, // a touch thinner than the proportional ~6
+                taskTodaySeconds: segments,
+                habitStates: habitStates,
+                center: Text(
                   '$day',
                   style: theme.textTheme.labelMedium?.copyWith(
+                    // Matches Home's Last-10-days numbers: bold (w700), size 12.
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                     color: isToday ? tokens.textPrimary : tokens.textSecondary,
-                    fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
               ),
@@ -116,46 +169,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     }
 
     return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 7,
       mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
+      crossAxisSpacing: 4,
       children: cells,
-    );
-  }
-}
-
-class _MonthHeader extends StatelessWidget {
-  const _MonthHeader({
-    required this.label,
-    required this.onPrev,
-    required this.onNext,
-  });
-
-  final String label;
-  final VoidCallback? onPrev;
-  final VoidCallback? onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        IconButton(
-          icon: const Icon(Icons.chevron_left),
-          onPressed: onPrev,
-          tooltip: 'Previous month',
-        ),
-        Expanded(
-          child: Center(
-            child: Text(label, style: theme.textTheme.titleLarge),
-          ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.chevron_right),
-          onPressed: onNext,
-          tooltip: 'Next month',
-        ),
-      ],
     );
   }
 }

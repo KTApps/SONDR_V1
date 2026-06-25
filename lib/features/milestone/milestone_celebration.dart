@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
-import '../../shared/ring/ring_dial.dart';
+import '../../shared/ring/progress_ring.dart';
 import '../feed/posts_repository.dart';
 
 /// Presents the milestone celebration as a full-screen moment.
@@ -182,10 +182,10 @@ class _MilestoneCelebrationScreenState
 
               // Completed ring as the hero — a full outer ring for the
               // milestone just reached.
-              RingDial(
-                taskSegments: const [1],
-                habitProgress: 0,
+              ProgressRing(
                 size: 260,
+                stroke: 260 * 0.09,
+                progress: 1.0,
                 center: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [

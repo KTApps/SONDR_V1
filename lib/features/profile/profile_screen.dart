@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
-import '../../shared/ring/mini_ring.dart';
+import '../../shared/ring/progress_ring.dart';
 import '../auth/account_screen.dart';
 import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
@@ -250,10 +250,10 @@ class _TaskTile extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          MiniRing(
+          ProgressRing(
             size: 72,
-            segments: [task.milestoneProgress],
-            child: Text(
+            progress: task.milestoneProgress,
+            center: Text(
               '${hours}h',
               style: theme.textTheme.labelLarge
                   ?.copyWith(color: tokens.textPrimary),

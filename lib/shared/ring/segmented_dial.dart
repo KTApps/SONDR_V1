@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 
 /// The home dial's data-driven dual ring (segmented, pure greyscale).
 ///
-/// Distinct from [RingDial] (used for completed-milestone rings on the feed,
-/// celebration, and day-detail): this one renders today's live state as
-/// discrete segments cut by slits, per the Figma.
+/// Distinct from [RingDial] (now used only by the feed's photo milestone
+/// card): this one renders today's live state as discrete segments cut by
+/// slits, per the Figma.
 ///
 ///  * **Outer ring** = today's time split across tasks. One segment per task
 ///    with time today, arc length proportional to that time. One task → a full

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
+import '../../../shared/ring/progress_ring.dart';
 import '../../../shared/ring/ring_dial.dart';
 import '../models/post.dart';
 import 'post_chrome.dart';
@@ -27,30 +28,51 @@ class MilestoneCard extends StatelessWidget {
     );
   }
 
+  static const double _ringSize = 184;
+
   Widget _ring(BuildContext context, {required bool onPhoto}) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final figureColor = onPhoto ? Colors.white : tokens.textPrimary;
     final shadows = onPhoto ? kTextShadows : null;
 
-    return RingDial(
-      size: 184,
-      taskSegments: const [1.0], // the completed milestone
-      highlightedSegment: 0,
-      habitProgress: 0.0, // inner ring stays empty — no habit data on the post
-      onPhoto: onPhoto,
-      center: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('${post.milestoneHours}',
-              style: theme.textTheme.displaySmall
-                  ?.copyWith(color: figureColor, shadows: shadows)),
-          Text('hours',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                  color: onPhoto ? Colors.white70 : tokens.textTertiary,
-                  shadows: shadows)),
-        ],
-      ),
+    final center = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('${post.milestoneHours}',
+            style: theme.textTheme.displaySmall
+                ?.copyWith(color: figureColor, shadows: shadows)),
+        Text('hours',
+            style: theme.textTheme.bodyMedium?.copyWith(
+                color: onPhoto ? Colors.white70 : tokens.textTertiary,
+                shadows: shadows)),
+      ],
+    );
+
+    // Over a photo: keep the near-white ring + double-stroke halo + scrim
+    // treatment exactly — a mid-grey #777 ring would be illegible on a bright
+    // photo. (RingDial draws the completed milestone as a full outer ring.)
+    if (onPhoto) {
+      return RingDial(
+        size: _ringSize,
+        taskSegments: const [1.0], // the completed milestone
+        highlightedSegment: 0,
+        habitProgress: 0.0,
+        showInnerRing: false, // milestone posts carry no habit data
+        onPhoto: true,
+        center: center,
+      );
+    }
+
+    // On a plain card: a completed milestone is a full #777777 ring (#232323
+    // remainder) via ProgressRing, matching the dial/profile scheme. Stroke is
+    // matched to the photo card's ring weight (RingDial's 0.09×size) so photo
+    // and no-photo milestone cards read consistently.
+    return ProgressRing(
+      size: _ringSize,
+      stroke: _ringSize * 0.09,
+      progress: 1.0,
+      center: center,
     );
   }
 

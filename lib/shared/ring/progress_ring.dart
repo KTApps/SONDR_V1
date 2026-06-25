@@ -15,6 +15,7 @@ class ProgressRing extends StatelessWidget {
     super.key,
     required this.progress,
     this.size = 72,
+    this.stroke,
     this.center,
   });
 
@@ -24,13 +25,18 @@ class ProgressRing extends StatelessWidget {
   /// Overall diameter of the ring box.
   final double size;
 
+  /// Optional explicit stroke weight, overriding the proportional value. Used
+  /// where a surface needs to match another ring's weight (e.g. the feed's
+  /// no-photo ring matching the photo card's ring).
+  final double? stroke;
+
   /// Centre content (e.g. the "Nh" figure).
   final Widget? center;
 
   static const Color _filled = Color(0xFF777777);
   static const Color _empty = Color(0xFF232323);
 
-  double get _stroke => size * 7 / 57;
+  double get _stroke => stroke ?? size * 7 / 57;
 
   @override
   Widget build(BuildContext context) {

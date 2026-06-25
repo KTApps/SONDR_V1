@@ -32,6 +32,7 @@ class RingDial extends StatelessWidget {
     this.onPhoto = false,
     this.center,
     this.onInnerRingTap,
+    this.showInnerRing = true,
   });
 
   /// Per-task values for the day (e.g. seconds logged today). Order is stable
@@ -59,6 +60,10 @@ class RingDial extends StatelessWidget {
   /// is excluded, so its own gestures (e.g. the today/month swipe) are
   /// unaffected.
   final VoidCallback? onInnerRingTap;
+
+  /// Whether to draw the inner (habit) ring. Set false to render the outer ring
+  /// only — e.g. the feed's completed-milestone ring, which carries no habits.
+  final bool showInnerRing;
 
   // Stroke widths scale with the dial so the component looks right at any size.
   double get _outerThickness => size * 0.090;
@@ -123,12 +128,13 @@ class RingDial extends StatelessWidget {
                     segments: segments,
                     track: track,
                   ),
-                  ProgressRingLayer(
-                    thickness: _innerThickness,
-                    progress: habitProgress.clamp(0.0, 1.0),
-                    track: track,
-                    fill: innerFill,
-                  ),
+                  if (showInnerRing)
+                    ProgressRingLayer(
+                      thickness: _innerThickness,
+                      progress: habitProgress.clamp(0.0, 1.0),
+                      track: track,
+                      fill: innerFill,
+                    ),
                 ],
               ),
             ),

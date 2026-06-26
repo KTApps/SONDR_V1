@@ -32,7 +32,6 @@ class TimerScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
     final now = DateTime.now();
 
     final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
@@ -69,19 +68,6 @@ class TimerScreen extends ConsumerWidget {
       // size/position here is layout only — ring rendering is untouched.
       body: Stack(
         children: [
-          // "Sondr" — Inter Bold 15.
-          Positioned(
-            top: 30,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Text(
-                'Sondr',
-                style: theme.textTheme.titleLarge
-                    ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
           // Task selector — nudged down slightly to tighten the gap to the dial.
           const Positioned(
             top: 102,
@@ -575,13 +561,15 @@ class _LastTenDays extends ConsumerWidget {
             style: theme.textTheme.titleLarge
                 ?.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
           ),
-          // Exact Figma pitch: label→row1 30, row1→row2 25, row2→CTA 42
-          // (with 46px rows this lands the rows at Y599 / Y670 and CTA at Y758).
+          // label→row1 30, row1→row2 25; the CTA gap is larger so "View your
+          // progress" sits toward the midpoint between row 2 and the tab bar.
           const SizedBox(height: 30),
           row(const [1, 2, 3, 4, 5]),
           const SizedBox(height: 25),
           row(const [6, 7, 8, 9, 10]),
-          const SizedBox(height: 42),
+          // Centres "View your progress" in the gap between row 2 and the tab
+          // bar (CTA ~18px tall in a ~74px gap → ~28 above).
+          const SizedBox(height: 28),
 
           // Plain-text CTA; opens the calendar/progress screen (same
           // destination the standalone button used to). The day circles

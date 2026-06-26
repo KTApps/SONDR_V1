@@ -211,11 +211,12 @@ class _TaskMenuPanel extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
 
-    // "Select your task", pill names, and "Add Task" are all Inter Bold 12.
+    // "Select your task" and "Add Task" are Inter Bold 15, white (textPrimary)
+    // to match the app's other headings. Pill names keep their own style.
     final labelStyle = theme.textTheme.bodyMedium?.copyWith(
-      fontSize: 12,
+      fontSize: 15,
       fontWeight: FontWeight.w700,
-      color: tokens.textSecondary,
+      color: tokens.textPrimary,
     );
 
     // The scrolling pill viewport: exactly six pills tall; more than six scroll.
@@ -231,16 +232,17 @@ class _TaskMenuPanel extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
-            // "Select your task" at X15, Y176 (container-relative 9, 7).
+            // "Select your task" pinned top-left, with breathing room above it.
             Positioned(
               left: 9,
-              top: 7,
+              top: 12,
               child: Text('Select your task', style: labelStyle),
             ),
-            // Pills: 365 wide, centred (8.5 inset); first top at Y201 (offset 32).
+            // Pills: 365 wide, centred (8.5 inset); fixed 245 viewport. Top 49
+            // keeps the balanced ~16px gap below the label.
             Positioned(
               left: 8.5,
-              top: 32,
+              top: 49,
               width: 365,
               height: viewport,
               child: ListView.separated(
@@ -259,7 +261,7 @@ class _TaskMenuPanel extends StatelessWidget {
                 },
               ),
             ),
-            // "Add Task" centred at Y483 (container-relative 314).
+            // "Add Task" pinned near the bottom.
             Positioned(
               left: 0,
               right: 0,

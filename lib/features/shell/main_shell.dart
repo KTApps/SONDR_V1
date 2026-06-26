@@ -70,7 +70,7 @@ class _TextTabBar extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: tokens.surface,
+      color: tokens.background,
       child: SafeArea(
         top: false,
         child: SizedBox(

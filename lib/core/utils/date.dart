@@ -47,4 +47,16 @@ abstract final class DayKey {
 
   /// Full month name for a 1-based month number.
   static String monthName(int m) => _months[m - 1];
+
+  /// Day number with its ordinal suffix: 1st, 2nd, 3rd, 4th … 11th, 21st, 31st.
+  /// 11/12/13 always take "th".
+  static String ordinalDay(int day) {
+    if (day >= 11 && day <= 13) return '${day}th';
+    return switch (day % 10) {
+      1 => '${day}st',
+      2 => '${day}nd',
+      3 => '${day}rd',
+      _ => '${day}th',
+    };
+  }
 }

@@ -55,44 +55,57 @@ class HabitsOverlay extends ConsumerWidget {
         ),
 
         SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_weekday(now.weekday),
-                      style: theme.textTheme.displayMedium),
-                  const SizedBox(height: 4),
-                  Text('${now.day} ${_month(now.month)}',
-                      style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 16),
-                  _StreakBadge(streak: streak),
-                  const SizedBox(height: 32),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Top offset pulls the date+habits group down toward centre.
+                const SizedBox(height: 90),
 
-                  if (today != null)
-                    for (final tick in today.ticks)
-                      _HabitNameRow(
-                        key: ValueKey(tick.habitId),
-                        tick: tick,
-                        onToggle: () => ref
-                            .read(habitsProvider.notifier)
-                            .toggle(tick.habitId),
-                        onRemove: () =>
-                            ref.read(habitsProvider.notifier).removeHabit(tick.habitId),
-                      ),
-
-                  const SizedBox(height: 24),
-                  TextButton(
-                    onPressed: () => _promptAddHabit(context, ref),
-                    style: TextButton.styleFrom(
-                      foregroundColor: tokens.textPrimary,
-                      textStyle: theme.textTheme.labelLarge,
+                // Date + habits group: top-anchored, scrolls only if it
+                // overflows; "Add habit" stays pinned below regardless.
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_weekday(now.weekday),
+                            style: theme.textTheme.displayMedium),
+                        const SizedBox(height: 4),
+                        Text('${now.day} ${_month(now.month)}',
+                            style: theme.textTheme.bodyMedium),
+                        const SizedBox(height: 16),
+                        _StreakBadge(streak: streak),
+                        const SizedBox(height: 32),
+                        if (today != null)
+                          for (final tick in today.ticks)
+                            _HabitNameRow(
+                              key: ValueKey(tick.habitId),
+                              tick: tick,
+                              onToggle: () => ref
+                                  .read(habitsProvider.notifier)
+                                  .toggle(tick.habitId),
+                              onRemove: () => ref
+                                  .read(habitsProvider.notifier)
+                                  .removeHabit(tick.habitId),
+                            ),
+                      ],
                     ),
-                    child: const Text('Add habit'),
                   ),
-                ],
-              ),
+                ),
+
+                // "Add habit" pinned near the bottom as its own action.
+                TextButton(
+                  onPressed: () => _promptAddHabit(context, ref),
+                  style: TextButton.styleFrom(
+                    foregroundColor: tokens.textPrimary,
+                    textStyle: theme.textTheme.labelLarge,
+                  ),
+                  child: const Text('Add habit'),
+                ),
+                const SizedBox(height: 70),
+              ],
             ),
           ),
         ),
@@ -212,7 +225,9 @@ class _HabitNameRow extends StatelessWidget {
           child: Text(
             tick.name,
             textAlign: TextAlign.center,
-            style: theme.textTheme.titleLarge?.copyWith(
+            style: theme.textTheme.displayMedium?.copyWith(
+              fontSize: 28,
+              fontWeight: FontWeight.w600,
               color: tick.done ? tokens.textTertiary : tokens.textPrimary,
               decoration: tick.done ? TextDecoration.lineThrough : null,
               decorationColor: tokens.textTertiary,

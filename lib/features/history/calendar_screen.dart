@@ -32,13 +32,25 @@ class CalendarScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: const Text('Your progress'),
+        toolbarHeight: 52,
+        iconTheme: const IconThemeData(size: 20),
+        // Explicit left-aligned back chevron, visually flush with the grid
+        // content edge / month label (x=12). Left pad 10 accounts for the
+        // glyph's internal whitespace so the visible arrow sits under the "J".
+        leadingWidth: 44, // 22 pad + 20 icon + 2 slack
+        leading: IconButton(
+          padding: const EdgeInsets.only(left: 22),
+          alignment: Alignment.centerLeft,
+          constraints: const BoxConstraints(),
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
       ),
       body: SafeArea(
         top: false,
         // Tighter horizontal inset so the 7-column grid fits the larger circles.
         child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 32),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 32),
           itemCount: months.length,
           itemBuilder: (context, i) {
             final month = months[i];
@@ -47,17 +59,16 @@ class CalendarScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Month label: left-aligned flush with the grid content edge
+                  // (x=12 via the ListView inset), Bold 20.
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Center(
-                      child: Text(
-                        '${DayKey.monthName(month.month)} ${month.year}',
-                        style: theme.textTheme.titleLarge,
-                      ),
+                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+                    child: Text(
+                      '${DayKey.monthName(month.month)} ${month.year}',
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
                     ),
                   ),
-                  const _WeekdayLabels(),
-                  const SizedBox(height: 8),
                   _monthGrid(context, month, tasks, habits, theme),
                 ],
               ),
@@ -119,13 +130,9 @@ class CalendarScreen extends ConsumerWidget {
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
-    final firstDay = DateTime(month.year, month.month, 1);
-    final leadingBlanks = firstDay.weekday - 1; // Monday-start grid
 
+    // Sequential 7-across grid starting at day 1 (no weekday alignment).
     final cells = <Widget>[];
-    for (var i = 0; i < leadingBlanks; i++) {
-      cells.add(const SizedBox.shrink());
-    }
     for (var day = 1; day <= daysInMonth; day++) {
       final date = DateTime(month.year, month.month, day);
       final key = DayKey.of(date);
@@ -175,26 +182,6 @@ class CalendarScreen extends ConsumerWidget {
       mainAxisSpacing: 8,
       crossAxisSpacing: 4,
       children: cells,
-    );
-  }
-}
-
-class _WeekdayLabels extends StatelessWidget {
-  const _WeekdayLabels();
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final style = Theme.of(context)
-        .textTheme
-        .labelSmall
-        ?.copyWith(color: tokens.textTertiary);
-    const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    return Row(
-      children: [
-        for (final l in labels)
-          Expanded(child: Center(child: Text(l, style: style))),
-      ],
     );
   }
 }

@@ -47,9 +47,10 @@ class DayDetailSheet extends ConsumerWidget {
           children: [
             Center(
               child: Text(
-                '${DayKey.weekday(date.weekday)}, '
-                '${date.day} ${DayKey.monthName(date.month)}',
-                style: theme.textTheme.titleLarge,
+                '${DayKey.weekday(date.weekday)} '
+                '${DayKey.ordinalDay(date.day)} ${DayKey.monthName(date.month)}',
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
               ),
             ),
             const SizedBox(height: 20),
@@ -70,12 +71,16 @@ class DayDetailSheet extends ConsumerWidget {
                     Text(
                       DurationFormat.hm(
                           Duration(seconds: history.totalSeconds)),
-                      style: theme.textTheme.headlineMedium,
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 2),
                     Text('logged',
-                        style: theme.textTheme.labelMedium
-                            ?.copyWith(color: tokens.textSecondary)),
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: tokens.textSecondary,
+                        )),
                   ],
                 ),
               ),
@@ -95,11 +100,12 @@ class DayDetailSheet extends ConsumerWidget {
                       children: [
                         Expanded(
                             child: Text(t.name,
-                                style: theme.textTheme.bodyLarge)),
+                                style: theme.textTheme.bodyLarge
+                                    ?.copyWith(fontSize: 15))),
                         Text(
                           DurationFormat.hm(Duration(seconds: t.seconds)),
-                          style: theme.textTheme.bodyLarge
-                              ?.copyWith(color: tokens.textSecondary),
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                              fontSize: 15, color: tokens.textSecondary),
                         ),
                       ],
                     ),
@@ -115,6 +121,7 @@ class DayDetailSheet extends ConsumerWidget {
                     child: Text(
                       tick.name,
                       style: theme.textTheme.bodyLarge?.copyWith(
+                        fontSize: 15,
                         color: tick.done
                             ? tokens.textTertiary
                             : tokens.textPrimary,
@@ -139,7 +146,13 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(text, style: Theme.of(context).textTheme.titleMedium);
+    return Text(
+      text,
+      style: Theme.of(context)
+          .textTheme
+          .titleLarge
+          ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
+    );
   }
 }
 

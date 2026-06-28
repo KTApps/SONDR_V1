@@ -15,22 +15,21 @@ class FeedScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Feed'),
-      ),
+      // No AppBar — the redundant "Feed" title is removed. SafeArea drops the
+      // content just below the status bar / Dynamic Island; the small top inset
+      // keeps the first card from hugging it.
       body: SafeArea(
-        top: false,
-        child: kMockFeed
-            ? FeedView(posts: mockPosts())
-            : ref.watch(feedProvider).when(
-                  data: (posts) => FeedView(posts: posts),
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (_, _) => const _Error(),
-                ),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: kMockFeed
+              ? FeedView(posts: mockPosts())
+              : ref.watch(feedProvider).when(
+                    data: (posts) => FeedView(posts: posts),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (_, _) => const _Error(),
+                  ),
+        ),
       ),
     );
   }

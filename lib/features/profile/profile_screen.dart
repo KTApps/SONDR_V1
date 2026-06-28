@@ -26,14 +26,10 @@ class ProfileScreen extends ConsumerWidget {
     final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Profile'),
-      ),
+      // No AppBar — the redundant "Profile" title is removed (matches Feed).
+      // SafeArea drops content below the status bar / island; the scroll view's
+      // top inset (8) keeps the summary card off the edge.
       body: SafeArea(
-        top: false,
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
           child: Column(
@@ -212,7 +208,9 @@ class _TasksInProgress extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('In progress', style: theme.textTheme.titleMedium),
+        Text('In progress',
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
         const SizedBox(height: 16),
         if (tasks.isEmpty)
           Padding(
@@ -265,7 +263,8 @@ class _TaskTile extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(color: tokens.textPrimary),
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontSize: 15, color: tokens.textPrimary),
           ),
           Text(
             reached == 0 ? 'of ${task.activeMilestoneHours}h' : '$reached × 20h',

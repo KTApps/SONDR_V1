@@ -45,7 +45,9 @@ class _GuestView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
-        Text('Guest account', style: theme.textTheme.titleLarge),
+        Text('Guest account',
+            style: theme.textTheme.titleLarge
+                ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         Text(
           'Your tasks and habits are saved to this device as a guest. Create an '
@@ -111,7 +113,9 @@ class _SignedInView extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
-        Text('Signed in', style: theme.textTheme.titleLarge),
+        Text('Signed in',
+            style: theme.textTheme.titleLarge
+                ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         Text(email,
             style: theme.textTheme.bodyMedium
@@ -140,11 +144,12 @@ class _SignedInView extends ConsumerWidget {
             }
             return Row(
               children: [
-                Text('Handle', style: theme.textTheme.bodyLarge),
+                Text('Handle',
+                    style: theme.textTheme.bodyLarge?.copyWith(fontSize: 15)),
                 const Spacer(),
                 Text('@${p.username}',
-                    style: theme.textTheme.bodyLarge
-                        ?.copyWith(color: tokens.textSecondary)),
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                        fontSize: 15, color: tokens.textSecondary)),
               ],
             );
           },

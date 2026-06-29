@@ -29,9 +29,13 @@ class ProfileScreen extends ConsumerWidget {
       // No AppBar — the redundant "Profile" title is removed (matches Feed).
       // SafeArea drops content below the status bar / island; the scroll view's
       // top inset (8) keeps the summary card off the edge.
+      // Non-scrolling page: stats + Friends pinned at top, the In-progress
+      // strip scrolls horizontally, and the account section is pinned at the
+      // bottom (it scrolls internally only if the tall guest view would
+      // otherwise overflow).
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -44,9 +48,14 @@ class ProfileScreen extends ConsumerWidget {
               const _FriendsRow(),
               const SizedBox(height: 28),
               _TasksInProgress(tasks: tasks),
-              const SizedBox(height: 8),
-              // Account management (handle, sign in/out) lives here in phase 2.
-              const AccountBody(),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: SingleChildScrollView(
+                    child: const AccountBody(),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -200,6 +209,12 @@ class _TasksInProgress extends StatelessWidget {
   const _TasksInProgress({required this.tasks});
   final List<Task> tasks;
 
+  static const double _tileWidth = 84; // matches _TaskTile width
+  static const double _colGap = 20;
+  static const double _rowGap = 20;
+  static const double _oneRowHeight = 120;
+  static const double _twoRowHeight = 260;
+
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
@@ -221,11 +236,47 @@ class _TasksInProgress extends StatelessWidget {
                   ?.copyWith(color: tokens.textSecondary),
             ),
           )
+        else if (tasks.length <= 2)
+          // 1–2 tasks: a single horizontal row (no half-empty second row).
+          SizedBox(
+            height: _oneRowHeight,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.zero,
+              itemCount: tasks.length,
+              separatorBuilder: (_, _) => const SizedBox(width: _colGap),
+              itemBuilder: (context, i) => _TaskTile(task: tasks[i]),
+            ),
+          )
         else
-          Wrap(
-            spacing: 20,
-            runSpacing: 20,
-            children: [for (final t in tasks) _TaskTile(task: t)],
+          // 3+ tasks: two-row, column-major horizontal strip. Scrolls sideways;
+          // with 84px columns + 20 gap inside the 24px page padding, the next
+          // column peeks at the right edge.
+          SizedBox(
+            height: _twoRowHeight,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.zero,
+              itemCount: (tasks.length / 2).ceil(),
+              separatorBuilder: (_, _) => const SizedBox(width: _colGap),
+              itemBuilder: (context, c) {
+                final topI = c * 2;
+                final botI = c * 2 + 1;
+                return SizedBox(
+                  width: _tileWidth,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _TaskTile(task: tasks[topI]),
+                      if (botI < tasks.length) ...[
+                        const SizedBox(height: _rowGap),
+                        _TaskTile(task: tasks[botI]),
+                      ],
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
       ],
     );

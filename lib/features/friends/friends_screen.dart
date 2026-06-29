@@ -77,7 +77,17 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: const Text('Friends'),
+        toolbarHeight: 52,
+        iconTheme: const IconThemeData(size: 20),
+        // Title removed; explicit left-aligned back chevron (calendar pattern).
+        leadingWidth: 44,
+        leading: IconButton(
+          padding: const EdgeInsets.only(left: 22),
+          alignment: Alignment.centerLeft,
+          constraints: const BoxConstraints(),
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
       ),
       body: SafeArea(
         top: false,
@@ -167,6 +177,7 @@ class _AddByHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -176,25 +187,28 @@ class _AddByHandle extends StatelessWidget {
             enabled: !busy,
             autocorrect: false,
             textCapitalization: TextCapitalization.none,
+            style: theme.textTheme.bodyLarge,
+            cursorColor: tokens.textPrimary,
             onSubmitted: (_) => busy ? null : onAdd(),
-            decoration: const InputDecoration(
-              prefixText: '@',
-              labelText: 'Add by handle',
-              hintText: 'e.g. tom',
+            decoration: InputDecoration(
+              isCollapsed: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              // No box / fill / underline — floats on the background.
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              // Muted always-visible placeholder; signals it's a handle field.
+              hintText: '@handle',
+              hintStyle: theme.textTheme.bodyLarge
+                  ?.copyWith(color: tokens.textTertiary),
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        FilledButton(
+        const SizedBox(width: 8),
+        // "Add" as a quiet text action (was a solid white FilledButton).
+        TextButton(
           onPressed: busy ? null : onAdd,
-          style: FilledButton.styleFrom(
-            backgroundColor: tokens.ringFillOuter,
-            foregroundColor: tokens.background,
-            disabledBackgroundColor: tokens.ringTrack,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          ),
+          style: TextButton.styleFrom(foregroundColor: tokens.textSecondary),
           child: busy
               ? const SizedBox(
                   height: 18,
@@ -266,7 +280,11 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+        child: Text(text,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
       );
 }
 
@@ -301,7 +319,9 @@ class _HandleGate extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Set a handle first', style: theme.textTheme.titleLarge),
+          Text('Set a handle first',
+              style: theme.textTheme.titleLarge
+                  ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Text(
             'Friends find you by your handle, so you’ll need one before you can '

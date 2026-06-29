@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
@@ -9,6 +10,12 @@ import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Portrait-only — the layouts are designed for portrait (the iOS
+  // UISupportedInterfaceOrientations enforces it at the OS level too).
+  await SystemChrome.setPreferredOrientations(
+    const [DeviceOrientation.portraitUp],
+  );
 
   // Bring up Firebase and ensure there's always a user: a guest (anonymous)
   // session if no one is signed in, so data always has a home and can later be

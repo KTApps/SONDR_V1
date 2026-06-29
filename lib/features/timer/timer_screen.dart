@@ -521,7 +521,8 @@ class _LastTenDays extends ConsumerWidget {
     final today = DateTime(now.year, now.month, now.day);
 
     Widget cell(int daysAgo) {
-      final key = DayKey.of(today.subtract(Duration(days: daysAgo)));
+      final date = today.subtract(Duration(days: daysAgo));
+      final key = DayKey.of(date);
       final segments = <double>[
         for (final t in tasks) (t.secondsByDay[key] ?? 0).toDouble(),
       ];
@@ -536,7 +537,7 @@ class _LastTenDays extends ConsumerWidget {
         taskTodaySeconds: segments,
         habitStates: habitStates,
         center: Text(
-          '$daysAgo',
+          '${date.day}',
           style: theme.textTheme.bodyMedium?.copyWith(
             fontSize: 12,
             fontWeight: FontWeight.w700,

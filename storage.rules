@@ -13,5 +13,18 @@ service firebase.storage {
                    && request.resource.size < 10 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
     }
+
+    // Private session photos. Unlike posts these are owner-only on read too —
+    // the download URL lives only in the owner's private Firestore doc, so it is
+    // never handed to anyone else. (If a photo is later surfaced in the feed,
+    // that path reuses the posts space / audience gating above.)
+    match /users/{uid}/photos/{file} {
+      allow read: if request.auth != null
+                  && request.auth.uid == uid;
+      allow write: if request.auth != null
+                   && request.auth.uid == uid
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
   }
 }

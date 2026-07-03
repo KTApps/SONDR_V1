@@ -99,6 +99,7 @@ class TimerController extends Notifier<TimerState> {
     state = const TimerState();
     return StopOutcome(
       loggedSeconds: seconds,
+      taskId: task?.id,
       taskName: task?.name,
       milestoneHours: milestoneHours == 0 ? null : milestoneHours,
       isFirstMilestone: wasFirst,
@@ -112,6 +113,7 @@ class TimerController extends Notifier<TimerState> {
 class StopOutcome {
   const StopOutcome({
     required this.loggedSeconds,
+    required this.taskId,
     required this.taskName,
     required this.milestoneHours,
     required this.isFirstMilestone,
@@ -119,6 +121,12 @@ class StopOutcome {
   });
 
   final int loggedSeconds;
+
+  /// The id of the task this session was credited to — null when no task was
+  /// selected (so nothing was logged). Carried so a photo can attach to exactly
+  /// the task that received the seconds, not a re-read of the selection.
+  final String? taskId;
+
   final String? taskName;
 
   /// The milestone hours just crossed (20, 40, …), or null if none.

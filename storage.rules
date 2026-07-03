@@ -18,13 +18,19 @@ service firebase.storage {
     // the download URL lives only in the owner's private Firestore doc, so it is
     // never handed to anyone else. (If a photo is later surfaced in the feed,
     // that path reuses the posts space / audience gating above.)
+    //
+    // create/update carry an incoming file, so they're size/type-checked; delete
+    // has no `request.resource`, so it's gated on ownership alone (folding the
+    // size/type checks into a blanket `write` would deny every delete).
     match /users/{uid}/photos/{file} {
       allow read: if request.auth != null
                   && request.auth.uid == uid;
-      allow write: if request.auth != null
+      allow create, update: if request.auth != null
                    && request.auth.uid == uid
                    && request.resource.size < 10 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null
+                    && request.auth.uid == uid;
     }
   }
 }

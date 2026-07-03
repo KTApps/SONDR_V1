@@ -1,12 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../feed/posts_repository.dart';
+import '../photos/photo_picker.dart';
 
 /// Presents the milestone celebration as a full-screen moment.
 Future<void> showMilestoneCelebration(
@@ -78,21 +76,11 @@ class _MilestoneCelebrationScreenState
     // carrying its photo — friends never see a photoless flash.
     String? photoUrl;
     if (withPhoto) {
-      final source = await _pickSource();
-      if (source == null) return; // backed out of the source sheet
-      final XFile? picked;
-      try {
-        picked = await ImagePicker()
-            .pickImage(source: source, maxWidth: 1080, imageQuality: 80);
-      } catch (e) {
-        debugPrint('SONDR photo pick error: $e');
-        _toast('Couldn’t open the camera or library.');
-        return;
-      }
-      if (picked == null) return; // backed out of the picker
+      final file = await pickAndDownscale(context);
+      if (file == null) return; // backed out, or the pick failed
       setState(() => _busy = true);
       try {
-        photoUrl = await repo.uploadPostPhoto(File(picked.path));
+        photoUrl = await repo.uploadPostPhoto(file);
       } catch (e) {
         debugPrint('SONDR photo upload error: $e');
         if (mounted) {
@@ -122,30 +110,6 @@ class _MilestoneCelebrationScreenState
         _toast('Couldn’t share the milestone. Please try again.');
       }
     }
-  }
-
-  /// Camera vs photo library (library is the simulator-testable path).
-  Future<ImageSource?> _pickSource() {
-    return showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('Take a photo'),
-              onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from library'),
-              onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _toast(String message) {

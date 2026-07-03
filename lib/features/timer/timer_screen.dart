@@ -12,6 +12,7 @@ import '../habits/habits_overlay.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
 import '../milestone/milestone_celebration.dart';
+import '../photos/photo_capture_flow.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'centre_period.dart';
@@ -200,8 +201,13 @@ class TimerScreen extends ConsumerWidget {
     ref.read(focusModeProvider.notifier).disable();
     if (!context.mounted || outcome.loggedSeconds <= 0) return;
 
-    // Crossing a 20-hour boundary takes over with the celebration moment;
-    // otherwise just confirm the logged time.
+    // Offer the optional end-of-session photo only when a task was actually
+    // credited — a photo must never exist without a task to attach to.
+    final creditedTaskId = outcome.taskId;
+
+    // Crossing a 20-hour boundary takes over with the celebration moment first;
+    // the capture screen follows once it's dismissed (uninterrupted peak, then
+    // the same capture flow as an ordinary stop).
     if (outcome.reachedMilestone) {
       await showMilestoneCelebration(
         context,
@@ -213,14 +219,33 @@ class TimerScreen extends ConsumerWidget {
         // milestone ladder (and posting on later rungs) is a separate step.
         canShare: outcome.isFirstMilestone,
       );
+      if (creditedTaskId != null && context.mounted) {
+        await showPhotoCapture(
+          context,
+          taskId: creditedTaskId,
+          taskName: outcome.taskName ?? 'task',
+          sessionSeconds: outcome.loggedSeconds,
+        );
+      }
       return;
     }
 
+    // Ordinary stop: the capture screen replaces the old confirmation snackbar.
+    if (creditedTaskId != null) {
+      await showPhotoCapture(
+        context,
+        taskId: creditedTaskId,
+        taskName: outcome.taskName ?? 'task',
+        sessionSeconds: outcome.loggedSeconds,
+      );
+      return;
+    }
+
+    // No task credited (session ran with none selected): just confirm the time.
     final logged = DurationFormat.hm(Duration(seconds: outcome.loggedSeconds));
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
-      ..showSnackBar(
-          SnackBar(content: Text('Logged $logged to ${outcome.taskName}')));
+      ..showSnackBar(SnackBar(content: Text('Logged $logged')));
   }
 
   /// DEBUG_TOOLS only: log enough time to leave [task] ~90s below its first 20h

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,7 +14,9 @@ import '../habits/habits_overlay.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
 import '../milestone/milestone_celebration.dart';
+import '../photos/collages_repository.dart';
 import '../photos/photo_capture_flow.dart';
+import '../photos/photos_repository.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'centre_period.dart';
@@ -209,6 +213,13 @@ class TimerScreen extends ConsumerWidget {
     // the capture screen follows once it's dismissed (uninterrupted peak, then
     // the same capture flow as an ordinary stop).
     if (outcome.reachedMilestone) {
+      // Auto-compose this milestone's collage — a gift, zero user action. Fired
+      // unawaited so it never delays the celebration; the repo guards against
+      // clobbering a user-edited collage.
+      if (creditedTaskId != null) {
+        unawaited(_autoComposeCollage(
+            ref, creditedTaskId, outcome.milestoneHours!));
+      }
       await showMilestoneCelebration(
         context,
         taskName: outcome.taskName ?? 'task',
@@ -251,6 +262,24 @@ class TimerScreen extends ConsumerWidget {
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(SnackBar(content: Text('Logged $logged')));
+  }
+
+  /// Compose and save the milestone's collage from that milestone's own 20h
+  /// band of photos (locked window). Photo-id refs only, so it's cheap. The
+  /// repo's [CollagesRepository.saveAuto] guard leaves a user-edited collage
+  /// untouched, so re-crossing/re-opening never clobbers curation.
+  Future<void> _autoComposeCollage(
+      WidgetRef ref, String taskId, int milestoneHours) async {
+    final photos = ref.read(photosRepositoryProvider);
+    final collages = ref.read(collagesRepositoryProvider);
+    if (photos == null || collages == null) return;
+    try {
+      final selected = await photos.collagePhotos(taskId, milestoneHours);
+      await collages.saveAuto(
+          taskId, milestoneHours, [for (final p in selected) p.id]);
+    } catch (e) {
+      debugPrint('SONDR collage auto-compose error: $e');
+    }
   }
 
   /// DEBUG_TOOLS only: log enough time to leave [task] ~90s below its first 20h

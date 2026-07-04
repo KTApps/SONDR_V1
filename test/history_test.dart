@@ -61,8 +61,13 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(CalendarScreen), findsOneWidget);
-    expect(find.text('Your progress'), findsOneWidget);
-    expect(find.text('M'), findsWidgets); // weekday labels
+    // The redesign (commit 420bb08) dropped the "Your progress" title and the
+    // weekday header for a month-labelled vertical scroll: assert the current
+    // month's label and a day cell instead.
+    final now = DateTime.now();
+    expect(find.text('${DayKey.monthName(now.month)} ${now.year}'),
+        findsWidgets); // month label
+    expect(find.text('15'), findsWidgets); // a day cell in the grid
   });
 
   testWidgets('DayDetailSheet builds for today', (tester) async {

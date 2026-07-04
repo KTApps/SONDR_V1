@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import '../../core/utils/date.dart';
+import 'collage_selection.dart';
 import 'models/photo.dart';
 
 /// The private photo store. Each photo is a document under
@@ -105,6 +106,20 @@ class PhotosRepository {
   Future<int> photosCount() async {
     final agg = await _col.count().get();
     return agg.count ?? 0;
+  }
+
+  /// All of a task's photos (any day). A single equality filter on `taskId` →
+  /// automatic single-field index, no composite. Order is irrelevant here —
+  /// [collageSelection] re-sorts by cumulative seconds.
+  Future<List<Photo>> photosForTask(String taskId) async {
+    final snap = await _col.where('taskId', isEqualTo: taskId).get();
+    return [for (final d in snap.docs) Photo.fromMap(d.data())];
+  }
+
+  /// The collage photos for [taskId]'s [milestoneHours] milestone: the task's
+  /// photos, run through [collageSelection]'s locked-window band + even-spread.
+  Future<List<Photo>> collagePhotos(String taskId, int milestoneHours) async {
+    return collageSelection(await photosForTask(taskId), milestoneHours);
   }
 }
 

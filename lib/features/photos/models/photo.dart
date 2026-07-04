@@ -21,6 +21,7 @@ class Photo {
     required this.sessionSeconds,
     required this.photoUrl,
     required this.storagePath,
+    this.milestoneHours,
   });
 
   final String taskId;
@@ -43,6 +44,11 @@ class Photo {
   /// binary can be deleted alongside the doc.
   final String storagePath;
 
+  /// The milestone hours crossed by the session this photo marks (20, 40, …), or
+  /// null if the session crossed none. Snapshotted at capture; photos taken
+  /// before this field existed read back as null.
+  final int? milestoneHours;
+
   /// Deterministic, self-describing id: `{taskId}_{timestamp}`. Dedupe is
   /// trivial and identity is readable. Equals the Firestore document id by
   /// construction, so [Photo.fromMap] needs no separate id argument.
@@ -61,6 +67,7 @@ class Photo {
         'sessionSeconds': sessionSeconds,
         'photoUrl': photoUrl,
         'storagePath': storagePath,
+        'milestoneHours': milestoneHours,
       };
 
   /// Rebuild from a stored document. Tolerates numbers coming back as `num`.
@@ -74,6 +81,7 @@ class Photo {
       sessionSeconds: _int(map['sessionSeconds']),
       photoUrl: (map['photoUrl'] as String?) ?? '',
       storagePath: (map['storagePath'] as String?) ?? '',
+      milestoneHours: (map['milestoneHours'] as num?)?.toInt(),
     );
   }
 }

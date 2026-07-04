@@ -225,18 +225,21 @@ class TimerScreen extends ConsumerWidget {
           taskId: creditedTaskId,
           taskName: outcome.taskName ?? 'task',
           sessionSeconds: outcome.loggedSeconds,
+          milestoneHours: outcome.milestoneHours,
         );
       }
       return;
     }
 
     // Ordinary stop: the capture screen replaces the old confirmation snackbar.
+    // milestoneHours is null here (no boundary crossed).
     if (creditedTaskId != null) {
       await showPhotoCapture(
         context,
         taskId: creditedTaskId,
         taskName: outcome.taskName ?? 'task',
         sessionSeconds: outcome.loggedSeconds,
+        milestoneHours: outcome.milestoneHours,
       );
       return;
     }

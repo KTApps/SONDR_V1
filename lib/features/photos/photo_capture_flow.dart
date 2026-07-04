@@ -21,6 +21,7 @@ Future<void> showPhotoCapture(
   required String taskId,
   required String taskName,
   required int sessionSeconds,
+  int? milestoneHours,
 }) {
   return Navigator.of(context).push(
     PageRouteBuilder(
@@ -30,6 +31,7 @@ Future<void> showPhotoCapture(
         taskId: taskId,
         taskName: taskName,
         sessionSeconds: sessionSeconds,
+        milestoneHours: milestoneHours,
       ),
       transitionsBuilder: (_, animation, _, child) =>
           FadeTransition(opacity: animation, child: child),
@@ -47,11 +49,13 @@ class PhotoCaptureScreen extends ConsumerStatefulWidget {
     required this.taskId,
     required this.taskName,
     required this.sessionSeconds,
+    this.milestoneHours,
   });
 
   final String taskId;
   final String taskName;
   final int sessionSeconds;
+  final int? milestoneHours;
 
   @override
   ConsumerState<PhotoCaptureScreen> createState() => _PhotoCaptureScreenState();
@@ -92,6 +96,7 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
         sessionSeconds: widget.sessionSeconds,
         photoUrl: up.url,
         storagePath: up.storagePath,
+        milestoneHours: widget.milestoneHours,
       ));
       if (!mounted) return;
       Navigator.of(context).pop();

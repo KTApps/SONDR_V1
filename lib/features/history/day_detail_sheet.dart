@@ -7,6 +7,8 @@ import '../../core/utils/duration_format.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
+import '../tasks/models/task.dart';
+import '../tasks/tasks_providers.dart';
 import 'history_providers.dart';
 
 /// Shows a day's detail as a bottom sheet: the date, that day's dual ring
@@ -246,30 +248,162 @@ class _Thumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        width: _w,
-        height: _h,
-        child: Image.network(
-          photo.photoUrl,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => ColoredBox(color: tokens.ringTrack),
-          frameBuilder: (ctx, child, frame, _) {
-            if (frame == null) return ColoredBox(color: tokens.surface);
-            return Container(
-              foregroundDecoration: const BoxDecoration(color: _kThumbTint),
-              child: ColorFiltered(
-                colorFilter: ColorFilter.matrix(
-                  _saturationMatrix(_kThumbSaturation),
+    return GestureDetector(
+      onTap: () => _showPhotoOverlay(context, photo),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: SizedBox(
+          width: _w,
+          height: _h,
+          child: Image.network(
+            photo.photoUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => ColoredBox(color: tokens.ringTrack),
+            frameBuilder: (ctx, child, frame, _) {
+              if (frame == null) return ColoredBox(color: tokens.surface);
+              return Container(
+                foregroundDecoration: const BoxDecoration(color: _kThumbTint),
+                child: ColorFiltered(
+                  colorFilter: ColorFilter.matrix(
+                    _saturationMatrix(_kThumbSaturation),
+                  ),
+                  child: child,
                 ),
-                child: child,
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
+  }
+}
+
+/// Tapping a thumbnail opens a lightweight scrim overlay (not a route push) with
+/// the full untinted photo and its session detail.
+void _showPhotoOverlay(BuildContext context, Photo photo) {
+  showGeneralDialog(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Colors.black.withValues(alpha: 0.72),
+    transitionDuration: const Duration(milliseconds: 200),
+    pageBuilder: (_, _, _) => _PhotoOverlay(photo: photo),
+    transitionBuilder: (_, anim, _, child) =>
+        FadeTransition(opacity: anim, child: child),
+  );
+}
+
+/// The expanded photo: full and untinted (a close look, meant to be enjoyed),
+/// with session detail beneath — task, duration, time of day, and a milestone
+/// line only when the photo carries [Photo.milestoneHours]. A Share action
+/// appears **only** when the photo's task has passed 20h lifetime
+/// (milestonesReached >= 1); below that it's absent. Tapping the card is
+/// absorbed; tapping the scrim dismisses.
+class _PhotoOverlay extends ConsumerWidget {
+  const _PhotoOverlay({required this.photo});
+
+  final Photo photo;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+
+    final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
+    final task = tasks.where((t) => t.id == photo.taskId).firstOrNull;
+    final canShare = task != null && task.milestonesReached >= 1;
+
+    final duration = DurationFormat.hm(Duration(seconds: photo.sessionSeconds));
+    final time = MaterialLocalizations.of(context)
+        .formatTimeOfDay(TimeOfDay.fromDateTime(photo.capturedAt));
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: GestureDetector(
+          onTap: () {}, // absorb taps so the card itself never dismisses
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+                  ),
+                  child: Image.network(
+                    photo.photoUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) => Container(
+                      width: 220,
+                      height: 280,
+                      color: tokens.ringTrack,
+                      alignment: Alignment.center,
+                      child: Icon(Icons.broken_image_outlined,
+                          color: tokens.textTertiary),
+                    ),
+                    loadingBuilder: (ctx, child, progress) => progress == null
+                        ? child
+                        : Container(
+                            width: 220,
+                            height: 280,
+                            color: tokens.surface,
+                            alignment: Alignment.center,
+                            child: const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                photo.taskName,
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$duration · $time',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: tokens.textSecondary),
+              ),
+              if (photo.milestoneHours != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '${photo.milestoneHours} hour milestone',
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: tokens.textSecondary),
+                ),
+              ],
+              if (canShare) ...[
+                const SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () => _shareStub(context),
+                  icon: const Icon(Icons.ios_share, size: 18),
+                  label: const Text('Share'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: tokens.textPrimary,
+                    textStyle: theme.textTheme.labelLarge,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Stub — the real feed-post wiring (private→posts boundary, post type) is a
+  // dedicated follow-up. The 20h gate above is the real part of this step.
+  void _shareStub(BuildContext context) {
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(const SnackBar(content: Text('Sharing coming soon.')));
   }
 }
 

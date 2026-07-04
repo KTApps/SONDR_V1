@@ -6,6 +6,8 @@ import '../../core/utils/date.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../habits/habits_providers.dart';
 import '../habits/models/daily_habits.dart';
+import '../photos/models/photo.dart';
+import '../photos/photos_repository.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'day_detail_sheet.dart';
@@ -69,7 +71,7 @@ class CalendarScreen extends ConsumerWidget {
                           ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
                     ),
                   ),
-                  _monthGrid(context, month, tasks, habits, theme),
+                  _MonthGrid(month: month, tasks: tasks, habits: habits),
                 ],
               ),
             );
@@ -117,19 +119,35 @@ class CalendarScreen extends ConsumerWidget {
     return months;
   }
 
-  /// One month's grid. Non-scrolling — it lives inside the outer month scroll.
-  /// The day-circle rendering is unchanged from the single-month version.
-  Widget _monthGrid(
-    BuildContext context,
-    DateTime month,
-    List<Task> tasks,
-    HabitsState? habits,
-    ThemeData theme,
-  ) {
+}
+
+/// One month's grid. Non-scrolling — it lives inside the outer month scroll.
+/// Watches its own month's photos so each cell can show that day's first capture
+/// inside the effort ring. Rings render immediately from tasks/habits; the photos
+/// fill in when the month query resolves (no layout shift — the fill sits in a
+/// fixed-size slot inside the ring).
+class _MonthGrid extends ConsumerWidget {
+  const _MonthGrid({
+    required this.month,
+    required this.tasks,
+    required this.habits,
+  });
+
+  final DateTime month;
+  final List<Task> tasks;
+  final HabitsState? habits;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     final tokens = GreyscaleTokens.of(context);
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+
+    final monthKey = DayKey.monthPrefix(month);
+    final byDay = ref.watch(photosForMonthProvider(monthKey)).value ??
+        const <String, List<Photo>>{};
 
     // Sequential 7-across grid starting at day 1 (no weekday alignment).
     final cells = <Widget>[];
@@ -146,30 +164,48 @@ class CalendarScreen extends ConsumerWidget {
         for (final tick in habits?.days[key]?.ticks ?? const []) tick.done,
       ];
 
+      final dayPhotos = byDay[key] ?? const <Photo>[];
+      final hero = dayPhotos.isEmpty ? null : dayPhotos.first; // first capture
+      final hasPhoto = hero != null;
+
+      Widget dial = SegmentedDial(
+        size: 49,
+        compact: true,
+        stroke: 5, // a touch thinner than the proportional ~6
+        taskTodaySeconds: segments,
+        habitStates: habitStates,
+        fill: hasPhoto ? _PhotoFill(url: hero.photoUrl) : null,
+        center: Text(
+          '$day',
+          style: theme.textTheme.labelMedium?.copyWith(
+            // Matches Home's Last-10-days numbers: bold (w700), size 12.
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: hasPhoto
+                ? Colors.white
+                : (isToday ? tokens.textPrimary : tokens.textSecondary),
+            // Kept legible over the tinted photo.
+            shadows: hasPhoto
+                ? const [Shadow(color: Color(0xCC000000), blurRadius: 3)]
+                : null,
+          ),
+        ),
+      );
+      if (dayPhotos.length > 1) {
+        dial = Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [dial, const Positioned(top: 5, right: 8, child: _MultipleDot())],
+        );
+      }
+
       cells.add(
         Opacity(
           opacity: isFuture ? 0.28 : 1,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: isFuture ? null : () => showDayDetailSheet(context, key),
-            child: Center(
-              child: SegmentedDial(
-                size: 49,
-                compact: true,
-                stroke: 5, // a touch thinner than the proportional ~6
-                taskTodaySeconds: segments,
-                habitStates: habitStates,
-                center: Text(
-                  '$day',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    // Matches Home's Last-10-days numbers: bold (w700), size 12.
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isToday ? tokens.textPrimary : tokens.textSecondary,
-                  ),
-                ),
-              ),
-            ),
+            child: Center(child: dial),
           ),
         ),
       );
@@ -184,4 +220,78 @@ class CalendarScreen extends ConsumerWidget {
       children: cells,
     );
   }
+}
+
+// ── Photo-in-ring tint — a FIXED, uniform treatment on every photo cell so the
+// calendar reads consistently. Both values are tuned on screen; adjust here.
+/// Photo colour saturation: 1 = full colour, 0 = full greyscale. Lower = more
+/// muted toward the app's greyscale world.
+const double _kPhotoSaturation = 0.32;
+/// Dark scrim painted over the photo. Higher alpha = darker/more muted and a
+/// stronger backing for the white day number. 0x9E ≈ 62% black.
+const Color _kPhotoTint = Color(0x9E000000);
+
+/// A day's hero photo inside the effort ring: the network image, desaturated
+/// toward the app's greyscale, under the fixed dark tint that both mutes it and
+/// backs the white day number. The tint is identical on every photo day so the
+/// calendar reads consistently. A broken/failed URL falls back to nothing (ring
+/// only) so it never breaks the cell; nothing shows until the first frame, so
+/// there's no flash of a tinted-but-empty disc.
+class _PhotoFill extends StatelessWidget {
+  const _PhotoFill({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+      frameBuilder: (ctx, child, frame, wasSync) {
+        if (frame == null) return const SizedBox.shrink();
+        // Desaturate toward greyscale, then paint the fixed dark tint directly
+        // over the image via foregroundDecoration — it always covers the image
+        // exactly, with no Stack-sizing surprises.
+        return Container(
+          foregroundDecoration: const BoxDecoration(color: _kPhotoTint),
+          child: ColorFiltered(
+            colorFilter: ColorFilter.matrix(_saturationMatrix(_kPhotoSaturation)),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The quiet "more than one photo today" marker, top-right of the cell.
+class _MultipleDot extends StatelessWidget {
+  const _MultipleDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 5,
+      height: 5,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        boxShadow: [BoxShadow(color: Color(0x99000000), blurRadius: 2)],
+      ),
+    );
+  }
+}
+
+/// A saturation colour matrix. [s] = 1 is unchanged, 0 is full greyscale.
+List<double> _saturationMatrix(double s) {
+  const r = 0.2126, g = 0.7152, b = 0.0722;
+  final ir = (1 - s) * r, ig = (1 - s) * g, ib = (1 - s) * b;
+  return [
+    ir + s, ig, ib, 0, 0,
+    ir, ig + s, ib, 0, 0,
+    ir, ig, ib + s, 0, 0,
+    0, 0, 0, 1, 0,
+  ];
 }

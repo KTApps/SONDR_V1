@@ -27,6 +27,7 @@ class SegmentedDial extends StatelessWidget {
     this.compact = false,
     this.stroke,
     this.center,
+    this.fill,
     this.onInnerRingTap,
   });
 
@@ -55,6 +56,12 @@ class SegmentedDial extends StatelessWidget {
 
   /// Centre content (the screen owns the today/month figure and its gestures).
   final Widget? center;
+
+  /// Optional content composited inside the outer ring — circular-cropped to the
+  /// ring's inner diameter and layered between the rings and [center]. Used by
+  /// the calendar to show a day's photo inside its effort ring (the photo covers
+  /// the inner habit ring, which lives in day-detail instead).
+  final Widget? fill;
 
   /// Tapped on the inner (habit) ring band.
   final VoidCallback? onInnerRingTap;
@@ -150,6 +157,13 @@ class SegmentedDial extends StatelessWidget {
               ),
             ),
           ),
+          // Circular fill sized to sit just inside the outer ring's inner edge.
+          if (fill != null)
+            SizedBox(
+              width: _outerRadius * 2 - _stroke,
+              height: _outerRadius * 2 - _stroke,
+              child: ClipOval(child: fill),
+            ),
           ?center,
         ],
       ),

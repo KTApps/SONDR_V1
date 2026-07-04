@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import '../../core/utils/date.dart';
 import 'models/photo.dart';
 
 /// The private photo store. Each photo is a document under
@@ -53,6 +54,30 @@ class PhotosRepository {
     return photos;
   }
 
+  /// Every photo in [month], grouped by dayKey. One read for the whole month via
+  /// a single-field range on `dayKey` (`>= yyyy-mm-01` and `< nextMonth-01`), so
+  /// no composite index is needed. Each day's list is sorted **chronologically
+  /// (oldest first)** — `list.first` is the day's first capture, the calendar
+  /// hero — and `list.length` drives the "multiple photos" dot. Backs the
+  /// calendar; the grouping/sort is client-side.
+  Future<Map<String, List<Photo>>> photosForMonth(DateTime month) async {
+    final prefix = DayKey.monthPrefix(month); // "2026-06"
+    final next = DayKey.monthPrefix(DateTime(month.year, month.month + 1));
+    final snap = await _col
+        .where('dayKey', isGreaterThanOrEqualTo: '$prefix-01')
+        .where('dayKey', isLessThan: '$next-01')
+        .get();
+    final byDay = <String, List<Photo>>{};
+    for (final d in snap.docs) {
+      final p = Photo.fromMap(d.data());
+      (byDay[p.dayKey] ??= []).add(p);
+    }
+    for (final list in byDay.values) {
+      list.sort((a, b) => a.timestamp.compareTo(b.timestamp)); // oldest first
+    }
+    return byDay;
+  }
+
   /// Remove a photo entirely — both the Firestore doc and its Storage binary.
   /// The doc is deleted first so the photo disappears from every surface at
   /// once; the binary is then deleted best-effort (a missing object is fine). If
@@ -74,4 +99,17 @@ final photosRepositoryProvider = Provider<PhotosRepository?>((ref) {
   final uid = ref.watch(currentUidProvider);
   if (!ref.watch(firebaseReadyProvider) || uid == null) return null;
   return PhotosRepository(db: FirebaseFirestore.instance, uid: uid);
+});
+
+/// A month's photos grouped by dayKey, keyed by "yyyy-mm". One query per month,
+/// resolved lazily as the calendar scrolls each month into view; autoDispose so
+/// off-screen months don't linger and re-entry re-fetches (a just-kept photo
+/// shows up). Empty on the local backend.
+final photosForMonthProvider =
+    FutureProvider.family.autoDispose<Map<String, List<Photo>>, String>(
+        (ref, monthKey) async {
+  final repo = ref.watch(photosRepositoryProvider);
+  if (repo == null) return const {};
+  final parts = monthKey.split('-');
+  return repo.photosForMonth(DateTime(int.parse(parts[0]), int.parse(parts[1])));
 });

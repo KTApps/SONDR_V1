@@ -89,6 +89,7 @@ void main() {
       const ProviderScope(
         child: MaterialApp(
           home: MilestoneCelebrationScreen(
+            taskId: 'spanish',
             taskName: 'Spanish',
             milestoneHours: 20,
             totalHours: 21,
@@ -111,6 +112,7 @@ void main() {
       const ProviderScope(
         child: MaterialApp(
           home: MilestoneCelebrationScreen(
+            taskId: 'piano',
             taskName: 'Piano',
             milestoneHours: 40,
             totalHours: 41,

@@ -222,6 +222,7 @@ class TimerScreen extends ConsumerWidget {
       }
       await showMilestoneCelebration(
         context,
+        taskId: creditedTaskId ?? '',
         taskName: outcome.taskName ?? 'task',
         milestoneHours: outcome.milestoneHours!,
         totalHours: outcome.totalHours,

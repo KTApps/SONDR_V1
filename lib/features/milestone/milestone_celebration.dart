@@ -4,11 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../feed/posts_repository.dart';
+import '../photos/models/photo.dart';
 import '../photos/photo_picker.dart';
+import '../photos/photos_repository.dart';
+import '../photos/widgets/collage_grid.dart';
 
 /// Presents the milestone celebration as a full-screen moment.
 Future<void> showMilestoneCelebration(
   BuildContext context, {
+  required String taskId,
   required String taskName,
   required int milestoneHours,
   required int totalHours,
@@ -20,6 +24,7 @@ Future<void> showMilestoneCelebration(
       opaque: true,
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (_, _, _) => MilestoneCelebrationScreen(
+        taskId: taskId,
         taskName: taskName,
         milestoneHours: milestoneHours,
         totalHours: totalHours,
@@ -43,6 +48,7 @@ Future<void> showMilestoneCelebration(
 class MilestoneCelebrationScreen extends ConsumerStatefulWidget {
   const MilestoneCelebrationScreen({
     super.key,
+    required this.taskId,
     required this.taskName,
     required this.milestoneHours,
     required this.totalHours,
@@ -50,6 +56,7 @@ class MilestoneCelebrationScreen extends ConsumerStatefulWidget {
     required this.canShare,
   });
 
+  final String taskId;
   final String taskName;
   final int milestoneHours;
   final int totalHours;
@@ -64,6 +71,20 @@ class MilestoneCelebrationScreen extends ConsumerStatefulWidget {
 class _MilestoneCelebrationScreenState
     extends ConsumerState<MilestoneCelebrationScreen> {
   bool _busy = false;
+
+  /// The milestone's collage photos, composed live from this milestone's own 20h
+  /// band (deterministic — matches the doc that saveAuto persists, so there's no
+  /// race with that unawaited write). Empty when the band has no photos.
+  late final Future<List<Photo>> _collage;
+
+  @override
+  void initState() {
+    super.initState();
+    final repo = ref.read(photosRepositoryProvider);
+    _collage = repo == null
+        ? Future.value(const <Photo>[])
+        : repo.collagePhotos(widget.taskId, widget.milestoneHours);
+  }
 
   Future<void> _share({required bool withPhoto}) async {
     final repo = ref.read(postsRepositoryProvider);
@@ -144,25 +165,15 @@ class _MilestoneCelebrationScreenState
               ),
               const SizedBox(height: 36),
 
-              // Completed ring as the hero — a full outer ring for the
-              // milestone just reached.
-              ProgressRing(
-                size: 260,
-                stroke: 260 * 0.09,
-                progress: 1.0,
-                center: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('${widget.milestoneHours} hrs',
-                        style: theme.textTheme.displayMedium),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.taskName,
-                      style: theme.textTheme.labelMedium
-                          ?.copyWith(color: tokens.textSecondary),
-                    ),
-                  ],
-                ),
+              // The hero: the milestone's collage when it has photos, else the
+              // completed ring (a milestone with zero captures still celebrates).
+              FutureBuilder<List<Photo>>(
+                future: _collage,
+                builder: (ctx, snap) {
+                  final photos = snap.data ?? const <Photo>[];
+                  if (photos.isEmpty) return _ringHero(theme, tokens);
+                  return _collageHero(photos, theme, tokens);
+                },
               ),
               const SizedBox(height: 44),
 
@@ -172,6 +183,46 @@ class _MilestoneCelebrationScreenState
           ),
         ),
       ),
+    );
+  }
+
+  /// The original completed-ring hero — used when the milestone has no photos.
+  Widget _ringHero(ThemeData theme, GreyscaleTokens tokens) {
+    return ProgressRing(
+      size: 260,
+      stroke: 260 * 0.09,
+      progress: 1.0,
+      center: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('${widget.milestoneHours} hrs',
+              style: theme.textTheme.displayMedium),
+          const SizedBox(height: 4),
+          Text(widget.taskName,
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(color: tokens.textSecondary)),
+        ],
+      ),
+    );
+  }
+
+  /// The collage hero — the milestone's photos as a grid, with the milestone
+  /// figure captioned beneath (since the grid replaces the ring's centre).
+  Widget _collageHero(
+      List<Photo> photos, ThemeData theme, GreyscaleTokens tokens) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300),
+          child: CollageGrid(photos: photos),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '${widget.milestoneHours} hours · ${widget.taskName}',
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ],
     );
   }
 

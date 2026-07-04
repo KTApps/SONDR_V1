@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
+import '../../shared/photo_tint.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../auth/account_screen.dart';
 import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
+import '../history/calendar_screen.dart';
+import '../photos/models/photo.dart';
+import '../photos/photos_repository.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'profile_providers.dart';
@@ -46,6 +50,9 @@ class ProfileScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               const _FriendsRow(),
+              // Gallery doorway — self-spaced (top gap inside), so when it's
+              // hidden (no photos) the Friends→Tasks spacing is unchanged.
+              const _GalleryDoorway(),
               const SizedBox(height: 28),
               _TasksInProgress(tasks: tasks),
               Expanded(
@@ -160,6 +167,97 @@ class _FriendsRow extends ConsumerWidget {
               Icon(Icons.chevron_right, color: tokens.textTertiary),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// Gallery thumbnails use the near-raw tint (same as day-detail's Captured
+// thumbs) — light desaturation + a whisper of dark, via the shared matrix.
+const double _kGalleryThumbSaturation = 0.85;
+const Color _kGalleryThumbTint = Color(0x1A000000);
+
+/// A doorway into the photo calendar: a strip of the most recent captures, a
+/// count, and a chevron — mirrors [_FriendsRow]. Hidden entirely until there's
+/// at least one photo. Opens the step-3 [CalendarScreen] (same route pattern as
+/// the home "View your progress" CTA).
+class _GalleryDoorway extends ConsumerWidget {
+  const _GalleryDoorway();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final preview = ref.watch(galleryPreviewProvider).value;
+    if (preview == null || preview.total == 0) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Material(
+        color: tokens.surface,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const CalendarScreen()),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Row(
+              children: [
+                for (final p in preview.recent) ...[
+                  _GalleryThumb(photo: p),
+                  const SizedBox(width: 6),
+                ],
+                const Spacer(),
+                Text(
+                  '${preview.total} captured',
+                  style: theme.textTheme.bodyLarge
+                      ?.copyWith(color: tokens.textSecondary),
+                ),
+                Icon(Icons.chevron_right, color: tokens.textTertiary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One small gallery thumbnail — fixed size, near-raw tint, graceful fallback.
+class _GalleryThumb extends StatelessWidget {
+  const _GalleryThumb({required this.photo});
+
+  final Photo photo;
+
+  static const double _size = 34;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: _size,
+        height: _size,
+        child: Image.network(
+          photo.photoUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => ColoredBox(color: tokens.ringTrack),
+          frameBuilder: (ctx, child, frame, _) {
+            if (frame == null) return ColoredBox(color: tokens.ringTrack);
+            return Container(
+              foregroundDecoration:
+                  const BoxDecoration(color: _kGalleryThumbTint),
+              child: ColorFiltered(
+                colorFilter:
+                    ColorFilter.matrix(saturationMatrix(_kGalleryThumbSaturation)),
+                child: child,
+              ),
+            );
+          },
         ),
       ),
     );

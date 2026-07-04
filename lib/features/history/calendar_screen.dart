@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
+import '../../shared/photo_tint.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../habits/habits_providers.dart';
 import '../habits/models/daily_habits.dart';
@@ -257,7 +258,7 @@ class _PhotoFill extends StatelessWidget {
         return Container(
           foregroundDecoration: const BoxDecoration(color: _kPhotoTint),
           child: ColorFiltered(
-            colorFilter: ColorFilter.matrix(_saturationMatrix(_kPhotoSaturation)),
+            colorFilter: ColorFilter.matrix(saturationMatrix(_kPhotoSaturation)),
             child: child,
           ),
         );
@@ -282,16 +283,4 @@ class _MultipleDot extends StatelessWidget {
       ),
     );
   }
-}
-
-/// A saturation colour matrix. [s] = 1 is unchanged, 0 is full greyscale.
-List<double> _saturationMatrix(double s) {
-  const r = 0.2126, g = 0.7152, b = 0.0722;
-  final ir = (1 - s) * r, ig = (1 - s) * g, ib = (1 - s) * b;
-  return [
-    ir + s, ig, ib, 0, 0,
-    ir, ig + s, ib, 0, 0,
-    ir, ig, ib + s, 0, 0,
-    0, 0, 0, 1, 0,
-  ];
 }

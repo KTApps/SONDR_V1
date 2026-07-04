@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
+import '../../shared/photo_tint.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
@@ -265,7 +266,7 @@ class _Thumb extends StatelessWidget {
                 foregroundDecoration: const BoxDecoration(color: _kThumbTint),
                 child: ColorFiltered(
                   colorFilter: ColorFilter.matrix(
-                    _saturationMatrix(_kThumbSaturation),
+                    saturationMatrix(_kThumbSaturation),
                   ),
                   child: child,
                 ),
@@ -405,35 +406,6 @@ class _PhotoOverlay extends ConsumerWidget {
       ..clearSnackBars()
       ..showSnackBar(const SnackBar(content: Text('Sharing coming soon.')));
   }
-}
-
-/// Saturation colour matrix. [s] = 1 unchanged, 0 full greyscale. (Small local
-/// copy; the calendar has its own — a shared tint helper is a later tidy.)
-List<double> _saturationMatrix(double s) {
-  const r = 0.2126, g = 0.7152, b = 0.0722;
-  final ir = (1 - s) * r, ig = (1 - s) * g, ib = (1 - s) * b;
-  return [
-    ir + s,
-    ig,
-    ib,
-    0,
-    0,
-    ir,
-    ig + s,
-    ib,
-    0,
-    0,
-    ir,
-    ig,
-    ib + s,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-  ];
 }
 
 /// Habit completion marker: a solid dot (done, primary tone) or a hollow

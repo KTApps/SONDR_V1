@@ -91,6 +91,21 @@ class PhotosRepository {
       if (e.code != 'object-not-found') rethrow;
     }
   }
+
+  /// The most recent [limit] photos across all days, newest first. A single
+  /// orderBy on `timestamp` → automatic single-field index, no composite. Backs
+  /// the profile gallery doorway's thumbnail strip.
+  Future<List<Photo>> photosRecent(int limit) async {
+    final snap =
+        await _col.orderBy('timestamp', descending: true).limit(limit).get();
+    return [for (final d in snap.docs) Photo.fromMap(d.data())];
+  }
+
+  /// Total number of photos, via an aggregation query (doesn't read the docs).
+  Future<int> photosCount() async {
+    final agg = await _col.count().get();
+    return agg.count ?? 0;
+  }
 }
 
 /// The private photo store, or null on the local/offline backend or before a uid
@@ -122,4 +137,16 @@ final photosForMonthProvider =
   if (repo == null) return const {};
   final parts = monthKey.split('-');
   return repo.photosForMonth(DateTime(int.parse(parts[0]), int.parse(parts[1])));
+});
+
+/// The profile gallery doorway preview: the few most recent photos plus the
+/// total count, fetched together. Empty/zero on the local backend; autoDispose
+/// so it refreshes when the profile is revisited.
+final galleryPreviewProvider =
+    FutureProvider.autoDispose<({List<Photo> recent, int total})>((ref) async {
+  final repo = ref.watch(photosRepositoryProvider);
+  if (repo == null) return (recent: const <Photo>[], total: 0);
+  final recent = await repo.photosRecent(4);
+  final total = await repo.photosCount();
+  return (recent: recent, total: total);
 });

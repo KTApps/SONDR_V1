@@ -78,6 +78,7 @@ class TimerController extends Notifier<TimerState> {
     var milestoneHours = 0;
     var wasFirst = false;
     var totalHours = 0;
+    var totalSeconds = 0;
     if (task != null && seconds > 0) {
       final before = task.milestonesReached;
       await ref
@@ -89,7 +90,8 @@ class TimerController extends Notifier<TimerState> {
           ?.where((t) => t.id == task.id)
           .firstOrNull;
       final after = updated?.milestonesReached ?? before;
-      totalHours = ((updated?.totalSeconds ?? 0) / 3600).round();
+      totalSeconds = updated?.totalSeconds ?? 0;
+      totalHours = (totalSeconds / 3600).round();
       if (after > before) {
         milestoneHours = after * Task.milestoneStepHours;
         wasFirst = before == 0;
@@ -104,6 +106,7 @@ class TimerController extends Notifier<TimerState> {
       milestoneHours: milestoneHours == 0 ? null : milestoneHours,
       isFirstMilestone: wasFirst,
       totalHours: totalHours,
+      totalSeconds: totalSeconds,
     );
   }
 }
@@ -118,6 +121,7 @@ class StopOutcome {
     required this.milestoneHours,
     required this.isFirstMilestone,
     required this.totalHours,
+    required this.totalSeconds,
   });
 
   final int loggedSeconds;
@@ -138,6 +142,11 @@ class StopOutcome {
   /// The task's lifetime hours after this session was committed — carried so a
   /// milestone post can show the real total.
   final int totalHours;
+
+  /// The task's precise cumulative seconds after this session — snapshotted onto
+  /// a kept photo as its [Photo.cumulativeSeconds] (the collage band key). 0 when
+  /// no task was credited.
+  final int totalSeconds;
 
   bool get reachedMilestone => milestoneHours != null;
 }

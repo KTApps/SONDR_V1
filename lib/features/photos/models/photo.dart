@@ -22,6 +22,7 @@ class Photo {
     required this.photoUrl,
     required this.storagePath,
     this.milestoneHours,
+    this.cumulativeSeconds,
   });
 
   final String taskId;
@@ -49,6 +50,13 @@ class Photo {
   /// before this field existed read back as null.
   final int? milestoneHours;
 
+  /// The task's cumulative total seconds at capture (including this session).
+  /// The locked-window key for milestone collages: a photo's 20h band is
+  /// `cumulativeSeconds ~/ (20*3600)`. Null for photos captured before this
+  /// field existed — those are **unassignable** and excluded from every band
+  /// (a missing photo beats a wrong-band one).
+  final int? cumulativeSeconds;
+
   /// Deterministic, self-describing id: `{taskId}_{timestamp}`. Dedupe is
   /// trivial and identity is readable. Equals the Firestore document id by
   /// construction, so [Photo.fromMap] needs no separate id argument.
@@ -68,6 +76,7 @@ class Photo {
         'photoUrl': photoUrl,
         'storagePath': storagePath,
         'milestoneHours': milestoneHours,
+        'cumulativeSeconds': cumulativeSeconds,
       };
 
   /// Rebuild from a stored document. Tolerates numbers coming back as `num`.
@@ -82,6 +91,7 @@ class Photo {
       photoUrl: (map['photoUrl'] as String?) ?? '',
       storagePath: (map['storagePath'] as String?) ?? '',
       milestoneHours: (map['milestoneHours'] as num?)?.toInt(),
+      cumulativeSeconds: (map['cumulativeSeconds'] as num?)?.toInt(),
     );
   }
 }

@@ -226,6 +226,7 @@ class TimerScreen extends ConsumerWidget {
           taskName: outcome.taskName ?? 'task',
           sessionSeconds: outcome.loggedSeconds,
           milestoneHours: outcome.milestoneHours,
+          cumulativeSeconds: outcome.totalSeconds,
         );
       }
       return;
@@ -240,6 +241,7 @@ class TimerScreen extends ConsumerWidget {
         taskName: outcome.taskName ?? 'task',
         sessionSeconds: outcome.loggedSeconds,
         milestoneHours: outcome.milestoneHours,
+        cumulativeSeconds: outcome.totalSeconds,
       );
       return;
     }

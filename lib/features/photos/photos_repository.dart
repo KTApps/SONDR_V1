@@ -101,6 +101,16 @@ final photosRepositoryProvider = Provider<PhotosRepository?>((ref) {
   return PhotosRepository(db: FirebaseFirestore.instance, uid: uid);
 });
 
+/// A single day's photos (newest first), keyed by dayKey "yyyy-mm-dd". Empty on
+/// the local backend or before a uid. Backs the day-detail Captured section;
+/// autoDispose so it re-fetches on each sheet open.
+final photosForDayProvider =
+    FutureProvider.family.autoDispose<List<Photo>, String>((ref, dayKey) async {
+  final repo = ref.watch(photosRepositoryProvider);
+  if (repo == null) return const [];
+  return repo.photosForDay(dayKey);
+});
+
 /// A month's photos grouped by dayKey, keyed by "yyyy-mm". One query per month,
 /// resolved lazily as the calendar scrolls each month into view; autoDispose so
 /// off-screen months don't linger and re-entry re-fetches (a just-kept photo

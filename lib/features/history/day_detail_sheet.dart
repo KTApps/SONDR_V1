@@ -146,18 +146,16 @@ class DayDetailSheet extends ConsumerWidget {
                   for (final tick in habits.ticks)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        tick.name,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontSize: 15,
-                          color: tick.done
-                              ? tokens.textTertiary
-                              : tokens.textPrimary,
-                          decoration: tick.done
-                              ? TextDecoration.lineThrough
-                              : null,
-                          decorationColor: tokens.textTertiary,
-                        ),
+                      child: Row(
+                        children: [
+                          _HabitDot(done: tick.done),
+                          const SizedBox(width: 10),
+                          Text(
+                            tick.name,
+                            style: theme.textTheme.bodyLarge
+                                ?.copyWith(fontSize: 15),
+                          ),
+                        ],
                       ),
                     ),
                 ],
@@ -302,6 +300,29 @@ List<double> _saturationMatrix(double s) {
     1,
     0,
   ];
+}
+
+/// Habit completion marker: a solid dot (done, primary tone) or a hollow
+/// outlined dot (not done, muted tone). Carries the state the strikethrough used
+/// to; the label stays plainly legible beside it.
+class _HabitDot extends StatelessWidget {
+  const _HabitDot({required this.done});
+
+  final bool done;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    return Container(
+      width: 9,
+      height: 9,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: done ? tokens.textPrimary : Colors.transparent,
+        border: done ? null : Border.all(color: tokens.textTertiary, width: 1.5),
+      ),
+    );
+  }
 }
 
 class _SectionLabel extends StatelessWidget {

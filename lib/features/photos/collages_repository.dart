@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import 'models/collage.dart';
+import 'models/photo.dart';
+import 'photos_repository.dart';
 
 /// The milestone collage store. Each collage is a document under
 /// `users/{uid}/collages/{taskId}_{milestoneHours}` (secured by the Firestore
@@ -46,6 +48,13 @@ class CollagesRepository {
       'createdAt': existing.data()?['createdAt'] ?? FieldValue.serverTimestamp(),
     });
   }
+
+  /// Every collage, newest first. Single-field `orderBy(createdAt)` → automatic
+  /// index, no composite.
+  Future<List<Collage>> allCollages() async {
+    final snap = await _col.orderBy('createdAt', descending: true).get();
+    return [for (final d in snap.docs) Collage.fromMap(d.data())];
+  }
 }
 
 /// The collage store, or null on the local/offline backend or before a uid
@@ -54,4 +63,27 @@ final collagesRepositoryProvider = Provider<CollagesRepository?>((ref) {
   final uid = ref.watch(currentUidProvider);
   if (!ref.watch(firebaseReadyProvider) || uid == null) return null;
   return CollagesRepository(db: FirebaseFirestore.instance, uid: uid);
+});
+
+/// The user's collages for display — newest first, and only those that actually
+/// have photos (a zero-capture milestone composes an empty collage worth
+/// nothing to browse). Empty on the local backend. Backs the profile Milestones
+/// doorway and the collages screen.
+final collagesListProvider =
+    FutureProvider.autoDispose<List<Collage>>((ref) async {
+  final repo = ref.watch(collagesRepositoryProvider);
+  if (repo == null) return const [];
+  final all = await repo.allCollages();
+  return [for (final c in all) if (c.photoIds.isNotEmpty) c];
+});
+
+/// A collage's photos, resolved live from its ordered photo ids (keyed by the
+/// ids joined with ',' — a stable value key). Missing photos are dropped, so a
+/// deleted photo just vanishes from the grid. Empty on the local backend.
+final collagePhotosProvider =
+    FutureProvider.family.autoDispose<List<Photo>, String>((ref, idsCsv) async {
+  final repo = ref.watch(photosRepositoryProvider);
+  if (repo == null) return const [];
+  final ids = [for (final s in idsCsv.split(',')) if (s.isNotEmpty) s];
+  return repo.photosByIds(ids);
 });

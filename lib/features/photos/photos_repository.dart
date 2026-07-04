@@ -121,6 +121,16 @@ class PhotosRepository {
   Future<List<Photo>> collagePhotos(String taskId, int milestoneHours) async {
     return collageSelection(await photosForTask(taskId), milestoneHours);
   }
+
+  /// Resolve photo [ids] to [Photo]s, **re-ordered to the passed [ids]** and
+  /// dropping any that no longer exist (a deleted photo just vanishes). One
+  /// `whereIn` on the document id — collages are ≤9, well under the 30 cap.
+  Future<List<Photo>> photosByIds(List<String> ids) async {
+    if (ids.isEmpty) return const [];
+    final snap = await _col.where(FieldPath.documentId, whereIn: ids).get();
+    final byId = {for (final d in snap.docs) d.id: Photo.fromMap(d.data())};
+    return [for (final id in ids) if (byId[id] != null) byId[id]!];
+  }
 }
 
 /// The private photo store, or null on the local/offline backend or before a uid

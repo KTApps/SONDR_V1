@@ -9,6 +9,9 @@ import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
+import '../photos/collages_repository.dart';
+import '../photos/collages_screen.dart';
+import '../photos/models/collage.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
 import '../tasks/models/task.dart';
@@ -53,6 +56,7 @@ class ProfileScreen extends ConsumerWidget {
               // Gallery doorway — self-spaced (top gap inside), so when it's
               // hidden (no photos) the Friends→Tasks spacing is unchanged.
               const _GalleryDoorway(),
+              const _MilestonesDoorway(),
               const SizedBox(height: 28),
               _TasksInProgress(tasks: tasks),
               Expanded(
@@ -213,6 +217,59 @@ class _GalleryDoorway extends ConsumerWidget {
                 const Spacer(),
                 Text(
                   '${preview.total} captured',
+                  style: theme.textTheme.bodyLarge
+                      ?.copyWith(color: tokens.textSecondary),
+                ),
+                Icon(Icons.chevron_right, color: tokens.textTertiary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A doorway into the milestone collages — a preview of the newest collage's
+/// photos, a count, and a chevron. Mirrors [_GalleryDoorway]; hidden until there
+/// is at least one (non-empty) collage. Opens [CollagesScreen].
+class _MilestonesDoorway extends ConsumerWidget {
+  const _MilestonesDoorway();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final collages = ref.watch(collagesListProvider).value ?? const <Collage>[];
+    if (collages.isEmpty) return const SizedBox.shrink();
+
+    final preview = ref
+            .watch(collagePhotosProvider(collages.first.photoIds.join(',')))
+            .value ??
+        const <Photo>[];
+    final n = collages.length;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Material(
+        color: tokens.surface,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const CollagesScreen()),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Row(
+              children: [
+                for (final p in preview.take(4)) ...[
+                  _GalleryThumb(photo: p),
+                  const SizedBox(width: 6),
+                ],
+                const Spacer(),
+                Text(
+                  '$n milestone${n == 1 ? '' : 's'}',
                   style: theme.textTheme.bodyLarge
                       ?.copyWith(color: tokens.textSecondary),
                 ),

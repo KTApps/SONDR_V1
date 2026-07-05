@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:firebase_storage/firebase_storage.dart' hide Task;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +9,7 @@ import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../shared/photo_tint.dart';
 import '../../shared/ring/segmented_dial.dart';
+import '../feed/posts_repository.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
 import '../tasks/models/task.dart';
@@ -300,13 +304,67 @@ void _showPhotoOverlay(BuildContext context, Photo photo) {
 /// appears **only** when the photo's task has passed 20h lifetime
 /// (milestonesReached >= 1); below that it's absent. Tapping the card is
 /// absorbed; tapping the scrim dismisses.
-class _PhotoOverlay extends ConsumerWidget {
+class _PhotoOverlay extends ConsumerStatefulWidget {
   const _PhotoOverlay({required this.photo});
 
   final Photo photo;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PhotoOverlay> createState() => _PhotoOverlayState();
+}
+
+class _PhotoOverlayState extends ConsumerState<_PhotoOverlay> {
+  bool _sharing = false;
+
+  /// Share this session photo to the feed. Private-first: copy the binary into
+  /// the friends-readable posts space (download the owner-only original, then
+  /// re-upload via [PostsRepository.uploadPostPhoto]) and post the POSTS url —
+  /// the private original doc/binary is never touched or referenced.
+  Future<void> _share() async {
+    final posts = ref.read(postsRepositoryProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    if (posts == null) {
+      _toast(messenger, 'Sign in to share.');
+      return;
+    }
+    setState(() => _sharing = true);
+    try {
+      final bytes = await FirebaseStorage.instance
+          .ref(widget.photo.storagePath)
+          .getData(10 * 1024 * 1024);
+      if (bytes == null) throw StateError('no photo bytes');
+      final dir = Directory.systemTemp.createTempSync('sondr_share');
+      final file = File('${dir.path}/share.jpg');
+      await file.writeAsBytes(bytes);
+
+      final postsUrl = await posts.uploadPostPhoto(file);
+      await posts.createSessionPost(
+        taskName: widget.photo.taskName,
+        sessionSeconds: widget.photo.sessionSeconds,
+        photoUrl: postsUrl,
+      );
+      if (!mounted) return;
+      navigator.pop(); // close the overlay
+      _toast(messenger, 'Shared to your feed.');
+    } catch (e) {
+      debugPrint('SONDR session share error: $e');
+      if (mounted) {
+        setState(() => _sharing = false);
+        _toast(messenger, 'Couldn’t share. Please try again.');
+      }
+    }
+  }
+
+  void _toast(ScaffoldMessengerState messenger, String message) {
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = widget.photo;
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
 
@@ -382,29 +440,33 @@ class _PhotoOverlay extends ConsumerWidget {
               ],
               if (canShare) ...[
                 const SizedBox(height: 16),
-                TextButton.icon(
-                  onPressed: () => _shareStub(context),
-                  icon: const Icon(Icons.ios_share, size: 18),
-                  label: const Text('Share'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: tokens.textPrimary,
-                    textStyle: theme.textTheme.labelLarge,
+                if (_sharing)
+                  const SizedBox(
+                    height: 40,
+                    child: Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                else
+                  TextButton.icon(
+                    onPressed: _share,
+                    icon: const Icon(Icons.ios_share, size: 18),
+                    label: const Text('Share'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: tokens.textPrimary,
+                      textStyle: theme.textTheme.labelLarge,
+                    ),
                   ),
-                ),
               ],
             ],
           ),
         ),
       ),
     );
-  }
-
-  // Stub — the real feed-post wiring (private→posts boundary, post type) is a
-  // dedicated follow-up. The 20h gate above is the real part of this step.
-  void _shareStub(BuildContext context) {
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(const SnackBar(content: Text('Sharing coming soon.')));
   }
 }
 

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/photo_tint.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../auth/account_screen.dart';
+import '../debug/debug_panel.dart';
 import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
@@ -59,6 +61,20 @@ class ProfileScreen extends ConsumerWidget {
               const _MilestonesDoorway(),
               const SizedBox(height: 28),
               _TasksInProgress(tasks: tasks),
+              // QA-only entry — const-false in release builds, so this whole
+              // branch (and DebugPanel, referenced only here) tree-shakes out.
+              if (kDebugTools) ...[
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const DebugPanel()),
+                    ),
+                    child: const Text('DEBUG PANEL'),
+                  ),
+                ),
+              ],
               Expanded(
                 child: Align(
                   alignment: Alignment.bottomCenter,

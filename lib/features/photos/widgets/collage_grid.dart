@@ -25,26 +25,36 @@ class CollageGrid extends StatelessWidget {
   final double spacing;
   final double radius;
 
-  /// 1 → 1 col, 2 → 2, 4 → 2×2, everything else → 3 cols (3/5/6/7/8/9 read
-  /// cleanly as rows of three).
+  /// >9 photos → the dense **mosaic** (more columns, tighter tiles).
+  bool get _isMosaic => photos.length > 9;
+
+  /// ≤9: the clean hero layout (1→1, 2→2, 4→2×2, else 3 cols). >9: a mosaic that
+  /// densifies as it grows so tiles stay a comfortable size.
   int get _columns {
     final n = photos.length;
     if (n <= 1) return 1;
     if (n == 2) return 2;
     if (n == 4) return 2;
-    return 3;
+    if (n <= 9) return 3;
+    if (n <= 16) return 4;
+    if (n <= 25) return 5;
+    return 6;
   }
 
   @override
   Widget build(BuildContext context) {
+    // The mosaic tightens spacing and corners so the grid reads as one dense
+    // field rather than separate cards.
+    final gap = _isMosaic ? 4.0 : spacing;
+    final r = _isMosaic ? 6.0 : radius;
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: _columns,
-      mainAxisSpacing: spacing,
-      crossAxisSpacing: spacing,
+      mainAxisSpacing: gap,
+      crossAxisSpacing: gap,
       children: [
-        for (final p in photos) _CollageTile(photo: p, radius: radius),
+        for (final p in photos) _CollageTile(photo: p, radius: r),
       ],
     );
   }

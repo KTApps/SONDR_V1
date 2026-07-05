@@ -116,19 +116,34 @@ class PhotosRepository {
     return [for (final d in snap.docs) Photo.fromMap(d.data())];
   }
 
-  /// The collage photos for [taskId]'s [milestoneHours] milestone: the task's
-  /// photos, run through [collageSelection]'s locked-window band + even-spread.
+  /// The ≤9 collage preview for [taskId]'s [milestoneHours] milestone (band +
+  /// even-spread). Backs the celebration reveal.
   Future<List<Photo>> collagePhotos(String taskId, int milestoneHours) async {
     return collageSelection(await photosForTask(taskId), milestoneHours);
   }
 
+  /// The **full** band for [taskId]'s [milestoneHours] milestone — every photo
+  /// in the 20h stretch, chronological, uncapped. This is what the collage
+  /// stores (the full mosaic).
+  Future<List<Photo>> photosForBand(String taskId, int milestoneHours) async {
+    return bandPhotos(await photosForTask(taskId), milestoneHours);
+  }
+
   /// Resolve photo [ids] to [Photo]s, **re-ordered to the passed [ids]** and
-  /// dropping any that no longer exist (a deleted photo just vanishes). One
-  /// `whereIn` on the document id — collages are ≤9, well under the 30 cap.
+  /// dropping any that no longer exist (a deleted photo just vanishes). Chunked
+  /// into `whereIn` batches of 30 (its cap), since a full-band collage can hold
+  /// far more than that.
   Future<List<Photo>> photosByIds(List<String> ids) async {
     if (ids.isEmpty) return const [];
-    final snap = await _col.where(FieldPath.documentId, whereIn: ids).get();
-    final byId = {for (final d in snap.docs) d.id: Photo.fromMap(d.data())};
+    final byId = <String, Photo>{};
+    for (var i = 0; i < ids.length; i += 30) {
+      final chunk = ids.sublist(i, i + 30 < ids.length ? i + 30 : ids.length);
+      final snap =
+          await _col.where(FieldPath.documentId, whereIn: chunk).get();
+      for (final d in snap.docs) {
+        byId[d.id] = Photo.fromMap(d.data());
+      }
+    }
     return [for (final id in ids) if (byId[id] != null) byId[id]!];
   }
 }

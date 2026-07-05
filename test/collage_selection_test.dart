@@ -74,4 +74,23 @@ void main() {
       expect(_cums(at40), [30 * 3600, 35 * 3600]);
     });
   });
+
+  group('bandPhotos', () {
+    test('returns the FULL band (uncapped), sorted; nulls + adjacent excluded', () {
+      final all = [
+        for (var i = 0; i < 20; i++) _p((i + 1) * 1000), // band 0, 20 photos
+        _p(null, marker: 99), // unassignable → excluded
+        _p(30 * 3600, marker: 98), // band 1 → excluded from band 0
+      ]..shuffle();
+      final band = bandPhotos(all, 20);
+      expect(band.length, 20); // uncapped — every band-0 photo
+      expect(_cums(band), [for (var i = 0; i < 20; i++) (i + 1) * 1000]); // sorted
+    });
+
+    test('collageSelection caps the same band to 9', () {
+      final all = [for (var i = 0; i < 20; i++) _p((i + 1) * 1000)];
+      expect(bandPhotos(all, 20).length, 20);
+      expect(collageSelection(all, 20).length, 9);
+    });
+  });
 }

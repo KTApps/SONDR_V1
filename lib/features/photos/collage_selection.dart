@@ -3,9 +3,9 @@ import 'models/photo.dart';
 /// One 20-hour milestone stretch, in seconds.
 const int kMilestoneBandSeconds = 20 * 3600;
 
-/// The photos that make up a task's collage for a given milestone (20, 40, …),
-/// chosen from that task's photos. **Pure** — no I/O — so it's unit-testable in
-/// isolation; [PhotosRepository.collagePhotos] pairs it with the query.
+/// The **full** set of a task's photos in a given milestone's 20h band (the
+/// uncapped stretch), ordered chronologically by cumulative seconds. **Pure** —
+/// no I/O — so it's unit-testable in isolation.
 ///
 /// The locked window: a photo is eligible only if its cumulative-at-capture
 /// falls in *this* milestone's own 20h band — band index `milestoneHours/20 - 1`
@@ -13,20 +13,24 @@ const int kMilestoneBandSeconds = 20 * 3600;
 /// [20h,40h), …). Photos with a null [Photo.cumulativeSeconds] are unassignable
 /// and excluded entirely (a missing photo beats a wrong-band one).
 ///
-/// Within the band the photos are ordered chronologically by cumulative seconds.
-/// If there are 9 or fewer, all are returned; otherwise exactly 9 are picked —
-/// always including the first and last, with the middle sampled evenly across
-/// the stretch — preserving chronological order.
-List<Photo> collageSelection(List<Photo> taskPhotos, int milestoneHours) {
+/// This is what the collage *stores and displays* (the full mosaic);
+/// [collageSelection] narrows it to the ≤9 celebration preview.
+List<Photo> bandPhotos(List<Photo> taskPhotos, int milestoneHours) {
   final bandIndex = milestoneHours ~/ 20 - 1;
-
-  final band = <Photo>[
+  return <Photo>[
     for (final p in taskPhotos)
       if (p.cumulativeSeconds != null &&
           p.cumulativeSeconds! ~/ kMilestoneBandSeconds == bandIndex)
         p,
   ]..sort((a, b) => a.cumulativeSeconds!.compareTo(b.cumulativeSeconds!));
+}
 
+/// The ≤9 collage *preview* for a milestone — [bandPhotos] as-is when the band
+/// holds 9 or fewer, otherwise exactly 9 picked: always the first and last, with
+/// the middle sampled evenly across the stretch, preserving chronological order.
+/// Backs the milestone celebration's bounded reveal.
+List<Photo> collageSelection(List<Photo> taskPhotos, int milestoneHours) {
+  final band = bandPhotos(taskPhotos, milestoneHours);
   if (band.length <= 9) return band;
 
   // Sample 9 indices across [0, M-1]: round(i * (M-1) / 8) for i in 0..8. This

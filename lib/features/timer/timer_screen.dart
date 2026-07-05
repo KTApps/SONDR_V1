@@ -275,9 +275,11 @@ class TimerScreen extends ConsumerWidget {
     final collages = ref.read(collagesRepositoryProvider);
     if (photos == null || collages == null) return;
     try {
-      final selected = await photos.collagePhotos(taskId, milestoneHours);
+      // Store the FULL band (uncapped mosaic); the ≤9 even-spread is only the
+      // celebration preview.
+      final band = await photos.photosForBand(taskId, milestoneHours);
       await collages.saveAuto(
-          taskId, milestoneHours, [for (final p in selected) p.id]);
+          taskId, milestoneHours, [for (final p in band) p.id]);
     } catch (e) {
       debugPrint('SONDR collage auto-compose error: $e');
     }

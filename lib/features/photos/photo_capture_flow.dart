@@ -160,7 +160,9 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
         TextButton(
           onPressed: _dismiss,
           style: TextButton.styleFrom(
-            foregroundColor: tokens.textSecondary,
+            // Deliberately recessed — passing on a photo should feel
+            // low-pressure, quietly there rather than competing for attention.
+            foregroundColor: tokens.textTertiary,
             textStyle: theme.textTheme.labelLarge,
           ),
           child: const Text('skip'),

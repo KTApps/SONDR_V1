@@ -49,6 +49,26 @@ class CollagesRepository {
     });
   }
 
+  /// Persist a user-curated collage: the kept [photoIds] with `edited: true`. No
+  /// guard — an explicit edit always writes, and the `edited` flag then protects
+  /// it from a later auto-compose ([saveAuto] bails on `edited:true`). Preserves
+  /// the original `createdAt`.
+  Future<void> saveEdited(
+    String taskId,
+    int milestoneHours,
+    List<String> photoIds,
+  ) async {
+    final ref = _col.doc(Collage.docId(taskId, milestoneHours));
+    final existing = await ref.get();
+    await ref.set({
+      'taskId': taskId,
+      'milestoneHours': milestoneHours,
+      'photoIds': photoIds,
+      'edited': true,
+      'createdAt': existing.data()?['createdAt'] ?? FieldValue.serverTimestamp(),
+    });
+  }
+
   /// Every collage, newest first. Single-field `orderBy(createdAt)` → automatic
   /// index, no composite.
   Future<List<Collage>> allCollages() async {

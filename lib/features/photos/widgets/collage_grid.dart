@@ -19,11 +19,23 @@ class CollageGrid extends StatelessWidget {
     required this.photos,
     this.spacing = 6,
     this.radius = 10,
+    this.removedIds,
+    this.onToggleRemove,
+    this.canMark,
   });
 
   final List<Photo> photos;
   final double spacing;
   final double radius;
+
+  /// Edit mode (all three passed together): [removedIds] are the tiles currently
+  /// marked for removal (dimmed with an active ×); [onToggleRemove] toggles a
+  /// tile; [canMark] gates marking (false → the ×'s disabled, e.g. the last kept
+  /// tile). Marking dims **in place** — no reflow — and Save commits. Non-edit
+  /// callers pass none → plain tiles.
+  final Set<String>? removedIds;
+  final void Function(Photo)? onToggleRemove;
+  final bool Function(Photo)? canMark;
 
   /// >9 photos → the dense **mosaic** (more columns, tighter tiles).
   bool get _isMosaic => photos.length > 9;
@@ -47,6 +59,8 @@ class CollageGrid extends StatelessWidget {
     // field rather than separate cards.
     final gap = _isMosaic ? 4.0 : spacing;
     final r = _isMosaic ? 6.0 : radius;
+    final editing = onToggleRemove != null;
+    final removed = removedIds ?? const <String>{};
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -54,22 +68,41 @@ class CollageGrid extends StatelessWidget {
       mainAxisSpacing: gap,
       crossAxisSpacing: gap,
       children: [
-        for (final p in photos) _CollageTile(photo: p, radius: r),
+        for (final p in photos)
+          _CollageTile(
+            photo: p,
+            radius: r,
+            editing: editing,
+            marked: removed.contains(p.id),
+            canMark: canMark?.call(p) ?? true,
+            onToggle: onToggleRemove == null ? null : () => onToggleRemove!(p),
+          ),
       ],
     );
   }
 }
 
 class _CollageTile extends StatelessWidget {
-  const _CollageTile({required this.photo, required this.radius});
+  const _CollageTile({
+    required this.photo,
+    required this.radius,
+    this.editing = false,
+    this.marked = false,
+    this.canMark = true,
+    this.onToggle,
+  });
 
   final Photo photo;
   final double radius;
+  final bool editing;
+  final bool marked;
+  final bool canMark;
+  final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
-    return ClipRRect(
+    final image = ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: Image.network(
         photo.photoUrl,
@@ -87,6 +120,68 @@ class _CollageTile extends StatelessWidget {
           );
         },
       ),
+    );
+
+    if (!editing) return image;
+
+    // A marked tile can always be un-marked; an un-marked one only if it wouldn't
+    // empty the collage (min 1).
+    final enabled = marked || canMark;
+    return GestureDetector(
+      onTap: enabled ? onToggle : null,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          image,
+          if (marked)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(radius),
+              child: ColoredBox(color: Colors.black.withValues(alpha: 0.55)),
+            ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: _RemoveBadge(marked: marked, enabled: enabled, tokens: tokens),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The per-tile removal control: an ×. Bright/filled when marked (this tile will
+/// be removed on Save), a subtle dark chip when not, faded when disabled (can't
+/// mark the last kept tile).
+class _RemoveBadge extends StatelessWidget {
+  const _RemoveBadge({
+    required this.marked,
+    required this.enabled,
+    required this.tokens,
+  });
+
+  final bool marked;
+  final bool enabled;
+  final GreyscaleTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg;
+    final Color fg;
+    if (marked) {
+      bg = tokens.textPrimary;
+      fg = tokens.background;
+    } else if (enabled) {
+      bg = Colors.black.withValues(alpha: 0.5);
+      fg = Colors.white;
+    } else {
+      bg = Colors.black.withValues(alpha: 0.3);
+      fg = Colors.white.withValues(alpha: 0.35);
+    }
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: bg),
+      child: Icon(Icons.close, size: 13, color: fg),
     );
   }
 }

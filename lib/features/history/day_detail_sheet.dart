@@ -16,16 +16,34 @@ import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'history_providers.dart';
 
+/// Ceiling on the sheet's height, as a fraction of screen height. A photo-heavy
+/// day tops out here — around three-quarters up the screen, leaving the top
+/// ~quarter as visible, tappable scrim (and the native drag handle well clear of
+/// the Dynamic Island). Only a ceiling: light/empty days shrink-wrap below it.
+/// The one knob to tune by eye.
+const double _kSheetMaxHeightFraction = 0.75;
+
 /// Shows a day's detail as a bottom sheet: the date, that day's dual ring
 /// (task split + habit completion), the time logged per task, and the habit
 /// snapshot. Read-only — history is a record of what was true then.
 Future<void> showDayDetailSheet(BuildContext context, String dayKey) {
   final tokens = GreyscaleTokens.of(context);
+  final media = MediaQuery.of(context);
   return showModalBottomSheet(
     context: context,
     backgroundColor: tokens.surface,
     isScrollControlled: true,
     showDragHandle: true,
+    // Cap the sheet's height so it never reaches the Dynamic Island. Without
+    // this, isScrollControlled lets a photo-heavy day grow the sheet to full
+    // height, pushing the native drag handle under the notch and leaving no
+    // scrim to tap — a dismissal trap. Capped at a fraction of screen height,
+    // a heavy day tops out with the upper ~quarter as tappable scrim, the
+    // handle stays fully visible, and the body scrolls within the cap; light
+    // days shrink-wrap below the ceiling.
+    constraints: BoxConstraints(
+      maxHeight: media.size.height * _kSheetMaxHeightFraction,
+    ),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -51,8 +69,10 @@ class DayDetailSheet extends ConsumerWidget {
     return SafeArea(
       top: false,
       // Scrollable so a heavy day (many photo rows + tasks + habits) scrolls
-      // internally instead of overflowing. The sheet is isScrollControlled, so
-      // the scroll view shrink-wraps short days and scrolls tall ones.
+      // internally within the capped height instead of overflowing. The height
+      // cap (see showDayDetailSheet) keeps the sheet and its native drag handle
+      // clear of the Dynamic Island; this view just scrolls inside that cap and
+      // shrink-wraps short days.
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
@@ -159,8 +179,9 @@ class DayDetailSheet extends ConsumerWidget {
                           const SizedBox(width: 10),
                           Text(
                             tick.name,
-                            style: theme.textTheme.bodyLarge
-                                ?.copyWith(fontSize: 15),
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              fontSize: 15,
+                            ),
                           ),
                         ],
                       ),
@@ -373,8 +394,9 @@ class _PhotoOverlayState extends ConsumerState<_PhotoOverlay> {
     final canShare = task != null && task.milestonesReached >= 1;
 
     final duration = DurationFormat.hm(Duration(seconds: photo.sessionSeconds));
-    final time = MaterialLocalizations.of(context)
-        .formatTimeOfDay(TimeOfDay.fromDateTime(photo.capturedAt));
+    final time = MaterialLocalizations.of(
+      context,
+    ).formatTimeOfDay(TimeOfDay.fromDateTime(photo.capturedAt));
 
     return Center(
       child: Padding(
@@ -398,8 +420,10 @@ class _PhotoOverlayState extends ConsumerState<_PhotoOverlay> {
                       height: 280,
                       color: tokens.ringTrack,
                       alignment: Alignment.center,
-                      child: Icon(Icons.broken_image_outlined,
-                          color: tokens.textTertiary),
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: tokens.textTertiary,
+                      ),
                     ),
                     loadingBuilder: (ctx, child, progress) => progress == null
                         ? child
@@ -411,8 +435,7 @@ class _PhotoOverlayState extends ConsumerState<_PhotoOverlay> {
                             child: const SizedBox(
                               width: 22,
                               height: 22,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           ),
                   ),
@@ -421,21 +444,25 @@ class _PhotoOverlayState extends ConsumerState<_PhotoOverlay> {
               const SizedBox(height: 16),
               Text(
                 photo.taskName,
-                style: theme.textTheme.titleLarge
-                    ?.copyWith(fontSize: 17, fontWeight: FontWeight.w700),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 '$duration · $time',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: tokens.textSecondary),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: tokens.textSecondary,
+                ),
               ),
               if (photo.milestoneHours != null) ...[
                 const SizedBox(height: 4),
                 Text(
                   '${photo.milestoneHours} hour milestone',
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: tokens.textSecondary),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: tokens.textSecondary,
+                  ),
                 ),
               ],
               if (canShare) ...[
@@ -487,7 +514,9 @@ class _HabitDot extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: done ? tokens.textPrimary : Colors.transparent,
-        border: done ? null : Border.all(color: tokens.textTertiary, width: 1.5),
+        border: done
+            ? null
+            : Border.all(color: tokens.textTertiary, width: 1.5),
       ),
     );
   }

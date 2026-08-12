@@ -179,6 +179,25 @@ class PostsRepository {
     return (url: url, storagePath: path);
   }
 
+  /// Copy an existing owner-only Storage object (a gallery original at
+  /// [sourceStoragePath]) into the friends-readable posts space, returning the
+  /// new copy's {url, storagePath}. Download the bytes then re-upload via
+  /// [uploadPostPhoto] — the private original is never referenced by the post.
+  /// This is how a milestone share reuses prior in-app captures (the band pool)
+  /// without exposing the gallery path (the same copy-first pattern as the
+  /// day-detail session share).
+  Future<({String url, String storagePath})> copyToPostsSpace(
+    String sourceStoragePath,
+  ) async {
+    final bytes = await FirebaseStorage.instance
+        .ref(sourceStoragePath)
+        .getData(10 * 1024 * 1024);
+    if (bytes == null) throw StateError('no photo bytes at $sourceStoragePath');
+    final dir = Directory.systemTemp.createTempSync('sondr_postcopy');
+    final file = File('${dir.path}/copy.jpg')..writeAsBytesSync(bytes);
+    return uploadPostPhoto(file);
+  }
+
   /// Delete a post and its posts-space photo binaries: each [PostPhoto]'s
   /// Storage object first (best-effort — a missing object is fine), then the
   /// doc. Touches **only** the post's own copies under the author's posts space;

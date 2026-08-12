@@ -3,12 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/ring/progress_ring.dart';
-import '../feed/models/post.dart';
-import '../feed/posts_repository.dart';
 import '../photos/models/photo.dart';
-import '../photos/photo_picker.dart';
+import '../photos/photo_capture_flow.dart';
 import '../photos/photos_repository.dart';
 import '../photos/widgets/collage_grid.dart';
+import 'milestone_share_flow.dart';
 
 /// Presents the milestone celebration as a full-screen moment.
 Future<void> showMilestoneCelebration(
@@ -17,8 +16,9 @@ Future<void> showMilestoneCelebration(
   required String taskName,
   required int milestoneHours,
   required int totalHours,
+  required int sessionSeconds,
+  required int cumulativeSeconds,
   required bool isFirst,
-  required bool canShare,
 }) {
   return Navigator.of(context).push(
     PageRouteBuilder(
@@ -29,8 +29,9 @@ Future<void> showMilestoneCelebration(
         taskName: taskName,
         milestoneHours: milestoneHours,
         totalHours: totalHours,
+        sessionSeconds: sessionSeconds,
+        cumulativeSeconds: cumulativeSeconds,
         isFirst: isFirst,
-        canShare: canShare,
       ),
       transitionsBuilder: (_, animation, _, child) =>
           FadeTransition(opacity: animation, child: child),
@@ -38,14 +39,15 @@ Future<void> showMilestoneCelebration(
   );
 }
 
-/// The milestone moment: "Congratulations …", the completed ring as hero with
-/// the hours figure, then the **share-or-not** choice. Sharing is the default
-/// action (with or without a photo); dismissing posts nothing — a deliberate
-/// opt-out, since users have a right not to broadcast a given task.
+/// The milestone moment: "Congratulations …", the completed ring (or the band's
+/// collage) as hero, then the entry into the share flow. Sharing is offered on
+/// **every** 20h crossing now (the first-milestone gate is gone); "Not now"
+/// bows out to home — a deliberate opt-out, since users have a right not to
+/// broadcast a given task.
 ///
-/// [canShare] gates the post flow; it's currently true only for the first 20h
-/// milestone (the widening milestone ladder is a later step). When false, the
-/// screen is just the celebratory moment with no posting.
+/// "Share this milestone" leads into: camera-only capture (or skip) → the
+/// share-post picker (this band's photos, captured pre-selected) → caption →
+/// Create → Feed. See [ShareMilestoneScreen].
 class MilestoneCelebrationScreen extends ConsumerStatefulWidget {
   const MilestoneCelebrationScreen({
     super.key,
@@ -53,16 +55,23 @@ class MilestoneCelebrationScreen extends ConsumerStatefulWidget {
     required this.taskName,
     required this.milestoneHours,
     required this.totalHours,
+    required this.sessionSeconds,
+    required this.cumulativeSeconds,
     required this.isFirst,
-    required this.canShare,
   });
 
   final String taskId;
   final String taskName;
   final int milestoneHours;
   final int totalHours;
+
+  /// The crossing session's logged seconds + the task's cumulative-at-crossing —
+  /// passed to the capture step so a kept photo lands in the gallery series with
+  /// the right session snapshot (as an ordinary end-of-session capture would).
+  final int sessionSeconds;
+  final int cumulativeSeconds;
+
   final bool isFirst;
-  final bool canShare;
 
   @override
   ConsumerState<MilestoneCelebrationScreen> createState() =>
@@ -71,11 +80,9 @@ class MilestoneCelebrationScreen extends ConsumerStatefulWidget {
 
 class _MilestoneCelebrationScreenState
     extends ConsumerState<MilestoneCelebrationScreen> {
-  bool _busy = false;
-
   /// The milestone's collage photos, composed live from this milestone's own 20h
-  /// band (deterministic — matches the doc that saveAuto persists, so there's no
-  /// race with that unawaited write). Empty when the band has no photos.
+  /// band (deterministic — matches the doc that saveAuto persists). Empty when
+  /// the band has no photos. Doubles as the share-post pool.
   late final Future<List<Photo>> _collage;
 
   @override
@@ -87,60 +94,40 @@ class _MilestoneCelebrationScreenState
         : repo.collagePhotos(widget.taskId, widget.milestoneHours);
   }
 
-  Future<void> _share({required bool withPhoto}) async {
-    final repo = ref.read(postsRepositoryProvider);
-    if (repo == null) {
-      _toast('Sign in to share milestones.');
-      return;
-    }
+  /// Enter the share journey: capture (camera-only, or skip) → the share-post
+  /// picker with the captured photo pre-selected and this band's pool addable.
+  Future<void> _startShareFlow() async {
+    // 1. Camera-only capture — returns the kept File, or null if skipped. A kept
+    //    photo has already saved to the task's gallery series inside this call
+    //    (capture and post are independent).
+    final captured = await showPhotoCapture(
+      context,
+      taskId: widget.taskId,
+      taskName: widget.taskName,
+      sessionSeconds: widget.sessionSeconds,
+      milestoneHours: widget.milestoneHours,
+      cumulativeSeconds: widget.cumulativeSeconds,
+      cameraOnly: true,
+    );
+    if (!mounted) return;
 
-    // Capture + upload first (if asked), so the post is created once, already
-    // carrying its photo — friends never see a photoless flash.
-    final photos = <PostPhoto>[];
-    if (withPhoto) {
-      final file = await pickAndDownscale(context);
-      if (file == null) return; // backed out, or the pick failed
-      setState(() => _busy = true);
-      try {
-        final up = await repo.uploadPostPhoto(file);
-        photos.add(PostPhoto(url: up.url, storagePath: up.storagePath));
-      } catch (e) {
-        debugPrint('SONDR photo upload error: $e');
-        if (mounted) {
-          setState(() => _busy = false);
-          _toast('Couldn’t upload the photo. Please try again.');
-        }
-        return;
-      }
-    } else {
-      setState(() => _busy = true);
-    }
+    // 2. The pool (already fetched for the hero) — this band's <=9 collage.
+    final pool = await _collage;
+    if (!mounted) return;
 
-    try {
-      await repo.createMilestonePost(
-        taskName: widget.taskName,
-        milestoneHours: widget.milestoneHours,
-        totalHours: widget.totalHours,
-        photos: photos,
-      );
-      if (!mounted) return;
-      Navigator.of(context).maybePop();
-      _toast(
-        withPhoto ? 'Milestone shared with your photo.' : 'Milestone shared.',
-      );
-    } catch (e) {
-      debugPrint('SONDR milestone post error: $e');
-      if (mounted) {
-        setState(() => _busy = false);
-        _toast('Couldn’t share the milestone. Please try again.');
-      }
-    }
-  }
-
-  void _toast(String message) {
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    // 3. The share-post picker (reached whether or not they captured).
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ShareMilestoneScreen(
+          taskId: widget.taskId,
+          taskName: widget.taskName,
+          milestoneHours: widget.milestoneHours,
+          totalHours: widget.totalHours,
+          capturedFile: captured,
+          pool: pool,
+        ),
+      ),
+    );
   }
 
   @override
@@ -182,10 +169,19 @@ class _MilestoneCelebrationScreenState
               ),
               const SizedBox(height: 44),
 
-              if (widget.canShare)
-                ..._shareActions(tokens, theme)
-              else
-                _dismiss(tokens, theme, label: 'Done'),
+              _Primary(
+                label: 'Share this milestone',
+                onPressed: _startShareFlow,
+              ),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                style: TextButton.styleFrom(
+                  foregroundColor: tokens.textSecondary,
+                  textStyle: theme.textTheme.labelLarge,
+                ),
+                child: const Text('Not now'),
+              ),
             ],
           ),
         ),
@@ -193,7 +189,7 @@ class _MilestoneCelebrationScreenState
     );
   }
 
-  /// The original completed-ring hero — used when the milestone has no photos.
+  /// The completed-ring hero — used when the milestone has no photos.
   Widget _ringHero(ThemeData theme, GreyscaleTokens tokens) {
     return ProgressRing(
       size: 260,
@@ -242,50 +238,13 @@ class _MilestoneCelebrationScreenState
       ],
     );
   }
-
-  List<Widget> _shareActions(GreyscaleTokens tokens, ThemeData theme) {
-    return [
-      _Primary(
-        label: 'Share with a photo',
-        busy: _busy,
-        onPressed: _busy ? null : () => _share(withPhoto: true),
-      ),
-      const SizedBox(height: 10),
-      _Secondary(
-        label: 'Share without a photo',
-        onPressed: _busy ? null : () => _share(withPhoto: false),
-      ),
-      const SizedBox(height: 4),
-      _dismiss(tokens, theme, label: 'Not now'),
-    ];
-  }
-
-  Widget _dismiss(
-    GreyscaleTokens tokens,
-    ThemeData theme, {
-    required String label,
-  }) {
-    return TextButton(
-      onPressed: _busy ? null : () => Navigator.of(context).maybePop(),
-      style: TextButton.styleFrom(
-        foregroundColor: tokens.textSecondary,
-        textStyle: theme.textTheme.labelLarge,
-      ),
-      child: Text(label),
-    );
-  }
 }
 
 /// Filled greyscale button (matches the timer controls).
 class _Primary extends StatelessWidget {
-  const _Primary({
-    required this.label,
-    required this.onPressed,
-    this.busy = false,
-  });
+  const _Primary({required this.label, required this.onPressed});
   final String label;
   final VoidCallback? onPressed;
-  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -299,40 +258,6 @@ class _Primary extends StatelessWidget {
           foregroundColor: tokens.background,
           disabledBackgroundColor: tokens.ringTrack,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          textStyle: Theme.of(context).textTheme.labelLarge,
-        ),
-        child: busy
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Text(label),
-      ),
-    );
-  }
-}
-
-/// Outlined greyscale button for the secondary share action.
-class _Secondary extends StatelessWidget {
-  const _Secondary({required this.label, required this.onPressed});
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: tokens.textPrimary,
-          side: BorderSide(color: tokens.ringTrack),
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),

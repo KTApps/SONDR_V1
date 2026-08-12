@@ -11,20 +11,25 @@ import 'photo_picker.dart';
 import 'photos_repository.dart';
 
 /// Show the optional end-of-session photo capture as a full-screen moment, over
-/// the home dial. Resolves when the user keeps a photo, skips, or dismisses —
-/// the caller just awaits and lands back on home either way.
+/// the home dial. Resolves to the kept photo's [File] (or null if the user
+/// skipped/dismissed) — an ordinary stop ignores it and lands back on home,
+/// while the milestone share flow carries the kept file forward to pre-select it.
+///
+/// [cameraOnly] opens the camera directly (no library) — the milestone flow.
+/// Ordinary stops leave it false and get the camera/library choice.
 ///
 /// Only call this when a task was actually credited ([taskId] non-null upstream)
 /// and the session logged time — a photo must never exist without a task.
-Future<void> showPhotoCapture(
+Future<File?> showPhotoCapture(
   BuildContext context, {
   required String taskId,
   required String taskName,
   required int sessionSeconds,
   int? milestoneHours,
   int? cumulativeSeconds,
+  bool cameraOnly = false,
 }) {
-  return Navigator.of(context).push(
+  return Navigator.of(context).push<File>(
     PageRouteBuilder(
       opaque: true,
       transitionDuration: const Duration(milliseconds: 280),
@@ -34,6 +39,7 @@ Future<void> showPhotoCapture(
         sessionSeconds: sessionSeconds,
         milestoneHours: milestoneHours,
         cumulativeSeconds: cumulativeSeconds,
+        cameraOnly: cameraOnly,
       ),
       transitionsBuilder: (_, animation, _, child) =>
           FadeTransition(opacity: animation, child: child),
@@ -53,6 +59,7 @@ class PhotoCaptureScreen extends ConsumerStatefulWidget {
     required this.sessionSeconds,
     this.milestoneHours,
     this.cumulativeSeconds,
+    this.cameraOnly = false,
   });
 
   final String taskId;
@@ -60,6 +67,9 @@ class PhotoCaptureScreen extends ConsumerStatefulWidget {
   final int sessionSeconds;
   final int? milestoneHours;
   final int? cumulativeSeconds;
+
+  /// Camera-only (the milestone flow); false gives the camera/library choice.
+  final bool cameraOnly;
 
   @override
   ConsumerState<PhotoCaptureScreen> createState() => _PhotoCaptureScreenState();
@@ -69,9 +79,12 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
   File? _photo;
   bool _busy = false;
 
-  /// Lens tap / retake: pick (and downscale) a photo into the preview state.
+  /// Lens tap / retake: capture (and downscale) a photo into the preview state.
+  /// Camera-only for the milestone flow; camera/library choice otherwise.
   Future<void> _pick() async {
-    final file = await pickAndDownscale(context);
+    final file = widget.cameraOnly
+        ? await captureFromCamera(context)
+        : await pickAndDownscale(context);
     if (file != null && mounted) setState(() => _photo = file);
   }
 
@@ -92,19 +105,23 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
     final photoId = Photo.docId(widget.taskId, timestamp);
     try {
       final up = await repo.uploadPhoto(_photo!, photoId: photoId);
-      await repo.savePhoto(Photo(
-        taskId: widget.taskId,
-        taskName: widget.taskName,
-        dayKey: DayKey.of(now),
-        timestamp: timestamp,
-        sessionSeconds: widget.sessionSeconds,
-        photoUrl: up.url,
-        storagePath: up.storagePath,
-        milestoneHours: widget.milestoneHours,
-        cumulativeSeconds: widget.cumulativeSeconds,
-      ));
+      await repo.savePhoto(
+        Photo(
+          taskId: widget.taskId,
+          taskName: widget.taskName,
+          dayKey: DayKey.of(now),
+          timestamp: timestamp,
+          sessionSeconds: widget.sessionSeconds,
+          photoUrl: up.url,
+          storagePath: up.storagePath,
+          milestoneHours: widget.milestoneHours,
+          cumulativeSeconds: widget.cumulativeSeconds,
+        ),
+      );
       if (!mounted) return;
-      Navigator.of(context).pop();
+      // Return the kept file so the milestone flow can carry it forward
+      // (pre-selected in the share picker). Ordinary stops ignore it.
+      Navigator.of(context).pop(_photo);
     } catch (e) {
       debugPrint('SONDR photo save error: $e');
       if (mounted) {
@@ -152,8 +169,11 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
             size: 260,
             stroke: 260 * 0.09,
             progress: 1.0,
-            center: Icon(Icons.camera_alt_outlined,
-                size: 44, color: tokens.textPrimary),
+            center: Icon(
+              Icons.camera_alt_outlined,
+              size: 44,
+              color: tokens.textPrimary,
+            ),
           ),
         ),
         const SizedBox(height: 44),
@@ -193,7 +213,9 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
                   height: 24,
                   width: 24,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: tokens.textPrimary),
+                    strokeWidth: 2,
+                    color: tokens.textPrimary,
+                  ),
                 )
               else
                 _keepRetake(tokens, theme),
@@ -227,7 +249,8 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
+                borderRadius: BorderRadius.circular(16),
+              ),
               textStyle: theme.textTheme.labelLarge,
             ),
             child: const Text('keep'),

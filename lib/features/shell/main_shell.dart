@@ -7,6 +7,18 @@ import '../focus/focus_providers.dart';
 import '../profile/profile_screen.dart';
 import '../timer/timer_screen.dart';
 
+/// The selected bottom-tab index (0 Home · 1 Feed · 2 Profile). A provider so a
+/// flow can jump the shell to a tab — e.g. landing on Feed after creating a
+/// milestone post — not just the tab bar's own taps.
+class SelectedTab extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void set(int index) => state = index;
+}
+
+final selectedTabProvider = NotifierProvider<SelectedTab, int>(SelectedTab.new);
+
 /// Root tab shell: Home · Feed · Profile. Introduced in step 2, it replaces the
 /// phase-1 top-right buttons on the timer with a bottom [NavigationBar].
 ///
@@ -14,40 +26,27 @@ import '../timer/timer_screen.dart';
 /// position) survives tab switches. While Focus Mode is active the bar is hidden
 /// and the shell is pinned to Home — the timer returns the quietened FocusView,
 /// reinforcing the "locked into the effort" ethos.
-class MainShell extends ConsumerStatefulWidget {
+class MainShell extends ConsumerWidget {
   const MainShell({super.key});
 
-  @override
-  ConsumerState<MainShell> createState() => _MainShellState();
-}
-
-class _MainShellState extends ConsumerState<MainShell> {
-  int _index = 0;
-
-  static const _tabs = [
-    TimerScreen(),
-    FeedScreen(),
-    ProfileScreen(),
-  ];
+  static const _tabs = [TimerScreen(), FeedScreen(), ProfileScreen()];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final focused = ref.watch(focusModeProvider);
+    final index = ref.watch(selectedTabProvider);
 
     return Scaffold(
       // Pin to Home while focused so the FocusView is what shows, never another
       // tab caught behind the hidden bar.
-      body: IndexedStack(
-        index: focused ? 0 : _index,
-        children: _tabs,
-      ),
+      body: IndexedStack(index: focused ? 0 : index, children: _tabs),
       // Slim, text-only tab bar (no icons) — reclaims vertical space and keeps
       // the minimal greyscale identity.
       bottomNavigationBar: focused
           ? null
           : _TextTabBar(
-              currentIndex: _index,
-              onSelect: (i) => setState(() => _index = i),
+              currentIndex: index,
+              onSelect: (i) => ref.read(selectedTabProvider.notifier).set(i),
             ),
     );
   }

@@ -61,7 +61,8 @@ class TimerScreen extends ConsumerWidget {
     // into the selected task's slice so it grows live while the timer runs.
     final segments = <double>[
       for (final t in tasks)
-        (t.todaySeconds(now) + (t.id == selectedId ? liveSeconds : 0)).toDouble(),
+        (t.todaySeconds(now) + (t.id == selectedId ? liveSeconds : 0))
+            .toDouble(),
     ];
     final highlightIndex = selectedTask == null
         ? null
@@ -198,8 +199,7 @@ class TimerScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _onStop(
-      BuildContext context, WidgetRef ref, Task? task) async {
+  Future<void> _onStop(BuildContext context, WidgetRef ref, Task? task) async {
     final outcome = await ref.read(timerControllerProvider.notifier).stop();
     // Always leave Focus Mode when the session ends.
     ref.read(focusModeProvider.notifier).disable();
@@ -217,30 +217,24 @@ class TimerScreen extends ConsumerWidget {
       // unawaited so it never delays the celebration; the repo guards against
       // clobbering a user-edited collage.
       if (creditedTaskId != null) {
-        unawaited(_autoComposeCollage(
-            ref, creditedTaskId, outcome.milestoneHours!));
+        unawaited(
+          _autoComposeCollage(ref, creditedTaskId, outcome.milestoneHours!),
+        );
       }
+      // Share fires on EVERY 20h crossing now (flat bands, no ladder). The
+      // celebration drives the whole share journey internally — camera capture,
+      // share-post picker, caption, create — so there's no separate capture
+      // screen after it.
       await showMilestoneCelebration(
         context,
         taskId: creditedTaskId ?? '',
         taskName: outcome.taskName ?? 'task',
         milestoneHours: outcome.milestoneHours!,
         totalHours: outcome.totalHours,
+        sessionSeconds: outcome.loggedSeconds,
+        cumulativeSeconds: outcome.totalSeconds,
         isFirst: outcome.isFirstMilestone,
-        // For now only the first 20h milestone offers a post; the widening
-        // milestone ladder (and posting on later rungs) is a separate step.
-        canShare: outcome.isFirstMilestone,
       );
-      if (creditedTaskId != null && context.mounted) {
-        await showPhotoCapture(
-          context,
-          taskId: creditedTaskId,
-          taskName: outcome.taskName ?? 'task',
-          sessionSeconds: outcome.loggedSeconds,
-          milestoneHours: outcome.milestoneHours,
-          cumulativeSeconds: outcome.totalSeconds,
-        );
-      }
       return;
     }
 
@@ -270,7 +264,10 @@ class TimerScreen extends ConsumerWidget {
   /// repo's [CollagesRepository.saveAuto] guard leaves a user-edited collage
   /// untouched, so re-crossing/re-opening never clobbers curation.
   Future<void> _autoComposeCollage(
-      WidgetRef ref, String taskId, int milestoneHours) async {
+    WidgetRef ref,
+    String taskId,
+    int milestoneHours,
+  ) async {
     final photos = ref.read(photosRepositoryProvider);
     final collages = ref.read(collagesRepositoryProvider);
     if (photos == null || collages == null) return;
@@ -278,8 +275,9 @@ class TimerScreen extends ConsumerWidget {
       // Store the FULL band (uncapped mosaic); the ≤9 even-spread is only the
       // celebration preview.
       final band = await photos.photosForBand(taskId, milestoneHours);
-      await collages.saveAuto(
-          taskId, milestoneHours, [for (final p in band) p.id]);
+      await collages.saveAuto(taskId, milestoneHours, [
+        for (final p in band) p.id,
+      ]);
     } catch (e) {
       debugPrint('SONDR collage auto-compose error: $e');
     }
@@ -293,14 +291,21 @@ class TimerScreen extends ConsumerWidget {
     final needed = edgeSeconds - task.totalSeconds;
     final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
     if (needed <= 0) {
-      messenger.showSnackBar(const SnackBar(
-          content: Text('Already at/past the first milestone')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Already at/past the first milestone')),
+      );
       return;
     }
-    ref.read(tasksProvider.notifier).logSeconds(task.id, needed, DateTime.now());
-    messenger.showSnackBar(SnackBar(
+    ref
+        .read(tasksProvider.notifier)
+        .logSeconds(task.id, needed, DateTime.now());
+    messenger.showSnackBar(
+      SnackBar(
         content: Text(
-            'Primed ${task.name} near 20h — run a short session to cross')));
+          'Primed ${task.name} near 20h — run a short session to cross',
+        ),
+      ),
+    );
   }
 }
 
@@ -341,14 +346,18 @@ class _DialCentre extends StatelessWidget {
     if (isCollective) {
       seconds = tasks.fold<int>(
         0,
-        (sum, t) => sum +
+        (sum, t) =>
+            sum +
             (period == CentrePeriod.today
                 ? t.todaySeconds(now)
                 : t.monthSeconds(now)),
       );
     } else {
       // Fold the live session into the selected task's totals.
-      final live = selectedTask!.addingSeconds(timer.sessionElapsed.inSeconds, now);
+      final live = selectedTask!.addingSeconds(
+        timer.sessionElapsed.inSeconds,
+        now,
+      );
       seconds = period == CentrePeriod.today
           ? live.todaySeconds(now)
           : live.monthSeconds(now);
@@ -374,8 +383,10 @@ class _DialCentre extends StatelessWidget {
       children: [
         Text(
           value,
-          style: theme.textTheme.titleLarge
-              ?.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
@@ -400,14 +411,14 @@ class _PeriodDots extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     Widget dot(bool active) => Container(
-          width: 6,
-          height: 6,
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: active ? tokens.ringFillOuter : tokens.ringTrack,
-          ),
-        );
+      width: 6,
+      height: 6,
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: active ? tokens.ringFillOuter : tokens.ringTrack,
+      ),
+    );
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -434,10 +445,9 @@ class _CollectiveHint extends StatelessWidget {
       child: Center(
         child: Text(
           text,
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(color: tokens.textTertiary),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: tokens.textTertiary),
         ),
       ),
     );
@@ -477,10 +487,16 @@ class _TimerControls extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _SecondaryControl(
-                icon: Icons.pause_rounded, label: 'Pause', onPressed: onPause),
+              icon: Icons.pause_rounded,
+              label: 'Pause',
+              onPressed: onPause,
+            ),
             const SizedBox(width: 16),
             _PrimaryControl(
-                icon: Icons.stop_rounded, label: 'Stop', onPressed: onStop),
+              icon: Icons.stop_rounded,
+              label: 'Stop',
+              onPressed: onStop,
+            ),
           ],
         );
       case TimerStatus.paused:
@@ -488,12 +504,16 @@ class _TimerControls extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _SecondaryControl(
-                icon: Icons.play_arrow_rounded,
-                label: 'Resume',
-                onPressed: onResume),
+              icon: Icons.play_arrow_rounded,
+              label: 'Resume',
+              onPressed: onResume,
+            ),
             const SizedBox(width: 16),
             _PrimaryControl(
-                icon: Icons.stop_rounded, label: 'Stop', onPressed: onStop),
+              icon: Icons.stop_rounded,
+              label: 'Stop',
+              onPressed: onStop,
+            ),
           ],
         );
     }
@@ -610,9 +630,9 @@ class _LastTenDays extends ConsumerWidget {
     }
 
     Widget row(Iterable<int> daysAgo) => Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [for (final d in daysAgo) cell(d)],
-        );
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [for (final d in daysAgo) cell(d)],
+    );
 
     return SizedBox(
       width: double.infinity,
@@ -621,8 +641,10 @@ class _LastTenDays extends ConsumerWidget {
         children: [
           Text(
             'Last 10 days',
-            style: theme.textTheme.titleLarge
-                ?.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           // label→row1 30, row1→row2 25; the CTA gap is larger so "View your
           // progress" sits toward the midpoint between row 2 and the tab bar.
@@ -639,9 +661,9 @@ class _LastTenDays extends ConsumerWidget {
           // themselves stay display-only.
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const CalendarScreen()),
-            ),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const CalendarScreen())),
             child: SizedBox(
               width: double.infinity,
               child: Text(

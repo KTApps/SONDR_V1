@@ -35,9 +35,11 @@ class _FakeTasksRepo implements TasksRepository {
 }
 
 ProviderContainer _containerWith(Task seed) {
-  final c = ProviderContainer(overrides: [
-    tasksRepositoryProvider.overrideWithValue(_FakeTasksRepo([seed])),
-  ]);
+  final c = ProviderContainer(
+    overrides: [
+      tasksRepositoryProvider.overrideWithValue(_FakeTasksRepo([seed])),
+    ],
+  );
   addTearDown(c.dispose);
   return c;
 }
@@ -83,8 +85,9 @@ void main() {
     expect(outcome.milestoneHours, isNull);
   });
 
-  testWidgets('celebration screen offers the share-or-not choice',
-      (tester) async {
+  testWidgets('celebration offers the share entry on the first milestone', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const ProviderScope(
         child: MaterialApp(
@@ -93,8 +96,9 @@ void main() {
             taskName: 'Spanish',
             milestoneHours: 20,
             totalHours: 21,
+            sessionSeconds: 3600,
+            cumulativeSeconds: 72000,
             isFirst: true,
-            canShare: true,
           ),
         ),
       ),
@@ -102,12 +106,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Congratulations!'), findsOneWidget);
     expect(find.text('20 hrs'), findsOneWidget);
-    expect(find.text('Share with a photo'), findsOneWidget);
-    expect(find.text('Share without a photo'), findsOneWidget);
+    expect(find.text('Share this milestone'), findsOneWidget);
     expect(find.text('Not now'), findsOneWidget);
   });
 
-  testWidgets('celebration without sharing just shows Done', (tester) async {
+  testWidgets('celebration offers the share entry on later milestones too', (
+    tester,
+  ) async {
+    // The first-milestone gate is gone — every crossing can share.
     await tester.pumpWidget(
       const ProviderScope(
         child: MaterialApp(
@@ -116,14 +122,15 @@ void main() {
             taskName: 'Piano',
             milestoneHours: 40,
             totalHours: 41,
+            sessionSeconds: 3600,
+            cumulativeSeconds: 144000,
             isFirst: false,
-            canShare: false,
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Share with a photo'), findsNothing);
-    expect(find.text('Done'), findsOneWidget);
+    expect(find.textContaining('another milestone'), findsOneWidget);
+    expect(find.text('Share this milestone'), findsOneWidget);
   });
 }

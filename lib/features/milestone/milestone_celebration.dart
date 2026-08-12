@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/ring/progress_ring.dart';
+import '../feed/models/post.dart';
 import '../feed/posts_repository.dart';
 import '../photos/models/photo.dart';
 import '../photos/photo_picker.dart';
@@ -95,13 +96,14 @@ class _MilestoneCelebrationScreenState
 
     // Capture + upload first (if asked), so the post is created once, already
     // carrying its photo — friends never see a photoless flash.
-    String? photoUrl;
+    final photos = <PostPhoto>[];
     if (withPhoto) {
       final file = await pickAndDownscale(context);
       if (file == null) return; // backed out, or the pick failed
       setState(() => _busy = true);
       try {
-        photoUrl = await repo.uploadPostPhoto(file);
+        final up = await repo.uploadPostPhoto(file);
+        photos.add(PostPhoto(url: up.url, storagePath: up.storagePath));
       } catch (e) {
         debugPrint('SONDR photo upload error: $e');
         if (mounted) {
@@ -119,11 +121,13 @@ class _MilestoneCelebrationScreenState
         taskName: widget.taskName,
         milestoneHours: widget.milestoneHours,
         totalHours: widget.totalHours,
-        photoUrl: photoUrl,
+        photos: photos,
       );
       if (!mounted) return;
       Navigator.of(context).maybePop();
-      _toast(withPhoto ? 'Milestone shared with your photo.' : 'Milestone shared.');
+      _toast(
+        withPhoto ? 'Milestone shared with your photo.' : 'Milestone shared.',
+      );
     } catch (e) {
       debugPrint('SONDR milestone post error: $e');
       if (mounted) {
@@ -160,8 +164,9 @@ class _MilestoneCelebrationScreenState
               Text(
                 headline,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge
-                    ?.copyWith(color: tokens.textSecondary),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: tokens.textSecondary,
+                ),
               ),
               const SizedBox(height: 36),
 
@@ -177,7 +182,9 @@ class _MilestoneCelebrationScreenState
               ),
               const SizedBox(height: 44),
 
-              if (widget.canShare) ..._shareActions(tokens, theme) else
+              if (widget.canShare)
+                ..._shareActions(tokens, theme)
+              else
                 _dismiss(tokens, theme, label: 'Done'),
             ],
           ),
@@ -195,12 +202,17 @@ class _MilestoneCelebrationScreenState
       center: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('${widget.milestoneHours} hrs',
-              style: theme.textTheme.displayMedium),
+          Text(
+            '${widget.milestoneHours} hrs',
+            style: theme.textTheme.displayMedium,
+          ),
           const SizedBox(height: 4),
-          Text(widget.taskName,
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: tokens.textSecondary)),
+          Text(
+            widget.taskName,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: tokens.textSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -209,7 +221,10 @@ class _MilestoneCelebrationScreenState
   /// The collage hero — the milestone's photos as a grid, with the milestone
   /// figure captioned beneath (since the grid replaces the ring's centre).
   Widget _collageHero(
-      List<Photo> photos, ThemeData theme, GreyscaleTokens tokens) {
+    List<Photo> photos,
+    ThemeData theme,
+    GreyscaleTokens tokens,
+  ) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -220,7 +235,9 @@ class _MilestoneCelebrationScreenState
         const SizedBox(height: 16),
         Text(
           '${widget.milestoneHours} hours · ${widget.taskName}',
-          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     );
@@ -243,8 +260,11 @@ class _MilestoneCelebrationScreenState
     ];
   }
 
-  Widget _dismiss(GreyscaleTokens tokens, ThemeData theme,
-      {required String label}) {
+  Widget _dismiss(
+    GreyscaleTokens tokens,
+    ThemeData theme, {
+    required String label,
+  }) {
     return TextButton(
       onPressed: _busy ? null : () => Navigator.of(context).maybePop(),
       style: TextButton.styleFrom(
@@ -258,7 +278,11 @@ class _MilestoneCelebrationScreenState
 
 /// Filled greyscale button (matches the timer controls).
 class _Primary extends StatelessWidget {
-  const _Primary({required this.label, required this.onPressed, this.busy = false});
+  const _Primary({
+    required this.label,
+    required this.onPressed,
+    this.busy = false,
+  });
   final String label;
   final VoidCallback? onPressed;
   final bool busy;
@@ -276,8 +300,9 @@ class _Primary extends StatelessWidget {
           disabledBackgroundColor: tokens.ringTrack,
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           textStyle: Theme.of(context).textTheme.labelLarge,
         ),
         child: busy
@@ -309,8 +334,9 @@ class _Secondary extends StatelessWidget {
           foregroundColor: tokens.textPrimary,
           side: BorderSide(color: tokens.ringTrack),
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           textStyle: Theme.of(context).textTheme.labelLarge,
         ),
         child: Text(label),

@@ -1,9 +1,9 @@
 /// Feed posts. Three kinds give the feed its rhythm (big milestone cards,
 /// medium streak cards, tiny session logs); a sealed hierarchy parsed by `type`
 /// lets the feed switch on the kind cleanly. All share an author, timestamp,
-/// optional caption and optional photo, and an `audience` (the author's accepted
-/// friends at post time + self) that scopes who can read it — see the
-/// friends-only feed rules.
+/// optional caption and a list of attached [photos], and an `audience` (the
+/// author's accepted friends at post time + self) that scopes who can read it —
+/// see the friends-only feed rules.
 enum PostType { milestone, streak, session }
 
 /// Denormalized author identity stored on each post so the feed renders without
@@ -16,12 +16,45 @@ class PostAuthor {
 
   String get label => displayName.isNotEmpty ? displayName : '@$username';
 
-  Map<String, dynamic> toMap() => {'username': username, 'displayName': displayName};
+  Map<String, dynamic> toMap() => {
+    'username': username,
+    'displayName': displayName,
+  };
 
   factory PostAuthor.fromMap(Map<String, dynamic> map) => PostAuthor(
-        username: (map['username'] as String?) ?? '',
-        displayName: (map['displayName'] as String?) ?? '',
-      );
+    username: (map['username'] as String?) ?? '',
+    displayName: (map['displayName'] as String?) ?? '',
+  );
+}
+
+/// One photo attached to a post: the friends-readable download [url] plus the
+/// Storage [storagePath] it lives at (under the author's posts space). The path
+/// is kept so the binary can be deleted when the post is — it points at the
+/// post's own copy, never the private gallery original. Posts are multi-photo
+/// (the [Post.photos] list); today's flows attach at most one, but this schema
+/// is the keystone the multi-photo feed rebuild turns on.
+class PostPhoto {
+  const PostPhoto({required this.url, required this.storagePath});
+
+  final String url;
+  final String storagePath;
+
+  Map<String, dynamic> toMap() => {'url': url, 'storagePath': storagePath};
+
+  factory PostPhoto.fromMap(Map<String, dynamic> map) => PostPhoto(
+    url: (map['url'] as String?) ?? '',
+    storagePath: (map['storagePath'] as String?) ?? '',
+  );
+
+  /// Value equality so a photo list round-trips (write → read → equal).
+  @override
+  bool operator ==(Object other) =>
+      other is PostPhoto &&
+      other.url == url &&
+      other.storagePath == storagePath;
+
+  @override
+  int get hashCode => Object.hash(url, storagePath);
 }
 
 sealed class Post {
@@ -31,7 +64,7 @@ sealed class Post {
     required this.author,
     required this.createdAt,
     required this.caption,
-    required this.photoUrl,
+    this.photos = const [],
     this.likeCount = 0,
     this.commentCount = 0,
   });
@@ -43,7 +76,11 @@ sealed class Post {
   /// Null only briefly between a local write and the server timestamp landing.
   final DateTime? createdAt;
   final String? caption;
-  final String? photoUrl;
+
+  /// The post's attached photos, in display order; empty for a photoless post.
+  /// Replaces the old single `photoUrl` — the multi-photo schema is the pivot of
+  /// the feed rebuild.
+  final List<PostPhoto> photos;
 
   /// Denormalized interaction counts, bumped ±1 via batched writes alongside the
   /// like mirror / comment doc. They ride the feed stream, so cards show live
@@ -55,11 +92,12 @@ sealed class Post {
 
   factory Post.fromMap(String id, Map<String, dynamic> map) {
     final author = PostAuthor.fromMap(
-        Map<String, dynamic>.from((map['author'] as Map?) ?? const {}));
+      Map<String, dynamic>.from((map['author'] as Map?) ?? const {}),
+    );
     final authorUid = (map['authorUid'] as String?) ?? '';
     final createdAt = _parseTime(map['createdAt']);
     final caption = map['caption'] as String?;
-    final photoUrl = map['photoUrl'] as String?;
+    final photos = _parsePhotos(map['photos']);
     final likeCount = _int(map['likeCount']);
     final commentCount = _int(map['commentCount']);
 
@@ -71,7 +109,7 @@ sealed class Post {
           author: author,
           createdAt: createdAt,
           caption: caption,
-          photoUrl: photoUrl,
+          photos: photos,
           likeCount: likeCount,
           commentCount: commentCount,
           taskName: (map['taskName'] as String?) ?? '',
@@ -85,7 +123,7 @@ sealed class Post {
           author: author,
           createdAt: createdAt,
           caption: caption,
-          photoUrl: photoUrl,
+          photos: photos,
           likeCount: likeCount,
           commentCount: commentCount,
           streakDays: _int(map['streakDays']),
@@ -100,7 +138,7 @@ sealed class Post {
           author: author,
           createdAt: createdAt,
           caption: caption,
-          photoUrl: photoUrl,
+          photos: photos,
           likeCount: likeCount,
           commentCount: commentCount,
           taskName: (map['taskName'] as String?) ?? '',
@@ -118,7 +156,7 @@ class MilestonePost extends Post {
     required super.author,
     required super.createdAt,
     required super.caption,
-    required super.photoUrl,
+    super.photos,
     super.likeCount,
     super.commentCount,
     required this.taskName,
@@ -139,6 +177,10 @@ class MilestonePost extends Post {
 }
 
 /// Habit streak — the hero is the streak number, habit list as small print.
+///
+// TODO(later): StreakPost is not produced by any flow yet — there is no create
+// path wiring it (habit-streak posts are a planned stage). Kept in the sealed
+// hierarchy so the feed's exhaustive switch stays honest.
 class StreakPost extends Post {
   const StreakPost({
     required super.id,
@@ -146,7 +188,7 @@ class StreakPost extends Post {
     required super.author,
     required super.createdAt,
     required super.caption,
-    required super.photoUrl,
+    super.photos,
     super.likeCount,
     super.commentCount,
     required this.streakDays,
@@ -168,7 +210,7 @@ class SessionPost extends Post {
     required super.author,
     required super.createdAt,
     required super.caption,
-    required super.photoUrl,
+    super.photos,
     super.likeCount,
     super.commentCount,
     required this.taskName,
@@ -183,6 +225,16 @@ class SessionPost extends Post {
 }
 
 int _int(dynamic v) => v is num ? v.toInt() : 0;
+
+/// Parse the stored `photos` array into [PostPhoto]s, tolerating a missing or
+/// malformed field (→ empty) so old/partial docs never throw.
+List<PostPhoto> _parsePhotos(dynamic v) {
+  if (v is! List) return const [];
+  return [
+    for (final e in v)
+      if (e is Map) PostPhoto.fromMap(Map<String, dynamic>.from(e)),
+  ];
+}
 
 /// Tolerates a Firestore `Timestamp` (duck-typed via `toDate()` so this model
 /// stays Firestore-agnostic and testable), epoch millis, or a `DateTime`.

@@ -18,7 +18,7 @@ class MilestoneCard extends StatelessWidget {
 
   final MilestonePost post;
 
-  bool get _hasPhoto => (post.photoUrl ?? '').isNotEmpty;
+  bool get _hasPhoto => post.photos.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -39,13 +39,20 @@ class MilestoneCard extends StatelessWidget {
     final center = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('${post.milestoneHours}',
-            style: theme.textTheme.displaySmall
-                ?.copyWith(color: figureColor, shadows: shadows)),
-        Text('hours',
-            style: theme.textTheme.bodyMedium?.copyWith(
-                color: onPhoto ? Colors.white70 : tokens.textTertiary,
-                shadows: shadows)),
+        Text(
+          '${post.milestoneHours}',
+          style: theme.textTheme.displaySmall?.copyWith(
+            color: figureColor,
+            shadows: shadows,
+          ),
+        ),
+        Text(
+          'hours',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: onPhoto ? Colors.white70 : tokens.textTertiary,
+            shadows: shadows,
+          ),
+        ),
       ],
     );
 
@@ -83,11 +90,17 @@ class MilestoneCard extends StatelessWidget {
     final fg = onPhoto ? Colors.black : tokens.textPrimary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text('Milestone · ${post.milestoneHours}h',
-          style: theme.textTheme.labelMedium
-              ?.copyWith(color: fg, fontWeight: FontWeight.w600)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        'Milestone · ${post.milestoneHours}h',
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
@@ -136,7 +149,12 @@ class MilestoneCard extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image(image: postImageProvider(post.photoUrl!), fit: BoxFit.cover),
+          // First photo as the full-bleed backdrop. Multi-photo milestone card
+          // layout is a later stage; for now the hero is photos.first.
+          Image(
+            image: postImageProvider(post.photos.first.url),
+            fit: BoxFit.cover,
+          ),
           // Scrim: darker top & bottom (where text/icons sit), lighter middle
           // (where the ring sits). Baked in so bright photos stay legible.
           const DecoratedBox(
@@ -160,9 +178,10 @@ class MilestoneCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 PostAuthorRow(
-                    author: post.author,
-                    createdAt: post.createdAt,
-                    onPhoto: true),
+                  author: post.author,
+                  createdAt: post.createdAt,
+                  onPhoto: true,
+                ),
                 const SizedBox(height: 12),
                 _badge(context, onPhoto: true),
                 Expanded(child: Center(child: _ring(context, onPhoto: true))),

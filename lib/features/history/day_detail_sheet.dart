@@ -9,6 +9,7 @@ import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/segmented_dial.dart';
+import '../feed/models/post.dart';
 import '../feed/posts_repository.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
@@ -351,11 +352,11 @@ class _PhotoOverlayState extends ConsumerState<_PhotoOverlay> {
       final file = File('${dir.path}/share.jpg');
       await file.writeAsBytes(bytes);
 
-      final postsUrl = await posts.uploadPostPhoto(file);
+      final up = await posts.uploadPostPhoto(file);
       await posts.createSessionPost(
         taskName: widget.photo.taskName,
         sessionSeconds: widget.photo.sessionSeconds,
-        photoUrl: postsUrl,
+        photos: [PostPhoto(url: up.url, storagePath: up.storagePath)],
       );
       if (!mounted) return;
       navigator.pop(); // close the overlay

@@ -12,12 +12,15 @@ const _author = PostAuthor(username: 'tom', displayName: 'Tom Hardy');
 // ProviderScope is required. With no Firebase the interaction providers resolve
 // to empty/null and the affordances simply render inert.
 Future<void> _pump(WidgetTester tester, Widget child) => tester.pumpWidget(
-      ProviderScope(child: MaterialApp(home: Scaffold(body: child))),
-    );
+  ProviderScope(
+    child: MaterialApp(home: Scaffold(body: child)),
+  ),
+);
 
 void main() {
-  testWidgets('MilestoneCard (no photo) shows the hours figure and badge',
-      (tester) async {
+  testWidgets('MilestoneCard (no photo) shows the hours figure and badge', (
+    tester,
+  ) async {
     await _pump(
       tester,
       MilestoneCard(
@@ -27,7 +30,6 @@ void main() {
           author: _author,
           createdAt: DateTime(2026, 6, 1),
           caption: 'done',
-          photoUrl: null,
           taskName: 'Spanish',
           milestoneHours: 20,
           totalHours: 21,
@@ -39,8 +41,9 @@ void main() {
     expect(find.text('Tom Hardy'), findsWidgets);
   });
 
-  testWidgets('MilestoneCard (with photo) builds over a backdrop',
-      (tester) async {
+  testWidgets('MilestoneCard (with photo) builds over a backdrop', (
+    tester,
+  ) async {
     await _pump(
       tester,
       MilestoneCard(
@@ -50,7 +53,9 @@ void main() {
           author: _author,
           createdAt: DateTime(2026, 6, 1),
           caption: 'done',
-          photoUrl: 'assets/mock/sample1.jpg',
+          photos: const [
+            PostPhoto(url: 'assets/mock/sample1.jpg', storagePath: ''),
+          ],
           taskName: 'Spanish',
           milestoneHours: 40,
           totalHours: 41,
@@ -71,7 +76,6 @@ void main() {
           author: _author,
           createdAt: DateTime(2026, 6, 1),
           caption: null,
-          photoUrl: null,
           streakDays: 14,
           habits: const ['Run', 'Cold shower'],
         ),
@@ -92,7 +96,6 @@ void main() {
           author: _author,
           createdAt: DateTime(2026, 6, 1),
           caption: null,
-          photoUrl: null,
           taskName: 'Spanish',
           sessionSeconds: 8100,
         ),

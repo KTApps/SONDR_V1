@@ -8,10 +8,16 @@ service firebase.storage {
   match /b/{bucket}/o {
     match /users/{uid}/posts/{file} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
+      // create/update carry an incoming file, so they're size/type-checked;
+      // delete has no `request.resource`, so it's gated on ownership alone
+      // (a blanket `write` with the size/type checks would deny every delete —
+      // which is why deletePost's binary cleanup needs this split).
+      allow create, update: if request.auth != null
                    && request.auth.uid == uid
                    && request.resource.size < 10 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null
+                    && request.auth.uid == uid;
     }
 
     // Private session photos. Unlike posts these are owner-only on read too —

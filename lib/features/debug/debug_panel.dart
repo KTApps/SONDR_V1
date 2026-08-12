@@ -101,7 +101,10 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
   // ── Photos / collage (real uploadPhoto + savePhoto + saveAuto) ────────────
 
   Future<({String url, String storagePath})> _upload(
-      PhotosRepository repo, String id, String asset) async {
+    PhotosRepository repo,
+    String id,
+    String asset,
+  ) async {
     final bytes = await rootBundle.load(asset);
     final dir = Directory.systemTemp.createTempSync('dbg');
     final f = File('${dir.path}/$id.jpg')
@@ -122,16 +125,18 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
     final now = DateTime.now();
     for (var i = 1; i <= n; i++) {
       final cum = kMilestoneBandSeconds * i ~/ (n + 1); // spread in band 0
-      await photos.savePhoto(Photo(
-        taskId: task.id,
-        taskName: task.name,
-        dayKey: DayKey.of(now),
-        timestamp: now.microsecondsSinceEpoch + i,
-        sessionSeconds: 3600,
-        photoUrl: i.isEven ? u1.url : u2.url,
-        storagePath: i.isEven ? u1.storagePath : u2.storagePath,
-        cumulativeSeconds: cum,
-      ));
+      await photos.savePhoto(
+        Photo(
+          taskId: task.id,
+          taskName: task.name,
+          dayKey: DayKey.of(now),
+          timestamp: now.microsecondsSinceEpoch + i,
+          sessionSeconds: 3600,
+          photoUrl: i.isEven ? u1.url : u2.url,
+          storagePath: i.isEven ? u1.storagePath : u2.storagePath,
+          cumulativeSeconds: cum,
+        ),
+      );
     }
     if (!withCollage) return 'Seeded $n photos in "${task.name}" 20h band.';
 
@@ -173,15 +178,19 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
     await u.collection('meta').doc('habitList').delete();
 
     // Own posts + their posts-space binaries.
-    final posts =
-        await db.collection('posts').where('audience', arrayContains: uid).get();
+    final posts = await db
+        .collection('posts')
+        .where('audience', arrayContains: uid)
+        .get();
     for (final d in posts.docs) {
       if (d.data()['authorUid'] != uid) continue;
-      final url = d.data()['photoUrl'] as String?;
-      if (url != null) {
-        try {
-          await FirebaseStorage.instance.refFromURL(url).delete();
-        } catch (_) {}
+      for (final p in (d.data()['photos'] as List?) ?? const []) {
+        final sp = (p as Map)['storagePath'] as String?;
+        if (sp != null && sp.isNotEmpty) {
+          try {
+            await FirebaseStorage.instance.ref(sp).delete();
+          } catch (_) {}
+        }
       }
       await d.reference.delete();
       n++;
@@ -195,15 +204,18 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
       builder: (ctx) => AlertDialog(
         title: const Text('Wipe your test data?'),
         content: const Text(
-            'Deletes THIS account\'s tasks, photos, collages, habits and your '
-            'posts. Cannot touch other accounts. Not undoable.'),
+          'Deletes THIS account\'s tasks, photos, collages, habits and your '
+          'posts. Cannot touch other accounts. Not undoable.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Wipe')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Wipe'),
+          ),
         ],
       ),
     );
@@ -234,43 +246,59 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
               items: [
                 for (final t in tasks)
                   DropdownMenuItem(
-                      value: t.id,
-                      child: Text(
-                          '${t.name} · ${(t.total.inMinutes / 60).toStringAsFixed(1)}h')),
+                    value: t.id,
+                    child: Text(
+                      '${t.name} · ${(t.total.inMinutes / 60).toStringAsFixed(1)}h',
+                    ),
+                  ),
               ],
               onChanged: (v) => setState(() => _taskId = v),
             ),
             _btn('＋ Create test task', () => _run('Creating', _createTask)),
 
             _section('Milestone / time (real logSeconds)'),
-            _btn('Prime to ~1 min below next milestone → then run a short session',
-                () => _run('Priming', _primeBelowMilestone)),
-            _btn('Add 20h (state only — gate/empty-state, no collage)',
-                () => _run('Adding 20h', _add20h)),
+            _btn(
+              'Prime to ~1 min below next milestone → then run a short session',
+              () => _run('Priming', _primeBelowMilestone),
+            ),
+            _btn(
+              'Add 20h (state only — gate/empty-state, no collage)',
+              () => _run('Adding 20h', _add20h),
+            ),
 
             _section('Photos / collage (real repos)'),
-            Row(children: [
-              const Text('N: '),
-              for (final n in [12, 25, 42])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text('$n'),
-                    selected: _photoCount == n,
-                    onSelected: (_) => setState(() => _photoCount = n),
+            Row(
+              children: [
+                const Text('N: '),
+                for (final n in [12, 25, 42])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text('$n'),
+                      selected: _photoCount == n,
+                      onSelected: (_) => setState(() => _photoCount = n),
+                    ),
                   ),
-                ),
-            ]),
-            _btn('Seed N photos in 20h band',
-                () => _run('Seeding photos', () => _seedPhotos(withCollage: false))),
-            _btn('Seed populated collage (N photos + collage doc)',
-                () => _run('Seeding collage', () => _seedPhotos(withCollage: true))),
+              ],
+            ),
+            _btn(
+              'Seed N photos in 20h band',
+              () =>
+                  _run('Seeding photos', () => _seedPhotos(withCollage: false)),
+            ),
+            _btn(
+              'Seed populated collage (N photos + collage doc)',
+              () =>
+                  _run('Seeding collage', () => _seedPhotos(withCollage: true)),
+            ),
 
             _section('Quick nav'),
             _btn('Open Calendar', () => _push(const CalendarScreen())),
             _btn('Open Collages', () => _push(const CollagesScreen())),
-            _btn("Open today's day-detail",
-                () => showDayDetailSheet(context, DayKey.of(DateTime.now()))),
+            _btn(
+              "Open today's day-detail",
+              () => showDayDetailSheet(context, DayKey.of(DateTime.now())),
+            ),
 
             _section('Danger'),
             _btn('Wipe my test data', _confirmWipe),
@@ -289,20 +317,22 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
 
   Widget _section(String title) => Padding(
-        padding: const EdgeInsets.only(top: 20, bottom: 6),
-        child: Text(title,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-      );
+    padding: const EdgeInsets.only(top: 20, bottom: 6),
+    child: Text(
+      title,
+      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+    ),
+  );
 
   Widget _btn(String label, VoidCallback onTap) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: SizedBox(
-          width: double.infinity,
-          child: OutlinedButton(
-            onPressed: onTap,
-            style: OutlinedButton.styleFrom(alignment: Alignment.centerLeft),
-            child: Text(label, textAlign: TextAlign.left),
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 6),
+    child: SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(alignment: Alignment.centerLeft),
+        child: Text(label, textAlign: TextAlign.left),
+      ),
+    ),
+  );
 }

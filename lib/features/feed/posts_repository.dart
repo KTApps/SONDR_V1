@@ -29,8 +29,9 @@ class PostsRepository {
         .orderBy('createdAt', descending: true)
         .limit(50)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => Post.fromMap(d.id, d.data())).toList());
+        .map(
+          (snap) => snap.docs.map((d) => Post.fromMap(d.id, d.data())).toList(),
+        );
   }
 
   Future<PostAuthor> _author() async {
@@ -49,8 +50,10 @@ class PostsRepository {
   /// The audience for a new post: the author's accepted friends plus self (so
   /// the author's own posts surface in their feed). A post-time snapshot.
   Future<List<String>> _audience() async {
-    final snap =
-        await db.collection('friendships').where('users', arrayContains: uid).get();
+    final snap = await db
+        .collection('friendships')
+        .where('users', arrayContains: uid)
+        .get();
     final ids = <String>{uid};
     for (final d in snap.docs) {
       final data = d.data();
@@ -62,13 +65,14 @@ class PostsRepository {
     return ids.toList();
   }
 
-  /// Returns the new post's id, so a later step can attach a photo by updating
-  /// that post once Storage upload exists.
+  /// Returns the new post's id. [photos] are the post's attached images (already
+  /// uploaded to the posts space via [uploadPostPhoto]); [caption] is written
+  /// straight through (today's flows pass null, but the field is live).
   Future<String> _create(
     String type,
     Map<String, dynamic> payload, {
     String? caption,
-    String? photoUrl,
+    List<PostPhoto> photos = const [],
   }) async {
     final author = await _author();
     final audience = await _audience();
@@ -78,7 +82,7 @@ class PostsRepository {
       'type': type,
       'createdAt': FieldValue.serverTimestamp(),
       'caption': caption,
-      'photoUrl': photoUrl,
+      'photos': [for (final p in photos) p.toMap()],
       'audience': audience,
       'likeCount': 0,
       'commentCount': 0,
@@ -103,8 +107,11 @@ class PostsRepository {
   /// Like or unlike [postId]. Batched so the user's like mirror and the post's
   /// likeCount move together.
   Future<void> setLike(String postId, bool liked) async {
-    final likeRef =
-        db.collection('users').doc(uid).collection('likes').doc(postId);
+    final likeRef = db
+        .collection('users')
+        .doc(uid)
+        .collection('likes')
+        .doc(postId);
     final postRef = _posts.doc(postId);
     final batch = db.batch();
     if (liked) {
@@ -126,8 +133,10 @@ class PostsRepository {
         .collection('comments')
         .orderBy('createdAt')
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => Comment.fromMap(d.id, d.data())).toList());
+        .map(
+          (snap) =>
+              snap.docs.map((d) => Comment.fromMap(d.id, d.data())).toList(),
+        );
   }
 
   /// Add a comment. Batched with the post's commentCount bump.
@@ -151,19 +160,41 @@ class PostsRepository {
   Future<void> deleteComment(String postId, String commentId) async {
     final batch = db.batch();
     batch.delete(_posts.doc(postId).collection('comments').doc(commentId));
-    batch.update(
-        _posts.doc(postId), {'commentCount': FieldValue.increment(-1)});
+    batch.update(_posts.doc(postId), {
+      'commentCount': FieldValue.increment(-1),
+    });
     await batch.commit();
   }
 
-  /// Upload a milestone photo to the user's own Storage space and return its
-  /// download URL, to pass straight into [createMilestonePost]. Path is keyed by
-  /// a fresh id so each post gets its own file.
-  Future<String> uploadPostPhoto(File file) async {
+  /// Upload a photo to the user's own posts space and return both its download
+  /// [url] and its Storage [storagePath], to wrap in a [PostPhoto] for a
+  /// `create*` call. The path is retained on the post so [deletePost] can later
+  /// remove the binary. Keyed by a fresh id so each attachment gets its own file.
+  Future<({String url, String storagePath})> uploadPostPhoto(File file) async {
     final id = DateTime.now().microsecondsSinceEpoch.toString();
-    final ref = FirebaseStorage.instance.ref('users/$uid/posts/$id.jpg');
+    final path = 'users/$uid/posts/$id.jpg';
+    final ref = FirebaseStorage.instance.ref(path);
     await ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
-    return ref.getDownloadURL();
+    final url = await ref.getDownloadURL();
+    return (url: url, storagePath: path);
+  }
+
+  /// Delete a post and its posts-space photo binaries: each [PostPhoto]'s
+  /// Storage object first (best-effort — a missing object is fine), then the
+  /// doc. Touches **only** the post's own copies under the author's posts space;
+  /// never the private gallery originals (`users/{uid}/photos`) or any logged
+  /// time. Author-only is enforced at the rules layer. (The long-press delete
+  /// UX lands in a later stage; this is the plumbing.)
+  Future<void> deletePost(Post post) async {
+    for (final photo in post.photos) {
+      if (photo.storagePath.isEmpty) continue;
+      try {
+        await FirebaseStorage.instance.ref(photo.storagePath).delete();
+      } on FirebaseException catch (e) {
+        if (e.code != 'object-not-found') rethrow;
+      }
+    }
+    await _posts.doc(post.id).delete();
   }
 
   Future<String> createMilestonePost({
@@ -171,35 +202,42 @@ class PostsRepository {
     required int milestoneHours,
     required int totalHours,
     String? caption,
-    String? photoUrl,
-  }) =>
-      _create('milestone', {
-        'taskName': taskName,
-        'milestoneHours': milestoneHours,
-        'totalHours': totalHours,
-      }, caption: caption, photoUrl: photoUrl);
+    List<PostPhoto> photos = const [],
+  }) => _create(
+    'milestone',
+    {
+      'taskName': taskName,
+      'milestoneHours': milestoneHours,
+      'totalHours': totalHours,
+    },
+    caption: caption,
+    photos: photos,
+  );
 
+  // TODO(later): unused — no flow creates streak posts yet (see StreakPost).
   Future<String> createStreakPost({
     required int streakDays,
     required List<String> habits,
     String? caption,
-    String? photoUrl,
-  }) =>
-      _create('streak', {
-        'streakDays': streakDays,
-        'habits': habits,
-      }, caption: caption, photoUrl: photoUrl);
+    List<PostPhoto> photos = const [],
+  }) => _create(
+    'streak',
+    {'streakDays': streakDays, 'habits': habits},
+    caption: caption,
+    photos: photos,
+  );
 
   Future<String> createSessionPost({
     required String taskName,
     required int sessionSeconds,
     String? caption,
-    String? photoUrl,
-  }) =>
-      _create('session', {
-        'taskName': taskName,
-        'sessionSeconds': sessionSeconds,
-      }, caption: caption, photoUrl: photoUrl);
+    List<PostPhoto> photos = const [],
+  }) => _create(
+    'session',
+    {'taskName': taskName, 'sessionSeconds': sessionSeconds},
+    caption: caption,
+    photos: photos,
+  );
 }
 
 /// Null on the local/offline backend or before a uid exists.
@@ -224,8 +262,10 @@ final myLikedPostsProvider = StreamProvider<Set<String>>((ref) {
 });
 
 /// A post's comments, oldest first (empty on the local backend).
-final postCommentsProvider =
-    StreamProvider.family<List<Comment>, String>((ref, postId) {
+final postCommentsProvider = StreamProvider.family<List<Comment>, String>((
+  ref,
+  postId,
+) {
   final repo = ref.watch(postsRepositoryProvider);
   if (repo == null) return Stream.value(const <Comment>[]);
   return repo.watchComments(postId);

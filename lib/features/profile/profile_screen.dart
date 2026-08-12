@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
-import '../../shared/photo_tint.dart';
+import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../auth/account_screen.dart';
 import '../debug/debug_panel.dart';
@@ -78,9 +78,7 @@ class ProfileScreen extends ConsumerWidget {
               Expanded(
                 child: Align(
                   alignment: Alignment.bottomCenter,
-                  child: SingleChildScrollView(
-                    child: const AccountBody(),
-                  ),
+                  child: SingleChildScrollView(child: const AccountBody()),
                 ),
               ),
             ],
@@ -154,9 +152,9 @@ class _FriendsRow extends ConsumerWidget {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const FriendsScreen()),
-        ),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const FriendsScreen())),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           child: Row(
@@ -167,23 +165,29 @@ class _FriendsRow extends ConsumerWidget {
               const Spacer(),
               if (pending > 0) ...[
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: tokens.ringFillOuter,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     '$pending new',
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: tokens.background),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: tokens.background,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
               ],
-              Text('$count',
-                  style: theme.textTheme.bodyLarge
-                      ?.copyWith(color: tokens.textSecondary)),
+              Text(
+                '$count',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: tokens.textSecondary,
+                ),
+              ),
               Icon(Icons.chevron_right, color: tokens.textTertiary),
             ],
           ),
@@ -219,9 +223,9 @@ class _GalleryDoorway extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const CalendarScreen()),
-          ),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const CalendarScreen())),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             child: Row(
@@ -233,8 +237,9 @@ class _GalleryDoorway extends ConsumerWidget {
                 const Spacer(),
                 Text(
                   '${preview.total} captured',
-                  style: theme.textTheme.bodyLarge
-                      ?.copyWith(color: tokens.textSecondary),
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: tokens.textSecondary,
+                  ),
                 ),
                 Icon(Icons.chevron_right, color: tokens.textTertiary),
               ],
@@ -259,7 +264,8 @@ class _MilestonesDoorway extends ConsumerWidget {
     final collages = ref.watch(collagesListProvider).value ?? const <Collage>[];
     if (collages.isEmpty) return const SizedBox.shrink();
 
-    final preview = ref
+    final preview =
+        ref
             .watch(collagePhotosProvider(collages.first.photoIds.join(',')))
             .value ??
         const <Photo>[];
@@ -272,9 +278,9 @@ class _MilestonesDoorway extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const CollagesScreen()),
-          ),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const CollagesScreen())),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             child: Row(
@@ -286,8 +292,9 @@ class _MilestonesDoorway extends ConsumerWidget {
                 const Spacer(),
                 Text(
                   '$n milestone${n == 1 ? '' : 's'}',
-                  style: theme.textTheme.bodyLarge
-                      ?.copyWith(color: tokens.textSecondary),
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: tokens.textSecondary,
+                  ),
                 ),
                 Icon(Icons.chevron_right, color: tokens.textTertiary),
               ],
@@ -315,22 +322,14 @@ class _GalleryThumb extends StatelessWidget {
       child: SizedBox(
         width: _size,
         height: _size,
-        child: Image.network(
-          photo.photoUrl,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => ColoredBox(color: tokens.ringTrack),
-          frameBuilder: (ctx, child, frame, _) {
-            if (frame == null) return ColoredBox(color: tokens.ringTrack);
-            return Container(
-              foregroundDecoration:
-                  const BoxDecoration(color: _kGalleryThumbTint),
-              child: ColorFiltered(
-                colorFilter:
-                    ColorFilter.matrix(saturationMatrix(_kGalleryThumbSaturation)),
-                child: child,
-              ),
-            );
-          },
+        // Cached (survives revisiting the profile) with the near-raw tint; a
+        // failed/loading URL shows a muted tile rather than a broken image.
+        child: SondrPhoto(
+          url: photo.photoUrl,
+          saturation: _kGalleryThumbSaturation,
+          tint: _kGalleryThumbTint,
+          placeholder: (_) => ColoredBox(color: tokens.ringTrack),
+          error: (_) => ColoredBox(color: tokens.ringTrack),
         ),
       ),
     );
@@ -351,14 +350,18 @@ class _Stat extends StatelessWidget {
       children: [
         Text(
           value,
-          style: theme.textTheme.headlineMedium
-              ?.copyWith(color: tokens.textPrimary, fontWeight: FontWeight.w600),
+          style: theme.textTheme.headlineMedium?.copyWith(
+            color: tokens.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           label,
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: tokens.textTertiary,
+          ),
         ),
       ],
     );
@@ -394,17 +397,22 @@ class _TasksInProgress extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('In progress',
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
+        Text(
+          'In progress',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         const SizedBox(height: 16),
         if (tasks.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
               'Start a task on the timer to see it climb here.',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: tokens.textSecondary),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: tokens.textSecondary,
+              ),
             ),
           )
         else if (tasks.length <= 2)
@@ -475,8 +483,9 @@ class _TaskTile extends StatelessWidget {
             progress: task.milestoneProgress,
             center: Text(
               '${hours}h',
-              style: theme.textTheme.labelLarge
-                  ?.copyWith(color: tokens.textPrimary),
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: tokens.textPrimary,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -485,13 +494,19 @@ class _TaskTile extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(fontSize: 15, color: tokens.textPrimary),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 15,
+              color: tokens.textPrimary,
+            ),
           ),
           Text(
-            reached == 0 ? 'of ${task.activeMilestoneHours}h' : '$reached × 20h',
+            reached == 0
+                ? 'of ${task.activeMilestoneHours}h'
+                : '$reached × 20h',
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: tokens.textTertiary,
+            ),
           ),
         ],
       ),

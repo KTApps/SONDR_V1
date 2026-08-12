@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
-import '../../shared/photo_tint.dart';
+import '../../shared/cached_photo.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../feed/posts_repository.dart';
 import '../photos/models/photo.dart';
@@ -281,22 +281,14 @@ class _Thumb extends StatelessWidget {
         child: SizedBox(
           width: _w,
           height: _h,
-          child: Image.network(
-            photo.photoUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => ColoredBox(color: tokens.ringTrack),
-            frameBuilder: (ctx, child, frame, _) {
-              if (frame == null) return ColoredBox(color: tokens.surface);
-              return Container(
-                foregroundDecoration: const BoxDecoration(color: _kThumbTint),
-                child: ColorFiltered(
-                  colorFilter: ColorFilter.matrix(
-                    saturationMatrix(_kThumbSaturation),
-                  ),
-                  child: child,
-                ),
-              );
-            },
+          // Cached (survives reopening the sheet) with the near-raw tint; a
+          // muted placeholder while loading, a blank tile on error.
+          child: SondrPhoto(
+            url: photo.photoUrl,
+            saturation: _kThumbSaturation,
+            tint: _kThumbTint,
+            placeholder: (_) => ColoredBox(color: tokens.surface),
+            error: (_) => ColoredBox(color: tokens.ringTrack),
           ),
         ),
       ),
@@ -412,8 +404,12 @@ class _PhotoOverlayState extends ConsumerState<_PhotoOverlay> {
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.sizeOf(context).height * 0.6,
                   ),
-                  child: Image.network(
-                    photo.photoUrl,
+                  // The full untinted photo, routed through the shared cache
+                  // (so reopening the overlay doesn't re-fetch) while keeping
+                  // the Image widget's intrinsic sizing, spinner and broken-
+                  // image fallback exactly as before.
+                  child: Image(
+                    image: cachedPhotoProvider(photo.photoUrl),
                     fit: BoxFit.contain,
                     errorBuilder: (_, _, _) => Container(
                       width: 220,

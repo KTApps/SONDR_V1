@@ -25,6 +25,31 @@ class PhotosRepository {
   CollectionReference<Map<String, dynamic>> get _col =>
       db.collection('users').doc(uid).collection('photos');
 
+  /// Runs [op], retrying a few times on *transient* Firestore failures — the
+  /// network blips and token hiccups behind the intermittent empty-gallery /
+  /// empty-calendar bug, where a one-shot `.get()` that failed left the surface
+  /// blank until it was revisited. A permission/other permanent error rethrows
+  /// at once. Short escalating backoff; the surfaces stay `autoDispose`, so a
+  /// just-captured photo still shows on re-entry — this only hardens the fetch.
+  Future<T> _withRetry<T>(Future<T> Function() op) async {
+    const maxAttempts = 3;
+    for (var attempt = 1; ; attempt++) {
+      try {
+        return await op();
+      } on FirebaseException catch (e) {
+        const transient = {
+          'unavailable',
+          'deadline-exceeded',
+          'aborted',
+          'internal',
+          'cancelled',
+        };
+        if (attempt >= maxAttempts || !transient.contains(e.code)) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: 200 * attempt));
+      }
+    }
+  }
+
   /// Upload a captured photo's binary to the user's own photo space, keyed by
   /// [photoId] (the deterministic `{taskId}_{timestamp}`). Reuses the milestone
   /// upload pattern (putFile + jpeg metadata + download URL). Returns both the
@@ -49,7 +74,9 @@ class PhotosRepository {
   /// no composite index is needed; sorted client-side by [Photo.timestamp]
   /// (a day holds few photos). Backing query for the calendar and day-detail.
   Future<List<Photo>> photosForDay(String dayKey) async {
-    final snap = await _col.where('dayKey', isEqualTo: dayKey).get();
+    final snap = await _withRetry(
+      () => _col.where('dayKey', isEqualTo: dayKey).get(),
+    );
     final photos = [for (final d in snap.docs) Photo.fromMap(d.data())];
     photos.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return photos;
@@ -64,10 +91,12 @@ class PhotosRepository {
   Future<Map<String, List<Photo>>> photosForMonth(DateTime month) async {
     final prefix = DayKey.monthPrefix(month); // "2026-06"
     final next = DayKey.monthPrefix(DateTime(month.year, month.month + 1));
-    final snap = await _col
-        .where('dayKey', isGreaterThanOrEqualTo: '$prefix-01')
-        .where('dayKey', isLessThan: '$next-01')
-        .get();
+    final snap = await _withRetry(
+      () => _col
+          .where('dayKey', isGreaterThanOrEqualTo: '$prefix-01')
+          .where('dayKey', isLessThan: '$next-01')
+          .get(),
+    );
     final byDay = <String, List<Photo>>{};
     for (final d in snap.docs) {
       final p = Photo.fromMap(d.data());
@@ -97,8 +126,10 @@ class PhotosRepository {
   /// orderBy on `timestamp` → automatic single-field index, no composite. Backs
   /// the profile gallery doorway's thumbnail strip.
   Future<List<Photo>> photosRecent(int limit) async {
-    final snap =
-        await _col.orderBy('timestamp', descending: true).limit(limit).get();
+    final snap = await _col
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .get();
     return [for (final d in snap.docs) Photo.fromMap(d.data())];
   }
 
@@ -138,13 +169,15 @@ class PhotosRepository {
     final byId = <String, Photo>{};
     for (var i = 0; i < ids.length; i += 30) {
       final chunk = ids.sublist(i, i + 30 < ids.length ? i + 30 : ids.length);
-      final snap =
-          await _col.where(FieldPath.documentId, whereIn: chunk).get();
+      final snap = await _col.where(FieldPath.documentId, whereIn: chunk).get();
       for (final d in snap.docs) {
         byId[d.id] = Photo.fromMap(d.data());
       }
     }
-    return [for (final id in ids) if (byId[id] != null) byId[id]!];
+    return [
+      for (final id in ids)
+        if (byId[id] != null) byId[id]!,
+    ];
   }
 }
 
@@ -159,34 +192,35 @@ final photosRepositoryProvider = Provider<PhotosRepository?>((ref) {
 /// A single day's photos (newest first), keyed by dayKey "yyyy-mm-dd". Empty on
 /// the local backend or before a uid. Backs the day-detail Captured section;
 /// autoDispose so it re-fetches on each sheet open.
-final photosForDayProvider =
-    FutureProvider.family.autoDispose<List<Photo>, String>((ref, dayKey) async {
-  final repo = ref.watch(photosRepositoryProvider);
-  if (repo == null) return const [];
-  return repo.photosForDay(dayKey);
-});
+final photosForDayProvider = FutureProvider.family
+    .autoDispose<List<Photo>, String>((ref, dayKey) async {
+      final repo = ref.watch(photosRepositoryProvider);
+      if (repo == null) return const [];
+      return repo.photosForDay(dayKey);
+    });
 
 /// A month's photos grouped by dayKey, keyed by "yyyy-mm". One query per month,
 /// resolved lazily as the calendar scrolls each month into view; autoDispose so
 /// off-screen months don't linger and re-entry re-fetches (a just-kept photo
 /// shows up). Empty on the local backend.
-final photosForMonthProvider =
-    FutureProvider.family.autoDispose<Map<String, List<Photo>>, String>(
-        (ref, monthKey) async {
-  final repo = ref.watch(photosRepositoryProvider);
-  if (repo == null) return const {};
-  final parts = monthKey.split('-');
-  return repo.photosForMonth(DateTime(int.parse(parts[0]), int.parse(parts[1])));
-});
+final photosForMonthProvider = FutureProvider.family
+    .autoDispose<Map<String, List<Photo>>, String>((ref, monthKey) async {
+      final repo = ref.watch(photosRepositoryProvider);
+      if (repo == null) return const {};
+      final parts = monthKey.split('-');
+      return repo.photosForMonth(
+        DateTime(int.parse(parts[0]), int.parse(parts[1])),
+      );
+    });
 
 /// The profile gallery doorway preview: the few most recent photos plus the
 /// total count, fetched together. Empty/zero on the local backend; autoDispose
 /// so it refreshes when the profile is revisited.
 final galleryPreviewProvider =
     FutureProvider.autoDispose<({List<Photo> recent, int total})>((ref) async {
-  final repo = ref.watch(photosRepositoryProvider);
-  if (repo == null) return (recent: const <Photo>[], total: 0);
-  final recent = await repo.photosRecent(4);
-  final total = await repo.photosCount();
-  return (recent: recent, total: total);
-});
+      final repo = ref.watch(photosRepositoryProvider);
+      if (repo == null) return (recent: const <Photo>[], total: 0);
+      final recent = await repo.photosRecent(4);
+      final total = await repo.photosCount();
+      return (recent: recent, total: total);
+    });

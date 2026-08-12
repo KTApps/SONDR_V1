@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
-import '../../../shared/photo_tint.dart';
+import '../../../shared/cached_photo.dart';
 import '../models/photo.dart';
 
 // Collage tint — near-raw (a celebration of the milestone, meant to be enjoyed),
@@ -104,21 +104,12 @@ class _CollageTile extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final image = ClipRRect(
       borderRadius: BorderRadius.circular(radius),
-      child: Image.network(
-        photo.photoUrl,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => ColoredBox(color: tokens.ringTrack),
-        frameBuilder: (ctx, child, frame, _) {
-          if (frame == null) return ColoredBox(color: tokens.surface);
-          return Container(
-            foregroundDecoration: const BoxDecoration(color: _kCollageTint),
-            child: ColorFiltered(
-              colorFilter:
-                  ColorFilter.matrix(saturationMatrix(_kCollageSaturation)),
-              child: child,
-            ),
-          );
-        },
+      child: SondrPhoto(
+        url: photo.photoUrl,
+        saturation: _kCollageSaturation,
+        tint: _kCollageTint,
+        placeholder: (_) => ColoredBox(color: tokens.surface),
+        error: (_) => ColoredBox(color: tokens.ringTrack),
       ),
     );
 
@@ -141,7 +132,11 @@ class _CollageTile extends StatelessWidget {
           Positioned(
             top: 4,
             right: 4,
-            child: _RemoveBadge(marked: marked, enabled: enabled, tokens: tokens),
+            child: _RemoveBadge(
+              marked: marked,
+              enabled: enabled,
+              tokens: tokens,
+            ),
           ),
         ],
       ),

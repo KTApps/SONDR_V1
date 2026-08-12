@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
-import '../../shared/photo_tint.dart';
+import '../../shared/cached_photo.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../habits/habits_providers.dart';
 import '../habits/models/daily_habits.dart';
@@ -68,8 +68,10 @@ class CalendarScreen extends ConsumerWidget {
                     padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
                     child: Text(
                       '${DayKey.monthName(month.month)} ${month.year}',
-                      style: theme.textTheme.titleLarge
-                          ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                   _MonthGrid(month: month, tasks: tasks, habits: habits),
@@ -119,7 +121,6 @@ class CalendarScreen extends ConsumerWidget {
     }
     return months;
   }
-
 }
 
 /// One month's grid. Non-scrolling — it lives inside the outer month scroll.
@@ -147,7 +148,8 @@ class _MonthGrid extends ConsumerWidget {
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
 
     final monthKey = DayKey.monthPrefix(month);
-    final byDay = ref.watch(photosForMonthProvider(monthKey)).value ??
+    final byDay =
+        ref.watch(photosForMonthProvider(monthKey)).value ??
         const <String, List<Photo>>{};
 
     // Sequential 7-across grid starting at day 1 (no weekday alignment).
@@ -196,7 +198,10 @@ class _MonthGrid extends ConsumerWidget {
         dial = Stack(
           clipBehavior: Clip.none,
           alignment: Alignment.center,
-          children: [dial, const Positioned(top: 5, right: 8, child: _MultipleDot())],
+          children: [
+            dial,
+            const Positioned(top: 5, right: 8, child: _MultipleDot()),
+          ],
         );
       }
 
@@ -228,6 +233,7 @@ class _MonthGrid extends ConsumerWidget {
 /// Photo colour saturation: 1 = full colour, 0 = full greyscale. Lower = more
 /// muted toward the app's greyscale world.
 const double _kPhotoSaturation = 0.32;
+
 /// Dark scrim painted over the photo. Higher alpha = darker/more muted and a
 /// stronger backing for the white day number. 0x9E ≈ 62% black.
 const Color _kPhotoTint = Color(0x9E000000);
@@ -245,24 +251,14 @@ class _PhotoFill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      gaplessPlayback: true,
-      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-      frameBuilder: (ctx, child, frame, wasSync) {
-        if (frame == null) return const SizedBox.shrink();
-        // Desaturate toward greyscale, then paint the fixed dark tint directly
-        // over the image via foregroundDecoration — it always covers the image
-        // exactly, with no Stack-sizing surprises.
-        return Container(
-          foregroundDecoration: const BoxDecoration(color: _kPhotoTint),
-          child: ColorFiltered(
-            colorFilter: ColorFilter.matrix(saturationMatrix(_kPhotoSaturation)),
-            child: child,
-          ),
-        );
-      },
+    // Cached (survives calendar re-entry and network blips), desaturated toward
+    // greyscale under the fixed dark tint. A broken or still-loading URL shows
+    // nothing — the ring-only cell — so it never breaks the cell or flashes a
+    // tinted-but-empty disc (placeholder/error default to an empty box).
+    return SondrPhoto(
+      url: url,
+      saturation: _kPhotoSaturation,
+      tint: _kPhotoTint,
     );
   }
 }

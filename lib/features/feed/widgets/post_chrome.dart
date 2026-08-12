@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/utils/relative_time.dart';
+import '../../../shared/cached_photo.dart';
 import '../models/post.dart';
 import '../posts_repository.dart';
 import 'comments_sheet.dart';
@@ -14,9 +15,11 @@ const List<Shadow> kTextShadows = [
   Shadow(blurRadius: 6, color: Colors.black87, offset: Offset(0, 1)),
 ];
 
-/// Bundled asset (mock feed) vs network (real Storage URL).
+/// Bundled asset (mock feed) vs cached network (real Storage URL). The network
+/// branch goes through the shared cache so a milestone photo isn't re-fetched on
+/// every feed rebuild.
 ImageProvider postImageProvider(String url) =>
-    url.startsWith('assets/') ? AssetImage(url) : NetworkImage(url);
+    url.startsWith('assets/') ? AssetImage(url) : cachedPhotoProvider(url);
 
 /// Author avatar + name + relative time. [onPhoto] flips to light text with
 /// shadows for the photo-backdrop card.
@@ -39,16 +42,19 @@ class PostAuthorRow extends StatelessWidget {
     final primary = onPhoto ? Colors.white : tokens.textPrimary;
     final secondary = onPhoto ? Colors.white70 : tokens.textTertiary;
     final shadows = onPhoto ? kTextShadows : null;
-    final initial =
-        author.label.isNotEmpty ? author.label[0].toUpperCase() : '?';
+    final initial = author.label.isNotEmpty
+        ? author.label[0].toUpperCase()
+        : '?';
 
     return Row(
       children: [
         CircleAvatar(
           radius: 16,
           backgroundColor: onPhoto ? Colors.white24 : tokens.background,
-          child: Text(initial,
-              style: theme.textTheme.labelLarge?.copyWith(color: primary)),
+          child: Text(
+            initial,
+            style: theme.textTheme.labelLarge?.copyWith(color: primary),
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -56,15 +62,19 @@ class PostAuthorRow extends StatelessWidget {
             author.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyLarge
-                ?.copyWith(color: primary, shadows: shadows),
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: primary,
+              shadows: shadows,
+            ),
           ),
         ),
         if (createdAt != null)
           Text(
             RelativeTime.of(createdAt!),
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: secondary, shadows: shadows),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: secondary,
+              shadows: shadows,
+            ),
           ),
       ],
     );
@@ -88,10 +98,9 @@ class PostInteractions extends ConsumerWidget {
     final activeColor = onPhoto ? Colors.white : tokens.textPrimary;
     final shadows = onPhoto ? kTextShadows : null;
 
-    final liked = ref.watch(myLikedPostsProvider).maybeWhen(
-          data: (ids) => ids.contains(post.id),
-          orElse: () => false,
-        );
+    final liked = ref
+        .watch(myLikedPostsProvider)
+        .maybeWhen(data: (ids) => ids.contains(post.id), orElse: () => false);
     final repo = ref.read(postsRepositoryProvider);
 
     Widget item({
@@ -99,24 +108,27 @@ class PostInteractions extends ConsumerWidget {
       required int count,
       required Color iconColor,
       required VoidCallback? onTap,
-    }) =>
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 18, color: iconColor, shadows: shadows),
-                const SizedBox(width: 6),
-                Text('$count',
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: color, shadows: shadows)),
-              ],
+    }) => InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: iconColor, shadows: shadows),
+            const SizedBox(width: 6),
+            Text(
+              '$count',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: color,
+                shadows: shadows,
+              ),
             ),
-          ),
-        );
+          ],
+        ),
+      ),
+    );
 
     return Row(
       children: [
@@ -135,7 +147,8 @@ class PostInteractions extends ConsumerWidget {
                     messenger
                       ..clearSnackBars()
                       ..showSnackBar(
-                          const SnackBar(content: Text('Couldn’t update like.')));
+                        const SnackBar(content: Text('Couldn’t update like.')),
+                      );
                   } catch (e) {
                     debugPrint('SONDR like error: $e');
                   }

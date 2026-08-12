@@ -107,7 +107,6 @@ class _MilestoneCelebrationScreenState
       sessionSeconds: widget.sessionSeconds,
       milestoneHours: widget.milestoneHours,
       cumulativeSeconds: widget.cumulativeSeconds,
-      cameraOnly: true,
     );
     if (!mounted) return;
 

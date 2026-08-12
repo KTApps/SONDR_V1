@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:firebase_storage/firebase_storage.dart' hide Task;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,12 +6,8 @@ import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/segmented_dial.dart';
-import '../feed/models/post.dart';
-import '../feed/posts_repository.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
-import '../tasks/models/task.dart';
-import '../tasks/tasks_providers.dart';
 import 'history_providers.dart';
 
 /// Ceiling on the sheet's height, as a fraction of screen height. A photo-heavy
@@ -314,77 +307,18 @@ void _showPhotoOverlay(BuildContext context, Photo photo) {
 
 /// The expanded photo: full and untinted (a close look, meant to be enjoyed),
 /// with session detail beneath — task, duration, time of day, and a milestone
-/// line only when the photo carries [Photo.milestoneHours]. A Share action
-/// appears **only** when the photo's task has passed 20h lifetime
-/// (milestonesReached >= 1); below that it's absent. Tapping the card is
-/// absorbed; tapping the scrim dismisses.
-class _PhotoOverlay extends ConsumerStatefulWidget {
+/// line only when the photo carries [Photo.milestoneHours]. Read-only — the
+/// gallery is purely a gallery (sharing to the feed happens from the capture
+/// flows, not here). Tapping the card is absorbed; tapping the scrim dismisses.
+class _PhotoOverlay extends StatelessWidget {
   const _PhotoOverlay({required this.photo});
 
   final Photo photo;
 
   @override
-  ConsumerState<_PhotoOverlay> createState() => _PhotoOverlayState();
-}
-
-class _PhotoOverlayState extends ConsumerState<_PhotoOverlay> {
-  bool _sharing = false;
-
-  /// Share this session photo to the feed. Private-first: copy the binary into
-  /// the friends-readable posts space (download the owner-only original, then
-  /// re-upload via [PostsRepository.uploadPostPhoto]) and post the POSTS url —
-  /// the private original doc/binary is never touched or referenced.
-  Future<void> _share() async {
-    final posts = ref.read(postsRepositoryProvider);
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-    if (posts == null) {
-      _toast(messenger, 'Sign in to share.');
-      return;
-    }
-    setState(() => _sharing = true);
-    try {
-      final bytes = await FirebaseStorage.instance
-          .ref(widget.photo.storagePath)
-          .getData(10 * 1024 * 1024);
-      if (bytes == null) throw StateError('no photo bytes');
-      final dir = Directory.systemTemp.createTempSync('sondr_share');
-      final file = File('${dir.path}/share.jpg');
-      await file.writeAsBytes(bytes);
-
-      final up = await posts.uploadPostPhoto(file);
-      await posts.createSessionPost(
-        taskName: widget.photo.taskName,
-        sessionSeconds: widget.photo.sessionSeconds,
-        photos: [PostPhoto(url: up.url, storagePath: up.storagePath)],
-      );
-      if (!mounted) return;
-      navigator.pop(); // close the overlay
-      _toast(messenger, 'Shared to your feed.');
-    } catch (e) {
-      debugPrint('SONDR session share error: $e');
-      if (mounted) {
-        setState(() => _sharing = false);
-        _toast(messenger, 'Couldn’t share. Please try again.');
-      }
-    }
-  }
-
-  void _toast(ScaffoldMessengerState messenger, String message) {
-    messenger
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final photo = widget.photo;
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
-
-    final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
-    final task = tasks.where((t) => t.id == photo.taskId).firstOrNull;
-    final canShare = task != null && task.milestonesReached >= 1;
 
     final duration = DurationFormat.hm(Duration(seconds: photo.sessionSeconds));
     final time = MaterialLocalizations.of(
@@ -461,30 +395,6 @@ class _PhotoOverlayState extends ConsumerState<_PhotoOverlay> {
                     color: tokens.textSecondary,
                   ),
                 ),
-              ],
-              if (canShare) ...[
-                const SizedBox(height: 16),
-                if (_sharing)
-                  const SizedBox(
-                    height: 40,
-                    child: Center(
-                      child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                  )
-                else
-                  TextButton.icon(
-                    onPressed: _share,
-                    icon: const Icon(Icons.ios_share, size: 18),
-                    label: const Text('Share'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: tokens.textPrimary,
-                      textStyle: theme.textTheme.labelLarge,
-                    ),
-                  ),
               ],
             ],
           ),

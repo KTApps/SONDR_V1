@@ -14,6 +14,8 @@ import '../habits/habits_overlay.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
 import '../milestone/milestone_celebration.dart';
+import '../milestone/session_share_flow.dart';
+import '../photos/collage_selection.dart';
 import '../photos/collages_repository.dart';
 import '../photos/photo_capture_flow.dart';
 import '../photos/photos_repository.dart';
@@ -238,8 +240,23 @@ class TimerScreen extends ConsumerWidget {
       return;
     }
 
-    // Ordinary stop: the capture screen replaces the old confirmation snackbar.
-    // milestoneHours is null here (no boundary crossed).
+    // No new crossing, but the task is past its first milestone (>=20h lifetime):
+    // the session share flow — camera-only capture (feeds the gallery) then an
+    // optional post to the feed. Below 20h this is skipped (ordinary stop).
+    if (creditedTaskId != null &&
+        outcome.totalSeconds >= kMilestoneBandSeconds) {
+      await showSessionShareFlow(
+        context,
+        taskId: creditedTaskId,
+        taskName: outcome.taskName ?? 'task',
+        sessionSeconds: outcome.loggedSeconds,
+        cumulativeSeconds: outcome.totalSeconds,
+      );
+      return;
+    }
+
+    // Ordinary stop (<20h lifetime, no crossing): the plain gallery capture, no
+    // share surface. milestoneHours is null here (no boundary crossed).
     if (creditedTaskId != null) {
       await showPhotoCapture(
         context,

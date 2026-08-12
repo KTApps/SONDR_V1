@@ -13,10 +13,9 @@ import 'photos_repository.dart';
 /// Show the optional end-of-session photo capture as a full-screen moment, over
 /// the home dial. Resolves to the kept photo's [File] (or null if the user
 /// skipped/dismissed) — an ordinary stop ignores it and lands back on home,
-/// while the milestone share flow carries the kept file forward to pre-select it.
+/// while the share flows carry the kept file forward to pre-select it.
 ///
-/// [cameraOnly] opens the camera directly (no library) — the milestone flow.
-/// Ordinary stops leave it false and get the camera/library choice.
+/// Capture is camera-only everywhere (see [captureFromCamera]).
 ///
 /// Only call this when a task was actually credited ([taskId] non-null upstream)
 /// and the session logged time — a photo must never exist without a task.
@@ -27,7 +26,6 @@ Future<File?> showPhotoCapture(
   required int sessionSeconds,
   int? milestoneHours,
   int? cumulativeSeconds,
-  bool cameraOnly = false,
 }) {
   return Navigator.of(context).push<File>(
     PageRouteBuilder(
@@ -39,7 +37,6 @@ Future<File?> showPhotoCapture(
         sessionSeconds: sessionSeconds,
         milestoneHours: milestoneHours,
         cumulativeSeconds: cumulativeSeconds,
-        cameraOnly: cameraOnly,
       ),
       transitionsBuilder: (_, animation, _, child) =>
           FadeTransition(opacity: animation, child: child),
@@ -59,7 +56,6 @@ class PhotoCaptureScreen extends ConsumerStatefulWidget {
     required this.sessionSeconds,
     this.milestoneHours,
     this.cumulativeSeconds,
-    this.cameraOnly = false,
   });
 
   final String taskId;
@@ -67,9 +63,6 @@ class PhotoCaptureScreen extends ConsumerStatefulWidget {
   final int sessionSeconds;
   final int? milestoneHours;
   final int? cumulativeSeconds;
-
-  /// Camera-only (the milestone flow); false gives the camera/library choice.
-  final bool cameraOnly;
 
   @override
   ConsumerState<PhotoCaptureScreen> createState() => _PhotoCaptureScreenState();
@@ -80,11 +73,9 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
   bool _busy = false;
 
   /// Lens tap / retake: capture (and downscale) a photo into the preview state.
-  /// Camera-only for the milestone flow; camera/library choice otherwise.
+  /// Camera-only everywhere.
   Future<void> _pick() async {
-    final file = widget.cameraOnly
-        ? await captureFromCamera(context)
-        : await pickAndDownscale(context);
+    final file = await captureFromCamera(context);
     if (file != null && mounted) setState(() => _photo = file);
   }
 

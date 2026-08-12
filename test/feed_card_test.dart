@@ -86,7 +86,9 @@ void main() {
     expect(find.textContaining('Run'), findsOneWidget);
   });
 
-  testWidgets('SessionLogCard renders the one-line summary', (tester) async {
+  testWidgets('SessionLogCard (no photo) renders the slim middot line', (
+    tester,
+  ) async {
     await _pump(
       tester,
       SessionLogCard(
@@ -97,11 +99,79 @@ void main() {
           createdAt: DateTime(2026, 6, 1),
           caption: null,
           taskName: 'Spanish',
+          sessionSeconds: 8100, // 2h 15m
+        ),
+      ),
+    );
+    expect(find.text('Tom Hardy · Spanish · 2h 15m'), findsOneWidget);
+    expect(find.textContaining('logged'), findsNothing);
+    expect(find.byIcon(Icons.favorite_border), findsNothing); // no interactions
+  });
+
+  testWidgets('SessionLogCard (no photo) shows the caption as a second line', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      SessionLogCard(
+        post: SessionPost(
+          id: 'lc',
+          authorUid: 'u',
+          author: _author,
+          createdAt: DateTime(2026, 6, 1),
+          caption: 'grinding away',
+          taskName: 'Spanish',
           sessionSeconds: 8100,
         ),
       ),
     );
-    expect(find.textContaining('logged'), findsOneWidget);
-    expect(find.textContaining('2h 15m'), findsOneWidget);
+    expect(find.text('Tom Hardy · Spanish · 2h 15m'), findsOneWidget);
+    expect(find.text('grinding away'), findsOneWidget); // caption line
+  });
+
+  testWidgets('SessionLogCard (no photo) rounds :30 up in the slim line', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      SessionLogCard(
+        post: SessionPost(
+          id: 'l2',
+          authorUid: 'u',
+          author: _author,
+          createdAt: DateTime(2026, 6, 1),
+          caption: null,
+          taskName: 'Spanish',
+          sessionSeconds: 3629, // 1h 0m 29s -> "1h"
+        ),
+      ),
+    );
+    expect(find.text('Tom Hardy · Spanish · 1h'), findsOneWidget);
+  });
+
+  testWidgets('SessionLogCard (with photo) renders the photo + interactions', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      SessionLogCard(
+        post: SessionPost(
+          id: 'l3',
+          authorUid: 'u',
+          author: _author,
+          createdAt: DateTime(2026, 6, 1),
+          caption: 'nice',
+          taskName: 'Spanish',
+          sessionSeconds: 3600, // 1h
+          photos: const [
+            PostPhoto(url: 'assets/mock/sample1.jpg', storagePath: ''),
+          ],
+        ),
+      ),
+    );
+    expect(find.byType(Image), findsWidgets); // the session photo renders
+    expect(find.byIcon(Icons.favorite_border), findsOneWidget); // like/comment
+    expect(find.text('Spanish · 1h'), findsOneWidget);
+    expect(find.textContaining('logged'), findsNothing);
   });
 }

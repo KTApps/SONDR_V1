@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
 import '../models/post.dart';
+import 'deletable_post_card.dart';
 import 'milestone_card.dart';
 import 'session_log_card.dart';
 import 'streak_card.dart';
@@ -21,10 +22,15 @@ class FeedView extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemCount: posts.length,
       separatorBuilder: (_, _) => const SizedBox(height: 16),
-      itemBuilder: (context, i) => switch (posts[i]) {
-        final MilestonePost p => MilestoneCard(post: p),
-        final StreakPost p => StreakCard(post: p),
-        final SessionPost p => SessionLogCard(post: p),
+      itemBuilder: (context, i) {
+        final post = posts[i];
+        final Widget card = switch (post) {
+          final MilestonePost p => MilestoneCard(post: p),
+          final StreakPost p => StreakCard(post: p),
+          final SessionPost p => SessionLogCard(post: p),
+        };
+        // Wrap for long-press-to-delete on the viewer's own posts.
+        return DeletablePostCard(post: post, child: card);
       },
     );
   }
@@ -43,14 +49,18 @@ class _Empty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.dynamic_feed_outlined,
-                size: 48, color: tokens.textTertiary),
+            Icon(
+              Icons.dynamic_feed_outlined,
+              size: 48,
+              color: tokens.textTertiary,
+            ),
             const SizedBox(height: 16),
             Text(
               'When your friends hit milestones, they’ll show up here.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: tokens.textSecondary),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: tokens.textSecondary,
+              ),
             ),
           ],
         ),

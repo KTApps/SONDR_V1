@@ -5,10 +5,15 @@ import '../../../shared/ring/progress_ring.dart';
 import '../../../shared/ring/ring_dial.dart';
 import '../models/post.dart';
 import 'post_chrome.dart';
+import 'post_collage.dart';
 
-/// The big card. The completed dual ring is the hero with the milestone-hours
-/// figure in its centre. Two surfaces, one layout: a full-bleed photo backdrop
-/// (scrim + on-photo rings + white badge) or a plain dark-grey card.
+/// The big card, by photo count:
+///  - **0 photos** → a plain dark-grey card, the completed ring as hero.
+///  - **1 photo** → the full-bleed photo backdrop (scrim + on-photo ring + white
+///    badge + chrome overlaid) — the single-photo hero.
+///  - **2+ photos** → a collage card: the same surface card, but a bounded
+///    [PostCollage] grid replaces the ring as the hero (the badge carries the
+///    milestone identity, matching the celebration's collage hero).
 ///
 /// The inner (habit) ring is left empty — milestone posts carry no habit data,
 /// so the real achievement is the full outer (task) ring; we don't invent the
@@ -18,14 +23,15 @@ class MilestoneCard extends StatelessWidget {
 
   final MilestonePost post;
 
-  bool get _hasPhoto => post.photos.isNotEmpty;
-
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: _hasPhoto ? _photo(context) : _plain(context),
-    );
+    final n = post.photos.length;
+    final Widget body = switch (n) {
+      0 => _plain(context),
+      1 => _singlePhoto(context),
+      _ => _collageCard(context),
+    };
+    return ClipRRect(borderRadius: BorderRadius.circular(24), child: body);
   }
 
   static const double _ringSize = 184;
@@ -142,15 +148,40 @@ class MilestoneCard extends StatelessWidget {
     );
   }
 
-  Widget _photo(BuildContext context) {
+  /// The multi-photo (2+) collage card: the same surface card as [_plain], but a
+  /// bounded [PostCollage] grid is the hero instead of the ring. The "Milestone ·
+  /// Nh" badge carries the milestone identity (no ring — matching the celebration
+  /// collage hero, which also drops the ring when it has photos).
+  Widget _collageCard(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    return Container(
+      color: tokens.surface,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PostAuthorRow(author: post.author, createdAt: post.createdAt),
+          const SizedBox(height: 16),
+          _badge(context, onPhoto: false),
+          const SizedBox(height: 16),
+          PostCollage(photos: post.photos),
+          _caption(context, onPhoto: false),
+          const SizedBox(height: 16),
+          PostInteractions(post: post),
+        ],
+      ),
+    );
+  }
+
+  /// The single-photo hero — the one photo as a full-bleed backdrop with the
+  /// ring and chrome overlaid. Used only at exactly one photo.
+  Widget _singlePhoto(BuildContext context) {
     return SizedBox(
       height: 460,
       width: double.infinity,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // First photo as the full-bleed backdrop. Multi-photo milestone card
-          // layout is a later stage; for now the hero is photos.first.
           Image(
             image: postImageProvider(post.photos.first.url),
             fit: BoxFit.cover,

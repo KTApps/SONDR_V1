@@ -3,8 +3,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
+import 'package:sondr/features/feed/widgets/post_collage.dart';
 import 'package:sondr/features/feed/widgets/session_log_card.dart';
 import 'package:sondr/features/feed/widgets/streak_card.dart';
+
+List<PostPhoto> _mockPhotos(int n) => [
+  for (var i = 0; i < n; i++)
+    const PostPhoto(url: 'assets/mock/sample1.jpg', storagePath: ''),
+];
+
+MilestonePost _milestone(List<PostPhoto> photos) => MilestonePost(
+  id: 'm',
+  authorUid: 'u',
+  author: _author,
+  createdAt: DateTime(2026, 6, 1),
+  caption: 'done',
+  photos: photos,
+  taskName: 'Spanish',
+  milestoneHours: 40,
+  totalHours: 41,
+);
 
 const _author = PostAuthor(username: 'tom', displayName: 'Tom Hardy');
 
@@ -13,7 +31,11 @@ const _author = PostAuthor(username: 'tom', displayName: 'Tom Hardy');
 // to empty/null and the affordances simply render inert.
 Future<void> _pump(WidgetTester tester, Widget child) => tester.pumpWidget(
   ProviderScope(
-    child: MaterialApp(home: Scaffold(body: child)),
+    // Scrollable like the feed's ListView, so a tall multi-photo card doesn't
+    // overflow the test viewport.
+    child: MaterialApp(
+      home: Scaffold(body: SingleChildScrollView(child: child)),
+    ),
   ),
 );
 
@@ -64,6 +86,34 @@ void main() {
     );
     expect(find.byType(MilestoneCard), findsOneWidget);
     expect(find.text('40'), findsOneWidget);
+  });
+
+  testWidgets('MilestoneCard (1 photo) uses the backdrop, not a collage', (
+    tester,
+  ) async {
+    await _pump(tester, MilestoneCard(post: _milestone(_mockPhotos(1))));
+    expect(find.byType(PostCollage), findsNothing);
+    expect(find.text('40'), findsOneWidget); // ring figure over the backdrop
+  });
+
+  testWidgets('MilestoneCard (3 photos) renders the collage, no ring', (
+    tester,
+  ) async {
+    await _pump(tester, MilestoneCard(post: _milestone(_mockPhotos(3))));
+    expect(find.byType(PostCollage), findsOneWidget);
+    expect(find.text('Milestone · 40h'), findsOneWidget); // badge carries it
+    expect(find.text('40'), findsNothing); // ring figure gone
+  });
+
+  testWidgets('PostCollage caps at 9 tiles with a +N overflow', (tester) async {
+    await _pump(tester, MilestoneCard(post: _milestone(_mockPhotos(12))));
+    expect(find.byType(PostCollage), findsOneWidget);
+    expect(find.text('+3'), findsOneWidget); // 12 - 9
+  });
+
+  testWidgets('PostCollage at exactly 9 shows no overflow', (tester) async {
+    await _pump(tester, MilestoneCard(post: _milestone(_mockPhotos(9))));
+    expect(find.textContaining('+'), findsNothing);
   });
 
   testWidgets('StreakCard makes the streak number the hero', (tester) async {

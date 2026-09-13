@@ -9,8 +9,8 @@ import 'models/daily_habits.dart';
 
 /// Presents the daily-habits panel as a frosted blur over the current screen:
 /// the main screen stays visible, blurred behind a dark greyscale scrim, with
-/// the habit content floating centred on top. Tapping the blurred area or
-/// swiping/back dismisses it.
+/// the habit content floating centred on top. Tapping anywhere that isn't a
+/// habit name or "Add habit" dismisses it.
 Future<void> showHabitsOverlay(BuildContext context) {
   return Navigator.of(context).push(
     PageRouteBuilder(
@@ -39,12 +39,17 @@ class HabitsOverlay extends ConsumerWidget {
     final streak = ref.watch(habitStreakProvider);
     final now = DateTime.now();
 
-    return Stack(
-      children: [
-        // Frosted backdrop — blurs the main screen behind; tap to dismiss.
-        Positioned.fill(
-          child: GestureDetector(
-            onTap: () => Navigator.of(context).maybePop(),
+    // Tap anywhere that isn't a control to dismiss. The detector wraps the whole
+    // overlay (not just the backdrop) because the content column spans nearly
+    // the full screen and would otherwise swallow taps on its empty space. The
+    // habit names and "Add habit" are deeper, so their taps still win.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context).maybePop(),
+      child: Stack(
+        children: [
+          // Frosted backdrop — blurs the main screen behind.
+          Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
               child: ColoredBox(
@@ -52,64 +57,68 @@ class HabitsOverlay extends ConsumerWidget {
               ),
             ),
           ),
-        ),
 
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Top offset pulls the date+habits group down toward centre.
-                const SizedBox(height: 90),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Top offset pulls the date+habits group down toward centre.
+                  const SizedBox(height: 90),
 
-                // Date + habits group: top-anchored, scrolls only if it
-                // overflows; "Add habit" stays pinned below regardless.
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(_weekday(now.weekday),
-                            style: theme.textTheme.displayMedium),
-                        const SizedBox(height: 4),
-                        Text('${now.day} ${_month(now.month)}',
-                            style: theme.textTheme.bodyMedium),
-                        const SizedBox(height: 16),
-                        _StreakBadge(streak: streak),
-                        const SizedBox(height: 32),
-                        if (today != null)
-                          for (final tick in today.ticks)
-                            _HabitNameRow(
-                              key: ValueKey(tick.habitId),
-                              tick: tick,
-                              onToggle: () => ref
-                                  .read(habitsProvider.notifier)
-                                  .toggle(tick.habitId),
-                              onRemove: () => ref
-                                  .read(habitsProvider.notifier)
-                                  .removeHabit(tick.habitId),
-                            ),
-                      ],
+                  // Date + habits group: top-anchored, scrolls only if it
+                  // overflows; "Add habit" stays pinned below regardless.
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _weekday(now.weekday),
+                            style: theme.textTheme.displayMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${now.day} ${_month(now.month)}',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 16),
+                          _StreakBadge(streak: streak),
+                          const SizedBox(height: 32),
+                          if (today != null)
+                            for (final tick in today.ticks)
+                              _HabitNameRow(
+                                key: ValueKey(tick.habitId),
+                                tick: tick,
+                                onToggle: () => ref
+                                    .read(habitsProvider.notifier)
+                                    .toggle(tick.habitId),
+                                onRemove: () => ref
+                                    .read(habitsProvider.notifier)
+                                    .removeHabit(tick.habitId),
+                              ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
 
-                // "Add habit" pinned near the bottom as its own action.
-                TextButton(
-                  onPressed: () => _promptAddHabit(context, ref),
-                  style: TextButton.styleFrom(
-                    foregroundColor: tokens.textPrimary,
-                    textStyle: theme.textTheme.labelLarge,
+                  // "Add habit" pinned near the bottom as its own action.
+                  TextButton(
+                    onPressed: () => _promptAddHabit(context, ref),
+                    style: TextButton.styleFrom(
+                      foregroundColor: tokens.textPrimary,
+                      textStyle: theme.textTheme.labelLarge,
+                    ),
+                    child: const Text('Add habit'),
                   ),
-                  child: const Text('Add habit'),
-                ),
-                const SizedBox(height: 70),
-              ],
+                  const SizedBox(height: 70),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -150,29 +159,29 @@ class HabitsOverlay extends ConsumerWidget {
   }
 
   static String _weekday(int w) => const [
-        'Monday',
-        'Tuesday',
-        'Wednesday',
-        'Thursday',
-        'Friday',
-        'Saturday',
-        'Sunday',
-      ][w - 1];
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ][w - 1];
 
   static String _month(int m) => const [
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December',
-      ][m - 1];
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ][m - 1];
 }
 
 /// The day-streak readout, greyscale.
@@ -186,10 +195,9 @@ class _StreakBadge extends StatelessWidget {
     final text = streak == 0 ? 'No streak yet' : '$streak-day streak';
     return Text(
       text,
-      style: Theme.of(context)
-          .textTheme
-          .titleMedium
-          ?.copyWith(color: tokens.textSecondary),
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(color: tokens.textSecondary),
     );
   }
 }

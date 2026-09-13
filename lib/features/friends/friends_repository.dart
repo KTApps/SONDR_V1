@@ -11,6 +11,10 @@ class FriendException implements Exception {
   final String message;
 }
 
+/// A handle as stored: trimmed, lowercase, without a leading `@`.
+String normalizeHandle(String raw) =>
+    raw.trim().toLowerCase().replaceFirst(RegExp(r'^@'), '');
+
 /// Reads and mutates the `friendships` collection for the current [uid]. All
 /// reads are scoped by `array-contains uid`, matching the security rule that a
 /// user can only see friendships they're part of.
@@ -29,6 +33,25 @@ class FriendsRepository {
         .snapshots()
         .map((snap) =>
             snap.docs.map((d) => Friendship.fromMap(d.id, d.data())).toList());
+  }
+
+  /// Handles starting with [prefix], alphabetical, excluding this user's own.
+  /// Handles are the `usernames` doc ids, so this is a doc-id range query —
+  /// no composite index needed.
+  Future<List<String>> searchHandles(String prefix, {int limit = 8}) async {
+    final h = normalizeHandle(prefix);
+    if (h.isEmpty) return const [];
+    final snap = await db
+        .collection('usernames')
+        .where(FieldPath.documentId, isGreaterThanOrEqualTo: h)
+        .where(FieldPath.documentId, isLessThan: '$h\uf8ff')
+        .limit(limit + 1)
+        .get();
+    return snap.docs
+        .where((d) => d.data()['uid'] != uid)
+        .map((d) => d.id)
+        .take(limit)
+        .toList();
   }
 
   Future<FriendIdentity> _myIdentity() async {
@@ -51,7 +74,7 @@ class FriendsRepository {
   /// Send a friend request to whoever owns [handle]. Resolves the handle via the
   /// public usernames index; refuses self, missing handles, and duplicates.
   Future<void> sendRequest(String handle) async {
-    final h = handle.trim().toLowerCase().replaceFirst(RegExp(r'^@'), '');
+    final h = normalizeHandle(handle);
     if (h.isEmpty) throw const FriendException('Enter a handle.');
 
     final me = await _myIdentity();

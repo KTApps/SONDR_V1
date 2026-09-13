@@ -143,42 +143,47 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
   /// Camera inside the ring + a text-only "skip", under a quiet "CAPTURE" label
   /// (a sibling of Focus Mode's "FOCUS").
   Widget _lens(GreyscaleTokens tokens, ThemeData theme) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          'CAPTURE',
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: tokens.textTertiary,
-            letterSpacing: 4,
-          ),
-        ),
-        const SizedBox(height: 40),
-        GestureDetector(
-          onTap: _pick,
-          child: ProgressRing(
-            size: 260,
-            stroke: 260 * 0.09,
-            progress: 1.0,
-            center: Icon(
-              Icons.camera_alt_outlined,
-              size: 44,
-              color: tokens.textPrimary,
+    // Full width so the column centres horizontally; on its own it shrinks to
+    // the ring's width and sits at the left edge.
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'CAPTURE',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: tokens.textTertiary,
+              letterSpacing: 4,
             ),
           ),
-        ),
-        const SizedBox(height: 44),
-        TextButton(
-          onPressed: _dismiss,
-          style: TextButton.styleFrom(
-            // Deliberately recessed — passing on a photo should feel
-            // low-pressure, quietly there rather than competing for attention.
-            foregroundColor: tokens.textTertiary,
-            textStyle: theme.textTheme.labelLarge,
+          const SizedBox(height: 40),
+          GestureDetector(
+            onTap: _pick,
+            child: ProgressRing(
+              size: 260,
+              stroke: 260 * 0.09,
+              progress: 1.0,
+              center: Icon(
+                Icons.camera_alt_outlined,
+                size: 44,
+                color: tokens.textPrimary,
+              ),
+            ),
           ),
-          child: const Text('skip'),
-        ),
-      ],
+          const SizedBox(height: 44),
+          TextButton(
+            onPressed: _dismiss,
+            style: TextButton.styleFrom(
+              // Deliberately recessed — passing on a photo should feel
+              // low-pressure, quietly there rather than competing for attention.
+              foregroundColor: tokens.textTertiary,
+              textStyle: theme.textTheme.labelLarge,
+            ),
+            child: const Text('skip'),
+          ),
+        ],
+      ),
     );
   }
 

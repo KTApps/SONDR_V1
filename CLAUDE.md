@@ -3,6 +3,18 @@
 Flutter iOS app (habit / milestone tracking). Firebase project `sondr-cd439`,
 bundle id `com.tanakabere.sondr`, Apple team `X378ZZ9NQ8`.
 
+## How to reply to us
+
+Both of us (the co-founders) are non-technical and want to move fast.
+
+- Reply in short, easy-to-understand bullet points.
+- Plain English. Avoid jargon; if a technical term is unavoidable, explain it in a few words.
+- Only what we need: the answer, why it matters, and what to do next. Skip deep detail unless we ask.
+- Bold the key phrase at the start of a bullet so it can be skimmed.
+- Link files so we can click them, but don't walk through code unless asked.
+
+This is about replies only. Code, commit messages, and docs follow their own conventions.
+
 ## Layout
 
 - `lib/core/` — theme, utils, backend abstraction

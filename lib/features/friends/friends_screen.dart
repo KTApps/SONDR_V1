@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,7 +13,7 @@ import 'models/friendship.dart';
 
 /// Friends hub, reached from the Profile tab. Incoming requests to accept or
 /// decline, the accepted friends list, and pending outgoing requests — plus an
-/// add-by-handle field. Friends-only, so the only way in is the exact handle.
+/// add-by-handle field that suggests matching handles as you type.
 class FriendsScreen extends ConsumerStatefulWidget {
   const FriendsScreen({super.key});
 
@@ -23,10 +25,57 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
   final _handle = TextEditingController();
   bool _busy = false;
 
+  // Live handle suggestions for what's typed. [_matchesFor] is the query the
+  // current [_matches] answer, so "no matches" only shows once a search lands.
+  Timer? _debounce;
+  String _query = '';
+  String _matchesFor = '';
+  List<String> _matches = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _handle.addListener(_onQueryChanged);
+  }
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _handle.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged() {
+    final q = normalizeHandle(_handle.text);
+    if (q == _query) return; // cursor moves also notify
+    _query = q;
+    _debounce?.cancel();
+    if (q.isEmpty) {
+      setState(() {
+        _matches = const [];
+        _matchesFor = '';
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 250), () => _search(q));
+  }
+
+  Future<void> _search(String q) async {
+    final repo = ref.read(friendsRepositoryProvider);
+    if (repo == null) return;
+    List<String> found;
+    try {
+      found = await repo.searchHandles(q);
+    } catch (e) {
+      debugPrint('SONDR handle search error: $e');
+      found = const [];
+    }
+    // Drop stale answers if the user kept typing.
+    if (!mounted || q != _query) return;
+    setState(() {
+      _matches = found;
+      _matchesFor = q;
+    });
   }
 
   void _toast(String message) {
@@ -60,9 +109,9 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     }
   }
 
-  Future<void> _add() async {
-    final handle = _handle.text;
-    await _run((repo) => repo.sendRequest(handle), success: 'Request sent.');
+  Future<void> _add([String? handle]) async {
+    final h = handle ?? _handle.text;
+    await _run((repo) => repo.sendRequest(h), success: 'Request sent.');
     _handle.clear();
   }
 
@@ -106,6 +155,8 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       children: [
         _AddByHandle(controller: _handle, busy: _busy, onAdd: _add),
+        if (_query.isNotEmpty)
+          ..._suggestions(uid ?? '', incoming, friends, outgoing),
         const SizedBox(height: 28),
         if (incoming.isNotEmpty) ...[
           _SectionHeader('Requests (${incoming.length})'),
@@ -160,6 +211,48 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         ],
       ],
     );
+  }
+
+  /// Matching handles under the field, each with its friendship status or an
+  /// Add action. Empty until the first search for the current text returns.
+  List<Widget> _suggestions(
+    String uid,
+    List<Friendship> incoming,
+    List<Friendship> friends,
+    List<Friendship> outgoing,
+  ) {
+    if (_matchesFor != _query) return const [];
+    if (_matches.isEmpty) {
+      return [_Hint('No one found starting with @$_query.')];
+    }
+    Set<String> handles(List<Friendship> list) =>
+        {for (final f in list) f.otherIdentity(uid)?.username ?? ''};
+    final friendHandles = handles(friends);
+    final sentHandles = handles(outgoing);
+    final receivedHandles = handles(incoming);
+
+    return [
+      const SizedBox(height: 8),
+      for (final h in _matches)
+        _FriendTile(
+          identity: FriendIdentity(username: h, displayName: ''),
+          subtitle: friendHandles.contains(h)
+              ? 'Friends'
+              : sentHandles.contains(h)
+                  ? 'Requested'
+                  : receivedHandles.contains(h)
+                      ? 'Sent you a request'
+                      : '',
+          trailing: friendHandles.contains(h) ||
+                  sentHandles.contains(h) ||
+                  receivedHandles.contains(h)
+              ? null
+              : TextButton(
+                  onPressed: _busy ? null : () => _add(h),
+                  child: const Text('Add'),
+                ),
+        ),
+    ];
   }
 }
 

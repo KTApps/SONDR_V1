@@ -1,7 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sondr/features/friends/friends_repository.dart';
 import 'package:sondr/features/friends/models/friendship.dart';
 
 void main() {
+  test('normalizeHandle trims, lowercases, and drops a leading @', () {
+    expect(normalizeHandle('  @TanaKa '), 'tanaka');
+    expect(normalizeHandle('kelly@test'), 'kelly@test');
+    expect(normalizeHandle('   '), '');
+  });
+
   group('Friendship', () {
     test('pairId is identical regardless of argument order', () {
       expect(Friendship.pairId('alice', 'bob'),

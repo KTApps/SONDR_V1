@@ -91,7 +91,7 @@ class _TaskDropdownState extends ConsumerState<TaskDropdown> {
       barrierColor: Colors.black54,
       barrierDismissible: true,
       // Screen-global coordinates (no SafeArea) so the panel lands just beneath
-      // the selector: 382x355 at X6. Top (146) sits just above the dial's top
+      // the selector: 382x382 at X6. Top (146) sits just above the dial's top
       // (152) so the opaque panel fully covers the dial when open.
       useSafeArea: false,
       builder: (context) {
@@ -199,11 +199,12 @@ class _TaskMenuPanel extends StatelessWidget {
   final List<Task> tasks;
   final String? selectedId;
 
-  // Exact Figma metrics (393-wide screen; container is 382x355 at X6/Y169).
+  // Figma metrics (393-wide screen; container 382 wide at X6/Y169), with pills
+  // thickened from 20 to 28 and the container grown to fit.
   static const double _containerWidth = 382;
-  static const double _containerHeight = 355;
-  static const double _pillHeight = 20;
-  static const double _pillGap = 25;
+  static const double _containerHeight = 382;
+  static const double _pillHeight = 28;
+  static const double _pillGap = 22;
   static const int _maxVisiblePills = 6;
 
   @override
@@ -238,7 +239,7 @@ class _TaskMenuPanel extends StatelessWidget {
               top: 12,
               child: Text('Select your task', style: labelStyle),
             ),
-            // Pills: 365 wide, centred (8.5 inset); fixed 245 viewport. Top 49
+            // Pills: 365 wide, centred (8.5 inset); fixed six-pill viewport. Top 49
             // keeps the balanced ~16px gap below the label.
             Positioned(
               left: 8.5,
@@ -255,6 +256,7 @@ class _TaskMenuPanel extends StatelessWidget {
                   return _TaskPill(
                     label: task.name,
                     progress: task.firstMilestoneProgress,
+                    started: task.totalSeconds >= 60,
                     selected: task.id == selectedId,
                     onTap: () => Navigator.of(context).pop(task.id),
                   );
@@ -265,7 +267,7 @@ class _TaskMenuPanel extends StatelessWidget {
             Positioned(
               left: 0,
               right: 0,
-              top: 314,
+              top: 341,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => Navigator.of(context).pop(_addTaskValue),
@@ -279,22 +281,31 @@ class _TaskMenuPanel extends StatelessWidget {
   }
 }
 
-/// A slim 335×20 task pill (radius 10) that doubles as its own progress bar: a
+/// A 28-tall task pill (fully rounded) that doubles as its own progress bar: a
 /// lighter-grey fill sweeps from the left over a darker remainder, in proportion
 /// to [progress] (0..1) toward the first 20-hour milestone. Empty = all dark,
-/// complete = all light. The filled left end is rounded by the pill; the
+/// complete = all light. Once [started] (a minute or more logged) the fill is
+/// never narrower than a thin sliver, so a little time never reads as
+/// none. The filled left end is rounded by the pill; the
 /// filled/unfilled boundary is a clean vertical edge. Name centred, Inter bold
 /// 12, white. Pure greyscale — fill and remainder are a brightness step apart.
 class _TaskPill extends StatelessWidget {
   const _TaskPill({
     required this.label,
     required this.progress,
+    required this.started,
     required this.selected,
     required this.onTap,
   });
 
+  static const double _height = 28;
+
+  /// Narrowest fill once [started]: a thin sliver of the rounded left end.
+  static const double _minFill = 8;
+
   final String label;
   final double progress;
+  final bool started;
   final bool selected;
   final VoidCallback onTap;
 
@@ -314,26 +325,36 @@ class _TaskPill extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: SizedBox(
-        height: 20,
+        height: _height,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(_height / 2),
           child: Stack(
             fit: StackFit.expand,
             children: [
               ColoredBox(color: remainder),
-              if (progress > 0)
-                FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: progress.clamp(0.0, 1.0),
-                  child: ColoredBox(color: fill),
+              if (started || progress > 0)
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final full = constraints.maxWidth;
+                    var width = full * progress.clamp(0.0, 1.0);
+                    if (started && width < _minFill) width = _minFill;
+                    return Align(
+                      alignment: Alignment.centerLeft,
+                      child: SizedBox(
+                        width: width,
+                        height: _height,
+                        child: ColoredBox(color: fill),
+                      ),
+                    );
+                  },
                 ),
               // Subtle selected outline; drawn inside the clip so it never
-              // changes the pill's exact 20px height. (Not in the measured
+              // changes the pill's exact 28px height. (Not in the measured
               // spec — kept minimal; easy to drop.)
               if (selected)
                 DecoratedBox(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(14),
                     border:
                         Border.all(color: tokens.ringFillInner, width: 1.5),
                   ),

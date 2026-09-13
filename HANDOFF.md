@@ -19,12 +19,13 @@
 
 ## Done
 <!-- Finished and working. Short bullets; the git log has the detail. -->
-- Task picker: bars thicker (28pt); thin sliver shows once ≥1 min logged — `lib/features/timer/widgets/task_dropdown.dart`
-- Photo capture screen now centred — `lib/features/photos/photo_capture_flow.dart`
-- Friends: handle suggestions as you type, with Add on each result (tested) — `lib/features/friends/friends_screen.dart`, `friends_repository.dart`
-- Habits page: tap any empty space to close — `lib/features/habits/habits_overlay.dart`
-- `CLAUDE.md`: new "How to reply to us" rule (plain-English bullets)
-- `.gitignore`: ignore `.widget_preview/`
+- Guest accounts (commit d16b094):
+  - Profile guest text now honest: data is online and lost if the app is deleted — `lib/features/auth/account_screen.dart`
+  - Friends needs an account (guests get a "Create account" pop-up) — `lib/features/profile/profile_screen.dart`
+  - Sharing milestones/sessions needs an account — `milestone_celebration.dart`, `timer_screen.dart`
+  - "Create account" nudge after a guest's first hour tracked, and on the milestone screen — `lib/features/auth/guest_prompts.dart`
+  - Warning before signing into an existing account throws away guest progress (email + Apple) — `auth_screen.dart`, `auth_repository.dart`
+- Sondr Test Plan (52-week TestFlight plan) published as a private claude.ai page — not in the repo
 
 ## In progress (STOP HERE)
 <!--
@@ -41,7 +42,8 @@
 
 ## Next
 <!-- The obvious next move, so nobody re-decides it from scratch. -->
-- _(nothing queued)_
+- Try the guest flows on the simulator; the milestone and 1-hour prompts need `--dart-define=DEBUG_TOOLS=true` to reach quickly
+- Before first testers: intro screen explaining the 20-hour idea, usage + crash reports, "Send feedback" button, shared-photo link privacy fix, Delete account
 
 ## Notes
 <!--
@@ -49,9 +51,10 @@
   `flutter pub get`), a simulator quirk, a Firebase change, a failing test that
   is known and expected.
 -->
-- FYI: friend search now lets any signed-in user see handles by typing letters (before, you had to know the exact handle)
+- Guest gating is switched off in tests and offline mode (no Firebase = not a guest)
+- Simulator showed an empty task list after relaunch — probably a fresh guest session; not investigated
 - Firebase console: the right project ID is `sondr-cd439` (not "ProdApp")
 - `.firebaserc` still points at `prodapp-b90ac` — don't deploy from the CLI
 - Firebase stops publishing CocoaPods releases after Oct 2026 — a move will be needed eventually
 - "Last 10 days" on Home starts at yesterday — confirm that's intended
-- No new dependencies; 81 tests passing
+- No new dependencies; 81 tests passing, analyze clean

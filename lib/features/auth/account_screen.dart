@@ -50,8 +50,8 @@ class _GuestView extends StatelessWidget {
                 ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         Text(
-          'Your tasks and habits are saved to this device as a guest. Create an '
-          'account to keep them safe and to add friends later.',
+          'You\'re using SONDR as a guest. Create an account so you don\'t lose '
+          'your progress if you delete the app or change phones.',
           style: theme.textTheme.bodyMedium
               ?.copyWith(color: tokens.textSecondary),
         ),

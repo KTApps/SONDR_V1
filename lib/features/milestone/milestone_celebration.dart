@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/ring/progress_ring.dart';
+import '../auth/guest_prompts.dart';
 import '../photos/models/photo.dart';
 import '../photos/photo_capture_flow.dart';
 import '../photos/photos_repository.dart';
@@ -133,6 +135,7 @@ class _MilestoneCelebrationScreenState
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
+    final isGuest = ref.watch(isGuestProvider);
 
     final headline = widget.isFirst
         ? "You've reached your first milestone"
@@ -168,9 +171,31 @@ class _MilestoneCelebrationScreenState
               ),
               const SizedBox(height: 44),
 
+              // Guests can't post — the peak moment doubles as the nudge to
+              // create an account.
+              if (isGuest) ...[
+                Text(
+                  'Create an account to keep your progress safe and share it '
+                  'with friends.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: tokens.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               _Primary(
                 label: 'Share this milestone',
-                onPressed: _startShareFlow,
+                onPressed: isGuest
+                    ? () => showCreateAccountPrompt(
+                        context,
+                        title: 'Keep your progress safe',
+                        message:
+                            'Create an account to share milestones with '
+                            'friends. Your progress stays safe if you delete '
+                            'the app or change phones.',
+                      )
+                    : _startShareFlow,
               ),
               const SizedBox(height: 4),
               TextButton(

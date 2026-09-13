@@ -34,6 +34,16 @@ final currentUidProvider = Provider<String?>((ref) {
   return streamed?.uid ?? FirebaseAuth.instance.currentUser?.uid;
 });
 
+/// True when the current user is a guest (anonymous) rather than a permanent
+/// account. False when Firebase isn't initialised (tests / offline fallback) —
+/// there's no account to create or protect then, so nothing is gated.
+final isGuestProvider = Provider<bool>((ref) {
+  if (!kUseFirebase || !ref.watch(firebaseInitializedProvider)) return false;
+  final user =
+      ref.watch(authUserProvider).value ?? FirebaseAuth.instance.currentUser;
+  return user?.isAnonymous ?? true;
+});
+
 /// True when the Firestore-backed repositories should be used.
 final firebaseReadyProvider = Provider<bool>((ref) =>
     kUseFirebase &&

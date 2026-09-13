@@ -6,6 +6,7 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../auth/account_screen.dart';
+import '../auth/guest_prompts.dart';
 import '../debug/debug_panel.dart';
 import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
@@ -152,9 +153,21 @@ class _FriendsRow extends ConsumerWidget {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const FriendsScreen())),
+        onTap: () {
+          // Friends and handles live on a permanent account.
+          if (!requireAccount(
+            context,
+            ref,
+            message:
+                'Create an account to pick a handle and add friends. Your '
+                'friends and progress stay safe if you change phones.',
+          )) {
+            return;
+          }
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const FriendsScreen()));
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           child: Row(

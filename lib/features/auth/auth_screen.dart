@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
+import 'guest_prompts.dart';
 import 'handle_screen.dart';
 
 /// Email/password sign-up and sign-in. Sign-up links to a guest account in
@@ -51,6 +52,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       setState(() => _error = validation);
       return;
     }
+    // Signing into an existing account abandons the guest's data — confirm.
+    if (!_signUp && !await confirmReplaceGuestData(context, ref)) return;
+    if (!mounted) return;
     setState(() {
       _busy = true;
       _error = null;

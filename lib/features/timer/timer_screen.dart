@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../shared/ring/segmented_dial.dart';
+import '../auth/guest_prompts.dart';
 import '../focus/focus_providers.dart';
 import '../focus/focus_view.dart';
 import '../habits/habits_overlay.dart';
@@ -19,6 +21,7 @@ import '../photos/collage_selection.dart';
 import '../photos/collages_repository.dart';
 import '../photos/photo_capture_flow.dart';
 import '../photos/photos_repository.dart';
+import '../profile/profile_providers.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'centre_period.dart';
@@ -240,10 +243,21 @@ class TimerScreen extends ConsumerWidget {
       return;
     }
 
+    // A guest whose lifetime tracked time just passed 1 hour gets nudged to
+    // create an account once the stop flow below finishes.
+    final isGuest = ref.read(isGuestProvider);
+    final lifetime = ref.read(lifetimeDurationProvider).inSeconds;
+    final crossedGuestNudge = isGuest &&
+        creditedTaskId != null &&
+        lifetime >= kGuestNudgeSeconds &&
+        lifetime - outcome.loggedSeconds < kGuestNudgeSeconds;
+
     // No new crossing, but the task is past its first milestone (>=20h lifetime):
     // the session share flow — camera-only capture (feeds the gallery) then an
-    // optional post to the feed. Below 20h this is skipped (ordinary stop).
+    // optional post to the feed. Below 20h this is skipped (ordinary stop), and
+    // so is it for guests, who can't post.
     if (creditedTaskId != null &&
+        !isGuest &&
         outcome.totalSeconds >= kMilestoneBandSeconds) {
       await showSessionShareFlow(
         context,
@@ -255,8 +269,9 @@ class TimerScreen extends ConsumerWidget {
       return;
     }
 
-    // Ordinary stop (<20h lifetime, no crossing): the plain gallery capture, no
-    // share surface. milestoneHours is null here (no boundary crossed).
+    // Ordinary stop (<20h lifetime or a guest, no crossing): the plain gallery
+    // capture, no share surface. milestoneHours is null here (no boundary
+    // crossed).
     if (creditedTaskId != null) {
       await showPhotoCapture(
         context,
@@ -266,6 +281,15 @@ class TimerScreen extends ConsumerWidget {
         milestoneHours: outcome.milestoneHours,
         cumulativeSeconds: outcome.totalSeconds,
       );
+      if (crossedGuestNudge && context.mounted) {
+        await showCreateAccountPrompt(
+          context,
+          title: 'You\'ve tracked your first hour',
+          message:
+              'Create an account to keep your progress safe. Right now it '
+              'would be lost if you delete the app or change phones.',
+        );
+      }
       return;
     }
 

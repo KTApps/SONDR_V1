@@ -5,6 +5,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../core/backend.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import 'auth_repository.dart';
+import 'guest_prompts.dart';
 import 'handle_screen.dart';
 import 'profile_repository.dart';
 
@@ -37,8 +38,10 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
     setState(() => _busy = true);
     try {
       final auth = ref.read(authRepositoryProvider);
-      final result = await auth.signInWithApple();
-      if (!mounted) return;
+      final result = await auth.signInWithApple(
+        confirmReplaceGuest: () => confirmReplaceGuestData(context, ref),
+      );
+      if (!mounted || result.cancelled) return;
 
       // Deterministic routing — one-shot read, never the stream-backed future.
       final uid = ref.read(currentUidProvider);

@@ -10,10 +10,14 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 /// the name exactly once). Carried out of [AuthRepository.signInWithApple] so
 /// the caller can seed the profile before the chance is gone.
 class AppleSignInResult {
-  const AppleSignInResult({this.displayName});
+  const AppleSignInResult({this.displayName, this.cancelled = false});
 
   /// `null` on every subsequent sign-in, and whenever the user hides their name.
   final String? displayName;
+
+  /// True when the user declined to replace their guest data with the existing
+  /// account the Apple ID belongs to — nothing changed.
+  final bool cancelled;
 }
 
 /// Wraps FirebaseAuth so the rest of the app never talks to it directly. Two
@@ -62,11 +66,14 @@ class AuthRepository {
   /// Mirrors [signUpWithEmail]: a guest (anonymous) account is **linked** in
   /// place so its uid and data survive. If the Apple identity is already bound
   /// to a different Firebase user (`credential-already-in-use`), we fall back to
-  /// signing into that account — the guest session is discarded.
+  /// signing into that account — the guest session is discarded, so
+  /// [confirmReplaceGuest] is asked first; returning false cancels.
   ///
   /// The nonce defeats replay attacks: Apple signs the SHA-256 of it into the
   /// id-token, and Firebase checks the raw value against that hash.
-  Future<AppleSignInResult> signInWithApple() async {
+  Future<AppleSignInResult> signInWithApple({
+    Future<bool> Function()? confirmReplaceGuest,
+  }) async {
     final rawNonce = _generateNonce();
     final appleCredential = await SignInWithApple.getAppleIDCredential(
       scopes: [
@@ -100,6 +107,9 @@ class AuthRepository {
         // Apple ID already belongs to another account → sign into that one.
         if (e.code == 'credential-already-in-use' ||
             e.code == 'email-already-in-use') {
+          if (confirmReplaceGuest != null && !await confirmReplaceGuest()) {
+            return const AppleSignInResult(cancelled: true);
+          }
           await _auth.signInWithCredential(oauth);
         } else {
           rethrow;

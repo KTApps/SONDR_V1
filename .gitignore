@@ -17,3 +17,5 @@ build/
 # IDE / editor
 .idea/
 .cursor/
+# Widget Preview related
+.widget_preview/

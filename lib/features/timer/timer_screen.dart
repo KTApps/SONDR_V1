@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +8,7 @@ import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
+import '../../core/utils/figma_scale.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../auth/guest_prompts.dart';
 import '../focus/focus_providers.dart';
@@ -74,14 +74,9 @@ class TimerScreen extends ConsumerWidget {
         ? null
         : _indexOrNull(tasks.indexWhere((t) => t.id == selectedTask.id));
 
-    // Everything below was measured on the Figma's 393x852 reference. One
-    // uniform factor — the smaller of the width and height ratios — scales the
-    // positions and the sizes together, so the layout keeps the design's exact
-    // proportions on any iPhone and cannot overlap on a shorter screen.
-    const refWidth = 393.0;
-    const refHeight = 852.0;
-    final screen = MediaQuery.sizeOf(context);
-    final scale = math.min(screen.width / refWidth, screen.height / refHeight);
+    // Everything below was measured on the Figma reference; one uniform
+    // factor scales the positions and the sizes together.
+    final scale = figmaScale(context);
 
     return Scaffold(
       // Figma positions scaled to the screen (no AppBar/SafeArea, so
@@ -157,7 +152,7 @@ class TimerScreen extends ConsumerWidget {
             top: 511 * scale,
             left: 24 * scale,
             right: 24 * scale,
-            child: _LastTenDays(now: now),
+            child: _LastTenDays(now: now, scale: scale),
           ),
           // Dev-only milestone primer (DEBUG_TOOLS builds only; off by default).
           if (kDebugTools && selectedTask != null)
@@ -641,9 +636,13 @@ class _SecondaryControl extends StatelessWidget {
 /// the grid reads 1 (yesterday) at top-left across to 10 (oldest) at
 /// bottom-right. The day circles are display-only; only the CTA navigates.
 class _LastTenDays extends ConsumerWidget {
-  const _LastTenDays({required this.now});
+  const _LastTenDays({required this.now, required this.scale});
 
   final DateTime now;
+
+  /// Screen-to-Figma-reference factor, so this block grows with the rest of
+  /// the screen instead of staying a fixed height and pooling slack beneath it.
+  final double scale;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -665,14 +664,14 @@ class _LastTenDays extends ConsumerWidget {
         for (final tick in habitsState?.days[key]?.ticks ?? const []) tick.done,
       ];
       return SegmentedDial(
-        size: 57,
+        size: 57 * scale,
         compact: true,
         taskTodaySeconds: segments,
         habitStates: habitStates,
         center: Text(
           '${date.day}',
           style: theme.textTheme.bodyMedium?.copyWith(
-            fontSize: 12,
+            fontSize: 12 * scale,
             fontWeight: FontWeight.w700,
             color: tokens.textSecondary,
           ),
@@ -693,19 +692,19 @@ class _LastTenDays extends ConsumerWidget {
           Text(
             'Last 10 days',
             style: theme.textTheme.titleLarge?.copyWith(
-              fontSize: 20,
+              fontSize: 20 * scale,
               fontWeight: FontWeight.w700,
             ),
           ),
           // label→row1 30, row1→row2 25; the CTA gap is larger so "View your
           // progress" sits toward the midpoint between row 2 and the tab bar.
-          const SizedBox(height: 30),
+          SizedBox(height: 30 * scale),
           row(const [1, 2, 3, 4, 5]),
-          const SizedBox(height: 25),
+          SizedBox(height: 25 * scale),
           row(const [6, 7, 8, 9, 10]),
           // Centres "View your progress" in the gap between row 2 and the tab
           // bar (CTA ~18px tall in a ~74px gap → ~28 above).
-          const SizedBox(height: 28),
+          SizedBox(height: 28 * scale),
 
           // Plain-text CTA; opens the calendar/progress screen (same
           // destination the standalone button used to). The day circles
@@ -722,7 +721,7 @@ class _LastTenDays extends ConsumerWidget {
                 textAlign: TextAlign.center,
                 // Bold 15 — deliberately smaller than the Bold 20 section label.
                 style: theme.textTheme.titleLarge?.copyWith(
-                  fontSize: 15,
+                  fontSize: 15 * scale,
                   fontWeight: FontWeight.w700,
                   color: tokens.textPrimary,
                 ),

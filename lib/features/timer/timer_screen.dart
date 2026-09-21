@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -73,15 +74,24 @@ class TimerScreen extends ConsumerWidget {
         ? null
         : _indexOrNull(tasks.indexWhere((t) => t.id == selectedTask.id));
 
+    // Everything below was measured on the Figma's 393x852 reference. One
+    // uniform factor — the smaller of the width and height ratios — scales the
+    // positions and the sizes together, so the layout keeps the design's exact
+    // proportions on any iPhone and cannot overlap on a shorter screen.
+    const refWidth = 393.0;
+    const refHeight = 852.0;
+    final screen = MediaQuery.sizeOf(context);
+    final scale = math.min(screen.width / refWidth, screen.height / refHeight);
+
     return Scaffold(
-      // Absolute layout matching the Figma's measured positions on the 393x852
-      // reference (no AppBar/SafeArea, so coordinates are screen-global). Dial
-      // size/position here is layout only — ring rendering is untouched.
+      // Figma positions scaled to the screen (no AppBar/SafeArea, so
+      // coordinates are screen-global). Dial size/position here is layout
+      // only — ring rendering is untouched.
       body: Stack(
         children: [
           // Task selector — nudged down slightly to tighten the gap to the dial.
-          const Positioned(
-            top: 102,
+          Positioned(
+            top: 102 * scale,
             left: 0,
             right: 0,
             child: Center(child: TaskDropdown()),
@@ -90,7 +100,7 @@ class TimerScreen extends ConsumerWidget {
           // below the open dropdown's top (146) and its bottom (412) above the
           // period dots (421), so the open dropdown fully covers it.
           Positioned(
-            top: 152,
+            top: 152 * scale,
             left: 0,
             right: 0,
             child: Center(
@@ -98,7 +108,7 @@ class TimerScreen extends ConsumerWidget {
                 taskTodaySeconds: segments,
                 selectedTaskIndex: highlightIndex,
                 habitStates: habitStates,
-                size: 260,
+                size: 260 * scale,
                 onInnerRingTap: () => showHabitsOverlay(context),
                 center: GestureDetector(
                   behavior: HitTestBehavior.opaque,
@@ -118,14 +128,14 @@ class TimerScreen extends ConsumerWidget {
           ),
           // Period dots (today⟷month swipe affordance).
           Positioned(
-            top: 421,
+            top: 421 * scale,
             left: 0,
             right: 0,
             child: Center(child: _PeriodDots(period: period)),
           ),
           // Control: collective hint, or the running/paused timer controls.
           Positioned(
-            top: 444,
+            top: 444 * scale,
             left: 0,
             right: 0,
             child: Center(
@@ -144,17 +154,17 @@ class TimerScreen extends ConsumerWidget {
           ),
           // "Last 10 days" block — Figma Y positions, shifted up with the stack.
           Positioned(
-            top: 511,
-            left: 24,
-            right: 24,
+            top: 511 * scale,
+            left: 24 * scale,
+            right: 24 * scale,
             child: _LastTenDays(now: now),
           ),
           // Dev-only milestone primer (DEBUG_TOOLS builds only; off by default).
           if (kDebugTools && selectedTask != null)
             Positioned(
-              top: 116,
-              left: 24,
-              right: 24,
+              top: 116 * scale,
+              left: 24 * scale,
+              right: 24 * scale,
               child: Center(
                 child: OutlinedButton(
                   onPressed: () => _primeMilestone(context, ref, selectedTask),

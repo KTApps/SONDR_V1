@@ -15,6 +15,18 @@ Both of us (the co-founders) are non-technical and want to move fast.
 
 This is about replies only. Code, commit messages, and docs follow their own conventions.
 
+## Design
+
+**Read [DESIGN.md](DESIGN.md) before building or restyling any UI, and apply it
+without being asked.** It is the standard for every screen: greyscale only (no
+colour, not even for destructive actions), white as text and never a fill, no
+filled buttons, even airy spacing, one type system, Sondr's own components.
+Treat a conflict between DESIGN.md and an existing screen as a bug in the
+screen.
+
+[DESIGN-PUNCHLIST.md](DESIGN-PUNCHLIST.md) tracks the outstanding cohesion work,
+screen by screen.
+
 ## Layout
 
 - `lib/core/` — theme, utils, backend abstraction
@@ -29,7 +41,7 @@ State management is Riverpod. Firebase Auth signs in anonymously on boot
 
 ```bash
 flutter pub get
-flutter test                        # 80 tests, all passing
+flutter test                        # 81 tests, all passing
 flutter analyze                     # clean — keep it that way
 flutter run -d "iPhone 17 Pro"      # run in a terminal with a TTY so hot reload works
 cd ios && pod install

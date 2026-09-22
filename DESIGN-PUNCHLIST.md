@@ -11,16 +11,22 @@ later screens reuse.
 
 ## 1. Buttons — do first, everything downstream inherits it
 
-- [ ] **Start** — currently a solid white filled button, the loudest thing on
-      Home and a direct breach of the no-white-fill rule.
-- [ ] **Pause / Resume / Stop** — same treatment.
-- [ ] **One shared style** for all of them, minimal and non-white, so there is a
+- [x] **Start** — was a solid white filled button, the loudest thing on Home
+      and a direct breach of the no-white-fill rule.
+- [x] **Pause / Resume / Stop** — same treatment.
+- [x] **One shared style** for all of them, minimal and non-white, so there is a
       single button vocabulary to reuse everywhere else.
 
 Files: [`timer_screen.dart`](lib/features/timer/timer_screen.dart)
-(`_TimerControls`, `_Filled`, `_Outlined`).
+(`_TimerControls`, `_SondrControl`).
 
 Doing this first is what makes the rest of the list cheap.
+
+**Shipped as uniform white text; revisit if a stronger primary-action idea
+comes.** Bare text, an outline and a dark pill were all tried on the simulator,
+along with a heavier/uppercase/tracked treatment for the primary action. The
+decision was uniformity: every action uses the standard 15/bold/`textPrimary`
+style and hierarchy comes from position.
 
 ## 2. Focus mode
 

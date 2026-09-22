@@ -129,8 +129,11 @@ class TimerScreen extends ConsumerWidget {
             child: Center(child: _PeriodDots(period: period)),
           ),
           // Control: collective hint, or the running/paused timer controls.
+          // 448 rather than the measured 444: the plain-text control is
+          // shorter than the filled button the gap was sized for, and this
+          // centres it between the period dots and "Last 10 days".
           Positioned(
-            top: 444 * scale,
+            top: 448 * scale,
             left: 0,
             right: 0,
             child: Center(
@@ -523,8 +526,7 @@ class _TimerControls extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (timer.status) {
       case TimerStatus.idle:
-        return _PrimaryControl(
-          icon: Icons.play_arrow_rounded,
+        return _SondrControl(
           label: 'Start',
           onPressed: onStart,
         );
@@ -532,14 +534,12 @@ class _TimerControls extends StatelessWidget {
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _SecondaryControl(
-              icon: Icons.pause_rounded,
+            _SondrControl(
               label: 'Pause',
               onPressed: onPause,
             ),
-            const SizedBox(width: 16),
-            _PrimaryControl(
-              icon: Icons.stop_rounded,
+            SizedBox(width: 8 * figmaScale(context)),
+            _SondrControl(
               label: 'Stop',
               onPressed: onStop,
             ),
@@ -549,14 +549,12 @@ class _TimerControls extends StatelessWidget {
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _SecondaryControl(
-              icon: Icons.play_arrow_rounded,
+            _SondrControl(
               label: 'Resume',
               onPressed: onResume,
             ),
-            const SizedBox(width: 16),
-            _PrimaryControl(
-              icon: Icons.stop_rounded,
+            SizedBox(width: 8 * figmaScale(context)),
+            _SondrControl(
               label: 'Stop',
               onPressed: onStop,
             ),
@@ -566,63 +564,47 @@ class _TimerControls extends StatelessWidget {
   }
 }
 
-/// Filled greyscale action button (fill tone background, surface-tone glyph).
-class _PrimaryControl extends StatelessWidget {
-  const _PrimaryControl({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
+/// The one timer control: plain greyscale text, nothing else. Every action —
+/// Start, Pause, Resume, Stop — uses this, so there is a single button
+/// vocabulary on Home and nothing competes with the dial. No glyph, no border,
+/// no fill; actions are told apart by their label and their order, never by
+/// colour (see DESIGN.md). It uses the app's standard action style, the same
+/// as every other text action, so the controls read as part of one system.
+///
+/// Built from a [GestureDetector] rather than a Material button so the app
+/// owns its own component. The padding is the tap target — the text alone
+/// would be too small a hit area.
+class _SondrControl extends StatelessWidget {
+  const _SondrControl({required this.label, required this.onPressed});
 
-  final IconData icon;
   final String label;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 22),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: tokens.ringFillOuter,
-        foregroundColor: tokens.background,
-        disabledBackgroundColor: tokens.ringTrack,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: Theme.of(context).textTheme.labelLarge,
-      ),
-    );
-  }
-}
+    final theme = Theme.of(context);
+    final scale = figmaScale(context);
 
-/// Outlined greyscale action button.
-class _SecondaryControl extends StatelessWidget {
-  const _SecondaryControl({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 22),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: tokens.textPrimary,
-        side: BorderSide(color: tokens.ringTrack),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: Theme.of(context).textTheme.labelLarge,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onPressed,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: 20 * scale,
+          vertical: 12 * scale,
+        ),
+        child: Text(
+          label,
+          // The app's standard action style — identical to "View your
+          // progress" and every other text action. Actions are uniform;
+          // hierarchy comes from position, not weight or tone.
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontSize: 15 * scale,
+            fontWeight: FontWeight.w700,
+            color: tokens.textPrimary,
+          ),
+        ),
       ),
     );
   }
@@ -719,7 +701,9 @@ class _LastTenDays extends ConsumerWidget {
               child: Text(
                 'View your progress',
                 textAlign: TextAlign.center,
-                // Bold 15 — deliberately smaller than the Bold 20 section label.
+                // Bold 15 — deliberately smaller than the Bold 20 section
+                // label. Same tone and weight as the timer controls: actions
+                // are uniform white text (see DESIGN.md).
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontSize: 15 * scale,
                   fontWeight: FontWeight.w700,

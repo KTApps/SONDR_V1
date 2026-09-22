@@ -30,6 +30,17 @@ never by red, and never by any other hue. A red tint is not a shortcut to
 White is the brightest end of the brightness ladder, and it is reserved for text
 that must dominate: a heading, the live timer value, the active tab.
 
+**Actions are white.** Every text action on a screen — Start, Stop, Add Task,
+View your progress — uses the same standard action style: 15, bold,
+`textPrimary`, no tracking, no uppercase, no bespoke weight. Actions are
+uniform, and hierarchy comes from **position**, not from weight or tone. A
+control that needs to shout is a symptom of a screen that has too much on it.
+
+**Grey is for supporting text, not for actions.** `textSecondary` and
+`textTertiary` are for the copy around an action — labels, units, captions,
+metadata like the "today" under the live figure. Greying out an action to
+de-emphasise it reads as disabled, not secondary.
+
 **White is never a fill.** No white buttons, no white pills, no white cards. A
 solid white shape on a near-black canvas is the loudest thing on the screen, and
 it pulls attention away from the rings — which are the thing worth looking at.
@@ -103,6 +114,7 @@ read as the app's fingerprint, not as decoration applied on top.
 
 - No colour, including on destructive actions
 - No white or otherwise filled buttons
+- Actions are uniform white text; grey only for supporting/metadata text
 - One spacing unit, evenly applied
 - Type sizes from the table above
 - Tones read from `GreyscaleTokens`, nothing hardcoded

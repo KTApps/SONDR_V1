@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
+import '../../core/utils/figma_scale.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../auth/account_screen.dart';
@@ -483,42 +484,40 @@ class _TaskTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
-    final hours = (task.total.inMinutes / 60).round();
-    final reached = task.milestonesReached;
+    final scale = figmaScale(context);
+    // The task's real accumulated time — every second ever logged to it, not
+    // a band figure and not milestones x 20h. Floored, so it can never claim a
+    // milestone the ring has not reached.
+    final hours = task.wholeHours;
 
     return SizedBox(
-      width: 84,
+      width: 84 * scale,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ProgressRing(
-            size: 72,
+            size: 72 * scale,
+            // Progress through the CURRENT 20h block, so the ring keeps
+            // climbing toward the next milestone rather than pinning full.
             progress: task.milestoneProgress,
             center: Text(
               '${hours}h',
-              style: theme.textTheme.labelLarge?.copyWith(
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 12 * scale,
+                fontWeight: FontWeight.w700,
                 color: tokens.textPrimary,
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8 * scale),
           Text(
             task.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
-              fontSize: 15,
+              fontSize: 15 * scale,
               color: tokens.textPrimary,
-            ),
-          ),
-          Text(
-            reached == 0
-                ? 'of ${task.activeMilestoneHours}h'
-                : '$reached × 20h',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: tokens.textTertiary,
             ),
           ),
         ],

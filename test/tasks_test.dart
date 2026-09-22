@@ -64,17 +64,49 @@ void main() {
       expect(task.monthSeconds(now), 5400);
     });
 
-    test('firstMilestoneProgress fills toward 20h and clamps past it', () {
-      expect(
-        Task(id: 't', name: 'x', secondsByDay: {today: 10 * 3600})
-            .firstMilestoneProgress,
-        closeTo(0.5, 1e-9),
-      );
-      expect(
-        Task(id: 't', name: 'x', secondsByDay: {today: 25 * 3600})
-            .firstMilestoneProgress,
-        1.0,
-      );
+    test('milestoneProgress climbs, resets on each 20h, and climbs again', () {
+      double progressAt(int hours) => Task(
+        id: 't',
+        name: 'x',
+        secondsByDay: {today: hours * 3600},
+      ).milestoneProgress;
+
+      expect(progressAt(0), closeTo(0.0, 1e-9));
+      expect(progressAt(10), closeTo(0.5, 1e-9));
+      // The reset is the point: a task at exactly 20h reads empty, not full,
+      // and starts climbing toward 40h.
+      expect(progressAt(20), closeTo(0.0, 1e-9));
+      expect(progressAt(25), closeTo(0.25, 1e-9));
+      expect(progressAt(40), closeTo(0.0, 1e-9));
+      expect(progressAt(47), closeTo(0.35, 1e-9));
+    });
+
+    test('wholeHours floors, so the figure never claims a milestone early', () {
+      int hoursFor(int seconds) =>
+          Task(id: 't', name: 'x', secondsByDay: {today: seconds}).wholeHours;
+
+      // 90s short of 20h — the ring is all but full, but the milestone has
+      // not been reached, so the figure must still read 19.
+      expect(hoursFor(20 * 3600 - 90), 19);
+      // Reached for real.
+      expect(hoursFor(20 * 3600), 20);
+      // Never rounds up mid-block either.
+      expect(hoursFor((23 * 3600) + (48 * 60)), 23);
+    });
+
+    test('milestonesReached is unchanged by the ring behaviour', () {
+      int reachedAt(int hours) => Task(
+        id: 't',
+        name: 'x',
+        secondsByDay: {today: hours * 3600},
+      ).milestonesReached;
+
+      // Guards the 40h/60h celebrations, which key off this and must keep
+      // firing however the ring chooses to draw itself.
+      expect(reachedAt(19), 0);
+      expect(reachedAt(20), 1);
+      expect(reachedAt(25), 1);
+      expect(reachedAt(40), 2);
     });
   });
 

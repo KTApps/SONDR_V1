@@ -2,9 +2,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// A single-value greyscale progress ring (no segments, no slits): the arc fills
-/// #777777 in proportion to [progress] (0..1) over a #232323 remainder, starting
-/// at 12 o'clock. Used where one value is shown — a task's progress toward its
+import '../../core/theme/greyscale_tokens.dart';
+
+/// A single-value greyscale progress ring (no segments, no slits): the arc
+/// fills in the inner-ring tone in proportion to [progress] (0..1) over the
+/// ring-track remainder, starting at 12 o'clock. Both tones come from
+/// [GreyscaleTokens], so this ring sits in the same family as the dial and
+/// follows light mode (it used to be two hardcoded darks, which did not). Used where one value is shown — a task's progress toward its
 /// milestone (profile), and the single completed-milestone ring on feed posts.
 ///
 /// The stroke scales with [size] using the same proportional approach as the
@@ -33,13 +37,11 @@ class ProgressRing extends StatelessWidget {
   /// Centre content (e.g. the "Nh" figure).
   final Widget? center;
 
-  static const Color _filled = Color(0xFF777777);
-  static const Color _empty = Color(0xFF232323);
-
   double get _stroke => stroke ?? size * 7 / 57;
 
   @override
   Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
     return SizedBox(
       width: size,
       height: size,
@@ -51,8 +53,8 @@ class ProgressRing extends StatelessWidget {
             painter: _ProgressRingPainter(
               progress: progress.clamp(0.0, 1.0),
               stroke: _stroke,
-              filled: _filled,
-              empty: _empty,
+              filled: tokens.ringFillInner,
+              empty: tokens.ringTrack,
             ),
           ),
           ?center,

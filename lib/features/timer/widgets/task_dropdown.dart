@@ -289,7 +289,7 @@ class _TaskMenuPanel extends StatelessWidget {
                   return _TaskPill(
                     scale: scale,
                     label: task.name,
-                    progress: task.firstMilestoneProgress,
+                    progress: task.milestoneProgress,
                     started: task.totalSeconds >= 60,
                     selected: task.id == selectedId,
                     onTap: () => Navigator.of(context).pop(task.id),
@@ -318,8 +318,10 @@ class _TaskMenuPanel extends StatelessWidget {
 
 /// A 28-tall task pill (fully rounded) that doubles as its own progress bar: a
 /// lighter-grey fill sweeps from the left over a darker remainder, in proportion
-/// to [progress] (0..1) toward the first 20-hour milestone. Empty = all dark,
-/// complete = all light. Once [started] (a minute or more logged) the fill is
+/// to [progress] (0..1) through the current 20-hour block — the same measure
+/// the profile rings use, so a filled bar means the same thing everywhere.
+/// Empty = all dark, complete = all light; it resets on each milestone and
+/// climbs again toward the next. Once [started] (a minute or more logged) the fill is
 /// never narrower than a thin sliver, so a little time never reads as
 /// none. The filled left end is rounded by the pill; the
 /// filled/unfilled boundary is a clean vertical edge. Name centred, Inter bold

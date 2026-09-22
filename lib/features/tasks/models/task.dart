@@ -32,6 +32,13 @@ class Task {
 
   Duration get total => Duration(seconds: totalSeconds);
 
+  /// Whole hours accumulated, always rounded DOWN.
+  ///
+  /// Never round this up: at 19h59m a rounded figure reads "20h" beside a ring
+  /// that has not reset, claiming a milestone that has not been reached. The
+  /// figure may understate the climb; it must never overstate it.
+  int get wholeHours => total.inHours;
+
   /// Seconds logged today (since local midnight) for [now].
   int todaySeconds(DateTime now) => secondsByDay[DayKey.of(now)] ?? 0;
 
@@ -49,12 +56,6 @@ class Task {
 
   Duration monthDuration(DateTime now) => Duration(seconds: monthSeconds(now));
 
-  /// 0..1 progress toward the FIRST 20-hour milestone, clamped (so a task past
-  /// 20h reads as full). This is the per-task bar shown in the dropdown — the
-  /// only place milestone progress appears.
-  double get firstMilestoneProgress =>
-      (totalSeconds / _stepSeconds).clamp(0.0, 1.0);
-
   /// How many 20-hour milestones have been reached so far.
   int get milestonesReached => totalSeconds ~/ _stepSeconds;
 
@@ -62,9 +63,13 @@ class Task {
   /// (20, 40, 60, ...).
   int get activeMilestoneHours => (milestonesReached + 1) * milestoneStepHours;
 
-  /// 0..1 progress within the current milestone band — what the outer ring
-  /// fills. Total accumulated time drives this (not just today's), so the ring
-  /// reflects the real climb toward the next milestone.
+  /// 0..1 progress within the current 20-hour block — what every milestone
+  /// ring and bar in the app fills by (the profile tiles and the task dropdown
+  /// pills), so a ring means the same thing everywhere.
+  ///
+  /// Total accumulated time drives this, not just today's, and it **resets to
+  /// zero on each milestone**: the climb starts again toward the next block.
+  /// A task at exactly 20h therefore reads empty, not full.
   double get milestoneProgress {
     final intoBand = totalSeconds - (milestonesReached * _stepSeconds);
     return intoBand / _stepSeconds;

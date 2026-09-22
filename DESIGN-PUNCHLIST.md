@@ -45,13 +45,27 @@ separates them.
 
 ## 3. Progress circles
 
-- [ ] **Drop "of 20h"** — the ring already communicates proportion.
-- [ ] **Past 20h, show accumulated time against a full ring.** Currently
-      progress resets into further 20-hour bands; instead, once the first
-      milestone is passed the ring reads full and the figure keeps climbing.
-      **This is a logic change, not just styling** — small, but it touches
-      milestone/progress calculation, so it needs its own check.
-- [ ] **Neaten** the ring and its figure.
+- [x] **Drop "of 20h"** — and the milestone count with it; the ring and the
+      figure say enough.
+- [x] **Rings build toward the next milestone.** Decided the opposite way to
+      the original note: rather than pinning full past 20h, every ring climbs
+      through its current 20-hour block, resets on each milestone and climbs
+      again. The dropdown pills were pinning full and now build too, so a ring
+      means the same thing everywhere.
+- [x] **Neaten** the ring and its figure — hardcoded hexes moved to
+      `GreyscaleTokens` (which also fixes light mode), centre figure on the
+      12/bold type-table style, tile and ring scaled with `figmaScale()`.
+- [x] **The centre figure floors.** It was rounding, so a task 90 seconds
+      short of 20h read "20h" beside a ring that had not reset — claiming a
+      milestone it had not reached. `Task.wholeHours` now rounds down.
+
+**Not covered by a test:** the profile tile's own rendering. `ProfileScreen`
+pulls in the account/Firebase providers and cannot be pumped without
+scaffolding well beyond this change, so the "of 20h" removal and the floored
+figure were verified by inspection and on the simulator. **Extracting
+`_TaskTile` into its own widget would make it testable** — worth doing when
+that screen is next touched. The dropdown pill and the `Task` maths are
+covered.
 
 ## 4. Guest
 

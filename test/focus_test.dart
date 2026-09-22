@@ -29,7 +29,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('FOCUS'), findsOneWidget);
+    // No "FOCUS" heading: the bare screen, the task name and the running
+    // clock say what this is without restating it.
+    expect(find.text('FOCUS'), findsNothing);
     expect(find.text('Stop'), findsOneWidget);
     // Idle by default → the resume affordance is shown, not pause.
     expect(find.text('Resume'), findsOneWidget);

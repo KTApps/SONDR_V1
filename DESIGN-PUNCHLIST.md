@@ -30,10 +30,18 @@ style and hierarchy comes from position.
 
 ## 2. Focus mode
 
-- [ ] **Entry popup** — minimal.
-- [ ] **Timer page** — minimal, reusing the new button style.
+- [x] **Entry popup** — minimal.
+- [x] **Timer page** — minimal, reusing the new button style.
 
-Files: [`focus_view.dart`](lib/features/focus/focus_view.dart).
+Files: [`focus_view.dart`](lib/features/focus/focus_view.dart),
+[`sondr_action.dart`](lib/shared/sondr_action.dart).
+
+**The popup became an inline choice.** Rather than a sheet asking whether to
+focus, tapping "Start" splits the control into "Focus / Start"; a tap anywhere
+else on Home closes it again. `SondrActionPair` is the shared treatment for
+any two text actions side by side — available for the feed's delete blur. A
+hairline divider between the pair was tried and dropped; the gap alone
+separates them.
 
 ## 3. Progress circles
 

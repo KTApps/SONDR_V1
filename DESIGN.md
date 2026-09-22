@@ -79,10 +79,16 @@ that has drifted gets aligned to it, not the other way round.
 
 | Role | Size | Weight |
 |---|---|---|
+| Hero figure | 44 | Bold |
 | Section heading | 20 | Bold |
 | Body / label / action | 15 | Bold |
 | Supporting text | 13 | Regular |
 | Metadata, in-ring figures | 12 | Bold |
+
+**Hero figure** is for a dominant standalone figure, like the Focus clock,
+where there is no ring to give it scale. Home's dial figure stays at 20 because
+the ring around it supplies the scale; used alone on an empty screen, 20 reads
+as small. One hero figure per screen at most.
 
 Size alone never carries meaning — pair it with the right text tone
 (`textPrimary` / `textSecondary` / `textTertiary`).

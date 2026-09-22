@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/duration_format.dart';
+import '../../core/utils/figma_scale.dart';
+import '../../shared/sondr_action.dart';
 import '../tasks/tasks_providers.dart';
 import '../timer/timer_controller.dart';
 
@@ -12,8 +14,14 @@ import '../timer/timer_controller.dart';
 /// touches the app to break or finish. Leaving Focus happens by stopping
 /// (handled by [onStop], which also commits the session and celebrates a
 /// milestone if one was crossed).
+///
+/// There is no "FOCUS" heading: the bare screen, the task name and the running
+/// clock already say what this is, and a label would only restate it.
 class FocusView extends ConsumerWidget {
   const FocusView({super.key, required this.onStop});
+
+  /// One spacing unit, used for every gap on the screen (see DESIGN.md).
+  static const double _spacing = 24;
 
   final VoidCallback onStop;
 
@@ -21,115 +29,68 @@ class FocusView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
+    final scale = figmaScale(context);
     final task = ref.watch(selectedTaskProvider);
     final timer = ref.watch(timerControllerProvider);
     final controller = ref.read(timerControllerProvider.notifier);
     final isRunning = timer.status == TimerStatus.running;
+    final gap = SizedBox(height: _spacing * scale);
 
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: EdgeInsets.symmetric(horizontal: _spacing * scale),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'FOCUS',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: tokens.textTertiary,
-                  letterSpacing: 4,
+                task?.name ?? '',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontSize: 20 * scale,
+                  fontWeight: FontWeight.w700,
+                  color: tokens.textPrimary,
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(task?.name ?? '', style: theme.textTheme.titleLarge),
-              const SizedBox(height: 40),
+              gap,
 
-              // The live session time — the whole point of the screen.
+              // The live session time — the whole point of the screen, and the
+              // only thing on it allowed to be this large.
               Text(
                 DurationFormat.stopwatch(timer.sessionElapsed),
-                style: theme.textTheme.displayLarge,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontSize: 44 * scale,
+                  fontWeight: FontWeight.w700,
+                  color: tokens.textPrimary,
+                ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: _spacing * scale / 2),
+
+              // Supporting text, so it is grey — it says what the clock is
+              // doing, it is not something to tap.
               Text(
                 isRunning ? 'in session' : 'paused',
-                style: theme.textTheme.labelMedium
-                    ?.copyWith(color: tokens.textSecondary),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontSize: 12 * scale,
+                  fontWeight: FontWeight.w700,
+                  color: tokens.textSecondary,
+                ),
               ),
-              const SizedBox(height: 56),
+              gap,
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _FocusButton(
-                    filled: false,
-                    icon: isRunning
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
+                  SondrAction(
                     label: isRunning ? 'Pause' : 'Resume',
                     onPressed: isRunning ? controller.pause : controller.start,
                   ),
-                  const SizedBox(width: 16),
-                  _FocusButton(
-                    filled: true,
-                    icon: Icons.stop_rounded,
-                    label: 'Stop',
-                    onPressed: onStop,
-                  ),
+                  SizedBox(width: _spacing * scale),
+                  SondrAction(label: 'Stop', onPressed: onStop),
                 ],
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _FocusButton extends StatelessWidget {
-  const _FocusButton({
-    required this.filled,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-
-  final bool filled;
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
-    const padding = EdgeInsets.symmetric(horizontal: 26, vertical: 16);
-    final textStyle = Theme.of(context).textTheme.labelLarge;
-
-    if (filled) {
-      return ElevatedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 22),
-        label: Text(label),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: tokens.ringFillOuter,
-          foregroundColor: tokens.background,
-          elevation: 0,
-          padding: padding,
-          shape: shape,
-          textStyle: textStyle,
-        ),
-      );
-    }
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 22),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: tokens.textPrimary,
-        side: BorderSide(color: tokens.ringTrack),
-        padding: padding,
-        shape: shape,
-        textStyle: textStyle,
       ),
     );
   }

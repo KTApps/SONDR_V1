@@ -10,6 +10,7 @@ import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/ring/segmented_dial.dart';
+import '../../shared/sondr_action.dart';
 import '../auth/guest_prompts.dart';
 import '../focus/focus_providers.dart';
 import '../focus/focus_view.dart';
@@ -37,11 +38,25 @@ import 'widgets/task_dropdown.dart';
 /// task (centre follows it, timer controls appear). Swiping the centre toggles
 /// the figure between today and this month. Milestone progress lives only in
 /// the dropdown bars, never here.
-class TimerScreen extends ConsumerWidget {
+class TimerScreen extends ConsumerStatefulWidget {
   const TimerScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TimerScreen> createState() => _TimerScreenState();
+}
+
+class _TimerScreenState extends ConsumerState<TimerScreen> {
+  /// True once "Start" has been tapped and the control has split into the
+  /// "Focus / Start" choice. Lives here rather than in the control itself so a
+  /// tap anywhere else on Home can close it again.
+  bool _choosing = false;
+
+  void _closeChoice() {
+    if (_choosing) setState(() => _choosing = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final now = DateTime.now();
 
@@ -74,6 +89,12 @@ class TimerScreen extends ConsumerWidget {
         ? null
         : _indexOrNull(tasks.indexWhere((t) => t.id == selectedTask.id));
 
+    // Finishing or starting a session closes the choice, so the user is never
+    // returned to a half-open control.
+    ref.listen(timerControllerProvider, (previous, next) {
+      if (previous?.status != next.status) _closeChoice();
+    });
+
     // Everything below was measured on the Figma reference; one uniform
     // factor scales the positions and the sizes together.
     final scale = figmaScale(context);
@@ -82,8 +103,13 @@ class TimerScreen extends ConsumerWidget {
       // Figma positions scaled to the screen (no AppBar/SafeArea, so
       // coordinates are screen-global). Dial size/position here is layout
       // only — ring rendering is untouched.
-      body: Stack(
-        children: [
+      // Translucent so the controls below still receive their own taps; this
+      // only catches taps that land on empty canvas.
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: _closeChoice,
+        child: Stack(
+          children: [
           // Task selector — nudged down slightly to tighten the gap to the dial.
           Positioned(
             top: 102 * scale,
@@ -141,7 +167,10 @@ class TimerScreen extends ConsumerWidget {
                   ? _CollectiveHint(hasTasks: tasks.isNotEmpty)
                   : _TimerControls(
                       timer: timer,
-                      onStart: () => _onStartPressed(context, ref),
+                      choosing: _choosing,
+                      onBeginChoice: () => setState(() => _choosing = true),
+                      onStart: () => _startSession(ref, focus: false),
+                      onFocus: () => _startSession(ref, focus: true),
                       onResume: () =>
                           ref.read(timerControllerProvider.notifier).start(),
                       onPause: () =>
@@ -174,7 +203,8 @@ class TimerScreen extends ConsumerWidget {
                 ),
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -183,31 +213,11 @@ class TimerScreen extends ConsumerWidget {
 
   /// Pressing Start on a fresh (idle) session offers Focus Mode first, then
   /// starts. Resuming a paused session doesn't re-prompt.
-  Future<void> _onStartPressed(BuildContext context, WidgetRef ref) async {
-    final tokens = GreyscaleTokens.of(context);
-    final enableFocus = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: tokens.surface,
-        title: const Text('Focus mode'),
-        content: const Text(
-          'Lock into this task — the app quietens to just pause and stop until '
-          'you finish.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Not now'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Enable'),
-          ),
-        ],
-      ),
-    );
+  /// Begin a session. Focus Mode is chosen inline on the control itself
+  /// ("Focus | Start"), so there is no prompt to answer here.
+  void _startSession(WidgetRef ref, {required bool focus}) {
     ref.read(timerControllerProvider.notifier).start();
-    if (enableFocus == true) {
+    if (focus) {
       ref.read(focusModeProvider.notifier).enable();
     }
   }
@@ -506,7 +516,10 @@ class _CollectiveHint extends StatelessWidget {
 class _TimerControls extends StatelessWidget {
   const _TimerControls({
     required this.timer,
+    required this.choosing,
+    required this.onBeginChoice,
     required this.onStart,
+    required this.onFocus,
     required this.onResume,
     required this.onPause,
     required this.onStop,
@@ -514,10 +527,18 @@ class _TimerControls extends StatelessWidget {
 
   final TimerState timer;
 
-  /// Fresh start (idle) — offers Focus Mode.
+  /// Whether "Start" has been tapped and the control has split into the mode
+  /// choice. Owned by the screen so a tap on empty canvas can close it.
+  final bool choosing;
+  final VoidCallback onBeginChoice;
+
+  /// Start a normal session.
   final VoidCallback onStart;
 
-  /// Resume from pause — no Focus prompt.
+  /// Start a session in Focus Mode.
+  final VoidCallback onFocus;
+
+  /// Resume from pause — never re-offers the mode choice.
   final VoidCallback onResume;
   final VoidCallback onPause;
   final VoidCallback onStop;
@@ -526,87 +547,33 @@ class _TimerControls extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (timer.status) {
       case TimerStatus.idle:
-        return _SondrControl(
-          label: 'Start',
-          onPressed: onStart,
+        // One tap splits the control in two rather than opening a dialog: the
+        // choice is made in the same place the action was. Tapping anywhere
+        // else on Home closes it again.
+        if (!choosing) {
+          return SondrAction(label: 'Start', onPressed: onBeginChoice);
+        }
+        return SondrActionPair(
+          firstLabel: 'Focus',
+          onFirst: onFocus,
+          secondLabel: 'Start',
+          onSecond: onStart,
         );
       case TimerStatus.running:
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _SondrControl(
-              label: 'Pause',
-              onPressed: onPause,
-            ),
-            SizedBox(width: 8 * figmaScale(context)),
-            _SondrControl(
-              label: 'Stop',
-              onPressed: onStop,
-            ),
-          ],
+        return SondrActionPair(
+          firstLabel: 'Pause',
+          onFirst: onPause,
+          secondLabel: 'Stop',
+          onSecond: onStop,
         );
       case TimerStatus.paused:
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _SondrControl(
-              label: 'Resume',
-              onPressed: onResume,
-            ),
-            SizedBox(width: 8 * figmaScale(context)),
-            _SondrControl(
-              label: 'Stop',
-              onPressed: onStop,
-            ),
-          ],
+        return SondrActionPair(
+          firstLabel: 'Resume',
+          onFirst: onResume,
+          secondLabel: 'Stop',
+          onSecond: onStop,
         );
     }
-  }
-}
-
-/// The one timer control: plain greyscale text, nothing else. Every action —
-/// Start, Pause, Resume, Stop — uses this, so there is a single button
-/// vocabulary on Home and nothing competes with the dial. No glyph, no border,
-/// no fill; actions are told apart by their label and their order, never by
-/// colour (see DESIGN.md). It uses the app's standard action style, the same
-/// as every other text action, so the controls read as part of one system.
-///
-/// Built from a [GestureDetector] rather than a Material button so the app
-/// owns its own component. The padding is the tap target — the text alone
-/// would be too small a hit area.
-class _SondrControl extends StatelessWidget {
-  const _SondrControl({required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
-    final scale = figmaScale(context);
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onPressed,
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: 20 * scale,
-          vertical: 12 * scale,
-        ),
-        child: Text(
-          label,
-          // The app's standard action style — identical to "View your
-          // progress" and every other text action. Actions are uniform;
-          // hierarchy comes from position, not weight or tone.
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontSize: 15 * scale,
-            fontWeight: FontWeight.w700,
-            color: tokens.textPrimary,
-          ),
-        ),
-      ),
-    );
   }
 }
 

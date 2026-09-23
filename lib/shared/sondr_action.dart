@@ -15,10 +15,21 @@ import '../core/utils/figma_scale.dart';
 /// its own component. The padding is the tap target — the text alone would be
 /// too small a hit area.
 class SondrAction extends StatelessWidget {
-  const SondrAction({super.key, required this.label, required this.onPressed});
+  const SondrAction({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.supporting = false,
+  });
 
   final String label;
   final VoidCallback? onPressed;
+
+  /// An exit or low-priority action — Sign out, and later Remove / Block /
+  /// Delete. Grey and regular weight so it sits below the primary actions,
+  /// which stay white and bold. Same size and the same tap target: only the
+  /// tone and the weight change (see DESIGN.md).
+  final bool supporting;
 
   @override
   Widget build(BuildContext context) {
@@ -38,8 +49,8 @@ class SondrAction extends StatelessWidget {
           label,
           style: theme.textTheme.bodyMedium?.copyWith(
             fontSize: 15 * scale,
-            fontWeight: FontWeight.w700,
-            color: tokens.textPrimary,
+            fontWeight: supporting ? FontWeight.w400 : FontWeight.w700,
+            color: supporting ? tokens.textSecondary : tokens.textPrimary,
           ),
         ),
       ),

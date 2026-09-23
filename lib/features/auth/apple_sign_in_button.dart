@@ -4,6 +4,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../core/backend.dart';
 import '../../core/theme/greyscale_tokens.dart';
+import '../../core/utils/figma_scale.dart';
 import 'auth_repository.dart';
 import 'guest_prompts.dart';
 import 'handle_screen.dart';
@@ -84,28 +85,71 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
     final enabled = widget.enabled && !_busy;
 
-    return OutlinedButton.icon(
-      onPressed: enabled ? _signIn : null,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: tokens.textPrimary,
-        side: BorderSide(color: tokens.ringTrack),
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: theme.textTheme.labelLarge,
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final scale = figmaScale(context);
+    final height = 44 * scale;
+    final fontSize = 15 * scale;
+
+    // Sondr-toned, not Apple's black: a surface-tone capsule matching the
+    // Sondr fields and the Friends row, so it reads as part of the app rather
+    // than a black block dropped into it.
+    //
+    // Apple's OFFICIAL mark is kept — AppleLogoPainter from the
+    // sign_in_with_apple package, never Material's Icons.apple, which is not
+    // Apple's mark — along with the approved wording. Only the fill and the
+    // metrics are ours. Reverting to the official black style is a one-line
+    // change if App Review ever objects (see DESIGN-PUNCHLIST).
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? _signIn : null,
+        child: Container(
+          height: height,
+          decoration: BoxDecoration(
+            color: tokens.surface,
+            borderRadius: BorderRadius.circular(16 * scale),
+          ),
+          child: Center(
+            child: _busy
+                ? SizedBox(
+                    height: 18 * scale,
+                    width: 18 * scale,
+                    child: const CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Same proportions the official button uses.
+                      Padding(
+                        padding: EdgeInsets.only(bottom: (4 / 44) * height),
+                        child: SizedBox(
+                          width: fontSize * (25 / 31),
+                          height: fontSize,
+                          child: CustomPaint(
+                            painter: AppleLogoPainter(
+                              color: tokens.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 8 * scale),
+                      Text(
+                        'Sign in with Apple',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w700,
+                          color: tokens.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
       ),
-      icon: _busy
-          ? const SizedBox(
-              height: 18,
-              width: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Icon(Icons.apple, color: tokens.textPrimary),
-      label: const Text('Continue with Apple'),
     );
   }
 }

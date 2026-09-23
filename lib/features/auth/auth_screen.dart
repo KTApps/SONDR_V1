@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
+import '../../core/theme/spacing.dart';
+import '../../core/utils/figma_scale.dart';
+import '../../shared/sondr_action.dart';
+import '../../shared/sondr_field.dart';
+import '../../shared/sondr_header.dart';
 import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
 import 'guest_prompts.dart';
@@ -41,7 +46,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final email = _email.text.trim();
     final pw = _password.text;
     final emailOk = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
-    if (!emailOk) return 'Enter a valid email address.';
+    if (!emailOk) return 'That email address looks invalid.';
     if (pw.length < 6) return 'Password must be at least 6 characters.';
     return null;
   }
@@ -78,7 +83,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     } on FirebaseAuthException catch (e) {
       setState(() => _error = _messageFor(e.code));
     } catch (_) {
-      setState(() => _error = 'Something went wrong. Please try again.');
+      setState(() => _error = 'Something went wrong. Try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -88,20 +93,20 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     switch (code) {
       case 'email-already-in-use':
       case 'credential-already-in-use':
-        return 'That email is already in use. Try signing in instead.';
+        return 'That email is already in use. Sign in instead.';
       case 'invalid-email':
         return 'That email address looks invalid.';
       case 'weak-password':
-        return 'Choose a stronger password (at least 6 characters).';
+        return 'Password must be at least 6 characters.';
       case 'wrong-password':
       case 'invalid-credential':
         return 'Incorrect email or password.';
       case 'user-not-found':
         return 'No account found for that email.';
       case 'network-request-failed':
-        return 'Network error. Check your connection and try again.';
+        return 'Network error. Check your connection.';
       default:
-        return 'Could not complete that. Please try again.';
+        return 'Something went wrong. Try again.';
     }
   }
 
@@ -109,92 +114,83 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
+    final scale = figmaScale(context);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: Text(_signUp ? 'Create account' : 'Sign in'),
-      ),
       body: SafeArea(
-        top: false,
+        // The keyboard needs room, so this screen scrolls — that is a
+        // legitimate reason, unlike Profile's page scroll.
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: EdgeInsets.fromLTRB(
+            24 * scale,
+            kSpacingBase * scale,
+            24 * scale,
+            kSpacingSection * scale,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 8),
-              TextField(
+              SondrHeader(title: _signUp ? 'Create account' : 'Sign in'),
+              SizedBox(height: kSpacingBase * scale),
+              SondrField(
+                label: 'Email',
                 controller: _email,
                 enabled: !_busy,
                 keyboardType: TextInputType.emailAddress,
                 autocorrect: false,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(labelText: 'Email'),
               ),
-              const SizedBox(height: 16),
-              TextField(
+              SizedBox(height: kSpacingBase * scale),
+              SondrField(
+                label: 'Password',
                 controller: _password,
                 enabled: !_busy,
                 obscureText: true,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _busy ? null : _submit(),
-                decoration: const InputDecoration(labelText: 'Password'),
               ),
               if (_error != null) ...[
-                const SizedBox(height: 16),
-                Text(_error!,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: tokens.textPrimary)),
-              ],
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _busy ? null : _submit,
-                style: FilledButton.styleFrom(
-                  backgroundColor: tokens.ringFillOuter,
-                  foregroundColor: tokens.background,
-                  disabledBackgroundColor: tokens.ringTrack,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  textStyle: theme.textTheme.labelLarge,
-                ),
-                child: _busy
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(_signUp ? 'Create account' : 'Sign in'),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: _busy
-                    ? null
-                    : () => setState(() {
-                          _signUp = !_signUp;
-                          _error = null;
-                        }),
-                style: TextButton.styleFrom(foregroundColor: tokens.textSecondary),
-                child: Text(_signUp
-                    ? 'I already have an account'
-                    : 'Create a new account'),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(child: Divider(color: tokens.ringTrack)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('or',
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: tokens.textSecondary)),
+                SizedBox(height: kSpacingBase * scale),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: 13 * scale,
+                    color: tokens.textSecondary,
                   ),
-                  Expanded(child: Divider(color: tokens.ringTrack)),
-                ],
+                ),
+              ],
+              // SondrAction carries 12 of its own padding (its tap target), so
+              // the declared gap is the tier minus that — the gap you SEE is
+              // what has to be on-tier, not the number in the source.
+              SizedBox(height: kSpacingBase * scale),
+              Center(
+                child: _busy
+                    ? SizedBox(
+                        height: 20 * scale,
+                        width: 20 * scale,
+                        child: const CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : SondrAction(
+                        label: _signUp ? 'Create account' : 'Sign in',
+                        onPressed: _submit,
+                      ),
               ),
-              const SizedBox(height: 16),
+              // Nothing between two stacked actions: their own paddings meet
+              // at 24, which is the section unit already.
+              Center(
+                child: SondrAction(
+                  label: _signUp
+                      ? 'I already have an account'
+                      : 'Create a new account',
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() {
+                            _signUp = !_signUp;
+                            _error = null;
+                          }),
+                ),
+              ),
+              SizedBox(height: kSpacingBase * scale),
               AppleSignInButton(
                 enabled: !_busy,
                 onError: (message) => setState(() => _error = message),

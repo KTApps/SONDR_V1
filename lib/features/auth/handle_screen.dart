@@ -4,6 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import '../../core/theme/greyscale_tokens.dart';
+import '../../core/theme/spacing.dart';
+import '../../core/utils/figma_scale.dart';
+import '../../shared/sondr_action.dart';
+import '../../shared/sondr_field.dart';
+import '../../shared/sondr_header.dart';
 import 'profile_repository.dart';
 
 /// Pick a unique handle. Validates format client-side, then claims it
@@ -72,67 +77,64 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
+    final scale = figmaScale(context);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Choose a handle'),
-      ),
       body: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        // Scrolls for the keyboard — it did not before, so with the keyboard
+        // up the field and its action had nowhere to go.
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            24 * scale,
+            kSpacingBase * scale,
+            24 * scale,
+            kSpacingSection * scale,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 8),
+              const SondrHeader(title: 'Choose a handle'),
+              SizedBox(height: kSpacingBase * scale),
               Text(
                 'This is how friends will find you. It can\'t be changed later.',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: tokens.textSecondary),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontSize: 13 * scale,
+                  color: tokens.textSecondary,
+                ),
               ),
-              const SizedBox(height: 20),
-              TextField(
+              SizedBox(height: kSpacingBase * scale),
+              SondrField(
+                label: 'Handle',
                 controller: _handle,
                 enabled: !_busy,
                 autocorrect: false,
-                textCapitalization: TextCapitalization.none,
+                prefix: '@',
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
                   LengthLimitingTextInputFormatter(20),
                 ],
                 onSubmitted: (_) => _busy ? null : _submit(),
-                decoration: const InputDecoration(
-                  prefixText: '@',
-                  labelText: 'Handle',
-                  hintText: 'e.g. tanaka',
-                ),
               ),
               if (_error != null) ...[
-                const SizedBox(height: 16),
-                Text(_error!, style: theme.textTheme.bodyMedium),
-              ],
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _busy ? null : _submit,
-                style: FilledButton.styleFrom(
-                  backgroundColor: tokens.ringFillOuter,
-                  foregroundColor: tokens.background,
-                  disabledBackgroundColor: tokens.ringTrack,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  textStyle: theme.textTheme.labelLarge,
+                SizedBox(height: kSpacingBase * scale),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: 13 * scale,
+                    color: tokens.textSecondary,
+                  ),
                 ),
+              ],
+              // Declared gap is the tier minus SondrAction's own 12 padding.
+              SizedBox(height: kSpacingBase * scale),
+              Center(
                 child: _busy
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                    ? SizedBox(
+                        height: 20 * scale,
+                        width: 20 * scale,
+                        child: const CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Claim handle'),
+                    : SondrAction(label: 'Claim handle', onPressed: _submit),
               ),
             ],
           ),

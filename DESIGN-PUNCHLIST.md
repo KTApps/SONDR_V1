@@ -69,18 +69,60 @@ covered.
 
 ## 4. Guest
 
-- [ ] **Remove the explainer text** under the guest account.
+- [x] **Shortened, not removed.** The two-sentence explainer became one line:
+      *"Your progress is lost if you delete the app."*
 
 Files: [`account_screen.dart`](lib/features/auth/account_screen.dart).
 
+**Why it was kept.** This is the app's only *standing* statement that a guest's
+data is at risk. The other three carriers are all transient — the first-hour
+nudge fires once at the crossing, the milestone prompt only on tapping share,
+and the sign-in warning only when replacing guest data with an existing
+account. Dismiss the nudge and there would have been nowhere left to read it.
+The line was also written deliberately last session as an honesty fix
+(HANDOFF.md), not left behind as clutter.
+
 ## 5. Auth
 
-- [ ] **Simplify sign-in.**
-- [ ] **Simplify choose-a-handle**, and remove the "e.g." from the handle field.
-- [ ] **Align the typography to Home** — these are the known drifters.
+- [x] **Simplify sign-in.**
+- [x] **Simplify choose-a-handle**, and remove the "e.g." from the handle field.
+- [x] **Align the typography to Home** — these are the known drifters.
+
+Shared components came out of this: `SondrField` (a surface-tone capsule with a
+still label, replacing Material's underline + floating label), `SondrHeader`
+(20/bold heading + a 44pt back target, replacing both `AppBar`s), and a
+`supporting` variant on `SondrAction` for exit actions. The spinner was
+inheriting `ColorScheme.primary` — the near-white ring fill — and now uses the
+inner-ring tone.
+
+Error copy consolidated to one message per real condition; the two invalid-email
+variants and the two password-length variants merged, and the trailing "Please
+try again." trimmed.
+
+**The Apple button is custom-toned** — see the note above. **Handle now scrolls
+for the keyboard**; it did not before, and with a 336 keyboard the field sits at
+185-261 against a 516 viewport bottom.
+
+**Item-8 carryover: resolved by keeping.** The guest footer keeps its scoped
+scroll. It is the one transient state that cannot be sized — a guest may or may
+not have photos, which shows or hides two 74-tall doorways, so the space
+available to the footer swings by 148 with no way to know in advance. The scroll
+is the safety valve for that, scoped to the guest branch inside `AccountBody`,
+so the signed-in page still has no vertical scrollable at all.
 
 Files: [`auth_screen.dart`](lib/features/auth/auth_screen.dart),
 [`handle_screen.dart`](lib/features/auth/handle_screen.dart).
+
+**The Apple button is intentionally custom-toned.** It is a `surface`-tone
+capsule matching the Sondr fields and the Friends row, not Apple's black
+style — a black block reads as foreign in a greyscale app. **Apple's official
+mark is kept** (`AppleLogoPainter` from the `sign_in_with_apple` package, never
+Material's `Icons.apple`, which is not Apple's mark) along with the approved
+wording "Sign in with Apple", so recognisability is intact. The auth call is
+unchanged: `SignInWithApple.getAppleIDCredential`, only the presentation is
+ours. **If App Review ever flags it, reverting to Apple's official black style
+is a one-line change** — swap the custom capsule back for
+`SignInWithAppleButton(style: SignInWithAppleButtonStyle.black)`.
 
 ## 6. Friends — rebuild to match TTM
 
@@ -110,6 +152,75 @@ Files: [`friends_screen.dart`](lib/features/friends/friends_screen.dart).
 
 Files: [`deletable_post_card.dart`](lib/features/feed/widgets/deletable_post_card.dart),
 [`comments_sheet.dart`](lib/features/feed/widgets/comments_sheet.dart).
+
+## 8. Profile — non-scrollable, labels matched to the in-ring figure
+
+- [x] **Task labels match the in-ring figure.** Both now take the *same*
+      `TextStyle` object (12 / bold), hoisted into one `figureStyle` local, so
+      the two cannot drift apart. The label was 15 and not bold.
+- [x] **The page fits the 393x852 reference without scrolling.**
+- [x] **The effort summary lost its container** — see the new "A container
+      means tappable" rule in [DESIGN.md](DESIGN.md). It was the only
+      non-interactive block on the screen wearing one.
+
+**Measured, not estimated.** Height available to the account section at
+393x852, read off the render tree:
+
+| Stage | Account section gets |
+|---|---|
+| Before | 235 |
+| After the strip + label fix | 301 |
+| After dropping the card chrome | **349** |
+
+- **66** came from the in-progress strip, which declared 260 for content that
+  measures 222 (tiles are 101, or 97 once the label shrank to 12).
+- **48** came from the effort summary's card padding (24 top + 24 bottom).
+- The five page gaps were normalised to one 12 unit, which is on-rule anyway.
+- The grid was not touched and no circles were capped.
+
+Confirmed on an iPhone 15 Pro simulator (1179x2556 = exactly 393x852), signed
+in, with the real account's tasks: **no overflow warning in the log, "Sign out"
+fully visible**, roughly 45-55pt of clearance left at the bottom.
+
+**Not covered by a test.** `ProfileScreen` renders far enough to measure but
+`AccountBody` needs `FirebaseAuth` and throws, so a widget test asserting the
+shared `figureStyle` is not possible yet. The guarantee is structural — one
+`TextStyle` object, two uses. Extracting `_TaskTile` would make it testable.
+
+**Spacing.** The page is on the two tiers (`kSpacingBase` 12 /
+`kSpacingSection` 24, see [DESIGN.md](DESIGN.md)), and the in-progress strip's
+row gap moved 20 → 12, which was neither tier. The footer is pinned to the
+bottom with `Spacer()` and sets its own 12 bottom margin; the page adds no
+padding beneath it.
+
+**No vertical scroll.** The page is a fixed `Column`; only the in-progress
+strip scrolls, and only sideways. Verified on the live render tree: no
+`axisDirection: down` anywhere in the Profile subtree.
+
+**It is an EXACT fit at 393x852 — 703 of content in 703 of space, zero
+buffer.** Measured on the live bounded tree, not a harness. Anything added to
+this screen must take something else out.
+
+### Known edges, accepted
+
+- **Dynamic Type / bold text.** With the vertical scroll gone, `figmaScale()`
+  keeps the layout inside smaller screens, but it scales to the *screen*, not
+  to the OS text-size or bold-text accessibility settings. A large Dynamic Type
+  setting can hard-overflow this page. Accepted deliberately: the ask was a
+  fixed, non-scrolling page.
+- **The guest footer keeps its own scroll view.** It is far taller than the
+  signed-in one — heading, two actions, a divider and the Apple button — and
+  genuinely does not fit. Scoped to the guest branch inside `AccountBody`, so
+  the signed-in page has no vertical scrollable at all. Its real fix is item 5.
+- **Sign out stays a Material `TextButton`** with its ~48 minimum tap target.
+  It is off-standard (should be `SondrAction`) but the target is an
+  accessibility floor and was explicitly not used as a source of pixels.
+
+**The test harness lied by 40.** Early fit checks put the column at 743 when it
+is 703, because they modelled the safe area but not the shell's tab bar, which
+takes its own height plus the bottom inset before the body is measured. The
+correction lives in [`test/support/app_viewport.dart`](test/support/app_viewport.dart)
+so the next screen's fit check starts from the right number.
 
 ## Parked
 

@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import '../../core/theme/greyscale_tokens.dart';
+import '../../core/theme/spacing.dart';
+import '../../core/utils/figma_scale.dart';
+import '../../shared/sondr_action.dart';
 import '../../core/utils/duration_format.dart';
 import '../profile/profile_providers.dart';
 import 'auth_screen.dart';
@@ -40,35 +43,29 @@ Future<void> showCreateAccountPrompt(
               style: theme.textTheme.titleLarge
                   ?.copyWith(fontSize: 18, fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: kSpacingBase * figmaScale(context) / 2),
             Text(
               message,
               style: theme.textTheme.bodyMedium
                   ?.copyWith(color: tokens.textSecondary),
             ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(sheet).pop();
-                navigator.push(MaterialPageRoute(
-                  builder: (_) => const AuthScreen(startInSignUp: true),
-                ));
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: tokens.ringFillOuter,
-                foregroundColor: tokens.background,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                textStyle: theme.textTheme.labelLarge,
+            SizedBox(height: kSpacingBase * figmaScale(context)),
+            Center(
+              child: SondrAction(
+                label: 'Create account',
+                onPressed: () {
+                  Navigator.of(sheet).pop();
+                  navigator.push(MaterialPageRoute(
+                    builder: (_) => const AuthScreen(startInSignUp: true),
+                  ));
+                },
               ),
-              child: const Text('Create account'),
             ),
-            const SizedBox(height: 4),
-            TextButton(
-              onPressed: () => Navigator.of(sheet).pop(),
-              style: TextButton.styleFrom(foregroundColor: tokens.textSecondary),
-              child: const Text('Not now'),
+            Center(
+              child: SondrAction(
+                label: 'Not now',
+                onPressed: () => Navigator.of(sheet).pop(),
+              ),
             ),
           ],
         ),
@@ -102,26 +99,59 @@ Future<bool> confirmReplaceGuestData(BuildContext context, WidgetRef ref) async 
   if (tracked.inSeconds <= 0) return true;
 
   final tokens = GreyscaleTokens.of(context);
-  final ok = await showDialog<bool>(
+  final theme = Theme.of(context);
+  final scale = figmaScale(context);
+
+  // A Sondr sheet, not Material's AlertDialog — same surface, radius and
+  // spacing as every other prompt in the app.
+  final ok = await showModalBottomSheet<bool>(
     context: context,
-    builder: (dialog) => AlertDialog(
-      backgroundColor: tokens.surface,
-      title: const Text('Replace guest progress?'),
-      content: Text(
-        'You have ${DurationFormat.hm(tracked)} tracked as a guest. Signing in '
-        'will replace it with your existing account, and this guest progress '
-        'will be lost.',
+    backgroundColor: tokens.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+    ),
+    builder: (sheet) => SafeArea(
+      child: Padding(
+        padding: EdgeInsets.all(kSpacingSection * scale),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Replace guest progress?',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontSize: 20 * scale,
+                fontWeight: FontWeight.w700,
+                color: tokens.textPrimary,
+              ),
+            ),
+            SizedBox(height: kSpacingSection * scale),
+            Text(
+              'You have ${DurationFormat.hm(tracked)} tracked as a guest. '
+              'Signing in replaces it, and this progress is lost.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 13 * scale,
+                color: tokens.textSecondary,
+              ),
+            ),
+            SizedBox(height: kSpacingSection * scale),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SondrAction(
+                  label: 'Cancel',
+                  onPressed: () => Navigator.of(sheet).pop(false),
+                ),
+                SizedBox(width: kSpacingBase * scale),
+                SondrAction(
+                  label: 'Sign in anyway',
+                  onPressed: () => Navigator.of(sheet).pop(true),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialog).pop(false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(dialog).pop(true),
-          child: const Text('Sign in anyway'),
-        ),
-      ],
     ),
   );
   return ok ?? false;

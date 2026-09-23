@@ -36,6 +36,14 @@ abstract final class AppTheme {
         secondary: tokens.textSecondary,
       ),
       iconTheme: IconThemeData(color: tokens.textPrimary),
+      // Every spinner in the app inherits the scheme's primary, which is the
+      // near-white ring fill — a white fill by another name. Step it down to
+      // the inner-ring tone so progress reads as greyscale like everything
+      // else (see DESIGN.md).
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: tokens.ringFillInner,
+        circularTrackColor: tokens.ringTrack,
+      ),
       extensions: <ThemeExtension<dynamic>>[tokens],
     );
   }

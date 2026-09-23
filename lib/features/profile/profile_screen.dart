@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
+import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
@@ -35,6 +36,7 @@ class ProfileScreen extends ConsumerWidget {
     final streak = ref.watch(habitStreakProvider);
     final milestones = ref.watch(milestonesReachedProvider);
     final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
+    final scale = figmaScale(context);
 
     return Scaffold(
       // No AppBar — the redundant "Profile" title is removed (matches Feed).
@@ -46,7 +48,12 @@ class ProfileScreen extends ConsumerWidget {
       // otherwise overflow).
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+          padding: EdgeInsets.fromLTRB(
+            24 * scale,
+            16 * scale,
+            24 * scale,
+            0,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -55,13 +62,13 @@ class ProfileScreen extends ConsumerWidget {
                 streak: streak,
                 milestones: milestones,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: kSpacingSection * scale),
               const _FriendsRow(),
               // Gallery doorway — self-spaced (top gap inside), so when it's
               // hidden (no photos) the Friends→Tasks spacing is unchanged.
               const _GalleryDoorway(),
               const _MilestonesDoorway(),
-              const SizedBox(height: 28),
+              SizedBox(height: kSpacingBase * scale),
               _TasksInProgress(tasks: tasks),
               // QA-only entry — const-false in release builds, so this whole
               // branch (and DebugPanel, referenced only here) tree-shakes out.
@@ -77,12 +84,17 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
               ],
-              Expanded(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: SingleChildScrollView(child: const AccountBody()),
-                ),
-              ),
+              // The footer is pinned to the bottom of the safe area; the
+              // flexible space sits here, never closing below a zone break.
+              //
+              // No scroll view: the page is a fixed Column that fills the safe
+              // area. A SingleChildScrollView shorter than its viewport still
+              // bounce-drags on iOS, which made the whole page feel loose even
+              // though nothing overflowed. Only the in-progress strip scrolls,
+              // and only sideways.
+              SizedBox(height: kSpacingSection * scale),
+              const Spacer(),
+              const AccountBody(),
             ],
           ),
         ),
@@ -109,30 +121,26 @@ class _EffortSummary extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final hours = (lifetime.inMinutes / 60).round();
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-      decoration: BoxDecoration(
-        color: tokens.surface,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _Stat(value: '$hours', label: hours == 1 ? 'hour' : 'hours'),
+    // No container: a filled rounded rectangle signals "tappable", and this
+    // block is a read-only summary. It sits bare on the page at the same
+    // gutter as everything else (see DESIGN.md).
+    return Row(
+      children: [
+        Expanded(
+          child: _Stat(value: '$hours', label: hours == 1 ? 'hour' : 'hours'),
+        ),
+        _Divider(tokens: tokens),
+        Expanded(
+          child: _Stat(value: '$streak', label: 'day streak'),
+        ),
+        _Divider(tokens: tokens),
+        Expanded(
+          child: _Stat(
+            value: '$milestones',
+            label: milestones == 1 ? 'milestone' : 'milestones',
           ),
-          _Divider(tokens: tokens),
-          Expanded(
-            child: _Stat(value: '$streak', label: 'day streak'),
-          ),
-          _Divider(tokens: tokens),
-          Expanded(
-            child: _Stat(
-              value: '$milestones',
-              label: milestones == 1 ? 'milestone' : 'milestones',
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -231,7 +239,7 @@ class _GalleryDoorway extends ConsumerWidget {
     if (preview == null || preview.total == 0) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(top: 12),
+      padding: EdgeInsets.only(top: kSpacingBase * figmaScale(context)),
       child: Material(
         color: tokens.surface,
         borderRadius: BorderRadius.circular(16),
@@ -286,7 +294,7 @@ class _MilestonesDoorway extends ConsumerWidget {
     final n = collages.length;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 12),
+      padding: EdgeInsets.only(top: kSpacingBase * figmaScale(context)),
       child: Material(
         color: tokens.surface,
         borderRadius: BorderRadius.circular(16),
@@ -399,14 +407,21 @@ class _TasksInProgress extends StatelessWidget {
 
   static const double _tileWidth = 84; // matches _TaskTile width
   static const double _colGap = 20;
-  static const double _rowGap = 20;
-  static const double _oneRowHeight = 120;
-  static const double _twoRowHeight = 260;
+
+  /// On the base tier — it was 20, which was neither tier (see DESIGN.md).
+  static const double _rowGap = kSpacingBase;
+
+  /// The strip needs a bounded height, so it states exactly what it holds —
+  /// no more. These were 120 and 260 against 101-tall tiles, which left ~38 of
+  /// dead space at the bottom of the screen.
+  static const double _oneRowHeight = _TaskTile.height;
+  static const double _twoRowHeight = _TaskTile.height * 2 + _rowGap;
 
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
+    final scale = figmaScale(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -414,11 +429,11 @@ class _TasksInProgress extends StatelessWidget {
         Text(
           'In progress',
           style: theme.textTheme.titleMedium?.copyWith(
-            fontSize: 15,
+            fontSize: 15 * scale,
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: kSpacingBase * scale),
         if (tasks.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -432,7 +447,7 @@ class _TasksInProgress extends StatelessWidget {
         else if (tasks.length <= 2)
           // 1–2 tasks: a single horizontal row (no half-empty second row).
           SizedBox(
-            height: _oneRowHeight,
+            height: _oneRowHeight * scale,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: EdgeInsets.zero,
@@ -446,23 +461,23 @@ class _TasksInProgress extends StatelessWidget {
           // with 84px columns + 20 gap inside the 24px page padding, the next
           // column peeks at the right edge.
           SizedBox(
-            height: _twoRowHeight,
+            height: _twoRowHeight * scale,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: EdgeInsets.zero,
               itemCount: (tasks.length / 2).ceil(),
-              separatorBuilder: (_, _) => const SizedBox(width: _colGap),
+              separatorBuilder: (_, _) => SizedBox(width: _colGap * scale),
               itemBuilder: (context, c) {
                 final topI = c * 2;
                 final botI = c * 2 + 1;
                 return SizedBox(
-                  width: _tileWidth,
+                  width: _tileWidth * scale,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _TaskTile(task: tasks[topI]),
                       if (botI < tasks.length) ...[
-                        const SizedBox(height: _rowGap),
+                        SizedBox(height: _rowGap * scale),
                         _TaskTile(task: tasks[botI]),
                       ],
                     ],
@@ -480,6 +495,15 @@ class _TaskTile extends StatelessWidget {
   const _TaskTile({required this.task});
   final Task task;
 
+  static const double ringSize = 72;
+  static const double labelGap = 8;
+
+  /// Unscaled height of one tile: ring + gap + the label's line box. Measured
+  /// against the real text metrics rather than guessed — the strip that holds
+  /// these needs a bounded height, so it has to be stated somewhere, and
+  /// stating it here keeps it next to the parts it is made of.
+  static const double height = ringSize + labelGap + 17;
+
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
@@ -490,35 +514,33 @@ class _TaskTile extends StatelessWidget {
     // milestone the ring has not reached.
     final hours = task.wholeHours;
 
+    // ONE style object, used by both the in-ring figure and the name beneath
+    // it, so the two can never drift apart in size or weight.
+    final figureStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 12 * scale,
+      fontWeight: FontWeight.w700,
+      color: tokens.textPrimary,
+    );
+
     return SizedBox(
       width: 84 * scale,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ProgressRing(
-            size: 72 * scale,
+            size: ringSize * scale,
             // Progress through the CURRENT 20h block, so the ring keeps
             // climbing toward the next milestone rather than pinning full.
             progress: task.milestoneProgress,
-            center: Text(
-              '${hours}h',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontSize: 12 * scale,
-                fontWeight: FontWeight.w700,
-                color: tokens.textPrimary,
-              ),
-            ),
+            center: Text('${hours}h', style: figureStyle),
           ),
-          SizedBox(height: 8 * scale),
+          SizedBox(height: labelGap * scale),
           Text(
             task.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontSize: 15 * scale,
-              color: tokens.textPrimary,
-            ),
+            style: figureStyle,
           ),
         ],
       ),

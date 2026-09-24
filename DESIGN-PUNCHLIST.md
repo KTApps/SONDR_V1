@@ -130,16 +130,38 @@ Reference: `~/DevWork/TTMusic`, `TTMusic/Views/Profile/FriendsView.swift`.
 Read it, then rebuild the behaviour in Flutter — port the interaction, not the
 SwiftUI.
 
-- [ ] **Tappable count headers** — "X Friends", "Y Pending", "Z Requests".
-      Tapping expands the section; tapping again collapses it.
-- [ ] **Three rows visible when expanded**, scrollable beyond that.
-- [ ] **Rows are placeholder photo + username**, no "@" prefix.
-- [ ] **Remove / Block revealed on swipe-left**, not permanently on the row.
-      In TTM these sit visible at the row's trailing edge, and **Block is red —
-      do not copy that.** Greyscale, per DESIGN.md.
-- [ ] **Remove the add-by-search button.**
-- [ ] **Symmetric edge spacing.**
-- [ ] **Drop "No friends yet…"** and the other empty-state explainers.
+- [x] **Count headers** — "1 Request", "2 Friends", "1 Pending", inline like
+      TTM, in our 15/Bold section style.
+- [x] **Rows are placeholder photo + username**, no "@" prefix. The photo is a
+      surface-toned rounded square — TTM's is solid white, which is banned here.
+- [x] **Remove / Block revealed on swipe-left.** TTM keeps them visible on the
+      row and tells them apart with red; we summon them and keep both white.
+- [x] **Remove the add-by-search button** — and the live-suggestion list with
+      it. The field submits to send a request.
+- [x] **Symmetric edge spacing** — 24 throughout, including the back chevron,
+      which was 22.
+- [x] **Drop "No friends yet…"** and the other empty-state explainers.
+
+**Not ported: collapsing headers.** TTM's headers toggle their lists open and
+shut. With three short sections on one screen there is nothing to collapse
+away — the whole list fits — so the headers are plain labels. Revisit if a
+section ever grows long enough to need it.
+
+**Which actions are visible is the rule worth keeping:** an action that IS the
+row's purpose stays on the row, and management actions hide behind the swipe.
+A request is a decision, so Accept (white) and Decline (grey) are both visible;
+removing, blocking and withdrawing are summoned.
+
+### Block is UI-only — required before launch
+
+**`Block` currently calls `remove`.** There is no block in the data model and no
+backend for it, so the button unfriends and nothing more. Shipping that would
+be misleading: a blocked person would still be able to find and re-add you.
+
+Needs: a block record (blocker, blocked, timestamp), enforcement in the
+friend-request path and in the handle lookup so a blocked user cannot send or
+search, and a way to unblock. Until then the UI is in place and the behaviour
+is not.
 
 Files: [`friends_screen.dart`](lib/features/friends/friends_screen.dart).
 

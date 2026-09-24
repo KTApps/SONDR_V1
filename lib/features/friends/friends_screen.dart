@@ -1,19 +1,28 @@
-import 'dart:async';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import '../../core/theme/greyscale_tokens.dart';
+import '../../core/theme/spacing.dart';
+import '../../core/utils/figma_scale.dart';
+import '../../shared/sondr_action.dart';
+import '../../shared/sondr_field.dart';
+import '../../shared/sondr_header.dart';
+import '../../shared/sondr_swipe_row.dart';
 import '../auth/handle_screen.dart';
 import '../auth/profile_repository.dart';
 import 'friends_repository.dart';
 import 'models/friendship.dart';
 
 /// Friends hub, reached from the Profile tab. Incoming requests to accept or
-/// decline, the accepted friends list, and pending outgoing requests — plus an
-/// add-by-handle field that suggests matching handles as you type.
+/// decline, the accepted friends list, and pending outgoing requests, plus a
+/// handle field that sends a request when submitted.
+///
+/// Which actions are visible is deliberate: an action that IS the row's
+/// purpose stays on the row, and management actions hide behind a swipe. A
+/// request is a decision, so Accept and Decline are both visible; removing or
+/// blocking a friend is rare, so it is summoned.
 class FriendsScreen extends ConsumerStatefulWidget {
   const FriendsScreen({super.key});
 
@@ -25,57 +34,10 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
   final _handle = TextEditingController();
   bool _busy = false;
 
-  // Live handle suggestions for what's typed. [_matchesFor] is the query the
-  // current [_matches] answer, so "no matches" only shows once a search lands.
-  Timer? _debounce;
-  String _query = '';
-  String _matchesFor = '';
-  List<String> _matches = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    _handle.addListener(_onQueryChanged);
-  }
-
   @override
   void dispose() {
-    _debounce?.cancel();
     _handle.dispose();
     super.dispose();
-  }
-
-  void _onQueryChanged() {
-    final q = normalizeHandle(_handle.text);
-    if (q == _query) return; // cursor moves also notify
-    _query = q;
-    _debounce?.cancel();
-    if (q.isEmpty) {
-      setState(() {
-        _matches = const [];
-        _matchesFor = '';
-      });
-      return;
-    }
-    _debounce = Timer(const Duration(milliseconds: 250), () => _search(q));
-  }
-
-  Future<void> _search(String q) async {
-    final repo = ref.read(friendsRepositoryProvider);
-    if (repo == null) return;
-    List<String> found;
-    try {
-      found = await repo.searchHandles(q);
-    } catch (e) {
-      debugPrint('SONDR handle search error: $e');
-      found = const [];
-    }
-    // Drop stale answers if the user kept typing.
-    if (!mounted || q != _query) return;
-    setState(() {
-      _matches = found;
-      _matchesFor = q;
-    });
   }
 
   void _toast(String message) {
@@ -122,24 +84,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         profile.value != null && profile.value!.username.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        toolbarHeight: 52,
-        iconTheme: const IconThemeData(size: 20),
-        // Title removed; explicit left-aligned back chevron (calendar pattern).
-        leadingWidth: 44,
-        leading: IconButton(
-          padding: const EdgeInsets.only(left: 22),
-          alignment: Alignment.centerLeft,
-          constraints: const BoxConstraints(),
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
       body: SafeArea(
-        top: false,
         child: hasHandle ? _list() : const _HandleGate(),
       ),
     );
@@ -150,216 +95,167 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     final incoming = ref.watch(incomingRequestsProvider);
     final friends = ref.watch(friendsProvider);
     final outgoing = ref.watch(outgoingRequestsProvider);
+    final scale = figmaScale(context);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      padding: EdgeInsets.only(bottom: kSpacingSection * scale),
       children: [
-        _AddByHandle(controller: _handle, busy: _busy, onAdd: _add),
-        if (_query.isNotEmpty)
-          ..._suggestions(uid ?? '', incoming, friends, outgoing),
-        const SizedBox(height: 28),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SondrHeader(title: 'Friends'),
+              SizedBox(height: kSpacingSection * scale),
+              SondrField(
+                label: 'Add by handle',
+                controller: _handle,
+                enabled: !_busy,
+                autocorrect: false,
+                prefix: '@',
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _busy ? null : _add(),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: kSpacingSection * scale),
+
         if (incoming.isNotEmpty) ...[
-          _SectionHeader('Requests (${incoming.length})'),
+          _SectionHeader('${incoming.length} '
+              '${incoming.length == 1 ? 'Request' : 'Requests'}'),
           for (final f in incoming)
-            _FriendTile(
+            // A request is a decision, so both answers stay on the row.
+            // Accept leads; Decline is the grey one among whites, which is
+            // what makes it read as secondary rather than disabled.
+            _FriendRow(
               identity: f.otherIdentity(uid ?? ''),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextButton(
+                  SondrAction(
+                    label: 'Accept',
                     onPressed: _busy
                         ? null
                         : () => _run((r) => r.accept(f.id),
-                            success: 'You’re now friends.'),
-                    child: const Text('Accept'),
+                            success: 'You\u2019re now friends.'),
                   ),
-                  IconButton(
-                    tooltip: 'Decline',
-                    onPressed: _busy ? null : () => _run((r) => r.remove(f.id)),
-                    icon: const Icon(Icons.close),
+                  SondrAction(
+                    label: 'Decline',
+                    supporting: true,
+                    onPressed:
+                        _busy ? null : () => _run((r) => r.remove(f.id)),
                   ),
                 ],
               ),
             ),
-          const SizedBox(height: 24),
+          SizedBox(height: kSpacingSection * scale),
         ],
-        _SectionHeader('Friends (${friends.length})'),
-        if (friends.isEmpty)
-          const _Hint('No friends yet. Add someone by their handle above.')
-        else
-          for (final f in friends)
-            _FriendTile(
-              identity: f.otherIdentity(uid ?? ''),
-              trailing: IconButton(
-                tooltip: 'Remove',
+
+        _SectionHeader('${friends.length} '
+            '${friends.length == 1 ? 'Friend' : 'Friends'}'),
+        for (final f in friends)
+          SondrSwipeRow(
+            // Most severe last: Block sits outermost.
+            actions: [
+              SondrAction(
+                label: 'Remove',
                 onPressed: _busy ? null : () => _run((r) => r.remove(f.id)),
-                icon: const Icon(Icons.person_remove_outlined),
               ),
-            ),
+              SondrAction(
+                label: 'Block',
+                onPressed: _busy ? null : () => _run((r) => r.remove(f.id)),
+              ),
+            ],
+            child: _FriendRow(identity: f.otherIdentity(uid ?? '')),
+          ),
+
         if (outgoing.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          _SectionHeader('Pending (${outgoing.length})'),
+          SizedBox(height: kSpacingSection * scale),
+          _SectionHeader('${outgoing.length} Pending'),
           for (final f in outgoing)
-            _FriendTile(
-              identity: f.otherIdentity(uid ?? ''),
-              subtitle: 'Requested',
-              trailing: TextButton(
-                onPressed: _busy ? null : () => _run((r) => r.remove(f.id)),
-                child: const Text('Cancel'),
-              ),
-            ),
-        ],
-      ],
-    );
-  }
-
-  /// Matching handles under the field, each with its friendship status or an
-  /// Add action. Empty until the first search for the current text returns.
-  List<Widget> _suggestions(
-    String uid,
-    List<Friendship> incoming,
-    List<Friendship> friends,
-    List<Friendship> outgoing,
-  ) {
-    if (_matchesFor != _query) return const [];
-    if (_matches.isEmpty) {
-      return [_Hint('No one found starting with @$_query.')];
-    }
-    Set<String> handles(List<Friendship> list) =>
-        {for (final f in list) f.otherIdentity(uid)?.username ?? ''};
-    final friendHandles = handles(friends);
-    final sentHandles = handles(outgoing);
-    final receivedHandles = handles(incoming);
-
-    return [
-      const SizedBox(height: 8),
-      for (final h in _matches)
-        _FriendTile(
-          identity: FriendIdentity(username: h, displayName: ''),
-          subtitle: friendHandles.contains(h)
-              ? 'Friends'
-              : sentHandles.contains(h)
-                  ? 'Requested'
-                  : receivedHandles.contains(h)
-                      ? 'Sent you a request'
-                      : '',
-          trailing: friendHandles.contains(h) ||
-                  sentHandles.contains(h) ||
-                  receivedHandles.contains(h)
-              ? null
-              : TextButton(
-                  onPressed: _busy ? null : () => _add(h),
-                  child: const Text('Add'),
-                ),
-        ),
-    ];
-  }
-}
-
-class _AddByHandle extends StatelessWidget {
-  const _AddByHandle({
-    required this.controller,
-    required this.busy,
-    required this.onAdd,
-  });
-
-  final TextEditingController controller;
-  final bool busy;
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: TextField(
-            controller: controller,
-            enabled: !busy,
-            autocorrect: false,
-            textCapitalization: TextCapitalization.none,
-            style: theme.textTheme.bodyLarge,
-            cursorColor: tokens.textPrimary,
-            onSubmitted: (_) => busy ? null : onAdd(),
-            decoration: InputDecoration(
-              isCollapsed: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              // No box / fill / underline — floats on the background.
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              // Muted always-visible placeholder; signals it's a handle field.
-              hintText: '@handle',
-              hintStyle: theme.textTheme.bodyLarge
-                  ?.copyWith(color: tokens.textTertiary),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        // "Add" as a quiet text action (was a solid white FilledButton).
-        TextButton(
-          onPressed: busy ? null : onAdd,
-          style: TextButton.styleFrom(foregroundColor: tokens.textSecondary),
-          child: busy
-              ? const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Add'),
-        ),
-      ],
-    );
-  }
-}
-
-class _FriendTile extends StatelessWidget {
-  const _FriendTile({required this.identity, this.subtitle, this.trailing});
-
-  final FriendIdentity? identity;
-  final String? subtitle;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
-    final label = identity?.label ?? 'Unknown';
-    final handle = identity?.username ?? '';
-    final initial = label.isNotEmpty ? label[0].toUpperCase() : '?';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: tokens.surface,
-            child: Text(initial,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(color: tokens.textPrimary)),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyLarge),
-                Text(
-                  subtitle ?? (handle.isEmpty ? '' : '@$handle'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: tokens.textTertiary),
+            // Withdrawing is management, not the row's purpose, so it is
+            // summoned by the swipe like Remove and Block.
+            SondrSwipeRow(
+              actions: [
+                SondrAction(
+                  label: 'Cancel',
+                  onPressed: _busy ? null : () => _run((r) => r.remove(f.id)),
                 ),
               ],
+              child: _FriendRow(
+                identity: f.otherIdentity(uid ?? ''),
+                status: 'Requested',
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+/// One person in a list: a placeholder photo square and their username.
+///
+/// No "@" — the handle IS the name here. There is no photo in the data model
+/// yet, so the square is a surface-toned placeholder rather than an avatar; it
+/// is deliberately a rounded square, not a circle, and never a white fill.
+class _FriendRow extends StatelessWidget {
+  const _FriendRow({required this.identity, this.status, this.trailing});
+
+  final FriendIdentity? identity;
+
+  /// Metadata beside the name, e.g. "Requested".
+  final String? status;
+
+  /// An affirmative action that stays visible, e.g. Accept. Destructive ones
+  /// live behind the swipe instead.
+  final Widget? trailing;
+
+  static const double photo = 36;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final scale = figmaScale(context);
+    final name = identity?.username ?? 'Unknown';
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: 24 * scale,
+        vertical: kSpacingPair * scale,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: photo * scale,
+            height: photo * scale,
+            decoration: BoxDecoration(
+              color: tokens.surface,
+              borderRadius: BorderRadius.circular(8 * scale),
             ),
           ),
+          SizedBox(width: kSpacingBase * scale),
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 15 * scale,
+                color: tokens.textPrimary,
+              ),
+            ),
+          ),
+          if (status != null)
+            Text(
+              status!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 12 * scale,
+                fontWeight: FontWeight.w700,
+                color: tokens.textTertiary,
+              ),
+            ),
           ?trailing,
         ],
       ),
@@ -370,30 +266,26 @@ class _FriendTile extends StatelessWidget {
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.text);
   final String text;
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
-      );
-}
 
-class _Hint extends StatelessWidget {
-  const _Hint(this.text);
-  final String text;
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
+    final scale = figmaScale(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Text(text,
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(color: tokens.textSecondary)),
+      padding: EdgeInsets.fromLTRB(
+        24 * scale,
+        0,
+        24 * scale,
+        kSpacingBase * scale,
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: 15 * scale,
+              fontWeight: FontWeight.w700,
+              color: tokens.textPrimary,
+            ),
+      ),
     );
   }
 }
@@ -406,35 +298,38 @@ class _HandleGate extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
+    final scale = figmaScale(context);
+
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.symmetric(horizontal: 24 * scale),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Set a handle first',
-              style: theme.textTheme.titleLarge
-                  ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
           Text(
-            'Friends find you by your handle, so you’ll need one before you can '
-            'add friends or receive requests.',
-            style:
-                theme.textTheme.bodyMedium?.copyWith(color: tokens.textSecondary),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const HandleScreen(),
-            )),
-            style: FilledButton.styleFrom(
-              backgroundColor: tokens.ringFillOuter,
-              foregroundColor: tokens.background,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
+            'Set a handle first',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontSize: 20 * scale,
+              fontWeight: FontWeight.w700,
+              color: tokens.textPrimary,
             ),
-            child: const Text('Choose a handle'),
+          ),
+          SizedBox(height: kSpacingBase * scale),
+          Text(
+            'Friends find you by your handle.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 13 * scale,
+              color: tokens.textSecondary,
+            ),
+          ),
+          SizedBox(height: kSpacingBase * scale),
+          Center(
+            child: SondrAction(
+              label: 'Choose a handle',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const HandleScreen()),
+              ),
+            ),
           ),
         ],
       ),

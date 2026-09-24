@@ -50,6 +50,19 @@ applied to an action whose job is to be findable, not inviting. Hierarchy
 still comes from position first — the exit goes last — with tone reinforcing
 it rather than replacing it.
 
+**Actions summoned by a gesture stay white.** A swipe-revealed Remove, Block,
+Decline or Cancel — and the Feed's long-press Delete — is at full emphasis:
+white and bold, like any other action. They are not standing on the screen
+demanding to be ignored; they appear only when called for, so they cost nothing
+in clutter and have nothing to be de-emphasised against.
+
+This is the counterpart to the rule above, and the distinction is **standing vs
+summoned**, not safe vs destructive. Sign out is grey because it sits there
+permanently beside things you are more likely to want. A swipe tray holds
+nothing but destructive actions, so greying them would leave a panel of dim
+text with no white beside it — which reads as disabled, the exact failure the
+note below warns about.
+
 **The thing to watch:** grey can read as disabled. It stays legible here
 because these actions sit in their normal place in the flow and are the only
 grey item in a column of white ones. A genuinely disabled control is dimmed by

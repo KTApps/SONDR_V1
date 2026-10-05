@@ -20,30 +20,45 @@ import '../core/utils/figma_scale.dart';
 class SondrField extends StatelessWidget {
   const SondrField({
     super.key,
-    required this.label,
+    this.label,
     required this.controller,
     this.enabled = true,
     this.obscureText = false,
     this.keyboardType,
     this.textInputAction,
     this.onSubmitted,
+    this.onChanged,
     this.autocorrect = true,
     this.inputFormatters,
     this.prefix,
+    this.filled = true,
+    this.centered = false,
+    this.focusNode,
   });
 
-  final String label;
+  /// Omit where the surrounding screen already says what the field is for.
+  final String? label;
   final TextEditingController controller;
   final bool enabled;
   final bool obscureText;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
   final bool autocorrect;
   final List<TextInputFormatter>? inputFormatters;
 
   /// Fixed text before the entry point, e.g. the handle's "@".
   final String? prefix;
+
+  /// Whether the capsule is drawn. Unfilled, the field is invisible until
+  /// typed in — for a screen where the heading already says what it takes.
+  final bool filled;
+
+  /// Centres the text and the cursor.
+  final bool centered;
+
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
@@ -60,25 +75,32 @@ class SondrField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          label,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontSize: 15 * scale,
-            fontWeight: FontWeight.w700,
-            color: tokens.textSecondary,
+        if (label != null) ...[
+          Text(
+            label!,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 15 * scale,
+              fontWeight: FontWeight.w700,
+              color: tokens.textSecondary,
+            ),
           ),
-        ),
-        SizedBox(height: kSpacingPair * scale),
+          SizedBox(height: kSpacingPair * scale),
+        ],
         Container(
+          // Unfilled there is no capsule to pad, so the field contributes no
+          // space of its own and the screen's rhythm is the only thing
+          // setting the gaps around it.
           padding: EdgeInsets.symmetric(
-            horizontal: 16 * scale,
-            vertical: 14 * scale,
+            horizontal: filled ? 16 * scale : 0,
+            vertical: filled ? 14 * scale : 0,
           ),
           decoration: BoxDecoration(
-            color: tokens.surface,
+            color: filled ? tokens.surface : Colors.transparent,
             borderRadius: BorderRadius.circular(16 * scale),
           ),
           child: Row(
+            mainAxisAlignment:
+                centered ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
               if (prefix != null) ...[
                 Text(
@@ -86,17 +108,21 @@ class SondrField extends StatelessWidget {
                   style: entryStyle?.copyWith(color: tokens.textTertiary),
                 ),
               ],
-              Expanded(
+              Flexible(
+                fit: centered ? FlexFit.loose : FlexFit.tight,
                 child: TextField(
                   controller: controller,
+                  focusNode: focusNode,
                   enabled: enabled,
                   obscureText: obscureText,
                   keyboardType: keyboardType,
                   textInputAction: textInputAction,
                   onSubmitted: onSubmitted,
+                  onChanged: onChanged,
                   autocorrect: autocorrect,
                   inputFormatters: inputFormatters,
                   style: entryStyle,
+                  textAlign: centered ? TextAlign.center : TextAlign.start,
                   cursorColor: tokens.textPrimary,
                   cursorWidth: 1.5 * scale,
                   // The capsule IS the field; strip Material's own chrome.

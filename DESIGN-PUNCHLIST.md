@@ -130,27 +130,38 @@ Reference: `~/DevWork/TTMusic`, `TTMusic/Views/Profile/FriendsView.swift`.
 Read it, then rebuild the behaviour in Flutter — port the interaction, not the
 SwiftUI.
 
-- [x] **Count headers** — "1 Request", "2 Friends", "1 Pending", inline like
-      TTM, in our 15/Bold section style.
+- [x] **Collapsing count headers** — "1 Request", "2 Friends", "1 Pending",
+      inline like TTM, in our 15/Bold. Requests and Pending collapse and are
+      mutually exclusive; Friends is always open and fills the page.
 - [x] **Rows are placeholder photo + username**, no "@" prefix. The photo is a
-      surface-toned rounded square — TTM's is solid white, which is banned here.
+      surface-toned **circle** — TTM's is a solid white square, and white fills
+      are banned here.
 - [x] **Remove / Block revealed on swipe-left.** TTM keeps them visible on the
-      row and tells them apart with red; we summon them and keep both white.
-- [x] **Remove the add-by-search button** — and the live-suggestion list with
-      it. The field submits to send a request.
-- [x] **Symmetric edge spacing** — 24 throughout, including the back chevron,
-      which was 22.
-- [x] **Drop "No friends yet…"** and the other empty-state explainers.
+      row and tells them apart with red; we summon them and keep both white, at
+      the username's own size and weight so they read as part of the row.
+- [x] **Live handle search, restored.** An earlier pass removed it in favour of
+      submit-to-add; this one brings TTM's behaviour back — typing filters
+      live, the results replace all three sections, and you add by tapping a
+      result. Enter only dismisses the keyboard.
+- [x] **Symmetric edge spacing** — 24 throughout.
+- [x] **Drop "No friends yet…"** and the other empty-state explainers. Search
+      keeps one quiet "No one found".
+- [x] **Invite**, pinned at the bottom with **Back** beneath it, which replaces
+      the top chevron the screen used to carry.
 
-**Not ported: collapsing headers.** TTM's headers toggle their lists open and
-shut. With three short sections on one screen there is nothing to collapse
-away — the whole list fits — so the headers are plain labels. Revisit if a
-section ever grows long enough to need it.
+**Spacing follows TTM, type follows Sondr.** The gaps are TTM's — 8 between
+sections, 12 in a header — with rows a little looser (10 either side) because
+our 36 photo is taller than TTM's 30, and tuned so six friends sit on the
+reference screen.
 
 **Which actions are visible is the rule worth keeping:** an action that IS the
 row's purpose stays on the row, and management actions hide behind the swipe.
 A request is a decision, so Accept (white) and Decline (grey) are both visible;
 removing, blocking and withdrawing are summoned.
+
+**The invite copies a link rather than sharing it.** The app has no OS share
+mechanism and adding one means a new dependency, so the TestFlight link goes to
+the clipboard with a "Copied" confirmation. Worth revisiting with `share_plus`.
 
 ### Block is UI-only — required before launch
 

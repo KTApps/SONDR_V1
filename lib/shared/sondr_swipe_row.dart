@@ -85,18 +85,22 @@ class _SondrSwipeRowState extends State<SondrSwipeRow>
   Widget build(BuildContext context) {
     final scale = figmaScale(context);
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onHorizontalDragUpdate: _drag,
-      onHorizontalDragEnd: _settle,
-      // A tap anywhere on an open row closes it, so the gesture is reversible
-      // without having to find the exact swipe back.
-      onTap: _open.value > 0 ? () => _open.reverse() : null,
-      child: AnimatedBuilder(
-        animation: _open,
-        builder: (context, _) {
-          final revealed = _open.value * _trayWidth;
-          return Stack(
+    // The whole thing rebuilds with the animation, not just the tray: the tap
+    // handler has to read the LIVE open value. Built outside the listener it
+    // captured the value at first build — always 0 — so a tap on an open row
+    // did nothing and only a swipe back could close it.
+    return AnimatedBuilder(
+      animation: _open,
+      builder: (context, _) {
+        final revealed = _open.value * _trayWidth;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragUpdate: _drag,
+          onHorizontalDragEnd: _settle,
+          // A tap anywhere on an open row closes it, so the gesture is
+          // reversible without having to find the exact swipe back.
+          onTap: _open.value > 0 ? () => _open.reverse() : null,
+          child: Stack(
             alignment: Alignment.centerRight,
             children: [
               // The tray is uncovered from the right edge inwards. The row
@@ -126,9 +130,9 @@ class _SondrSwipeRowState extends State<SondrSwipeRow>
                 child: widget.child,
               ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

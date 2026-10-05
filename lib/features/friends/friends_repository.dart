@@ -35,6 +35,25 @@ class FriendsRepository {
             snap.docs.map((d) => Friendship.fromMap(d.id, d.data())).toList());
   }
 
+  /// Handles starting with [prefix], alphabetical, excluding this user's own.
+  /// Handles are the `usernames` doc ids, so this is a doc-id range query —
+  /// no composite index needed.
+  Future<List<String>> searchHandles(String prefix, {int limit = 8}) async {
+    final h = normalizeHandle(prefix);
+    if (h.isEmpty) return const [];
+    final snap = await db
+        .collection('usernames')
+        .where(FieldPath.documentId, isGreaterThanOrEqualTo: h)
+        .where(FieldPath.documentId, isLessThan: '$h\uf8ff')
+        .limit(limit + 1)
+        .get();
+    return snap.docs
+        .where((d) => d.data()['uid'] != uid)
+        .map((d) => d.id)
+        .take(limit)
+        .toList();
+  }
+
   Future<FriendIdentity> _myIdentity() async {
     final doc = await db
         .collection('users')

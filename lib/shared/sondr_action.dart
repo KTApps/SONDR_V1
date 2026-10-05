@@ -20,6 +20,7 @@ class SondrAction extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.supporting = false,
+    this.weight,
   });
 
   final String label;
@@ -30,6 +31,10 @@ class SondrAction extends StatelessWidget {
   /// which stay white and bold. Same size and the same tap target: only the
   /// tone and the weight change (see DESIGN.md).
   final bool supporting;
+
+  /// Overrides the action's weight. Used where an action has to match the
+  /// text it sits beside — a swipe tray's Remove reads as part of the row.
+  final FontWeight? weight;
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +54,8 @@ class SondrAction extends StatelessWidget {
           label,
           style: theme.textTheme.bodyMedium?.copyWith(
             fontSize: 15 * scale,
-            fontWeight: supporting ? FontWeight.w400 : FontWeight.w700,
+            fontWeight:
+                weight ?? (supporting ? FontWeight.w400 : FontWeight.w700),
             color: supporting ? tokens.textSecondary : tokens.textPrimary,
           ),
         ),

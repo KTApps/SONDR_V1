@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,6 +17,20 @@ class FriendException implements Exception {
 /// A handle as stored: trimmed, lowercase, without a leading `@`.
 String normalizeHandle(String raw) =>
     raw.trim().toLowerCase().replaceFirst(RegExp(r'^@'), '');
+
+/// The handles in [candidates] (handle -> owner uid) that [blockedUids] does
+/// not cover, in order.
+///
+/// Pure, so the filter is testable without Firestore. A candidate with no uid
+/// is dropped: a usernames entry with no owner is malformed and unusable.
+List<String> handlesNotBlocked(
+  Iterable<MapEntry<String, String?>> candidates,
+  Set<String> blockedUids,
+) =>
+    [
+      for (final c in candidates)
+        if (c.value != null && !blockedUids.contains(c.value)) c.key,
+    ];
 
 /// Reads and mutates the `friendships` collection for the current [uid]. All
 /// reads are scoped by `array-contains uid`, matching the security rule that a
@@ -40,20 +56,63 @@ class FriendsRepository {
         .map((snap) => snap.docs.map((d) => Block.fromMap(d.data())).toList());
   }
 
-  /// True when either side has blocked the other. Two direct gets rather than
-  /// a query: the ids are derived, and a blocked user cannot read the doc that
-  /// blocks them — but they can be denied by it.
-  Future<bool> _blockedEitherWay(String otherUid) async {
-    final mine = await _blocks.doc(Block.idFor(uid, otherUid)).get();
-    if (mine.exists) return true;
-    try {
-      final theirs = await _blocks.doc(Block.idFor(otherUid, uid)).get();
-      return theirs.exists;
-    } on FirebaseException {
-      // Reading someone else's block is denied by the rules, which is the
-      // point: treat a refusal as "cannot proceed" rather than "no block".
-      return true;
+  /// The uids this user has blocked, kept live from [watchBlocked].
+  ///
+  /// Cached from the STREAM rather than read per candidate. A `get()` of a
+  /// block document that does not exist is DENIED, not empty — the read rule
+  /// dereferences `resource.data.blocker` on a null resource — so reading one
+  /// per candidate threw `permission-denied` and took search, sendRequest and
+  /// accept down with it. A query filtered by `blocker == uid` has no such
+  /// trap: every document it returns exists.
+  Set<String> _blockedUids = const {};
+  StreamSubscription<List<Block>>? _blockSub;
+  Completer<void>? _primed;
+
+  /// The people this user has blocked.
+  ///
+  /// Only THIS user's blocks. Whether the other person has blocked us is
+  /// deliberately not asked: that is the rules' job, via `exists()` on the
+  /// block id. A client able to ask could detect that it had been blocked,
+  /// which is the one thing a block must not disclose.
+  ///
+  /// Fails OPEN. The rules are the real boundary and this is UX, so a blocks
+  /// read that is denied, offline or slow filters nothing rather than break
+  /// whatever called it.
+  Future<Set<String>> _blockedByMe() async {
+    if (_blockSub == null) {
+      final completer = Completer<void>();
+      _primed = completer;
+      void prime() {
+        if (!completer.isCompleted) completer.complete();
+      }
+
+      _blockSub = watchBlocked().listen(
+        (list) {
+          _blockedUids = {for (final b in list) b.blocked};
+          prime();
+        },
+        onError: (Object _) {
+          _blockedUids = const {};
+          prime();
+        },
+      );
     }
+
+    final pending = _primed;
+    if (pending != null && !pending.isCompleted) {
+      // Awaited once, so a search in the first moments after launch cannot
+      // show someone this user has blocked. Bounded, so a stream that never
+      // speaks holds nothing up for long.
+      await pending.future
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
+    }
+    return _blockedUids;
+  }
+
+  /// Stop watching blocks. Called when the provider is disposed.
+  void dispose() {
+    _blockSub?.cancel();
+    _blockSub = null;
   }
 
   /// Block [targetUid]: unfriend and record the block in one write, so a
@@ -105,17 +164,13 @@ class FriendsRepository {
         .take(limit)
         .toList();
 
-    // Blocked people are not findable, in either direction: the blocker
-    // should not see them, and they should not be able to find their way
-    // back by handle.
-    final kept = <String>[];
-    for (final d in candidates) {
-      final otherUid = d.data()['uid'] as String?;
-      if (otherUid == null) continue;
-      if (await _blockedEitherWay(otherUid)) continue;
-      kept.add(d.id);
-    }
-    return kept;
+    // People this user has blocked are not findable. The reverse direction —
+    // someone who blocked US — is left to the rules on the write (see
+    // [_blockedByMe]); search itself must not be able to detect it.
+    return handlesNotBlocked(
+      [for (final d in candidates) MapEntry(d.id, d.data()['uid'] as String?)],
+      await _blockedByMe(),
+    );
   }
 
   Future<FriendIdentity> _myIdentity() async {
@@ -152,9 +207,11 @@ class FriendsRepository {
       throw FriendException('No one found with the handle @$h.');
     }
 
-    // Either direction. The message is deliberately the same as "not found":
-    // telling someone they have been blocked is itself information.
-    if (await _blockedEitherWay(targetUid)) {
+    // The message is deliberately the same as "not found": telling someone
+    // they have been blocked is itself information. Only this user's own
+    // blocks are checked here; the other direction is refused by the rules on
+    // the write below, which raises the identical message.
+    if ((await _blockedByMe()).contains(targetUid)) {
       throw FriendException('No one found with the handle @$h.');
     }
 
@@ -174,16 +231,26 @@ class FriendsRepository {
     }
 
     final users = [uid, targetUid]..sort();
-    await _friendships.doc(Friendship.pairId(uid, targetUid)).set({
-      'users': users,
-      'requestedBy': uid,
-      'status': 'pending',
-      'profiles': {
-        uid: {'username': me.username, 'displayName': me.displayName},
-        targetUid: {'username': h},
-      },
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      await _friendships.doc(Friendship.pairId(uid, targetUid)).set({
+        'users': users,
+        'requestedBy': uid,
+        'status': 'pending',
+        'profiles': {
+          uid: {'username': me.username, 'displayName': me.displayName},
+          targetUid: {'username': h},
+        },
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } on FirebaseException catch (e) {
+      // For a well-formed request the create rule's only conditional refusal
+      // is blockedEitherWay() — they blocked us. Same wording again, so the
+      // block stays invisible.
+      if (e.code == 'permission-denied') {
+        throw FriendException('No one found with the handle @$h.');
+      }
+      rethrow;
+    }
   }
 
   /// Accept an incoming request, writing this user's identity into the doc so
@@ -191,14 +258,26 @@ class FriendsRepository {
   Future<void> accept(String pairId) async {
     final me = await _myIdentity();
     final other = pairId.split('__').firstWhere((u) => u != uid, orElse: () => '');
-    if (other.isNotEmpty && await _blockedEitherWay(other)) {
+    if (other.isNotEmpty && (await _blockedByMe()).contains(other)) {
       throw const FriendException('That request is no longer available.');
     }
-    await _friendships.doc(pairId).update({
-      'status': 'accepted',
-      'acceptedAt': FieldValue.serverTimestamp(),
-      'profiles.$uid': {'username': me.username, 'displayName': me.displayName},
-    });
+    try {
+      await _friendships.doc(pairId).update({
+        'status': 'accepted',
+        'acceptedAt': FieldValue.serverTimestamp(),
+        'profiles.$uid': {
+          'username': me.username,
+          'displayName': me.displayName,
+        },
+      });
+    } on FirebaseException catch (e) {
+      // Denied means the rules refused the accept across a block in either
+      // direction. Neutral wording: it does not say which.
+      if (e.code == 'permission-denied') {
+        throw const FriendException('That request is no longer available.');
+      }
+      rethrow;
+    }
   }
 
   /// Decline an incoming request, cancel an outgoing one, or unfriend — all the
@@ -211,7 +290,9 @@ class FriendsRepository {
 final friendsRepositoryProvider = Provider<FriendsRepository?>((ref) {
   final uid = ref.watch(currentUidProvider);
   if (!ref.watch(firebaseReadyProvider) || uid == null) return null;
-  return FriendsRepository(db: FirebaseFirestore.instance, uid: uid);
+  final repo = FriendsRepository(db: FirebaseFirestore.instance, uid: uid);
+  ref.onDispose(repo.dispose);
+  return repo;
 });
 
 /// Every friendship the user is part of (any status). The screen and the

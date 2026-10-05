@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sondr/features/friends/friends_repository.dart';
 import 'package:sondr/features/friends/models/block.dart';
 import 'package:sondr/features/friends/models/friendship.dart';
 
@@ -25,8 +26,9 @@ void main() {
   });
 
   group('both-direction check', () {
-    // Mirrors blockedEitherWay() in the rules and _blockedEitherWay() in the
-    // repository: a pair is blocked if EITHER document exists.
+    // Mirrors blockedEitherWay() in firestore.rules: a pair is blocked if
+    // EITHER document exists. The CLIENT deliberately no longer asks this —
+    // it can only see its own blocks — so this pins the rules' behaviour.
     bool blockedEitherWay(Set<String> existing, String a, String b) =>
         existing.contains(Block.idFor(a, b)) ||
         existing.contains(Block.idFor(b, a));
@@ -49,6 +51,49 @@ void main() {
 
     test('an unrelated block leaves the pair clear', () {
       expect(blockedEitherWay({'alice__carol'}, 'alice', 'bob'), isFalse);
+    });
+  });
+
+  group('handlesNotBlocked', () {
+    // The search filter. It runs against the uids streamed from
+    // watchBlocked(), never a per-candidate get(): a get() of a block doc
+    // that does not exist is denied, not empty, which broke search entirely.
+    const candidates = [
+      MapEntry('alice', 'uid-a'),
+      MapEntry('bob', 'uid-b'),
+      MapEntry('carol', 'uid-c'),
+    ];
+
+    test('drops the blocked person and keeps the rest, in order', () {
+      expect(handlesNotBlocked(candidates, {'uid-b'}), ['alice', 'carol']);
+    });
+
+    test('no blocks: everyone is findable', () {
+      expect(handlesNotBlocked(candidates, {}), ['alice', 'bob', 'carol']);
+    });
+
+    test('FAILS OPEN — an empty set filters nothing, never everything', () {
+      // A denied or offline blocks read degrades to this. Search must still
+      // work: the rules are the real boundary, this is only UX.
+      expect(handlesNotBlocked(candidates, const {}), hasLength(3));
+    });
+
+    test('only THIS user\'s blocks apply — a stranger\'s uid is irrelevant', () {
+      expect(handlesNotBlocked(candidates, {'uid-z'}), hasLength(3));
+    });
+
+    test('a usernames entry with no owner uid is dropped', () {
+      expect(
+        handlesNotBlocked(const [MapEntry('ghost', null)], {}),
+        isEmpty,
+      );
+    });
+
+    test('blocking everyone returns nothing', () {
+      expect(
+        handlesNotBlocked(candidates, {'uid-a', 'uid-b', 'uid-c'}),
+        isEmpty,
+      );
     });
   });
 

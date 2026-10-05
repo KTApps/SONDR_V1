@@ -155,7 +155,7 @@ void main() {
     );
     expect(find.text('Tom Hardy · Spanish · 2h 15m'), findsOneWidget);
     expect(find.textContaining('logged'), findsNothing);
-    expect(find.byIcon(Icons.favorite_border), findsNothing); // no interactions
+    expect(find.text('Like'), findsNothing); // no interactions
   });
 
   testWidgets('SessionLogCard (no photo) shows the caption as a second line', (
@@ -220,7 +220,7 @@ void main() {
       ),
     );
     expect(find.byType(Image), findsWidgets); // the session photo renders
-    expect(find.byIcon(Icons.favorite_border), findsOneWidget); // like/comment
+    expect(find.text('Like'), findsOneWidget); // like/comment are text now
     expect(find.text('Spanish · 1h'), findsOneWidget);
     expect(find.textContaining('logged'), findsNothing);
   });

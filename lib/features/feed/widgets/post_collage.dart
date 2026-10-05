@@ -97,7 +97,7 @@ class _Tile extends StatelessWidget {
                 child: Text(
                   '+$overflow',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: kOnPhoto,
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                   ),

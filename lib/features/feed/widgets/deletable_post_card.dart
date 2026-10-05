@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/backend.dart';
 import '../../../core/theme/greyscale_tokens.dart';
+import '../../../core/theme/spacing.dart';
+import '../../../core/utils/figma_scale.dart';
+import '../../../shared/sondr_action.dart';
 import '../models/post.dart';
 import '../posts_repository.dart';
 
@@ -50,10 +53,6 @@ class DeletablePostCard extends ConsumerStatefulWidget {
 
 class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
   bool _busy = false;
-
-  /// A slim post (session, no photo) has no vertical room → buttons side by side.
-  /// Every other card is tall → Delete stacked above Close.
-  bool get _isSlim => widget.post is SessionPost && widget.post.photos.isEmpty;
 
   /// Match the wrapped card's corner radius so the blur clips to its shape.
   double get _radius => widget.post is SessionPost ? 16 : 24;
@@ -128,7 +127,9 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
           child: Container(
             color: Colors.black.withValues(alpha: 0.4),
             alignment: Alignment.center,
-            padding: const EdgeInsets.all(16),
+            // Tight: a slim session card has barely room for two stacked
+            // actions, and the actions carry their own tap padding already.
+            padding: EdgeInsets.all(kSpacingPair * figmaScale(context)),
             child: _busy
                 ? const SizedBox(
                     width: 24,
@@ -143,34 +144,16 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
   }
 
   Widget _actions(GreyscaleTokens tokens) {
-    final delete = ElevatedButton.icon(
-      onPressed: _delete,
-      icon: const Icon(Icons.delete_outline, size: 18),
-      label: const Text('Delete'),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-    );
-    final close = TextButton(
-      onPressed: _clear,
-      style: TextButton.styleFrom(foregroundColor: Colors.white),
-      child: const Text('Close'),
-    );
-
-    if (_isSlim) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [delete, const SizedBox(width: 16), close],
-      );
-    }
+    // Delete is summoned by the long-press, so it stays at full emphasis:
+    // plain white text, no fill, no border, no glyph (see DESIGN.md). Close
+    // is the exit and takes the supporting tone, stacked beneath rather than
+    // beside so the two never read as a pair of equals.
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: [delete, const SizedBox(height: 20), close],
+      children: [
+        SondrAction(label: 'Delete', onPressed: _delete),
+        SondrAction(label: 'Close', supporting: true, onPressed: _clear),
+      ],
     );
   }
 }

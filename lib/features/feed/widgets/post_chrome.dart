@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
+import '../../../core/theme/spacing.dart';
+import '../../../core/utils/figma_scale.dart';
 import '../../../core/utils/relative_time.dart';
 import '../../../shared/cached_photo.dart';
 import '../models/post.dart';
@@ -39,8 +41,9 @@ class PostAuthorRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
-    final primary = onPhoto ? Colors.white : tokens.textPrimary;
-    final secondary = onPhoto ? Colors.white70 : tokens.textTertiary;
+    final scale = figmaScale(context);
+    final primary = onPhoto ? kOnPhoto : tokens.textPrimary;
+    final secondary = onPhoto ? kOnPhotoDim : tokens.textTertiary;
     final shadows = onPhoto ? kTextShadows : null;
     final initial = author.label.isNotEmpty
         ? author.label[0].toUpperCase()
@@ -49,20 +52,26 @@ class PostAuthorRow extends StatelessWidget {
     return Row(
       children: [
         CircleAvatar(
-          radius: 16,
-          backgroundColor: onPhoto ? Colors.white24 : tokens.background,
+          radius: kAvatarPost / 2 * scale,
+          backgroundColor: onPhoto ? kOnPhotoFill : tokens.background,
           child: Text(
             initial,
-            style: theme.textTheme.labelLarge?.copyWith(color: primary),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 13 * scale,
+              fontWeight: FontWeight.w700,
+              color: primary,
+            ),
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: kSpacingBase * scale),
         Expanded(
           child: Text(
             author.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyLarge?.copyWith(
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 15 * scale,
+              fontWeight: FontWeight.w700,
               color: primary,
               shadows: shadows,
             ),
@@ -71,7 +80,9 @@ class PostAuthorRow extends StatelessWidget {
         if (createdAt != null)
           Text(
             RelativeTime.of(createdAt!),
-            style: theme.textTheme.bodySmall?.copyWith(
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 12 * scale,
+              fontWeight: FontWeight.w700,
               color: secondary,
               shadows: shadows,
             ),
@@ -94,8 +105,10 @@ class PostInteractions extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
-    final color = onPhoto ? Colors.white : tokens.textSecondary;
-    final activeColor = onPhoto ? Colors.white : tokens.textPrimary;
+    final scale = figmaScale(context);
+    final color = onPhoto ? kOnPhotoDim : tokens.textSecondary;
+    final activeColor = onPhoto ? kOnPhoto : tokens.textPrimary;
+    final countColor = onPhoto ? kOnPhotoDim : tokens.textTertiary;
     final shadows = onPhoto ? kTextShadows : null;
 
     final liked = ref
@@ -103,28 +116,44 @@ class PostInteractions extends ConsumerWidget {
         .maybeWhen(data: (ids) => ids.contains(post.id), orElse: () => false);
     final repo = ref.read(postsRepositoryProvider);
 
-    Widget item({
-      required IconData icon,
+    // Text, never a glyph. The word carries the action and the count sits
+    // beside it as metadata; the Like state is told by TONE, not by a filled
+    // heart — "Like" grey, "Liked" white.
+    Widget action({
+      required String label,
       required int count,
-      required Color iconColor,
+      required bool active,
       required VoidCallback? onTap,
-    }) => InkWell(
+    }) => GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        padding: EdgeInsets.symmetric(vertical: kSpacingBase * scale),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: iconColor, shadows: shadows),
-            const SizedBox(width: 6),
             Text(
-              '$count',
+              label,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: color,
+                fontSize: 15 * scale,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                color: active ? activeColor : color,
                 shadows: shadows,
               ),
             ),
+            // A zero count says nothing worth the space.
+            if (count > 0) ...[
+              SizedBox(width: kSpacingPair * scale),
+              Text(
+                '$count',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontSize: 12 * scale,
+                  fontWeight: FontWeight.w700,
+                  color: countColor,
+                  shadows: shadows,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -132,10 +161,10 @@ class PostInteractions extends ConsumerWidget {
 
     return Row(
       children: [
-        item(
-          icon: liked ? Icons.favorite : Icons.favorite_border,
+        action(
+          label: liked ? 'Liked' : 'Like',
           count: post.likeCount,
-          iconColor: liked ? activeColor : color,
+          active: liked,
           onTap: repo == null
               ? null
               : () async {
@@ -154,11 +183,11 @@ class PostInteractions extends ConsumerWidget {
                   }
                 },
         ),
-        const SizedBox(width: 16),
-        item(
-          icon: Icons.mode_comment_outlined,
+        SizedBox(width: kSpacingSection * scale),
+        action(
+          label: 'Comment',
           count: post.commentCount,
-          iconColor: color,
+          active: true,
           onTap: () => showCommentsSheet(context, post.id),
         ),
       ],

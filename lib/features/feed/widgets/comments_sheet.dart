@@ -4,6 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/backend.dart';
 import '../../../core/theme/greyscale_tokens.dart';
+import '../../../core/theme/spacing.dart';
+import '../../../core/utils/figma_scale.dart';
+import '../../../shared/sondr_action.dart';
+import '../../../shared/sondr_field.dart';
 import '../../../core/utils/relative_time.dart';
 import '../models/comment.dart';
 import '../posts_repository.dart';
@@ -76,6 +80,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
+    final scale = figmaScale(context);
     final theme = Theme.of(context);
     final uid = ref.watch(currentUidProvider);
     final comments = ref.watch(postCommentsProvider(widget.postId));
@@ -99,7 +104,14 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                 ),
               ),
               const SizedBox(height: 12),
-              Text('Comments', style: theme.textTheme.titleMedium),
+              Text(
+                'Comments',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontSize: 20 * scale,
+                  fontWeight: FontWeight.w700,
+                  color: tokens.textPrimary,
+                ),
+              ),
               const SizedBox(height: 8),
               Expanded(
                 child: comments.when(
@@ -130,26 +142,32 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                   },
                 ),
               ),
-              const Divider(height: 1),
+              // No divider: the sheet's own edge and the spacing separate
+              // the composer from the list.
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                padding: EdgeInsets.fromLTRB(
+                  24 * scale,
+                  kSpacingBase * scale,
+                  24 * scale,
+                  kSpacingBase * scale,
+                ),
                 child: Row(
                   children: [
                     Expanded(
-                      child: TextField(
+                      child: SondrField(
                         controller: _input,
                         enabled: !_busy,
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _busy ? null : _send(),
-                        decoration: const InputDecoration(
-                          hintText: 'Add a comment…',
-                          border: InputBorder.none,
-                        ),
                       ),
                     ),
-                    IconButton(
+                    SizedBox(width: kSpacingPair * scale),
+                    // Text, not a paper plane. Supporting tone: returning
+                    // already posts, so this is the second way to do it.
+                    SondrAction(
+                      label: 'Post',
+                      supporting: true,
                       onPressed: _busy ? null : _send,
-                      icon: Icon(Icons.send, color: tokens.textPrimary),
                     ),
                   ],
                 ),
@@ -176,56 +194,73 @@ class _CommentTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
+    final scale = figmaScale(context);
     final theme = Theme.of(context);
     final initial = comment.author.label.isNotEmpty
         ? comment.author.label[0].toUpperCase()
         : '?';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(vertical: kSpacingPair * scale),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
-            radius: 14,
+            radius: kAvatarComment / 2 * scale,
             backgroundColor: tokens.background,
-            child: Text(initial,
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: tokens.textSecondary)),
+            child: Text(
+              initial,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 12 * scale,
+                fontWeight: FontWeight.w700,
+                color: tokens.textSecondary,
+              ),
+            ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: kSpacingBase * scale),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(comment.author.label,
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: tokens.textPrimary)),
-                    const SizedBox(width: 8),
+                    Text(
+                      comment.author.label,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: 15 * scale,
+                        fontWeight: FontWeight.w700,
+                        color: tokens.textPrimary,
+                      ),
+                    ),
+                    SizedBox(width: kSpacingPair * scale),
                     if (comment.createdAt != null)
-                      Text(RelativeTime.of(comment.createdAt!),
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: tokens.textTertiary)),
+                      Text(
+                        RelativeTime.of(comment.createdAt!),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontSize: 12 * scale,
+                          fontWeight: FontWeight.w700,
+                          color: tokens.textTertiary,
+                        ),
+                      ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(comment.text,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: tokens.textSecondary)),
+                SizedBox(height: kSpacingPair * scale),
+                Text(
+                  comment.text,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: 13 * scale,
+                    color: tokens.textSecondary,
+                  ),
+                ),
               ],
             ),
           ),
+          // Text, not a bin glyph — the last icon in the feed.
           if (isMine)
-            InkWell(
-              onTap: onDelete,
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(Icons.delete_outline,
-                    size: 18, color: tokens.textTertiary),
-              ),
+            SondrAction(
+              label: 'Delete',
+              supporting: true,
+              onPressed: onDelete,
             ),
         ],
       ),

@@ -193,6 +193,19 @@ stock `CupertinoButton`, no default `AlertDialog` chrome, no system switch.
 Filled Material buttons (`FilledButton`, `ElevatedButton`) are banned outright by
 the rules above.
 
+**No icons. Text for every action.** A glyph is a second vocabulary to learn
+and a second thing to get wrong in greyscale, where a filled heart and an
+outlined one are a brightness apart rather than a colour apart. Actions say
+what they do: "Like" / "Liked", "Comment", "Delete", "Post", "Back". State is
+carried by **tone and weight** — grey and regular when off, white and bold when
+on — never by swapping one glyph for another.
+
+Counts sit beside the word as metadata (12 / bold, tertiary), and a count of
+zero is not shown: it tells the reader nothing and costs a number.
+
+The feed's like, comment, send and delete glyphs were the last icons in the
+app, and they are now text. The only glyph left anywhere is the back chevron.
+
 **The concentric ring is the signature.** Two rings — outer for tasks, inner for
 habits — one brightness step apart. It appears at hero size on Home, small in
 the "Last 10 days" cells, and as a motif elsewhere. Keep it subtle: it should
@@ -205,6 +218,7 @@ read as the app's fingerprint, not as decoration applied on top.
 - Containers only on tappable surfaces; static content sits bare
 - Actions are white and bold; only exit actions (Sign out, Remove, Block,
   Delete) take the grey + regular supporting treatment
+- No icons: every action is a word, and state is tone, not a swapped glyph
 - One spacing unit, evenly applied
 - Type sizes from the table above
 - Tones read from `GreyscaleTokens`, nothing hardcoded

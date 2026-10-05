@@ -8,6 +8,26 @@ import 'package:flutter/material.dart';
 ///
 /// Exposed as a [ThemeExtension] so any widget can read the exact tone it needs
 /// from `Theme.of(context).extension<GreyscaleTokens>()` (or the [of] helper).
+/// Tones for text and chrome drawn ON TOP of a photo.
+///
+/// A photo is not part of the brightness ladder — it can be any luminance —
+/// so content over one cannot use the surface tokens and stay legible. These
+/// are the only literal whites in the app, and they exist for that reason;
+/// everywhere else, read the tokens.
+const Color kOnPhoto = Color(0xFFFFFFFF);
+
+/// Supporting text over a photo.
+const Color kOnPhotoDim = Color(0xB3FFFFFF);
+
+/// A translucent chip or avatar backing over a photo.
+const Color kOnPhotoFill = Color(0x3DFFFFFF);
+
+/// Avatar diameters. One scale, three contexts: the Friends list, a feed
+/// post's author row, and a comment. Circular everywhere.
+const double kAvatarList = 36;
+const double kAvatarPost = 32;
+const double kAvatarComment = 28;
+
 @immutable
 class GreyscaleTokens extends ThemeExtension<GreyscaleTokens> {
   const GreyscaleTokens({

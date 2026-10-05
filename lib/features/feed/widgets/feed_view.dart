@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/spacing.dart';
+import '../../../core/utils/figma_scale.dart';
+
 import '../../../core/theme/greyscale_tokens.dart';
 import '../models/post.dart';
 import 'deletable_post_card.dart';
@@ -21,7 +24,8 @@ class FeedView extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemCount: posts.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 16),
+      separatorBuilder: (_, _) =>
+          SizedBox(height: kSpacingSection * figmaScale(context)),
       itemBuilder: (context, i) {
         final post = posts[i];
         final Widget card = switch (post) {
@@ -49,16 +53,12 @@ class _Empty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.dynamic_feed_outlined,
-              size: 48,
-              color: tokens.textTertiary,
-            ),
-            const SizedBox(height: 16),
+            // No glyph: the sentence is the empty state.
             Text(
-              'When your friends hit milestones, they’ll show up here.',
+              'When your friends hit milestones, they\u2019ll show up here.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 13 * figmaScale(context),
                 color: tokens.textSecondary,
               ),
             ),

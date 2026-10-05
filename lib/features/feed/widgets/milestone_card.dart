@@ -39,7 +39,7 @@ class MilestoneCard extends StatelessWidget {
   Widget _ring(BuildContext context, {required bool onPhoto}) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
-    final figureColor = onPhoto ? Colors.white : tokens.textPrimary;
+    final figureColor = onPhoto ? kOnPhoto : tokens.textPrimary;
     final shadows = onPhoto ? kTextShadows : null;
 
     final center = Column(
@@ -55,7 +55,7 @@ class MilestoneCard extends StatelessWidget {
         Text(
           'hours',
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: onPhoto ? Colors.white70 : tokens.textTertiary,
+            color: onPhoto ? kOnPhotoDim : tokens.textTertiary,
             shadows: shadows,
           ),
         ),
@@ -92,7 +92,7 @@ class MilestoneCard extends StatelessWidget {
   Widget _badge(BuildContext context, {required bool onPhoto}) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
-    final bg = onPhoto ? Colors.white : tokens.ringTrack;
+    final bg = onPhoto ? kOnPhoto : tokens.ringTrack;
     final fg = onPhoto ? Colors.black : tokens.textPrimary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -120,7 +120,7 @@ class MilestoneCard extends StatelessWidget {
       child: Text(
         caption,
         style: theme.textTheme.bodyMedium?.copyWith(
-          color: onPhoto ? Colors.white : tokens.textSecondary,
+          color: onPhoto ? kOnPhoto : tokens.textSecondary,
           shadows: onPhoto ? kTextShadows : null,
         ),
       ),

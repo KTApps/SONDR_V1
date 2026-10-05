@@ -178,10 +178,44 @@ Files: [`friends_screen.dart`](lib/features/friends/friends_screen.dart).
 
 ## 7. Feed
 
-- [ ] **Cleaner delete-blur.** "Delete" as plain greyscale text — no white
-      button, no border, no symbol.
-- [ ] **Restyle the comments page** to match the app.
-- [ ] **Restyle the comments themselves.**
+- [x] **Cleaner delete-blur.** Delete is plain white text — the solid white
+      `ElevatedButton` with its bin glyph is gone — and Close sits beneath it
+      in the grey supporting tone. The blur and scrim are unchanged, and a
+      scrim tap still dismisses.
+- [x] **Restyle the comments page** — `SondrField` composer, a grey "Post"
+      action in place of the send glyph, the divider dropped, type on the
+      table.
+- [x] **Restyle the comments themselves** — avatar on the named scale,
+      author 15/Bold, timestamp 12/Bold metadata, body 13, and the delete
+      glyph replaced by text.
+- [x] **No icons anywhere in the feed.** Like/Comment are words, with the Like
+      state carried by tone and weight rather than a filled heart. Counts sit
+      beside the word as 12/Bold metadata and are hidden at zero. The
+      empty-state glyph went too. Codified in DESIGN.md.
+- [x] **On-photo whites tokenised** — `kOnPhoto` / `kOnPhotoDim` /
+      `kOnPhotoFill`. They are the only literal whites left in the app and the
+      token file says why: a photo is not on the brightness ladder.
+- [x] **Named avatar scale** — `kAvatarList` 36 / `kAvatarPost` 32 /
+      `kAvatarComment` 28, circular everywhere.
+
+**One thing the tests caught:** the delete overlay had a slim-card layout that
+put Delete and Close side by side. Stacking them overflowed a session card by
+16, so the overlay's padding is tighter rather than the layout branching.
+
+### Follow-ups from item 7 — neither blocking
+
+- **Comments sheet has no loading timeout.** The sheet handles loading, error
+  and empty correctly, and a null repository falls back to an empty stream. But
+  a stream that attaches and never emits — offline, a hung listener, rules
+  rejecting a read without erroring — leaves the spinner running forever. A
+  few-second timeout falling through to the empty state would close it.
+  Pre-existing, not introduced here.
+- **The milestone ring's two paths have diverged.** Off a photo it draws through
+  `ProgressRing`, which got brighter when item 3 moved it onto
+  `GreyscaleTokens`; over a photo it bypasses `ProgressRing` entirely and draws
+  a near-white ring with a halo and scrim. Side by side they no longer look
+  like the same component. Worth deciding whether to tone the off-photo one or
+  converge the two.
 
 Files: [`deletable_post_card.dart`](lib/features/feed/widgets/deletable_post_card.dart),
 [`comments_sheet.dart`](lib/features/feed/widgets/comments_sheet.dart).

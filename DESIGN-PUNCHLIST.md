@@ -163,7 +163,50 @@ removing, blocking and withdrawing are summoned.
 mechanism and adding one means a new dependency, so the TestFlight link goes to
 the clipboard with a "Copied" confirmation. Worth revisiting with `share_plus`.
 
-### Block is UI-only — required before launch
+### Block — CODE COMPLETE, DEPLOYMENT PENDING
+
+**Not done until the rules are live on `sondr-cd439`.** The client code and the
+rules are written and committed; the rules have NOT been deployed, so a
+modified client can still create a friendship across a block. Until then,
+blocking is enforced only in the app.
+
+**Deploy with the project named explicitly:**
+
+    firebase deploy --only firestore:rules --project sondr-cd439
+
+**Never deploy from here without `--project`.** `.firebaserc` says
+`prodapp-b90ac` while `firebase.json` points every app target at
+`sondr-cd439` — so a bare `firebase deploy` publishes Sondr's rules to the
+wrong project, silently, and overwrites whatever that project is running. The
+app's own rules would never arrive, and the block would look deployed while
+being unenforced.
+
+**What was built.** A directional `blocks/{blocker}__{blocked}` document,
+readable by the blocker alone and carrying the blocked person's denormalised
+handle so the Blocked screen renders without an owner-only cross-read. The id
+is derived rather than random precisely so the rules can `exists()` a document
+the asking user cannot read. `blockUser` batches the unfriend and the block
+together so neither can half-complete; `unblockUser` deletes the record and
+does not restore the friendship. Requests, accepts and handle search all refuse
+across a block in either direction, and the request refusal reuses the "no one
+found" wording — telling someone they have been blocked is itself information.
+Friends' swipe Block now blocks, retiring the alias-to-Remove liability.
+
+### Follow-ups from the block work
+
+- **A blocked person's existing posts stay in the feed.** The feed is
+  friends-only via an `audience` array **written at post-creation time**, not a
+  live join against the friends list — so unfriending does not retroactively
+  remove the reader from posts that already exist. The assumption that blocked
+  posts drop out via the unfriend is wrong. Fixing it needs either a client
+  filter against the blocked set or an audience rewrite on unfriend.
+- **Comments by a blocked person on a mutual friend's post are still shown.**
+  Deferred deliberately.
+- **`.firebaserc` should probably be corrected to `sondr-cd439`**, but it was
+  left alone: nobody has confirmed whether `prodapp-b90ac` is still wanted for
+  something. Until that is answered, always pass `--project`.
+
+### The original note, kept for history
 
 **`Block` currently calls `remove`.** There is no block in the data model and no
 backend for it, so the button unfriends and nothing more. Shipping that would

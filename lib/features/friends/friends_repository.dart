@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import 'models/block.dart';
 import 'models/friendship.dart';
 
 /// A user-facing failure (handle not found, already friends, no handle set).
@@ -27,6 +28,58 @@ class FriendsRepository {
   CollectionReference<Map<String, dynamic>> get _friendships =>
       db.collection('friendships');
 
+  CollectionReference<Map<String, dynamic>> get _blocks =>
+      db.collection('blocks');
+
+  /// Every block this user has placed. Only the blocker can read these, so a
+  /// blocked person is never told.
+  Stream<List<Block>> watchBlocked() {
+    return _blocks
+        .where('blocker', isEqualTo: uid)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) => Block.fromMap(d.data())).toList());
+  }
+
+  /// True when either side has blocked the other. Two direct gets rather than
+  /// a query: the ids are derived, and a blocked user cannot read the doc that
+  /// blocks them — but they can be denied by it.
+  Future<bool> _blockedEitherWay(String otherUid) async {
+    final mine = await _blocks.doc(Block.idFor(uid, otherUid)).get();
+    if (mine.exists) return true;
+    try {
+      final theirs = await _blocks.doc(Block.idFor(otherUid, uid)).get();
+      return theirs.exists;
+    } on FirebaseException {
+      // Reading someone else's block is denied by the rules, which is the
+      // point: treat a refusal as "cannot proceed" rather than "no block".
+      return true;
+    }
+  }
+
+  /// Block [targetUid]: unfriend and record the block in one write, so a
+  /// failure cannot leave the pair unfriended-but-unblocked or the reverse.
+  Future<void> blockUser({
+    required String targetUid,
+    required String username,
+    required String displayName,
+  }) async {
+    final batch = db.batch();
+    batch.delete(_friendships.doc(Friendship.pairId(uid, targetUid)));
+    batch.set(_blocks.doc(Block.idFor(uid, targetUid)), {
+      'blocker': uid,
+      'blocked': targetUid,
+      'username': username,
+      'displayName': displayName,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  /// Lift a block this user placed. The friendship is not restored — they
+  /// would have to ask again.
+  Future<void> unblockUser(String blockedUid) =>
+      _blocks.doc(Block.idFor(uid, blockedUid)).delete();
+
   Stream<List<Friendship>> watchAll() {
     return _friendships
         .where('users', arrayContains: uid)
@@ -47,11 +100,22 @@ class FriendsRepository {
         .where(FieldPath.documentId, isLessThan: '$h\uf8ff')
         .limit(limit + 1)
         .get();
-    return snap.docs
+    final candidates = snap.docs
         .where((d) => d.data()['uid'] != uid)
-        .map((d) => d.id)
         .take(limit)
         .toList();
+
+    // Blocked people are not findable, in either direction: the blocker
+    // should not see them, and they should not be able to find their way
+    // back by handle.
+    final kept = <String>[];
+    for (final d in candidates) {
+      final otherUid = d.data()['uid'] as String?;
+      if (otherUid == null) continue;
+      if (await _blockedEitherWay(otherUid)) continue;
+      kept.add(d.id);
+    }
+    return kept;
   }
 
   Future<FriendIdentity> _myIdentity() async {
@@ -88,6 +152,12 @@ class FriendsRepository {
       throw FriendException('No one found with the handle @$h.');
     }
 
+    // Either direction. The message is deliberately the same as "not found":
+    // telling someone they have been blocked is itself information.
+    if (await _blockedEitherWay(targetUid)) {
+      throw FriendException('No one found with the handle @$h.');
+    }
+
     // Duplicate check via a query we're allowed to run (the same array-contains
     // shape as the stream) — NOT a direct get() on the pair doc. Reading a
     // not-yet-existent friendships doc is denied, because the participant read
@@ -120,6 +190,10 @@ class FriendsRepository {
   /// the requester can see who they're now friends with.
   Future<void> accept(String pairId) async {
     final me = await _myIdentity();
+    final other = pairId.split('__').firstWhere((u) => u != uid, orElse: () => '');
+    if (other.isNotEmpty && await _blockedEitherWay(other)) {
+      throw const FriendException('That request is no longer available.');
+    }
     await _friendships.doc(pairId).update({
       'status': 'accepted',
       'acceptedAt': FieldValue.serverTimestamp(),
@@ -168,3 +242,10 @@ final outgoingRequestsProvider = Provider<List<Friendship>>((ref) {
 });
 
 final friendCountProvider = Provider<int>((ref) => ref.watch(friendsProvider).length);
+
+/// The people this user has blocked. Empty when there is no backend.
+final blockedAccountsProvider = StreamProvider<List<Block>>((ref) {
+  final repo = ref.watch(friendsRepositoryProvider);
+  if (repo == null) return Stream.value(const <Block>[]);
+  return repo.watchBlocked();
+});

@@ -371,8 +371,19 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                     SondrAction(
                       label: 'Block',
                       weight: FontWeight.w400,
-                      onPressed:
-                          _busy ? null : () => _run((r) => r.remove(f.id)),
+                      onPressed: _busy
+                          ? null
+                          : () {
+                              final other = f.otherIdentity(uid ?? '');
+                              _run(
+                                (r) => r.blockUser(
+                                  targetUid: f.otherUid(uid ?? ''),
+                                  username: other?.username ?? '',
+                                  displayName: other?.displayName ?? '',
+                                ),
+                                success: 'Blocked.',
+                              );
+                            },
                     ),
                   ],
                   child: _FriendRow(identity: f.otherIdentity(uid ?? '')),

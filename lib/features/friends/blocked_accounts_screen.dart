@@ -96,6 +96,9 @@ class _BlockedAccountsScreenState
                                   overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     fontSize: 15 * scale,
+                                    // Bold, like a friend row's username —
+                                    // same kind of row, same weight.
+                                    fontWeight: FontWeight.w700,
                                     color: tokens.textPrimary,
                                   ),
                                 ),
@@ -112,6 +115,17 @@ class _BlockedAccountsScreenState
                 },
               ),
             ),
+            // Leaving is an exit, so it takes the supporting treatment and
+            // sits last — the same pinned Back that heads nothing on Friends.
+            // This replaces the chevron the header used to carry.
+            Center(
+              child: SondrAction(
+                label: 'Back',
+                supporting: true,
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
+            ),
+            SizedBox(height: kSpacingSection * scale),
           ],
         ),
       ),

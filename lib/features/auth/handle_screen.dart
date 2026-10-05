@@ -136,6 +136,22 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
                       )
                     : SondrAction(label: 'Claim handle', onPressed: _submit),
               ),
+              // Leaving is an exit: supporting grey, last in the action
+              // stack, the same "Back" Friends and Blocked use. Not pinned —
+              // this screen scrolls, so there is no footer to pin it to.
+              //
+              // Only when there is something to go back TO. After sign-up this screen
+              // REPLACES the auth screen, so nothing is beneath it and no Back
+              // appears — a brand-new account has to choose a handle. Pushed
+              // from Profile or the friends gate, there is, and it does.
+              if (Navigator.of(context).canPop())
+                Center(
+                  child: SondrAction(
+                    label: 'Back',
+                    supporting: true,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                ),
             ],
           ),
         ),

@@ -30,6 +30,18 @@ Future<void> showCommentsSheet(BuildContext context, String postId) {
   );
 }
 
+/// The comment body's size, shared with the composer so what you type and
+/// what you read are the same text.
+const double _kCommentBody = 13;
+
+/// Structural air above and below the composer row.
+///
+/// Small, because the row is NOT just its text: Post carries 12 of tap
+/// padding inside it, so the gap you SEE is this plus that — 18, one step up
+/// from the 12 between comments. Setting this to 16 measured correctly and
+/// looked like a section break.
+const double _kComposerGap = kSpacingPair;
+
 class CommentsSheet extends ConsumerStatefulWidget {
   const CommentsSheet({super.key, required this.postId});
 
@@ -42,6 +54,18 @@ class CommentsSheet extends ConsumerStatefulWidget {
 class _CommentsSheetState extends ConsumerState<CommentsSheet> {
   final _input = TextEditingController();
   bool _busy = false;
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Post is grey until there is something to post, so the field's emptiness
+    // has to be state the sheet rebuilds on.
+    _input.addListener(() {
+      final has = _input.text.trim().isNotEmpty;
+      if (has != _hasText) setState(() => _hasText = has);
+    });
+  }
 
   @override
   void dispose() {
@@ -79,6 +103,68 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
     try {
       await repo.deleteComment(widget.postId, commentId);
     } catch (_) {/* ignore — the stream stays as-is on failure */}
+  }
+
+  /// The composer: a borderless centred field with Post to its right.
+  ///
+  /// Post is MIRRORED by an invisible copy on the left. Without it the field
+  /// would be centred in what Post leaves over, pushing the cursor left of
+  /// the screen's true centre; an invisible twin is exact by construction,
+  /// where a hand-set width would drift with the font and the scale factor.
+  Widget _composer(double scale) {
+    final post = SondrAction(
+      label: 'Post',
+      // Tone alone says whether there is anything to post — the weight stays
+      // bold either way, like Like/Liked on a feed card.
+      supporting: !_hasText,
+      weight: FontWeight.w700,
+      onPressed: _hasText && !_busy ? _send : null,
+    );
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: kSpacingPair * scale),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Visibility(
+            visible: false,
+            maintainSize: true,
+            maintainAnimation: true,
+            maintainState: true,
+            child: post,
+          ),
+          Expanded(
+            // The field's own air. On one line Post's taller tap target sets
+            // the row height and this does nothing; once the text wraps past
+            // that height the field drives the row, and without this the
+            // first line climbs up against the title.
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: kSpacingPair * scale),
+                child: SondrField(
+                controller: _input,
+                enabled: !_busy,
+                // No capsule: the sheet's own heading says what this takes, so
+                // a container would only add furniture (as on Add Friends).
+                filled: false,
+                centered: true,
+                // Grows a line at a time to a ceiling of three, then holds
+                // its height and scrolls inside itself. EditableText keeps
+                // the cursor in view on its own, so the newest line stays
+                // visible without a ScrollController of ours.
+                minLines: 1,
+                maxLines: 3,
+                // Return opens a new line now that the field wraps; Post is the
+                // way to send.
+                textInputAction: TextInputAction.newline,
+                // What you type is the size of what you are joining.
+                fontSize: _kCommentBody,
+              ),
+            ),
+          ),
+          post,
+        ],
+      ),
+    );
   }
 
   @override
@@ -119,7 +205,9 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                   color: tokens.textPrimary,
                 ),
               ),
-              SizedBox(height: kSpacingBase * scale),
+              SizedBox(height: _kComposerGap * scale),
+              _composer(scale),
+              SizedBox(height: _kComposerGap * scale),
               Expanded(
                 child: comments.when(
                   loading: () =>
@@ -160,36 +248,6 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                       },
                     );
                   },
-                ),
-              ),
-              // No divider: the sheet's own edge and the spacing separate
-              // the composer from the list.
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  24 * scale,
-                  kSpacingBase * scale,
-                  24 * scale,
-                  kSpacingBase * scale,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: SondrField(
-                        controller: _input,
-                        enabled: !_busy,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => _busy ? null : _send(),
-                      ),
-                    ),
-                    SizedBox(width: kSpacingPair * scale),
-                    // Text, not a paper plane. Full weight: it is the one
-                    // action in the sheet, and grey-on-grey beside the field
-                    // read as disabled.
-                    SondrAction(
-                      label: 'Post',
-                      onPressed: _busy ? null : _send,
-                    ),
-                  ],
                 ),
               ),
             ],
@@ -270,8 +328,9 @@ class _CommentTile extends StatelessWidget {
                 Text(
                   comment.text,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    fontSize: 13 * scale,
-                    color: tokens.textSecondary,
+                    fontSize: _kCommentBody * scale,
+                    fontWeight: FontWeight.w700,
+                    color: tokens.textPrimary,
                   ),
                 ),
               ],

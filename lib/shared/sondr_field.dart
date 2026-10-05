@@ -34,6 +34,9 @@ class SondrField extends StatelessWidget {
     this.filled = true,
     this.centered = false,
     this.focusNode,
+    this.maxLines = 1,
+    this.minLines,
+    this.fontSize = 15,
   });
 
   /// Omit where the surrounding screen already says what the field is for.
@@ -60,6 +63,20 @@ class SondrField extends StatelessWidget {
 
   final FocusNode? focusNode;
 
+  /// Null grows without limit, wrapping to new lines as the text fills the
+  /// width. One keeps the field a single line, which is the default.
+  final int? maxLines;
+
+  /// Lines the field occupies before it starts growing. Null keeps Flutter's
+  /// own behaviour, which is what every caller but the comments composer
+  /// wants.
+  final int? minLines;
+
+  /// Reference-canvas size of the text being typed. Defaults to the body
+  /// tier; the comments composer drops to the comment body's own size so
+  /// what you type matches what you are about to join.
+  final double fontSize;
+
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
@@ -67,7 +84,7 @@ class SondrField extends StatelessWidget {
     final scale = figmaScale(context);
 
     final entryStyle = theme.textTheme.bodyMedium?.copyWith(
-      fontSize: 15 * scale,
+      fontSize: fontSize * scale,
       fontWeight: FontWeight.w700,
       color: tokens.textPrimary,
     );
@@ -109,7 +126,12 @@ class SondrField extends StatelessWidget {
                 ),
               ],
               Flexible(
-                fit: centered ? FlexFit.loose : FlexFit.tight,
+                // Loose so a centred single line sits beside its prefix. A
+                // wrapping field has to take the whole width instead, or it
+                // would shrink to its content and never reach a second line.
+                fit: centered && maxLines == 1
+                    ? FlexFit.loose
+                    : FlexFit.tight,
                 child: TextField(
                   controller: controller,
                   focusNode: focusNode,
@@ -119,6 +141,8 @@ class SondrField extends StatelessWidget {
                   textInputAction: textInputAction,
                   onSubmitted: onSubmitted,
                   onChanged: onChanged,
+                  maxLines: maxLines,
+                  minLines: minLines,
                   autocorrect: autocorrect,
                   inputFormatters: inputFormatters,
                   style: entryStyle,

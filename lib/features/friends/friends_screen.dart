@@ -14,6 +14,7 @@ import '../../shared/sondr_field.dart';
 import '../../shared/sondr_swipe_row.dart';
 import '../auth/handle_screen.dart';
 import '../auth/profile_repository.dart';
+import 'blocked_accounts_screen.dart';
 import 'friends_repository.dart';
 import 'models/friendship.dart';
 
@@ -403,6 +404,22 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
             onPressed: _invite,
           ),
         ),
+        // Blocking is rare, so this is invisible until there is something to
+        // undo — but undoing it has to be possible from somewhere, and
+        // Friends is where the blocking happened. Supporting tone: it sits
+        // with Back, below the one white action on the screen.
+        if (ref.watch(blockedAccountsProvider).value?.isNotEmpty ?? false)
+          Center(
+            child: SondrAction(
+              label: 'Blocked accounts',
+              supporting: true,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const BlockedAccountsScreen(),
+                ),
+              ),
+            ),
+          ),
         // Leaving is an exit, so it takes the supporting treatment and sits
         // last. This replaces the back chevron that used to head the screen.
         Center(

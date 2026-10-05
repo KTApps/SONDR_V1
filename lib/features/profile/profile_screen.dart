@@ -7,12 +7,10 @@ import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
-import '../../shared/sondr_action.dart';
 import '../auth/account_screen.dart';
 import '../auth/guest_prompts.dart';
 import '../debug/debug_panel.dart';
 import '../friends/friends_repository.dart';
-import '../friends/blocked_accounts_screen.dart';
 import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
@@ -86,25 +84,7 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
               ],
-              // Quiet entry: blocking is rare, and undoing it has to be possible
-          // from somewhere. Only shown once something is blocked.
-          if (ref.watch(blockedAccountsProvider).value?.isNotEmpty ?? false)
-            Padding(
-              padding: EdgeInsets.only(top: kSpacingBase * scale),
-              child: Center(
-                child: SondrAction(
-                  label: 'Blocked accounts',
-                  supporting: true,
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const BlockedAccountsScreen(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-          // The footer is pinned to the bottom of the safe area; the
+              // The footer is pinned to the bottom of the safe area; the
               // flexible space sits here, never closing below a zone break.
               //
               // No scroll view: the page is a fixed Column that fills the safe

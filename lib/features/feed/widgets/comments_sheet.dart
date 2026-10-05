@@ -8,6 +8,7 @@ import '../../../core/theme/spacing.dart';
 import '../../../core/utils/figma_scale.dart';
 import '../../../shared/sondr_action.dart';
 import '../../../shared/sondr_field.dart';
+import '../../../shared/sondr_swipe_row.dart';
 import '../../../core/utils/relative_time.dart';
 import '../models/comment.dart';
 import '../posts_repository.dart';
@@ -18,7 +19,10 @@ Future<void> showCommentsSheet(BuildContext context, String postId) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    backgroundColor: tokens.surface,
+    // Background, not surface: the composer's field is a SURFACE capsule, and
+    // on a surface-toned sheet it disappeared completely — leaving Post
+    // floating beside nothing. The sheet is a page; the capsule sits on it.
+    backgroundColor: tokens.background,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -94,25 +98,28 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
           height: MediaQuery.of(context).size.height * 0.7,
           child: Column(
             children: [
-              const SizedBox(height: 10),
+              // One rhythm down the head of the sheet: grabber, title, list
+              // are all a base unit apart. The three hand-picked gaps that
+              // were here (10 / 12 / 8) were what made it read unsettled.
+              SizedBox(height: kSpacingBase * scale),
               Container(
-                width: 36,
-                height: 4,
+                width: 36 * scale,
+                height: 4 * scale,
                 decoration: BoxDecoration(
                   color: tokens.ringTrack,
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(2 * scale),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: kSpacingBase * scale),
               Text(
                 'Comments',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  fontSize: 20 * scale,
+                  fontSize: 15 * scale,
                   fontWeight: FontWeight.w700,
                   color: tokens.textPrimary,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: kSpacingBase * scale),
               Expanded(
                 child: comments.when(
                   loading: () =>
@@ -131,13 +138,26 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                       );
                     }
                     return ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: EdgeInsets.zero,
                       itemCount: list.length,
-                      itemBuilder: (_, i) => _CommentTile(
-                        comment: list[i],
-                        isMine: list[i].authorUid == uid,
-                        onDelete: () => _delete(list[i].id),
-                      ),
+                      itemBuilder: (_, i) {
+                        final c = list[i];
+                        final tile = _CommentTile(comment: c);
+                        // Your own comment hides its Delete behind a swipe,
+                        // exactly as a friend row hides Remove and Block. An
+                        // affordance sitting on every one of your comments is
+                        // clutter on the common case.
+                        if (c.authorUid != uid) return tile;
+                        return SondrSwipeRow(
+                          actions: [
+                            SondrAction(
+                              label: 'Delete',
+                              onPressed: () => _delete(c.id),
+                            ),
+                          ],
+                          child: tile,
+                        );
+                      },
                     );
                   },
                 ),
@@ -162,11 +182,11 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                       ),
                     ),
                     SizedBox(width: kSpacingPair * scale),
-                    // Text, not a paper plane. Supporting tone: returning
-                    // already posts, so this is the second way to do it.
+                    // Text, not a paper plane. Full weight: it is the one
+                    // action in the sheet, and grey-on-grey beside the field
+                    // read as disabled.
                     SondrAction(
                       label: 'Post',
-                      supporting: true,
                       onPressed: _busy ? null : _send,
                     ),
                   ],
@@ -181,15 +201,9 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
 }
 
 class _CommentTile extends StatelessWidget {
-  const _CommentTile({
-    required this.comment,
-    required this.isMine,
-    required this.onDelete,
-  });
+  const _CommentTile({required this.comment});
 
   final Comment comment;
-  final bool isMine;
-  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -201,13 +215,21 @@ class _CommentTile extends StatelessWidget {
         : '?';
 
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: kSpacingPair * scale),
+      // The row carries the app's 24 gutter itself so the swipe tray can open
+      // into it, rather than the list insetting every row by 20.
+      padding: EdgeInsets.symmetric(
+        horizontal: 24 * scale,
+        vertical: kSpacingPair * scale,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: kAvatarComment / 2 * scale,
-            backgroundColor: tokens.background,
+            // Surface on a background-toned sheet, the same way a friend row
+            // draws its placeholder — background-on-background left the
+            // initial floating with no disc behind it.
+            backgroundColor: tokens.surface,
             child: Text(
               initial,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -255,13 +277,6 @@ class _CommentTile extends StatelessWidget {
               ],
             ),
           ),
-          // Text, not a bin glyph — the last icon in the feed.
-          if (isMine)
-            SondrAction(
-              label: 'Delete',
-              supporting: true,
-              onPressed: onDelete,
-            ),
         ],
       ),
     );

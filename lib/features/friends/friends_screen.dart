@@ -336,7 +336,6 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                     actions: [
                       SondrAction(
                         label: 'Cancel',
-                        weight: FontWeight.w400,
                         onPressed:
                             _busy ? null : () => _run((r) => r.remove(f.id)),
                       ),
@@ -365,13 +364,11 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                   actions: [
                     SondrAction(
                       label: 'Remove',
-                      weight: FontWeight.w400,
                       onPressed:
                           _busy ? null : () => _run((r) => r.remove(f.id)),
                     ),
                     SondrAction(
                       label: 'Block',
-                      weight: FontWeight.w400,
                       onPressed: _busy
                           ? null
                           : () {
@@ -559,6 +556,7 @@ class _FriendRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize: 15 * scale,
+                fontWeight: FontWeight.w700,
                 color: tokens.textPrimary,
               ),
             ),

@@ -117,8 +117,10 @@ class PostInteractions extends ConsumerWidget {
     final repo = ref.read(postsRepositoryProvider);
 
     // Text, never a glyph. The word carries the action and the count sits
-    // beside it as metadata; the Like state is told by TONE, not by a filled
-    // heart — "Like" grey, "Liked" white.
+    // beside it as metadata; the Like state is told by TONE ALONE — "Like"
+    // grey, "Liked" white. The weight stays bold in both states: letting the
+    // weight move too made the unliked word read as a different, lesser kind
+    // of control rather than the same one in another state.
     Widget action({
       required String label,
       required int count,
@@ -135,8 +137,10 @@ class PostInteractions extends ConsumerWidget {
             Text(
               label,
               style: theme.textTheme.bodyMedium?.copyWith(
+                // The app's action size — the same 15/bold as the Friends
+                // heading and every SondrAction.
                 fontSize: 15 * scale,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                fontWeight: FontWeight.w700,
                 color: active ? activeColor : color,
                 shadows: shadows,
               ),
@@ -147,7 +151,7 @@ class PostInteractions extends ConsumerWidget {
               Text(
                 '$count',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  fontSize: 12 * scale,
+                  fontSize: 15 * scale,
                   fontWeight: FontWeight.w700,
                   color: countColor,
                   shadows: shadows,

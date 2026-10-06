@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../../core/utils/figma_scale.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
+import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
 import '../../core/utils/date.dart';
 import '../../shared/ring/progress_ring.dart';
@@ -208,7 +210,7 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
                 SondrError(_error!, textAlign: TextAlign.center),
                 const SizedBox(height: 12),
               ],
-              _keepRetake(tokens, theme),
+              _keepRetake(),
             ],
           ),
         ),
@@ -223,37 +225,25 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
     );
   }
 
-  Widget _keepRetake(GreyscaleTokens tokens, ThemeData theme) {
-    return Column(
+  /// keep | retake — side by side at the pair's own spacing, but NOT equals:
+  /// keep is the forward action and stays white, retake is the go-back and
+  /// takes the supporting tone, mirroring Delete/Close and the guest
+  /// landing. SondrActionPair would render both at full emphasis, so the row
+  /// is built by hand and borrows only its gap.
+  Widget _keepRetake() {
+    return Row(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // "keep" is the primary commit — the filled white pill, matching Focus
-        // Mode's "Stop" button (same shape, fill, and label style).
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _busy ? null : _keep,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: tokens.ringFillOuter,
-              foregroundColor: tokens.background,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              textStyle: theme.textTheme.labelLarge,
-            ),
-            child: Text(_busy ? 'saving…' : 'keep'),
-          ),
+        SondrAction(
+          label: _busy ? 'saving…' : 'keep',
+          onPressed: _busy ? null : _keep,
         ),
-        const SizedBox(height: 4),
-        TextButton(
+        SizedBox(width: SondrActionPair.gap * figmaScale(context)),
+        SondrAction(
+          label: 'retake',
+          supporting: true,
           onPressed: _busy ? null : _pick,
-          style: TextButton.styleFrom(
-            foregroundColor: tokens.textSecondary,
-            textStyle: theme.textTheme.labelLarge,
-          ),
-          child: const Text('retake'),
         ),
       ],
     );

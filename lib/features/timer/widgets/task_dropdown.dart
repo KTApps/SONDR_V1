@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/sondr_action.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
@@ -167,17 +168,9 @@ class _TaskDropdownState extends ConsumerState<TaskDropdown> {
               ),
               child: const Text('Cancel'),
             ),
-            ElevatedButton(
+            SondrAction(
+              label: 'Add',
               onPressed: () => Navigator.of(context).pop(controller.text),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: tokens.ringFillOuter,
-                foregroundColor: tokens.background,
-                elevation: 0,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: const StadiumBorder(),
-              ),
-              child: const Text('Add'),
             ),
           ],
         );

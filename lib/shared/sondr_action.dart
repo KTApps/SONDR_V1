@@ -118,7 +118,9 @@ class SondrActionPair extends StatelessWidget {
   final VoidCallback? onSecond;
 
   /// Extra space between the pair, over and above each action's own padding.
-  static const double _gap = 16;
+  /// Public so a pair that cannot use this widget — one whose two actions
+  /// are not equals — still sits at the same distance.
+  static const double gap = 16;
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +133,7 @@ class SondrActionPair extends StatelessWidget {
         SondrAction(label: firstLabel, onPressed: onFirst),
         // On top of each action's own 20 of padding, so the labels sit 56
         // apart — enough to read as two buttons with nothing drawn between.
-        SizedBox(width: _gap * scale),
+        SizedBox(width: gap * scale),
         SondrAction(label: secondLabel, onPressed: onSecond),
       ],
     );

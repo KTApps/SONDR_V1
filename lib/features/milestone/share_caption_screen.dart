@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -148,8 +149,12 @@ class _SharePostCaptionScreenState
   }
 }
 
-/// Filled greyscale primary button, shared across the share flows (matches the
-/// celebration / timer controls).
+/// The share flows' primary action.
+///
+/// Plain text, like every other primary in the app (Create account, Post).
+/// It was a filled white pill — "white as text and never a fill" is the rule
+/// it broke, and unlike the Apple button there is no compliance reason to
+/// keep a capsule.
 class SharePrimaryButton extends StatelessWidget {
   const SharePrimaryButton({
     super.key,
@@ -168,24 +173,13 @@ class SharePrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: tokens.ringFillOuter,
-          foregroundColor: tokens.background,
-          disabledBackgroundColor: tokens.ringTrack,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          textStyle: Theme.of(context).textTheme.labelLarge,
-        ),
-        // The button keeps its size and place; only the word changes.
-        child: Text(busy ? busyLabel : label),
+    // The action keeps its place; only the word and the tone change. Nulling
+    // onPressed here (not just at the call site) means busy ALWAYS renders
+    // the disabled tertiary tone and cannot be double-submitted.
+    return Center(
+      child: SondrAction(
+        label: busy ? busyLabel : label,
+        onPressed: busy ? null : onPressed,
       ),
     );
   }

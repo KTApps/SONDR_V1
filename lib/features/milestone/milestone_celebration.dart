@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../shared/sondr_action.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
@@ -271,25 +272,6 @@ class _Primary extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: tokens.ringFillOuter,
-          foregroundColor: tokens.background,
-          disabledBackgroundColor: tokens.ringTrack,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          textStyle: Theme.of(context).textTheme.labelLarge,
-        ),
-        child: Text(label),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      Center(child: SondrAction(label: label, onPressed: onPressed));
 }

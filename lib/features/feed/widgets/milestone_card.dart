@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
-import '../../../shared/ring/progress_ring.dart';
 import '../../../shared/ring/ring_dial.dart';
 import '../models/post.dart';
 import 'post_chrome.dart';
@@ -62,29 +61,27 @@ class MilestoneCard extends StatelessWidget {
       ],
     );
 
-    // Over a photo: keep the near-white ring + double-stroke halo + scrim
-    // treatment exactly — a mid-grey #777 ring would be illegible on a bright
-    // photo. (RingDial draws the completed milestone as a full outer ring.)
-    if (onPhoto) {
-      return RingDial(
-        size: _ringSize,
-        taskSegments: const [1.0], // the completed milestone
-        highlightedSegment: 0,
-        habitProgress: 0.0,
-        showInnerRing: false, // milestone posts carry no habit data
-        onPhoto: true,
-        center: center,
-      );
-    }
-
-    // On a plain card: a completed milestone is a full #777777 ring (#232323
-    // remainder) via ProgressRing, matching the dial/profile scheme. Stroke is
-    // matched to the photo card's ring weight (RingDial's 0.09×size) so photo
-    // and no-photo milestone cards read consistently.
-    return ProgressRing(
+    // ONE widget for both contexts. A completed milestone is the same
+    // element whether or not there is a photo behind it, and RingDial
+    // already owns the only difference that is legitimate: over a photo the
+    // fill goes pure white on a 30%-white track with a contrast halo, off a
+    // photo it takes the greyscale tokens. Drawing it with two different
+    // widgets meant the ring was #FFFFFF on a photo and ringFillInner
+    // (#ADADAD) off one — the brightest tone against a mid grey, which read
+    // as two unrelated rings rather than one in two settings.
+    //
+    // highlightedSegment: 0 makes the single segment the EMPHASISED tone
+    // (ringFillOuter off-photo), which is what "completed" should be; the
+    // old ProgressRing path used the dimmer inner-fill meant for partial
+    // progress. Stroke is unchanged: RingDial's outer is 0.090×size, which
+    // is what the old call passed by hand.
+    return RingDial(
       size: _ringSize,
-      stroke: _ringSize * 0.09,
-      progress: 1.0,
+      taskSegments: const [1.0], // the completed milestone
+      highlightedSegment: 0,
+      habitProgress: 0.0,
+      showInnerRing: false, // milestone posts carry no habit data
+      onPhoto: onPhoto,
       center: center,
     );
   }

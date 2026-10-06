@@ -33,6 +33,14 @@ class FocusView extends ConsumerWidget {
     final controller = ref.read(timerControllerProvider.notifier);
     final isRunning = timer.status == TimerStatus.running;
     final gap = SizedBox(height: kSpacingSection * scale);
+    // ONE style, used by the task name and the status line both, so the two
+    // cannot drift apart. The clock is the only loud thing on this screen;
+    // what it is and what it is doing are both quiet labels around it.
+    final labelStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 12 * scale,
+      fontWeight: FontWeight.w700,
+      color: tokens.textSecondary,
+    );
     // Empty when the selected task is deleted mid-session. The heading and
     // its gap both go, rather than leaving a blank line and 24pt of nothing
     // above the clock.
@@ -60,11 +68,7 @@ class FocusView extends ConsumerWidget {
                     // controls off their own screen.
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontSize: 20 * scale,
-                      fontWeight: FontWeight.w700,
-                      color: tokens.textPrimary,
-                    ),
+                    style: labelStyle,
                   ),
                   gap,
                 ],
@@ -90,11 +94,7 @@ class FocusView extends ConsumerWidget {
                 // doing, it is not something to tap.
                 Text(
                   isRunning ? 'in session' : 'paused',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontSize: 12 * scale,
-                    fontWeight: FontWeight.w700,
-                    color: tokens.textSecondary,
-                  ),
+                  style: labelStyle,
                 ),
                 gap,
 

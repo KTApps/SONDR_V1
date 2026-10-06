@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import '../core/theme/greyscale_tokens.dart';
 import '../core/utils/figma_scale.dart';
 
+/// The size of an action that sits INSIDE a row of body text — Friends'
+/// Add / Accept / Decline / Remove / Block, a comment's Delete. Matches the
+/// comment body (13 / w700) so the action reads as part of its row rather
+/// than louder than the thing it acts on.
+const double kRowActionSize = 13;
+
 /// Sondr's one text action.
 ///
 /// Every tappable label in the app uses this — Start, Stop, Enable, Not now —
@@ -21,6 +27,7 @@ class SondrAction extends StatelessWidget {
     required this.onPressed,
     this.supporting = false,
     this.weight,
+    this.fontSize = 15,
   });
 
   final String label;
@@ -36,6 +43,11 @@ class SondrAction extends StatelessWidget {
   /// text it sits beside — a swipe tray's Remove reads as part of the row,
   /// and Post stays bold while greying out.
   final FontWeight? weight;
+
+  /// Reference-canvas size. The default is the standard action size; actions
+  /// embedded in a row pass [kRowActionSize]. Every other caller is
+  /// unaffected.
+  final double fontSize;
 
   /// An action with no [onPressed] is inert, and has to look it.
   ///
@@ -68,7 +80,7 @@ class SondrAction extends StatelessWidget {
         child: Text(
           label,
           style: theme.textTheme.bodyMedium?.copyWith(
-            fontSize: 15 * scale,
+            fontSize: fontSize * scale,
             fontWeight:
                 weight ?? (supporting ? FontWeight.w400 : FontWeight.w700),
             color: supporting

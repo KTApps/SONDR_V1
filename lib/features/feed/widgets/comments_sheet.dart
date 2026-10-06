@@ -240,6 +240,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                           actions: [
                             SondrAction(
                               label: 'Delete',
+                              fontSize: kRowActionSize,
                               onPressed: () => _delete(c.id),
                             ),
                           ],

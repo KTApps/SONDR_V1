@@ -204,6 +204,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                 ? null
                 : SondrAction(
                     label: 'Add',
+                    fontSize: kRowActionSize,
                     onPressed: _busy ? null : () => _add(h),
                   ),
           ),
@@ -302,6 +303,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                       children: [
                         SondrAction(
                           label: 'Accept',
+                          fontSize: kRowActionSize,
                           onPressed: _busy
                               ? null
                               : () => _run((r) => r.accept(f.id),
@@ -309,6 +311,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                         ),
                         SondrAction(
                           label: 'Decline',
+                          fontSize: kRowActionSize,
                           supporting: true,
                           onPressed:
                               _busy ? null : () => _run((r) => r.remove(f.id)),
@@ -336,6 +339,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                     actions: [
                       SondrAction(
                         label: 'Cancel',
+                        fontSize: kRowActionSize,
                         onPressed:
                             _busy ? null : () => _run((r) => r.remove(f.id)),
                       ),
@@ -364,11 +368,13 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                   actions: [
                     SondrAction(
                       label: 'Remove',
+                      fontSize: kRowActionSize,
                       onPressed:
                           _busy ? null : () => _run((r) => r.remove(f.id)),
                     ),
                     SondrAction(
                       label: 'Block',
+                      fontSize: kRowActionSize,
                       onPressed: _busy
                           ? null
                           : () {
@@ -518,10 +524,15 @@ class _FriendRow extends StatelessWidget {
 
   static const double photo = 36;
 
-  /// A SondrAction's measured height — a row carrying one (Accept/Decline) is
+  /// A row action's MEASURED height — a row carrying one (Accept/Decline) is
   /// taller than a plain row, and the list caps have to know which they hold
   /// or the last visible row is clipped mid-way.
-  static const double actionHeight = 45;
+  ///
+  /// 42 at [kRowActionSize]: 12 of tap padding either side plus the text's
+  /// own line box. It was 45 while the actions were 15pt; shrinking them
+  /// without re-measuring left every action row reserving 3pt it no longer
+  /// used.
+  static const double actionHeight = 42;
 
   static double heightOf({required bool hasAction}) =>
       (hasAction ? actionHeight : photo) + _kRowPad * 2;
@@ -565,7 +576,9 @@ class _FriendRow extends StatelessWidget {
             Text(
               status!,
               style: theme.textTheme.bodyMedium?.copyWith(
-                fontSize: 12 * scale,
+                // The same size as the row actions it stands in for — this
+                // label sits exactly where Accept/Decline would.
+                fontSize: kRowActionSize * scale,
                 fontWeight: FontWeight.w700,
                 color: tokens.textTertiary,
               ),

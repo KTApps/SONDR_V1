@@ -324,6 +324,22 @@ final outgoingRequestsProvider = Provider<List<Friendship>>((ref) {
 
 final friendCountProvider = Provider<int>((ref) => ref.watch(friendsProvider).length);
 
+/// The uids this user has blocked, as a set, for filtering content.
+///
+/// FAILS OPEN. While the blocks stream is loading, or if it errors (rules
+/// not deployed, offline), this is EMPTY and nothing is filtered — a broken
+/// block read must never blank the feed. The rules are the boundary; this is
+/// the courtesy of not showing you someone you walked away from.
+///
+/// Derived from the one [blockedAccountsProvider] stream, so filtering costs
+/// no extra reads — per-item block lookups are what broke search before.
+final blockedUidsProvider = Provider<Set<String>>((ref) {
+  return ref.watch(blockedAccountsProvider).maybeWhen(
+        data: (list) => {for (final b in list) b.blocked},
+        orElse: () => const <String>{},
+      );
+});
+
 /// The people this user has blocked. Empty when there is no backend.
 final blockedAccountsProvider = StreamProvider<List<Block>>((ref) {
   final repo = ref.watch(friendsRepositoryProvider);

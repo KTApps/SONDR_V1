@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sondr/features/feed/posts_repository.dart';
 import 'package:sondr/features/friends/friends_repository.dart';
 import 'package:sondr/features/friends/models/block.dart';
 import 'package:sondr/features/friends/models/friendship.dart';
@@ -92,6 +93,49 @@ void main() {
     test('blocking everyone returns nothing', () {
       expect(
         handlesNotBlocked(candidates, {'uid-a', 'uid-b', 'uid-c'}),
+        isEmpty,
+      );
+    });
+  });
+
+  group('withoutBlockedAuthors', () {
+    // Hides content from people YOU blocked. The reciprocal case — someone
+    // who blocked you — cannot be filtered client-side at all: their block
+    // document is not yours to read.
+    const items = [
+      MapEntry('p1', 'uid-a'),
+      MapEntry('p2', 'uid-b'),
+      MapEntry('p3', 'uid-a'),
+    ];
+    String author(MapEntry<String, String> e) => e.value;
+
+    test('drops every item by a blocked author, keeps the rest in order', () {
+      expect(
+        withoutBlockedAuthors(items, {'uid-a'}, author).map((e) => e.key),
+        ['p2'],
+      );
+    });
+
+    test('FAILS OPEN — an empty set returns everything, never nothing', () {
+      // The set is empty while the blocks stream loads and whenever it
+      // errors. A broken block read must not blank the feed.
+      expect(withoutBlockedAuthors(items, const {}, author), hasLength(3));
+    });
+
+    test('a stranger\'s uid filters nothing', () {
+      expect(withoutBlockedAuthors(items, {'uid-z'}, author), hasLength(3));
+    });
+
+    test('your own content is never filtered', () {
+      // Your uid cannot be in your own blocked set — the rules refuse a
+      // self-block and blockUser is never called with your own uid.
+      const mine = [MapEntry('mine', 'me')];
+      expect(withoutBlockedAuthors(mine, {'uid-a'}, author), hasLength(1));
+    });
+
+    test('blocking every author returns nothing', () {
+      expect(
+        withoutBlockedAuthors(items, {'uid-a', 'uid-b'}, author),
         isEmpty,
       );
     });

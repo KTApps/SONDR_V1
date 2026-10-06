@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import 'models/comment.dart';
+import '../friends/friends_repository.dart';
 import 'models/post.dart';
 
 /// Reads the friends-only feed and creates posts. Posts live in a top-level
@@ -266,11 +267,49 @@ final postsRepositoryProvider = Provider<PostsRepository?>((ref) {
   return PostsRepository(db: FirebaseFirestore.instance, uid: uid);
 });
 
-/// The friends-only feed stream (empty on the local backend).
-final feedProvider = StreamProvider<List<Post>>((ref) {
+/// Everything in [items] whose author is not in [blockedUids].
+///
+/// Pure, so the filter — and above all its FAIL-OPEN behaviour — can be
+/// tested without Firestore. An empty [blockedUids] must return everything:
+/// the set is empty while the blocks stream loads and whenever it errors,
+/// and a blank feed would be far worse than a visible blocked post.
+List<T> withoutBlockedAuthors<T>(
+  Iterable<T> items,
+  Set<String> blockedUids,
+  String Function(T) authorOf,
+) =>
+    blockedUids.isEmpty
+        ? items.toList()
+        : [
+            for (final item in items)
+              if (!blockedUids.contains(authorOf(item))) item,
+          ];
+
+/// The raw friends-only feed stream (empty on the local backend).
+///
+/// Private: everything reads [feedProvider], which is this with blocked
+/// authors removed. Kept separate so changing the blocked set re-filters
+/// without tearing down and re-establishing the Firestore subscription.
+final _feedStreamProvider = StreamProvider<List<Post>>((ref) {
   final repo = ref.watch(postsRepositoryProvider);
   if (repo == null) return Stream.value(const <Post>[]);
   return repo.watchFeed();
+});
+
+/// The feed, with posts by blocked authors removed.
+///
+/// `audience` is frozen at post time, so unfriending someone — which is what
+/// blocking does — cannot retroactively remove you from posts that already
+/// exist. They keep arriving; this drops them on the way to the screen.
+///
+/// Still an `AsyncValue`, so `.when`/`.isLoading` at the call sites are
+/// unchanged. Fails open: see [blockedUidsProvider]. Your own posts are
+/// never touched — your uid cannot be in your own blocked set.
+final feedProvider = Provider<AsyncValue<List<Post>>>((ref) {
+  final blocked = ref.watch(blockedUidsProvider);
+  return ref.watch(_feedStreamProvider).whenData(
+        (posts) => withoutBlockedAuthors(posts, blocked, (p) => p.authorUid),
+      );
 });
 
 /// The set of post ids the current user has liked (empty on the local backend).
@@ -280,12 +319,24 @@ final myLikedPostsProvider = StreamProvider<Set<String>>((ref) {
   return repo.watchMyLikes();
 });
 
-/// A post's comments, oldest first (empty on the local backend).
-final postCommentsProvider = StreamProvider.family<List<Comment>, String>((
-  ref,
-  postId,
-) {
+/// A post's raw comments, oldest first (empty on the local backend).
+/// Private — read [postCommentsProvider].
+final _postCommentsStreamProvider =
+    StreamProvider.family<List<Comment>, String>((ref, postId) {
   final repo = ref.watch(postsRepositoryProvider);
   if (repo == null) return Stream.value(const <Comment>[]);
   return repo.watchComments(postId);
+});
+
+/// A post's comments with blocked authors removed.
+///
+/// A blocked person can still comment on a mutual friend's post — the block
+/// stops the two of you being friends, not their presence in someone else's
+/// thread. This keeps them out of your view of it.
+final postCommentsProvider =
+    Provider.family<AsyncValue<List<Comment>>, String>((ref, postId) {
+  final blocked = ref.watch(blockedUidsProvider);
+  return ref.watch(_postCommentsStreamProvider(postId)).whenData(
+        (list) => withoutBlockedAuthors(list, blocked, (c) => c.authorUid),
+      );
 });

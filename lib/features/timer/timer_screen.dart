@@ -1,0 +1,720 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/backend.dart';
+import '../../core/debug_flags.dart';
+import '../../core/theme/greyscale_tokens.dart';
+import '../../core/theme/spacing.dart';
+import '../../core/utils/date.dart';
+import '../../core/utils/duration_format.dart';
+import '../../core/utils/figma_scale.dart';
+import '../../shared/ring/segmented_dial.dart';
+import '../../shared/sondr_action.dart';
+import '../auth/guest_prompts.dart';
+import '../focus/focus_providers.dart';
+import '../focus/focus_view.dart';
+import '../habits/habits_overlay.dart';
+import '../habits/habits_providers.dart';
+import '../history/calendar_screen.dart';
+import '../milestone/milestone_celebration.dart';
+import '../milestone/session_share_flow.dart';
+import '../photos/collage_selection.dart';
+import '../photos/collages_repository.dart';
+import '../photos/photo_capture_flow.dart';
+import '../photos/photos_repository.dart';
+import '../profile/profile_providers.dart';
+import '../tasks/models/task.dart';
+import '../tasks/tasks_providers.dart';
+import 'centre_period.dart';
+import 'timer_controller.dart';
+import 'widgets/task_dropdown.dart';
+
+/// The home / timer screen — Sondr's main surface.
+///
+/// The outer ring is a pie of how today's time is split across tasks; the inner
+/// ring is today's habits. The task dropdown drives two modes: collective
+/// "Task" overview (centre = total across all tasks, view-only) and a specific
+/// task (centre follows it, timer controls appear). Swiping the centre toggles
+/// the figure between today and this month. Milestone progress lives only in
+/// the dropdown bars, never here.
+class TimerScreen extends ConsumerStatefulWidget {
+  const TimerScreen({super.key});
+
+  @override
+  ConsumerState<TimerScreen> createState() => _TimerScreenState();
+}
+
+class _TimerScreenState extends ConsumerState<TimerScreen> {
+  /// True once "Start" has been tapped and the control has split into the
+  /// "Focus / Start" choice. Lives here rather than in the control itself so a
+  /// tap anywhere else on Home can close it again.
+  bool _choosing = false;
+
+  /// The screen's one notice line, shown above the controls. Replaces a
+  /// SnackBar: it belongs to this screen rather than to a floating Material
+  /// surface.
+  ///
+  /// TRANSIENT, unlike an error. A confirmation has nothing to resolve — the
+  /// work is already done and the figures on screen show it — so it says its
+  /// piece and goes. An error stays until the user acts on it (see
+  /// [SondrError]).
+  String? _notice;
+
+  /// Identifies the notice currently owning the line, so a message raised
+  /// during another's wait is not cleared early by the older timer.
+  int _noticeToken = 0;
+
+  void _say(String message) {
+    if (!mounted) return;
+    final token = ++_noticeToken;
+    setState(() => _notice = message);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && _noticeToken == token) setState(() => _notice = null);
+    });
+  }
+
+  void _closeChoice() {
+    if (_choosing) setState(() => _choosing = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final now = DateTime.now();
+
+    final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
+    final selectedId = ref.watch(selectedTaskIdProvider);
+    final selectedTask = ref.watch(selectedTaskProvider);
+    final timer = ref.watch(timerControllerProvider);
+    final todayHabits = ref.watch(todayHabitsProvider);
+    final habitStates = <bool>[
+      for (final t in todayHabits?.ticks ?? const []) t.done,
+    ];
+    final period = ref.watch(centrePeriodProvider);
+
+    // Focus Mode replaces the whole home with the quietened focused view.
+    if (ref.watch(focusModeProvider)) {
+      return FocusView(onStop: () => _onStop(context, ref, selectedTask));
+    }
+
+    final isCollective = selectedTask == null;
+    final liveSeconds = timer.sessionElapsed.inSeconds;
+
+    // The outer ring is always today's split. The in-progress session is folded
+    // into the selected task's slice so it grows live while the timer runs.
+    final segments = <double>[
+      for (final t in tasks)
+        (t.todaySeconds(now) + (t.id == selectedId ? liveSeconds : 0))
+            .toDouble(),
+    ];
+    final highlightIndex = selectedTask == null
+        ? null
+        : _indexOrNull(tasks.indexWhere((t) => t.id == selectedTask.id));
+
+    // Finishing or starting a session closes the choice, so the user is never
+    // returned to a half-open control.
+    ref.listen(timerControllerProvider, (previous, next) {
+      if (previous?.status != next.status) _closeChoice();
+    });
+
+    // Everything below was measured on the Figma reference; one uniform
+    // factor scales the positions and the sizes together.
+    final scale = figmaScale(context);
+
+    return Scaffold(
+      // Figma positions scaled to the screen (no AppBar/SafeArea, so
+      // coordinates are screen-global). Dial size/position here is layout
+      // only — ring rendering is untouched.
+      // Translucent so the controls below still receive their own taps; this
+      // only catches taps that land on empty canvas.
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: _closeChoice,
+        child: Stack(
+          children: [
+          // Task selector — nudged down slightly to tighten the gap to the dial.
+          Positioned(
+            top: 102 * scale,
+            left: 0,
+            right: 0,
+            child: Center(child: TaskDropdown()),
+          ),
+          // Hero dial. Swipe the centre to toggle today/month. Its top sits
+          // below the open dropdown's top (146) and its bottom (412) above the
+          // period dots (421), so the open dropdown fully covers it.
+          Positioned(
+            top: 152 * scale,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: SegmentedDial(
+                taskTodaySeconds: segments,
+                selectedTaskIndex: highlightIndex,
+                habitStates: habitStates,
+                size: 260 * scale,
+                onInnerRingTap: () => showHabitsOverlay(context),
+                center: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragEnd: (_) =>
+                      ref.read(centrePeriodProvider.notifier).toggle(),
+                  child: _DialCentre(
+                    tasks: tasks,
+                    selectedTask: selectedTask,
+                    isCollective: isCollective,
+                    timer: timer,
+                    period: period,
+                    now: now,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Period dots (today⟷month swipe affordance).
+          Positioned(
+            top: 421 * scale,
+            left: 0,
+            right: 0,
+            child: Center(child: _PeriodDots(period: period)),
+          ),
+          // Control: collective hint, or the running/paused timer controls.
+          // 448 rather than the measured 444: the plain-text control is
+          // shorter than the filled button the gap was sized for, and this
+          // centres it between the period dots and "Last 10 days".
+          Positioned(
+            top: 448 * scale,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_notice != null) ...[
+                    Text(
+                      _notice!,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(
+                            fontSize: 13 * scale,
+                            color: tokens.textSecondary,
+                          ),
+                    ),
+                    SizedBox(height: kSpacingBase * scale),
+                  ],
+                  isCollective
+                  ? _CollectiveHint(hasTasks: tasks.isNotEmpty)
+                  : _TimerControls(
+                      timer: timer,
+                      choosing: _choosing,
+                      onBeginChoice: () => setState(() => _choosing = true),
+                      onStart: () => _startSession(ref, focus: false),
+                      onFocus: () => _startSession(ref, focus: true),
+                      onResume: () =>
+                          ref.read(timerControllerProvider.notifier).start(),
+                      onPause: () =>
+                          ref.read(timerControllerProvider.notifier).pause(),
+                      onStop: () => _onStop(context, ref, selectedTask),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          // "Last 10 days" block — Figma Y positions, shifted up with the stack.
+          Positioned(
+            top: 511 * scale,
+            left: 24 * scale,
+            right: 24 * scale,
+            child: _LastTenDays(now: now, scale: scale),
+          ),
+          // Dev-only milestone primer (DEBUG_TOOLS builds only; off by default).
+          if (kDebugTools && selectedTask != null)
+            Positioned(
+              top: 116 * scale,
+              left: 24 * scale,
+              right: 24 * scale,
+              child: Center(
+                child: OutlinedButton(
+                  onPressed: () => _primeMilestone(context, ref, selectedTask),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: tokens.textTertiary,
+                    side: BorderSide(color: tokens.ringTrack),
+                  ),
+                  child: const Text('DEBUG · prime to milestone edge'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  int? _indexOrNull(int i) => i < 0 ? null : i;
+
+  /// Pressing Start on a fresh (idle) session offers Focus Mode first, then
+  /// starts. Resuming a paused session doesn't re-prompt.
+  /// Begin a session. Focus Mode is chosen inline on the control itself
+  /// ("Focus | Start"), so there is no prompt to answer here.
+  void _startSession(WidgetRef ref, {required bool focus}) {
+    ref.read(timerControllerProvider.notifier).start();
+    if (focus) {
+      ref.read(focusModeProvider.notifier).enable();
+    }
+  }
+
+  Future<void> _onStop(BuildContext context, WidgetRef ref, Task? task) async {
+    final outcome = await ref.read(timerControllerProvider.notifier).stop();
+    // Always leave Focus Mode when the session ends.
+    ref.read(focusModeProvider.notifier).disable();
+    if (!context.mounted || outcome.loggedSeconds <= 0) return;
+
+    // Offer the optional end-of-session photo only when a task was actually
+    // credited — a photo must never exist without a task to attach to.
+    final creditedTaskId = outcome.taskId;
+
+    // Crossing a 20-hour boundary takes over with the celebration moment first;
+    // the capture screen follows once it's dismissed (uninterrupted peak, then
+    // the same capture flow as an ordinary stop).
+    if (outcome.reachedMilestone) {
+      // Auto-compose this milestone's collage — a gift, zero user action. Fired
+      // unawaited so it never delays the celebration; the repo guards against
+      // clobbering a user-edited collage.
+      if (creditedTaskId != null) {
+        unawaited(
+          _autoComposeCollage(ref, creditedTaskId, outcome.milestoneHours!),
+        );
+      }
+      // Share fires on EVERY 20h crossing now (flat bands, no ladder). The
+      // celebration drives the whole share journey internally — camera capture,
+      // share-post picker, caption, create — so there's no separate capture
+      // screen after it.
+      await showMilestoneCelebration(
+        context,
+        taskId: creditedTaskId ?? '',
+        taskName: outcome.taskName ?? 'task',
+        milestoneHours: outcome.milestoneHours!,
+        totalHours: outcome.totalHours,
+        sessionSeconds: outcome.loggedSeconds,
+        cumulativeSeconds: outcome.totalSeconds,
+        isFirst: outcome.isFirstMilestone,
+      );
+      return;
+    }
+
+    // A guest whose lifetime tracked time just passed 1 hour gets nudged to
+    // create an account once the stop flow below finishes.
+    final isGuest = ref.read(isGuestProvider);
+    final lifetime = ref.read(lifetimeDurationProvider).inSeconds;
+    final crossedGuestNudge = isGuest &&
+        creditedTaskId != null &&
+        lifetime >= kGuestNudgeSeconds &&
+        lifetime - outcome.loggedSeconds < kGuestNudgeSeconds;
+
+    // No new crossing, but the task is past its first milestone (>=20h lifetime):
+    // the session share flow — camera-only capture (feeds the gallery) then an
+    // optional post to the feed. Below 20h this is skipped (ordinary stop), and
+    // so is it for guests, who can't post.
+    if (creditedTaskId != null &&
+        !isGuest &&
+        outcome.totalSeconds >= kMilestoneBandSeconds) {
+      await showSessionShareFlow(
+        context,
+        taskId: creditedTaskId,
+        taskName: outcome.taskName ?? 'task',
+        sessionSeconds: outcome.loggedSeconds,
+        cumulativeSeconds: outcome.totalSeconds,
+      );
+      return;
+    }
+
+    // Ordinary stop (<20h lifetime or a guest, no crossing): the plain gallery
+    // capture, no share surface. milestoneHours is null here (no boundary
+    // crossed).
+    if (creditedTaskId != null) {
+      await showPhotoCapture(
+        context,
+        taskId: creditedTaskId,
+        taskName: outcome.taskName ?? 'task',
+        sessionSeconds: outcome.loggedSeconds,
+        milestoneHours: outcome.milestoneHours,
+        cumulativeSeconds: outcome.totalSeconds,
+      );
+      if (crossedGuestNudge && context.mounted) {
+        await showCreateAccountPrompt(
+          context,
+          title: 'You\'ve tracked your first hour',
+          message:
+              'Create an account to keep your progress safe. Right now it '
+              'would be lost if you delete the app or change phones.',
+        );
+      }
+      return;
+    }
+
+    // No task credited (session ran with none selected): just confirm the time.
+    final logged = DurationFormat.hm(Duration(seconds: outcome.loggedSeconds));
+    // A confirmation, not a failure — supporting grey, on the screen that
+    // did the work, cleared by the next thing the user does.
+    _say('Logged $logged');
+  }
+
+  /// Compose and save the milestone's collage from that milestone's own 20h
+  /// band of photos (locked window). Photo-id refs only, so it's cheap. The
+  /// repo's [CollagesRepository.saveAuto] guard leaves a user-edited collage
+  /// untouched, so re-crossing/re-opening never clobbers curation.
+  Future<void> _autoComposeCollage(
+    WidgetRef ref,
+    String taskId,
+    int milestoneHours,
+  ) async {
+    final photos = ref.read(photosRepositoryProvider);
+    final collages = ref.read(collagesRepositoryProvider);
+    if (photos == null || collages == null) return;
+    try {
+      // Store the FULL band (uncapped mosaic); the ≤9 even-spread is only the
+      // celebration preview.
+      final band = await photos.photosForBand(taskId, milestoneHours);
+      await collages.saveAuto(taskId, milestoneHours, [
+        for (final p in band) p.id,
+      ]);
+    } catch (e) {
+      debugPrint('SONDR collage auto-compose error: $e');
+    }
+  }
+
+  /// DEBUG_TOOLS only: log enough time to leave [task] ~90s below its first 20h
+  /// milestone, so a short live session crosses it and exercises the real
+  /// milestone → post → feed loop.
+  void _primeMilestone(BuildContext context, WidgetRef ref, Task task) {
+    final edgeSeconds = Task.milestoneStepHours * 3600 - 90;
+    final needed = edgeSeconds - task.totalSeconds;
+    if (needed <= 0) {
+      _say('Already at/past the first milestone');
+      return;
+    }
+    ref
+        .read(tasksProvider.notifier)
+        .logSeconds(task.id, needed, DateTime.now());
+    _say('Primed ${task.name} near 20h — run a short session to cross');
+  }
+}
+
+/// Centre of the dial. While a specific task's session runs, the live stopwatch
+/// is the hero; otherwise the figure is the chosen window (today / this month)
+/// — for the selected task, or the total across all tasks in collective mode.
+class _DialCentre extends StatelessWidget {
+  const _DialCentre({
+    required this.tasks,
+    required this.selectedTask,
+    required this.isCollective,
+    required this.timer,
+    required this.period,
+    required this.now,
+  });
+
+  final List<Task> tasks;
+  final Task? selectedTask;
+  final bool isCollective;
+  final TimerState timer;
+  final CentrePeriod period;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+
+    final String value;
+    final String label = period == CentrePeriod.today ? 'today' : 'this month';
+
+    if (tasks.isEmpty) {
+      return _centreColumn(theme, tokens, '—', 'add a task');
+    }
+
+    // Seconds for the active window.
+    final int seconds;
+    if (isCollective) {
+      seconds = tasks.fold<int>(
+        0,
+        (sum, t) =>
+            sum +
+            (period == CentrePeriod.today
+                ? t.todaySeconds(now)
+                : t.monthSeconds(now)),
+      );
+    } else {
+      // Fold the live session into the selected task's totals.
+      final live = selectedTask!.addingSeconds(
+        timer.sessionElapsed.inSeconds,
+        now,
+      );
+      seconds = period == CentrePeriod.today
+          ? live.todaySeconds(now)
+          : live.monthSeconds(now);
+    }
+
+    final duration = Duration(seconds: seconds);
+    // Running → tick with seconds precision; otherwise the rounded h/m figure.
+    value = timer.isRunning
+        ? DurationFormat.stopwatch(duration)
+        : DurationFormat.hm(duration);
+
+    return _centreColumn(theme, tokens, value, label);
+  }
+
+  Widget _centreColumn(
+    ThemeData theme,
+    GreyscaleTokens tokens,
+    String value,
+    String label,
+  ) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: tokens.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Two-dot affordance under the dial hinting the today⟷month centre swipe.
+class _PeriodDots extends StatelessWidget {
+  const _PeriodDots({required this.period});
+  final CentrePeriod period;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    Widget dot(bool active) => Container(
+      width: 6,
+      height: 6,
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: active ? tokens.ringFillOuter : tokens.ringTrack,
+      ),
+    );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        dot(period == CentrePeriod.today),
+        dot(period == CentrePeriod.month),
+      ],
+    );
+  }
+}
+
+/// Shown in collective mode, where there is no session to run.
+class _CollectiveHint extends StatelessWidget {
+  const _CollectiveHint({required this.hasTasks});
+  final bool hasTasks;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final text = hasTasks
+        ? 'Pick a task to start a session'
+        : 'Add a task to start tracking';
+    return SizedBox(
+      height: 56,
+      child: Center(
+        child: Text(
+          text,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: tokens.textTertiary),
+        ),
+      ),
+    );
+  }
+}
+
+class _TimerControls extends StatelessWidget {
+  const _TimerControls({
+    required this.timer,
+    required this.choosing,
+    required this.onBeginChoice,
+    required this.onStart,
+    required this.onFocus,
+    required this.onResume,
+    required this.onPause,
+    required this.onStop,
+  });
+
+  final TimerState timer;
+
+  /// Whether "Start" has been tapped and the control has split into the mode
+  /// choice. Owned by the screen so a tap on empty canvas can close it.
+  final bool choosing;
+  final VoidCallback onBeginChoice;
+
+  /// Start a normal session.
+  final VoidCallback onStart;
+
+  /// Start a session in Focus Mode.
+  final VoidCallback onFocus;
+
+  /// Resume from pause — never re-offers the mode choice.
+  final VoidCallback onResume;
+  final VoidCallback onPause;
+  final VoidCallback onStop;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (timer.status) {
+      case TimerStatus.idle:
+        // One tap splits the control in two rather than opening a dialog: the
+        // choice is made in the same place the action was. Tapping anywhere
+        // else on Home closes it again.
+        if (!choosing) {
+          return SondrAction(label: 'Start', onPressed: onBeginChoice);
+        }
+        return SondrActionPair(
+          firstLabel: 'Focus',
+          onFirst: onFocus,
+          secondLabel: 'Start',
+          onSecond: onStart,
+        );
+      case TimerStatus.running:
+        return SondrActionPair(
+          firstLabel: 'Pause',
+          onFirst: onPause,
+          secondLabel: 'Stop',
+          onSecond: onStop,
+        );
+      case TimerStatus.paused:
+        return SondrActionPair(
+          firstLabel: 'Resume',
+          onFirst: onResume,
+          secondLabel: 'Stop',
+          onSecond: onStop,
+        );
+    }
+  }
+}
+
+/// The "Last 10 days" module: a label, two rows of five mini dual-rings, and a
+/// plain-text "View your progress" CTA, all sitting directly on the background
+/// (no border, no panel). Each cell mirrors the hero dial at small scale —
+/// outer ring = that day's task split, inner ring = that day's habits — with a
+/// days-ago number in the centre. Today is excluded (it's the big dial above):
+/// the grid reads 1 (yesterday) at top-left across to 10 (oldest) at
+/// bottom-right. The day circles are display-only; only the CTA navigates.
+class _LastTenDays extends ConsumerWidget {
+  const _LastTenDays({required this.now, required this.scale});
+
+  final DateTime now;
+
+  /// Screen-to-Figma-reference factor, so this block grows with the rest of
+  /// the screen instead of staying a fixed height and pooling slack beneath it.
+  final double scale;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
+    final habitsState = ref.watch(habitsProvider).value;
+    final today = DateTime(now.year, now.month, now.day);
+
+    Widget cell(int daysAgo) {
+      final date = today.subtract(Duration(days: daysAgo));
+      final key = DayKey.of(date);
+      final segments = <double>[
+        for (final t in tasks) (t.secondsByDay[key] ?? 0).toDouble(),
+      ];
+      // That day's habits as per-habit done/not-done segments (empty list →
+      // solid empty inner ring), matching the main dial.
+      final habitStates = <bool>[
+        for (final tick in habitsState?.days[key]?.ticks ?? const []) tick.done,
+      ];
+      return SegmentedDial(
+        size: 57 * scale,
+        compact: true,
+        taskTodaySeconds: segments,
+        habitStates: habitStates,
+        center: Text(
+          '${date.day}',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontSize: 12 * scale,
+            fontWeight: FontWeight.w700,
+            color: tokens.textSecondary,
+          ),
+        ),
+      );
+    }
+
+    Widget row(Iterable<int> daysAgo) => Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [for (final d in daysAgo) cell(d)],
+    );
+
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Last 10 days',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontSize: 20 * scale,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          // label→row1 30, row1→row2 25; the CTA gap is larger so "View your
+          // progress" sits toward the midpoint between row 2 and the tab bar.
+          SizedBox(height: 30 * scale),
+          row(const [1, 2, 3, 4, 5]),
+          SizedBox(height: 25 * scale),
+          row(const [6, 7, 8, 9, 10]),
+          // Centres "View your progress" in the gap between row 2 and the tab
+          // bar (CTA ~18px tall in a ~74px gap → ~28 above).
+          SizedBox(height: 28 * scale),
+
+          // Plain-text CTA; opens the calendar/progress screen (same
+          // destination the standalone button used to). The day circles
+          // themselves stay display-only.
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const CalendarScreen())),
+            child: SizedBox(
+              width: double.infinity,
+              child: Text(
+                'View your progress',
+                textAlign: TextAlign.center,
+                // Bold 15 — deliberately smaller than the Bold 20 section
+                // label. Same tone and weight as the timer controls: actions
+                // are uniform white text (see DESIGN.md).
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontSize: 15 * scale,
+                  fontWeight: FontWeight.w700,
+                  color: tokens.textPrimary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

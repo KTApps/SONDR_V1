@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../shared/sondr_loading.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
@@ -363,11 +365,7 @@ class _PhotoOverlay extends StatelessWidget {
                             height: 280,
                             color: tokens.surface,
                             alignment: Alignment.center,
-                            child: const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
+                            child: const SondrLoading(),
                           ),
                   ),
                 ),

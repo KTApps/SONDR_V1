@@ -8,6 +8,7 @@ import '../../../core/theme/spacing.dart';
 import '../../../core/utils/figma_scale.dart';
 import '../../../shared/sondr_action.dart';
 import '../../../shared/sondr_field.dart';
+import '../../../shared/sondr_loading.dart';
 import '../../../shared/sondr_swipe_row.dart';
 import '../../../core/utils/relative_time.dart';
 import '../models/comment.dart';
@@ -210,8 +211,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
               SizedBox(height: _kComposerGap * scale),
               Expanded(
                 child: comments.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
+                  loading: () => const SondrLoading(),
                   error: (_, _) => Center(
                     child: Text('Couldn’t load comments.',
                         style: theme.textTheme.bodyMedium

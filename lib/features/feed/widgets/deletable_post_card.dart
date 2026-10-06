@@ -130,13 +130,9 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
             // Tight: a slim session card has barely room for two stacked
             // actions, and the actions carry their own tap padding already.
             padding: EdgeInsets.all(kSpacingPair * figmaScale(context)),
-            child: _busy
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : _actions(tokens),
+            // The actions STAY while the delete runs — only the label and
+            // the tone move, so the overlay does not jump.
+            child: _actions(tokens),
           ),
         ),
       ),
@@ -151,8 +147,15 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SondrAction(label: 'Delete', onPressed: _delete),
-        SondrAction(label: 'Close', supporting: true, onPressed: _clear),
+        SondrAction(
+          label: _busy ? 'Deleting…' : 'Delete',
+          onPressed: _busy ? null : _delete,
+        ),
+        SondrAction(
+          label: 'Close',
+          supporting: true,
+          onPressed: _busy ? null : _clear,
+        ),
       ],
     );
   }

@@ -25,10 +25,12 @@ class SharePostCaptionScreen extends ConsumerStatefulWidget {
     required this.preview,
     required this.onSubmit,
     this.submitLabel = 'Create',
+    this.submitBusyLabel = 'Creating…',
   });
 
   final Widget preview;
   final String submitLabel;
+  final String submitBusyLabel;
 
   /// Does the actual post creation with the entered [caption] (null when blank).
   /// Given the screen's own [ref]. Throwing surfaces a generic error toast.
@@ -131,6 +133,7 @@ class _SharePostCaptionScreenState
               const SizedBox(height: 8),
               SharePrimaryButton(
                 label: widget.submitLabel,
+                busyLabel: widget.submitBusyLabel,
                 busy: _busy,
                 onPressed: _busy ? null : _submit,
               ),
@@ -149,10 +152,14 @@ class SharePrimaryButton extends StatelessWidget {
     super.key,
     required this.label,
     required this.onPressed,
+    this.busyLabel = 'Working…',
     this.busy = false,
   });
 
   final String label;
+
+  /// What the button says mid-write — "Sharing…" to [label]'s "Share".
+  final String busyLabel;
   final VoidCallback? onPressed;
   final bool busy;
 
@@ -174,13 +181,8 @@ class SharePrimaryButton extends StatelessWidget {
           ),
           textStyle: Theme.of(context).textTheme.labelLarge,
         ),
-        child: busy
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Text(label),
+        // The button keeps its size and place; only the word changes.
+        child: Text(busy ? busyLabel : label),
       ),
     );
   }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../shared/sondr_loading.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
@@ -25,8 +27,7 @@ class FeedScreen extends ConsumerWidget {
               ? FeedView(posts: mockPosts())
               : ref.watch(feedProvider).when(
                     data: (posts) => FeedView(posts: posts),
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
+                    loading: () => const SondrLoading(),
                     error: (_, _) => const _Error(),
                   ),
         ),

@@ -204,17 +204,7 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              if (_busy)
-                SizedBox(
-                  height: 24,
-                  width: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: tokens.textPrimary,
-                  ),
-                )
-              else
-                _keepRetake(tokens, theme),
+              _keepRetake(tokens, theme),
             ],
           ),
         ),
@@ -238,7 +228,7 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _keep,
+            onPressed: _busy ? null : _keep,
             style: ElevatedButton.styleFrom(
               backgroundColor: tokens.ringFillOuter,
               foregroundColor: tokens.background,
@@ -249,12 +239,12 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
               ),
               textStyle: theme.textTheme.labelLarge,
             ),
-            child: const Text('keep'),
+            child: Text(_busy ? 'saving…' : 'keep'),
           ),
         ),
         const SizedBox(height: 4),
         TextButton(
-          onPressed: _pick,
+          onPressed: _busy ? null : _pick,
           style: TextButton.styleFrom(
             foregroundColor: tokens.textSecondary,
             textStyle: theme.textTheme.labelLarge,

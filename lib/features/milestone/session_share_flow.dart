@@ -39,6 +39,7 @@ Future<void> showSessionShareFlow(
     MaterialPageRoute(
       builder: (_) => SharePostCaptionScreen(
         submitLabel: 'Share',
+        submitBusyLabel: 'Sharing…',
         preview: _SessionPreview(
           capturedFile: captured,
           taskName: taskName,

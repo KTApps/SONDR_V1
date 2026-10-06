@@ -180,12 +180,7 @@ class _CollageEntryState extends ConsumerState<_CollageEntry> {
                   textStyle: theme.textTheme.labelLarge
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
-                child: _saving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Save'),
+                child: Text(_saving ? 'Saving…' : 'Save'),
               ),
             ],
           ),

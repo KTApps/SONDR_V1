@@ -35,6 +35,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool _busy = false;
   String? _error;
 
+
   @override
   void dispose() {
     _email.dispose();
@@ -151,11 +152,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               ),
               if (_error != null) ...[
                 SizedBox(height: kSpacingBase * scale),
+                // Supporting SIZE, emphasis TONE. At 13/regular/secondary a
+                // failure was byte-identical to the passive guest hint and
+                // read as a footnote. Colour is not available to mark it, so
+                // weight and tone do the work.
                 Text(
                   _error!,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontSize: 13 * scale,
-                    color: tokens.textSecondary,
+                    fontWeight: FontWeight.w700,
+                    color: tokens.textPrimary,
                   ),
                 ),
               ],
@@ -163,17 +169,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               // the declared gap is the tier minus that — the gap you SEE is
               // what has to be on-tier, not the number in the source.
               SizedBox(height: kSpacingBase * scale),
+              // In flight, the action STAYS — same widget, same height, same
+              // place — and says what it is doing. Swapping it for a spinner
+              // removed 45pt of action and lifted everything below it by ~55
+              // at the exact moment the user was waiting. State by text and
+              // tone, never a glyph.
               Center(
-                child: _busy
-                    ? SizedBox(
-                        height: 20 * scale,
-                        width: 20 * scale,
-                        child: const CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : SondrAction(
-                        label: _signUp ? 'Create account' : 'Sign in',
-                        onPressed: _submit,
-                      ),
+                child: SondrAction(
+                  label: _busy
+                      ? (_signUp ? 'Creating account…' : 'Signing in…')
+                      : (_signUp ? 'Create account' : 'Sign in'),
+                  onPressed: _busy ? null : _submit,
+                ),
               ),
               // Nothing between two stacked actions: their own paddings meet
               // at 24, which is the section unit already.
@@ -195,6 +202,20 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 enabled: !_busy,
                 onError: (message) => setState(() => _error = message),
               ),
+              // Leaving is an exit: supporting grey, last in the action
+              // stack, the same "Back" Friends and Blocked use. Not pinned —
+              // this screen scrolls, so there is no footer to pin it to.
+              //
+              // Only when there is something to go back TO. Auth is always pushed from the
+              // landing, so in practice this is always true.
+              if (Navigator.of(context).canPop())
+                Center(
+                  child: SondrAction(
+                    label: 'Back',
+                    supporting: true,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                ),
             ],
           ),
         ),

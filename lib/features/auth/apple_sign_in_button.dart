@@ -115,10 +115,15 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
           ),
           child: Center(
             child: _busy
-                ? SizedBox(
-                    height: 18 * scale,
-                    width: 18 * scale,
-                    child: const CircularProgressIndicator(strokeWidth: 2),
+                // Text, not a spinner — the capsule, the logo rule and the
+                // metrics are untouched; only what sits inside it changes.
+                ? Text(
+                    'Signing in…',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w700,
+                      color: tokens.textSecondary,
+                    ),
                   )
                 : Row(
                     mainAxisSize: MainAxisSize.min,

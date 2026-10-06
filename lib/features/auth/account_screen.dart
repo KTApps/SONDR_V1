@@ -22,6 +22,7 @@ import 'profile_repository.dart';
 class AccountBody extends ConsumerWidget {
   const AccountBody({super.key});
 
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Rebuild on sign in/out/link.
@@ -83,9 +84,15 @@ class _GuestView extends StatelessWidget {
             )),
           ),
         ),
+        // Supporting on the LANDING only: creating an account is what this
+        // screen is for, and signing in abandons the guest's data. Two
+        // equally bright actions made the destructive one look as inviting
+        // as the safe one. The submit action on the sign-in screen itself
+        // stays white — it is the primary there.
         Center(
           child: SondrAction(
             label: 'I already have an account',
+            supporting: true,
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => const AuthScreen(startInSignUp: false),
             )),

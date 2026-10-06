@@ -33,8 +33,23 @@ class SondrAction extends StatelessWidget {
   final bool supporting;
 
   /// Overrides the action's weight. Used where an action has to match the
-  /// text it sits beside — a swipe tray's Remove reads as part of the row.
+  /// text it sits beside — a swipe tray's Remove reads as part of the row,
+  /// and Post stays bold while greying out.
   final FontWeight? weight;
+
+  /// An action with no [onPressed] is inert, and has to look it.
+  ///
+  /// Tone carries it, as everywhere else: [GreyscaleTokens.textTertiary],
+  /// a step below even the supporting grey. The WEIGHT is deliberately left
+  /// alone so the label keeps its metrics — a disabled action must not
+  /// change size and shift whatever sits under it.
+  ///
+  /// [supporting] OUTRANKS this. An action that is already declared quiet
+  /// says what it needs to at the supporting grey, and dimming it a second
+  /// time for being unavailable only makes it hard to read — the comments
+  /// composer's Post, grey until there is something to send, is the case
+  /// this exists for.
+  bool get _disabled => onPressed == null;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +71,9 @@ class SondrAction extends StatelessWidget {
             fontSize: 15 * scale,
             fontWeight:
                 weight ?? (supporting ? FontWeight.w400 : FontWeight.w700),
-            color: supporting ? tokens.textSecondary : tokens.textPrimary,
+            color: supporting
+                ? tokens.textSecondary
+                : (_disabled ? tokens.textTertiary : tokens.textPrimary),
           ),
         ),
       ),

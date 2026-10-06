@@ -184,11 +184,27 @@ class _SignedInView extends ConsumerWidget {
   }
 }
 
+/// Waiting on the profile. A word, not a rotating glyph — the last Material
+/// spinner in the app lived here. Supporting tone, supporting size: it is
+/// something to read, not something to tap.
 class _Loading extends StatelessWidget {
   const _Loading();
+
   @override
-  Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Center(child: CircularProgressIndicator()),
-      );
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final scale = figmaScale(context);
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: kSpacingBase * scale),
+      child: Center(
+        child: Text(
+          'Loading…',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontSize: 13 * scale,
+                color: tokens.textSecondary,
+              ),
+        ),
+      ),
+    );
+  }
 }

@@ -127,14 +127,15 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
               ],
               // Declared gap is the tier minus SondrAction's own 12 padding.
               SizedBox(height: kSpacingBase * scale),
+              // In flight, the action STAYS — same widget, same height, same
+              // place — and says what it is doing, exactly as Create account
+              // does. A spinner here replaced 45pt of action with 20pt of
+              // glyph and lifted everything below it.
               Center(
-                child: _busy
-                    ? SizedBox(
-                        height: 20 * scale,
-                        width: 20 * scale,
-                        child: const CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : SondrAction(label: 'Claim handle', onPressed: _submit),
+                child: SondrAction(
+                  label: _busy ? 'Claiming…' : 'Claim handle',
+                  onPressed: _busy ? null : _submit,
+                ),
               ),
               // Leaving is an exit: supporting grey, last in the action
               // stack, the same "Back" Friends and Blocked use. Not pinned —

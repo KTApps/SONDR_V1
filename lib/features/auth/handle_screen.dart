@@ -117,11 +117,16 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
               ),
               if (_error != null) ...[
                 SizedBox(height: kSpacingBase * scale),
+                // Supporting SIZE, emphasis TONE — the same treatment auth
+                // uses. At 13/regular/secondary a failure was indistinguishable
+                // from a passive hint; colour is not available to mark it, so
+                // weight and tone do the work.
                 Text(
                   _error!,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontSize: 13 * scale,
-                    color: tokens.textSecondary,
+                    fontWeight: FontWeight.w700,
+                    color: tokens.textPrimary,
                   ),
                 ),
               ],

@@ -5,6 +5,7 @@ import '../../core/backend.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../shared/sondr_action.dart';
+import '../../shared/sondr_loading.dart';
 import '../../core/utils/figma_scale.dart';
 import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
@@ -134,7 +135,7 @@ class _SignedInView extends ConsumerWidget {
 
         // Handle row — set it or show it.
         profile.when(
-          loading: () => const _Loading(),
+          loading: () => const SondrLoading(),
           error: (_, _) => const SizedBox.shrink(),
           data: (p) {
             if (p == null || p.username.isEmpty) {
@@ -184,27 +185,4 @@ class _SignedInView extends ConsumerWidget {
   }
 }
 
-/// Waiting on the profile. A word, not a rotating glyph — the last Material
-/// spinner in the app lived here. Supporting tone, supporting size: it is
-/// something to read, not something to tap.
-class _Loading extends StatelessWidget {
-  const _Loading();
 
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final scale = figmaScale(context);
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: kSpacingBase * scale),
-      child: Center(
-        child: Text(
-          'Loading…',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontSize: 13 * scale,
-                color: tokens.textSecondary,
-              ),
-        ),
-      ),
-    );
-  }
-}

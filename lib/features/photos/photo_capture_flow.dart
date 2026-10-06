@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
+import '../../shared/sondr_error.dart';
 import '../../core/utils/date.dart';
 import '../../shared/ring/progress_ring.dart';
 import 'models/photo.dart';
@@ -71,11 +72,12 @@ class PhotoCaptureScreen extends ConsumerStatefulWidget {
 class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
   File? _photo;
   bool _busy = false;
+  String? _error;
 
   /// Lens tap / retake: capture (and downscale) a photo into the preview state.
   /// Camera-only everywhere.
   Future<void> _pick() async {
-    final file = await captureFromCamera(context);
+    final file = await captureFromCamera(context, onError: _say);
     if (file != null && mounted) setState(() => _photo = file);
   }
 
@@ -87,7 +89,7 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
   Future<void> _keep() async {
     final repo = ref.read(photosRepositoryProvider);
     if (repo == null) {
-      _toast('Sign in to save photos.');
+      _say('Sign in to save photos.');
       return;
     }
     setState(() => _busy = true);
@@ -117,15 +119,13 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
       debugPrint('SONDR photo save error: $e');
       if (mounted) {
         setState(() => _busy = false);
-        _toast('Couldn’t save the photo. Please try again.');
+        _say('Couldn’t save the photo. Please try again.');
       }
     }
   }
 
-  void _toast(String message) {
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(message)));
+  void _say(String message) {
+    if (mounted) setState(() => _error = message);
   }
 
   @override
@@ -204,6 +204,10 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
                 ),
               ),
               const SizedBox(height: 32),
+              if (_error != null) ...[
+                SondrError(_error!, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+              ],
               _keepRetake(tokens, theme),
             ],
           ),

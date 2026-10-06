@@ -5,6 +5,7 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/sondr_action.dart';
+import '../../shared/sondr_error.dart';
 import '../../shared/sondr_header.dart';
 import 'friends_repository.dart';
 import 'models/block.dart';
@@ -25,22 +26,20 @@ class BlockedAccountsScreen extends ConsumerStatefulWidget {
 class _BlockedAccountsScreenState
     extends ConsumerState<BlockedAccountsScreen> {
   bool _busy = false;
+  String? _error;
 
   Future<void> _unblock(Block block) async {
     final repo = ref.read(friendsRepositoryProvider);
     if (repo == null) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
       await repo.unblockUser(block.blocked);
     } catch (e) {
       debugPrint('SONDR unblock error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(
-            const SnackBar(content: Text('Couldn’t unblock. Try again.')),
-          );
-      }
+      if (mounted) setState(() => _error = 'Couldn’t unblock. Try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -118,6 +117,14 @@ class _BlockedAccountsScreenState
             // Leaving is an exit, so it takes the supporting treatment and
             // sits last — the same pinned Back that heads nothing on Friends.
             // This replaces the chevron the header used to carry.
+            // Above the exit, under the list the failure came from.
+            if (_error != null) ...[
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+                child: SondrError(_error!, textAlign: TextAlign.center),
+              ),
+              SizedBox(height: kSpacingBase * scale),
+            ],
             Center(
               child: SondrAction(
                 label: 'Back',

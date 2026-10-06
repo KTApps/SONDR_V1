@@ -7,6 +7,7 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/sondr_action.dart';
+import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_header.dart';
 import 'profile_repository.dart';
@@ -121,14 +122,7 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
                 // uses. At 13/regular/secondary a failure was indistinguishable
                 // from a passive hint; colour is not available to mark it, so
                 // weight and tone do the work.
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontSize: 13 * scale,
-                    fontWeight: FontWeight.w700,
-                    color: tokens.textPrimary,
-                  ),
-                ),
+                SondrError(_error!),
               ],
               // Declared gap is the tier minus SondrAction's own 12 padding.
               SizedBox(height: kSpacingBase * scale),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../shared/sondr_error.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
@@ -45,6 +47,7 @@ class _SharePostCaptionScreenState
     extends ConsumerState<SharePostCaptionScreen> {
   final _caption = TextEditingController();
   bool _busy = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -64,14 +67,10 @@ class _SharePostCaptionScreenState
     } catch (e) {
       debugPrint('SONDR create post error: $e');
       if (mounted) {
-        setState(() => _busy = false);
-        ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(
-            const SnackBar(
-              content: Text('Couldn’t create the post. Please try again.'),
-            ),
-          );
+        setState(() {
+          _busy = false;
+          _error = 'Couldn’t create the post. Please try again.';
+        });
       }
     }
   }
@@ -131,6 +130,10 @@ class _SharePostCaptionScreenState
                 ),
               ),
               const SizedBox(height: 8),
+              if (_error != null) ...[
+                SondrError(_error!, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+              ],
               SharePrimaryButton(
                 label: widget.submitLabel,
                 busyLabel: widget.submitBusyLabel,

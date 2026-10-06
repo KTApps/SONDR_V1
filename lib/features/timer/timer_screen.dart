@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/backend.dart';
 import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
+import '../../core/theme/spacing.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../core/utils/figma_scale.dart';
@@ -50,6 +51,15 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
   /// "Focus / Start" choice. Lives here rather than in the control itself so a
   /// tap anywhere else on Home can close it again.
   bool _choosing = false;
+
+  /// The screen's one notice line, shown above the controls. Replaces a
+  /// SnackBar: it belongs to this screen, not to a floating Material surface,
+  /// and clears on the next thing the user does rather than on a timer.
+  String? _notice;
+
+  void _say(String message) {
+    if (mounted) setState(() => _notice = message);
+  }
 
   void _closeChoice() {
     if (_choosing) setState(() => _choosing = false);
@@ -163,7 +173,24 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
             left: 0,
             right: 0,
             child: Center(
-              child: isCollective
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_notice != null) ...[
+                    Text(
+                      _notice!,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(
+                            fontSize: 13 * scale,
+                            color: tokens.textSecondary,
+                          ),
+                    ),
+                    SizedBox(height: kSpacingBase * scale),
+                  ],
+                  isCollective
                   ? _CollectiveHint(hasTasks: tasks.isNotEmpty)
                   : _TimerControls(
                       timer: timer,
@@ -177,6 +204,8 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
                           ref.read(timerControllerProvider.notifier).pause(),
                       onStop: () => _onStop(context, ref, selectedTask),
                     ),
+                ],
+              ),
             ),
           ),
           // "Last 10 days" block — Figma Y positions, shifted up with the stack.
@@ -313,9 +342,9 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
 
     // No task credited (session ran with none selected): just confirm the time.
     final logged = DurationFormat.hm(Duration(seconds: outcome.loggedSeconds));
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text('Logged $logged')));
+    // A confirmation, not a failure — supporting grey, on the screen that
+    // did the work, cleared by the next thing the user does.
+    _say('Logged $logged');
   }
 
   /// Compose and save the milestone's collage from that milestone's own 20h
@@ -348,23 +377,14 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
   void _primeMilestone(BuildContext context, WidgetRef ref, Task task) {
     final edgeSeconds = Task.milestoneStepHours * 3600 - 90;
     final needed = edgeSeconds - task.totalSeconds;
-    final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
     if (needed <= 0) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Already at/past the first milestone')),
-      );
+      _say('Already at/past the first milestone');
       return;
     }
     ref
         .read(tasksProvider.notifier)
         .logSeconds(task.id, needed, DateTime.now());
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          'Primed ${task.name} near 20h — run a short session to cross',
-        ),
-      ),
-    );
+    _say('Primed ${task.name} near 20h — run a short session to cross');
   }
 }
 

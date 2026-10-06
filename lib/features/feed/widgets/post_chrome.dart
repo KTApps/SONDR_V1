@@ -7,6 +7,7 @@ import '../../../core/theme/spacing.dart';
 import '../../../core/utils/figma_scale.dart';
 import '../../../core/utils/relative_time.dart';
 import '../../../shared/cached_photo.dart';
+import '../../../shared/sondr_error.dart';
 import '../models/post.dart';
 import '../posts_repository.dart';
 import 'comments_sheet.dart';
@@ -95,14 +96,23 @@ class PostAuthorRow extends StatelessWidget {
 /// Like + comment row. The heart reflects the post's likeCount and whether this
 /// user has liked it (tap toggles); the comment icon shows commentCount and
 /// opens the comments sheet.
-class PostInteractions extends ConsumerWidget {
+class PostInteractions extends ConsumerStatefulWidget {
   const PostInteractions({super.key, required this.post, this.onPhoto = false});
 
   final Post post;
   final bool onPhoto;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PostInteractions> createState() => _PostInteractionsState();
+}
+
+class _PostInteractionsState extends ConsumerState<PostInteractions> {
+  String? _error;
+
+  @override
+  Widget build(BuildContext context) {
+    final post = widget.post;
+    final onPhoto = widget.onPhoto;
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);
@@ -163,7 +173,7 @@ class PostInteractions extends ConsumerWidget {
       ),
     );
 
-    return Row(
+    final row = Row(
       children: [
         action(
           label: liked ? 'Liked' : 'Like',
@@ -172,16 +182,16 @@ class PostInteractions extends ConsumerWidget {
           onTap: repo == null
               ? null
               : () async {
-                  final messenger = ScaffoldMessenger.of(context);
                   try {
                     await repo.setLike(post.id, !liked);
+                    if (mounted && _error != null) {
+                      setState(() => _error = null);
+                    }
                   } on FirebaseException catch (e) {
                     debugPrint('SONDR like error: ${e.code} :: ${e.message}');
-                    messenger
-                      ..clearSnackBars()
-                      ..showSnackBar(
-                        const SnackBar(content: Text('Couldn’t update like.')),
-                      );
+                    if (mounted) {
+                      setState(() => _error = 'Couldn’t update like.');
+                    }
                   } catch (e) {
                     debugPrint('SONDR like error: $e');
                   }
@@ -194,6 +204,17 @@ class PostInteractions extends ConsumerWidget {
           active: true,
           onTap: () => showCommentsSheet(context, post.id),
         ),
+      ],
+    );
+
+    if (_error == null) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        row,
+        // Under the action that failed, inside the card — a SnackBar put it
+        // at the bottom of the screen, nowhere near the post it was about.
+        SondrError(_error!),
       ],
     );
   }

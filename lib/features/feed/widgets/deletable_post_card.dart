@@ -8,6 +8,7 @@ import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../core/utils/figma_scale.dart';
 import '../../../shared/sondr_action.dart';
+import '../../../shared/sondr_error.dart';
 import '../models/post.dart';
 import '../posts_repository.dart';
 
@@ -53,6 +54,7 @@ class DeletablePostCard extends ConsumerStatefulWidget {
 
 class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
   bool _busy = false;
+  String? _error;
 
   /// Match the wrapped card's corner radius so the blur clips to its shape.
   double get _radius => widget.post is SessionPost ? 16 : 24;
@@ -79,15 +81,12 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
     } catch (e) {
       debugPrint('SONDR delete post error: $e');
       if (mounted) {
-        setState(() => _busy = false);
-        _clear();
-        ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(
-            const SnackBar(
-              content: Text('Couldn’t delete the post. Please try again.'),
-            ),
-          );
+        // Stay open on failure: the overlay is where the action was, and
+        // closing it would take the message with it.
+        setState(() {
+          _busy = false;
+          _error = 'Couldn’t delete the post. Please try again.';
+        });
       }
     }
   }
@@ -147,6 +146,10 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (_error != null) ...[
+          SondrError(_error!, textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+        ],
         SondrAction(
           label: _busy ? 'Deleting…' : 'Delete',
           onPressed: _busy ? null : _delete,

@@ -4,6 +4,8 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../core/backend.dart';
 import '../../core/theme/greyscale_tokens.dart';
+import '../../core/theme/spacing.dart';
+import '../../shared/sondr_error.dart';
 import '../../core/utils/figma_scale.dart';
 import 'auth_repository.dart';
 import 'guest_prompts.dart';
@@ -24,8 +26,9 @@ class AppleSignInButton extends ConsumerStatefulWidget {
   /// Disabled while a sibling action (e.g. the email form) is busy.
   final bool enabled;
 
-  /// If provided, errors are reported here for inline display; otherwise they
-  /// surface as a SnackBar. User cancellation is always silent.
+  /// If provided, errors are reported here so the host screen can place them;
+  /// otherwise the button shows them beneath itself. User cancellation is
+  /// always silent.
   final void Function(String message)? onError;
 
   @override
@@ -34,6 +37,7 @@ class AppleSignInButton extends ConsumerStatefulWidget {
 
 class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
   bool _busy = false;
+  String? _error;
 
   Future<void> _signIn() async {
     setState(() => _busy = true);
@@ -78,8 +82,9 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
     if (widget.onError != null) {
       widget.onError!(message);
     } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+      // No host to report to (the guest landing) — the button carries its
+      // own failure directly beneath itself.
+      setState(() => _error = message);
     }
   }
 
@@ -102,7 +107,7 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
     // Apple's mark — along with the approved wording. Only the fill and the
     // metrics are ours. Reverting to the official black style is a one-line
     // change if App Review ever objects (see DESIGN-PUNCHLIST).
-    return Opacity(
+    final capsule = Opacity(
       opacity: enabled ? 1 : 0.5,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -155,6 +160,16 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
           ),
         ),
       ),
+    );
+
+    if (_error == null) return capsule;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        capsule,
+        SizedBox(height: kSpacingBase * scale),
+        SondrError(_error!, textAlign: TextAlign.center),
+      ],
     );
   }
 }

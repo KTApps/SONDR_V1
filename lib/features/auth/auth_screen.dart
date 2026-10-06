@@ -2,10 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/sondr_action.dart';
+import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_header.dart';
 import 'apple_sign_in_button.dart';
@@ -113,8 +113,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
     final scale = figmaScale(context);
 
     return Scaffold(
@@ -156,14 +154,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 // failure was byte-identical to the passive guest hint and
                 // read as a footnote. Colour is not available to mark it, so
                 // weight and tone do the work.
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontSize: 13 * scale,
-                    fontWeight: FontWeight.w700,
-                    color: tokens.textPrimary,
-                  ),
-                ),
+                SondrError(_error!),
               ],
               // SondrAction carries 12 of its own padding (its tap target), so
               // the declared gap is the tier minus that — the gap you SEE is

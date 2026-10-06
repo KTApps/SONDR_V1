@@ -23,7 +23,10 @@ const int _kQuality = 80;
 /// branch is guarded by `kDebugTools` (= `bool.fromEnvironment('DEBUG_TOOLS')`,
 /// const-false in any release build), so it tree-shakes out entirely and is
 /// UNREACHABLE in release — a mock photo can never reach a real post.
-Future<File?> captureFromCamera(BuildContext context) async {
+Future<File?> captureFromCamera(
+  BuildContext context, {
+  void Function(String message)? onError,
+}) async {
   if (kDebugTools) {
     return _mockCameraCapture();
   }
@@ -36,13 +39,10 @@ Future<File?> captureFromCamera(BuildContext context) async {
     );
   } catch (e) {
     debugPrint('SONDR camera error: $e');
-    if (context.mounted) {
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          const SnackBar(content: Text('Couldn’t open the camera.')),
-        );
-    }
+    // A free function has no screen of its own to write on, so the failure
+    // goes back to the caller, which does — same shape as
+    // AppleSignInButton.onError.
+    if (context.mounted) onError?.call('Couldn’t open the camera.');
     return null;
   }
   if (shot == null) return null; // backed out of the camera

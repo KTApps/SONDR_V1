@@ -10,6 +10,7 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/sondr_action.dart';
+import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_swipe_row.dart';
 import '../auth/handle_screen.dart';
@@ -97,32 +98,45 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     super.dispose();
   }
 
-  void _toast(String message) {
+  /// The screen's one notice line, shown above the pinned actions.
+  ///
+  /// Replaces a SnackBar: it sits on the screen that produced it, in the
+  /// app's own tones, and stays until the next action or keystroke rather
+  /// than timing out. Failures take the error style; confirmations stay
+  /// quiet — a success should not shout.
+  String? _notice;
+  bool _noticeIsError = true;
+
+  void _say(String message, {bool isError = true}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    setState(() {
+      _notice = message;
+      _noticeIsError = isError;
+    });
   }
 
   Future<void> _run(Future<void> Function(FriendsRepository repo) action,
       {String? success}) async {
     final repo = ref.read(friendsRepositoryProvider);
     if (repo == null) {
-      _toast('Sign in to manage friends.');
+      _say('Sign in to manage friends.');
       return;
     }
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _notice = null;
+    });
     try {
       await action(repo);
-      if (success != null) _toast(success);
+      if (success != null) _say(success, isError: false);
     } on FriendException catch (e) {
-      _toast(e.message);
+      _say(e.message);
     } on FirebaseException catch (e) {
       debugPrint('SONDR friends firebase error: ${e.code} :: ${e.message}');
-      _toast('Something went wrong. Please try again.');
+      _say('Something went wrong. Please try again.');
     } catch (e) {
       debugPrint('SONDR friends error: $e');
-      _toast('Something went wrong. Please try again.');
+      _say('Something went wrong. Please try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -400,6 +414,22 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
 
         // Pinned to the bottom, above the tab bar — never scrolls with the
         // list, as in TTM.
+        if (_notice != null) ...[
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+            child: _noticeIsError
+                ? SondrError(_notice!, textAlign: TextAlign.center)
+                : Text(
+                    _notice!,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontSize: 13 * scale,
+                      color: tokens.textSecondary,
+                    ),
+                  ),
+          ),
+          SizedBox(height: kSpacingBase * scale),
+        ],
         SizedBox(height: _kInviteTopGap * scale),
         Center(
           child: SondrAction(

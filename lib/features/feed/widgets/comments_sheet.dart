@@ -7,6 +7,7 @@ import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../core/utils/figma_scale.dart';
 import '../../../shared/sondr_action.dart';
+import '../../../shared/sondr_error.dart';
 import '../../../shared/sondr_field.dart';
 import '../../../shared/sondr_loading.dart';
 import '../../../shared/sondr_swipe_row.dart';
@@ -56,6 +57,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
   final _input = TextEditingController();
   bool _busy = false;
   bool _hasText = false;
+  String? _error;
 
   @override
   void initState() {
@@ -64,7 +66,13 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
     // has to be state the sheet rebuilds on.
     _input.addListener(() {
       final has = _input.text.trim().isNotEmpty;
-      if (has != _hasText) setState(() => _hasText = has);
+      // Editing is the retry, so it clears the last failure.
+      if (has != _hasText || _error != null) {
+        setState(() {
+          _hasText = has;
+          _error = null;
+        });
+      }
     });
   }
 
@@ -78,21 +86,19 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
     final text = _input.text.trim();
     final repo = ref.read(postsRepositoryProvider);
     if (text.isEmpty || repo == null) return;
-    final messenger = ScaffoldMessenger.of(context);
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
       await repo.addComment(widget.postId, text);
       _input.clear();
     } on FirebaseException catch (e) {
       debugPrint('SONDR comment error: ${e.code} :: ${e.message}');
-      messenger
-        ..clearSnackBars()
-        ..showSnackBar(const SnackBar(content: Text('Couldn’t post comment.')));
+      if (mounted) setState(() => _error = 'Couldn’t post comment.');
     } catch (e) {
       debugPrint('SONDR comment error: $e');
-      messenger
-        ..clearSnackBars()
-        ..showSnackBar(const SnackBar(content: Text('Couldn’t post comment.')));
+      if (mounted) setState(() => _error = 'Couldn’t post comment.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -208,6 +214,12 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
               ),
               SizedBox(height: _kComposerGap * scale),
               _composer(scale),
+              // The failure sits under the composer that caused it, and stays
+              // until the next keystroke — no floating surface, no timeout.
+              if (_error != null) ...[
+                SizedBox(height: kSpacingPair * scale),
+                SondrError(_error!, textAlign: TextAlign.center),
+              ],
               SizedBox(height: _kComposerGap * scale),
               Expanded(
                 child: comments.when(

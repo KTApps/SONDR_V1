@@ -332,6 +332,138 @@ takes its own height plus the bottom inset before the body is measured. The
 correction lives in [`test/support/app_viewport.dart`](test/support/app_viewport.dart)
 so the next screen's fit check starts from the right number.
 
+## Off-system audit — 6 October 2026
+
+Taken after the greyscale pass closed out (`59fe74b`…`bbc3198`). Those commits
+cleared every Material **spinner**, **navigation chevron**, **SnackBar** and
+**filled button** from `lib/`; verified zero at the time of writing. No hue
+anywhere either — every `Color(0x……)` literal in `lib/` decodes to R==G==B.
+
+What follows is everything still off-system, with locations, so it can be
+cleared in planned batches rather than piecemeal. Line numbers are as of
+`bbc3198` and will drift.
+
+**Excluded as sanctioned:** the Apple mark (`AppleLogoPainter`), the on-photo
+tokens and `RingPainter`'s `onPhoto` halo, and anything behind `kDebugTools`
+(the debug panel, the prime-milestone control).
+
+### 1. Material screens the chevron sweep missed
+
+Three screens still use `AppBar` rather than `SondrHeader`, so they kept both
+the Material bar **and** an `arrow_back_ios_new` icon. The sweep only reached
+`SondrHeader`'s callers.
+
+- [ ] `features/milestone/share_caption_screen.dart:86` + `:91`
+- [ ] `features/photos/collages_screen.dart:24` + `:35`
+- [ ] `features/history/calendar_screen.dart:34` + `:48`
+
+Each wants the `SondrHeader` + grey "Back" treatment the rest of the app uses.
+
+### 2. The two prompt dialogs — one replacement
+
+Both are `AlertDialog`s doing the same job: a title, one text field, cancel and
+confirm. Neither should exist.
+
+- [ ] `features/timer/widgets/task_dropdown.dart:130` — "Add task". Partly
+      converted: a hand-rolled `Container` + bare `TextField` (its own
+      `lerp(surface, ringTrack, .5)` base, 24 radius, 20/15 padding — none of
+      it `SondrField`), a `hintText`, off-tier `actionsPadding`, and a
+      half-converted action pair (Material `TextButton` "Cancel" beside a
+      `SondrAction` "Add").
+- [ ] `features/habits/habits_overlay.dart:132` — "Add habit". The same dialog,
+      less converted: default background, bare `TextField` with
+      `InputDecoration(hintText:)`, **both** actions still `TextButton`.
+
+**Proposed: one `SondrPrompt`** — Sondr surface, 20/bold title, `SondrField`,
+`SondrActionPair`-style actions. Retires both `AlertDialog`s, three
+`TextButton`s, the hand-rolled field and the half-converted pair in one move.
+`SondrField` would need a hint/placeholder option, which it has never had.
+
+### 3. Material icons — 12, none sanctioned
+
+Navigation (5) — should be text actions:
+- [ ] `share_caption_screen.dart:91`, `collages_screen.dart:35`,
+      `calendar_screen.dart:48` — `arrow_back_ios_new` (see §1)
+- [ ] `profile_screen.dart:213`, `:266`, `:321` — `chevron_right` on the
+      doorway rows. The sweep killed `chevron_left` in `SondrHeader`; these
+      three survived.
+
+Decorative (1):
+- [ ] `profile_screen.dart:184` — `people_outline` on the Friends row.
+
+Functional (6) — each needs a text or shape answer, not a glyph:
+- [ ] `task_dropdown.dart:74` — `keyboard_arrow_down`, the selector affordance
+- [ ] `milestone_share_flow.dart:346` — `check`, selection tick
+- [ ] `photo_capture_flow.dart:170` — `camera_alt_outlined`
+- [ ] `photo_capture_flow.dart:221` — `close`
+- [ ] `collage_grid.dart:179` — `close`, remove-photo
+- [ ] `day_detail_sheet.dart:357` — `broken_image_outlined`, image error
+
+### 4. A token used as a fill on something untappable
+
+- [ ] `profile_screen.dart:195` — the **"N new"** pending-requests badge fills
+      with `ringFillOuter`. The last white fill in the app, and it is not a
+      button. ("A container means tappable" does not cover it.)
+
+### 5. Material ripple
+
+`SondrAction` deliberately uses a `GestureDetector` so no ripple appears. These
+four still ink:
+
+- [ ] `shell/main_shell.dart:81` — the tab bar
+- [ ] `profile_screen.dart:163`, `:246`, `:301` — the doorway rows
+
+### 6. Palettes that bypass the tokens
+
+- [ ] `shared/ring/segmented_dial.dart:70-71` — private
+      `_filled = #777777` / `_empty = #232323`, commented "Exact Figma values".
+      The dial runs its own palette instead of `ringFillInner`/`ringTrack`.
+      These are the very hex values a stale `milestone_card` comment cited long
+      after they stopped applying there.
+- [ ] **19 ad-hoc black scrims across 12 distinct strengths**, no shared token:
+      `0x1A` ×4, `0x22` ×2, `0x99` ×2, `0x9E`, `0xAA`, `0xCC`, and alphas
+      `.3 .35 .4 .5`×3 `.55 .72` — in `milestone_card`, `post_collage`,
+      `collage_grid`, `day_detail_sheet`, `calendar_screen`,
+      `deletable_post_card`, `profile_screen`, `milestone_share_flow`.
+      (`ring_painter`'s two `.45` halo values are the sanctioned on-photo case.)
+      Wants a small scrim scale — three or four named steps.
+
+### 7. Backend gap — reciprocal blocks
+
+- [ ] `bbc3198` hides content by people **you** blocked. The reciprocal case —
+      someone who blocked **you** — cannot be filtered client-side: their block
+      document is readable by its author alone, and that is deliberate, since
+      being able to read it would let you detect you had been blocked.
+      **Needs a cloud function** that drops the blocker from the other party's
+      post audiences on block creation. No client half-measure: any attempt
+      either leaks the block or silently fails.
+
+### 8. Device-verification backlog — 7 screens
+
+Code-verified (analyzer + suite) but **never rendered by anyone**. The largest
+untested surface on the branch.
+
+From the SnackBar sweep (`c4da54f`) — inline errors never seen:
+- [ ] delete overlay — `deletable_post_card`
+- [ ] photo capture — `photo_capture_flow`
+- [ ] share caption — `share_caption_screen`
+- [ ] Apple landing — `apple_sign_in_button` (the no-`onError` branch)
+
+From the pill conversion (`0806276`):
+- [ ] milestone celebration primary
+- [ ] the new-task dialog's "Add"
+- [ ] photo-capture keep | retake
+
+Also unobservable until the Firestore rules are deployed: **Block has never
+worked end to end**, so the Blocked-accounts screen, the Friends entry and
+`bbc3198`'s author filtering are all unexercised.
+
+### Stale note elsewhere in this file
+
+The item under Profile claiming **"Sign out stays a Material `TextButton`"** is
+no longer true — it is a `SondrAction(supporting: true)` as of the auth work.
+Left in place rather than edited silently; worth correcting next pass.
+
 ## Parked
 
 - **Camera / capture** — skipped for now; designs and references to come.

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -59,11 +61,30 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
   bool _hasText = false;
   String? _error;
 
+  /// Guards the FIRST emission only.
+  ///
+  /// `snapshots()` promises no event within any time bound: offline with
+  /// nothing cached for this subcollection, or against an unreachable
+  /// network, it yields no data AND no error, and the sheet sat on
+  /// "Loading…" forever. A `Stream.timeout` is the wrong tool — it restarts
+  /// on every event, so a healthy stream that has delivered its comments and
+  /// gone quiet would be killed mid-life. This times out the WAIT, not the
+  /// stream, and a late first event still wins (data takes the branch).
+  static const _loadWindow = Duration(seconds: 10);
+  Timer? _loadTimer;
+  bool _loadTimedOut = false;
+
   @override
   void initState() {
     super.initState();
     // Post is grey until there is something to post, so the field's emptiness
     // has to be state the sheet rebuilds on.
+    _loadTimer = Timer(_loadWindow, () {
+      if (!mounted) return;
+      if (ref.read(postCommentsProvider(widget.postId)).isLoading) {
+        setState(() => _loadTimedOut = true);
+      }
+    });
     _input.addListener(() {
       final has = _input.text.trim().isNotEmpty;
       // Editing is the retry, so it clears the last failure.
@@ -78,6 +99,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
 
   @override
   void dispose() {
+    _loadTimer?.cancel();
     _input.dispose();
     super.dispose();
   }
@@ -111,6 +133,12 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       await repo.deleteComment(widget.postId, commentId);
     } catch (_) {/* ignore — the stream stays as-is on failure */}
   }
+
+  /// A read that failed or never arrived — the same wording either way,
+  /// because to the reader they are the same thing.
+  Widget _loadFailed() => const Center(
+        child: SondrError('Couldn’t load comments.', textAlign: TextAlign.center),
+      );
 
   /// The composer: a borderless centred field with Post to its right.
   ///
@@ -223,12 +251,12 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
               SizedBox(height: _kComposerGap * scale),
               Expanded(
                 child: comments.when(
-                  loading: () => const SondrLoading(),
-                  error: (_, _) => Center(
-                    child: Text('Couldn’t load comments.',
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: tokens.textSecondary)),
-                  ),
+                  // Three terminal states and no fourth: a list, an empty
+                  // list, or a failure. Waiting is not one of them past
+                  // [_loadWindow].
+                  loading: () =>
+                      _loadTimedOut ? _loadFailed() : const SondrLoading(),
+                  error: (_, _) => _loadFailed(),
                   data: (list) {
                     if (list.isEmpty) {
                       return Center(

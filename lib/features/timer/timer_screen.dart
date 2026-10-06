@@ -53,12 +53,26 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
   bool _choosing = false;
 
   /// The screen's one notice line, shown above the controls. Replaces a
-  /// SnackBar: it belongs to this screen, not to a floating Material surface,
-  /// and clears on the next thing the user does rather than on a timer.
+  /// SnackBar: it belongs to this screen rather than to a floating Material
+  /// surface.
+  ///
+  /// TRANSIENT, unlike an error. A confirmation has nothing to resolve — the
+  /// work is already done and the figures on screen show it — so it says its
+  /// piece and goes. An error stays until the user acts on it (see
+  /// [SondrError]).
   String? _notice;
 
+  /// Identifies the notice currently owning the line, so a message raised
+  /// during another's wait is not cleared early by the older timer.
+  int _noticeToken = 0;
+
   void _say(String message) {
-    if (mounted) setState(() => _notice = message);
+    if (!mounted) return;
+    final token = ++_noticeToken;
+    setState(() => _notice = message);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && _noticeToken == token) setState(() => _notice = null);
+    });
   }
 
   void _closeChoice() {

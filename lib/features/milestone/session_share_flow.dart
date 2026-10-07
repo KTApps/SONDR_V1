@@ -40,6 +40,8 @@ Future<void> showSessionShareFlow(
       builder: (_) => SharePostCaptionScreen(
         submitLabel: 'Share',
         submitBusyLabel: 'Sharing…',
+        // Skipping capture still lands here, so there may be no photo.
+        hasPhoto: captured != null,
         preview: _SessionPreview(
           capturedFile: captured,
           taskName: taskName,

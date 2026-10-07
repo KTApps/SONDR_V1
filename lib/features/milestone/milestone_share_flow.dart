@@ -74,6 +74,9 @@ class _ShareMilestoneScreenState extends ConsumerState<ShareMilestoneScreen> {
       MaterialPageRoute(
         builder: (_) => SharePostCaptionScreen(
           submitLabel: 'Create',
+          // Either the fresh capture or a band photo counts — both are
+          // already saved privately.
+          hasPhoto: captured != null || band.isNotEmpty,
           preview: _MilestonePreview(
             milestoneHours: widget.milestoneHours,
             capturedFile: captured,

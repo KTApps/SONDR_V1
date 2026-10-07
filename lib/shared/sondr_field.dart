@@ -37,6 +37,8 @@ class SondrField extends StatelessWidget {
     this.maxLines = 1,
     this.minLines,
     this.fontSize = 15,
+    this.autofocus = false,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   /// Omit where the surrounding screen already says what the field is for.
@@ -71,6 +73,14 @@ class SondrField extends StatelessWidget {
   /// own behaviour, which is what every caller but the comments composer
   /// wants.
   final int? minLines;
+
+  /// Takes focus as soon as it is shown — a prompt that exists only to be
+  /// typed into should not need a second tap.
+  final bool autofocus;
+
+  /// Matches `TextField`'s own default, so every existing caller is
+  /// unchanged; a prompt for a name asks for sentence case.
+  final TextCapitalization textCapitalization;
 
   /// Reference-canvas size of the text being typed. Defaults to the body
   /// tier; the comments composer drops to the comment body's own size so
@@ -141,6 +151,8 @@ class SondrField extends StatelessWidget {
                   textInputAction: textInputAction,
                   onSubmitted: onSubmitted,
                   onChanged: onChanged,
+                  autofocus: autofocus,
+                  textCapitalization: textCapitalization,
                   maxLines: maxLines,
                   minLines: minLines,
                   autocorrect: autocorrect,

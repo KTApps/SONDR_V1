@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../shared/sondr_action.dart';
+import '../../../shared/sondr_prompt.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
@@ -118,70 +118,16 @@ class _TaskDropdownState extends ConsumerState<TaskDropdown> {
   }
 
   Future<void> _promptAddTask() async {
-    final controller = TextEditingController();
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
-    // Same capsule base as the task pills, so the field matches their language.
-    final fieldBase = Color.lerp(tokens.surface, tokens.ringTrack, 0.5)!;
-
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: tokens.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Add task'),
-          content: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: fieldBase,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: TextField(
-              controller: controller,
-              autofocus: true,
-              textAlign: TextAlign.center,
-              textCapitalization: TextCapitalization.sentences,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: tokens.textPrimary,
-              ),
-              cursorColor: tokens.textPrimary,
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                isCollapsed: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 15),
-                hintText: 'e.g. Spanish',
-                hintStyle: theme.textTheme.bodyLarge?.copyWith(
-                  color: tokens.textTertiary,
-                ),
-              ),
-              onSubmitted: (v) => Navigator.of(context).pop(v),
-            ),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(
-                foregroundColor: tokens.textSecondary,
-              ),
-              child: const Text('Cancel'),
-            ),
-            SondrAction(
-              label: 'Add',
-              onPressed: () => Navigator.of(context).pop(controller.text),
-            ),
-          ],
-        );
-      },
+    final name = await showSondrPrompt(
+      context,
+      title: 'Add task',
+      confirmLabel: 'Add',
     );
-
-    final trimmed = name?.trim() ?? '';
-    if (trimmed.isEmpty) return;
-    final task = await ref.read(tasksProvider.notifier).addTask(trimmed);
+    if (!mounted || name == null) return;
+    final task = await ref.read(tasksProvider.notifier).addTask(name);
     ref.read(selectedTaskIdProvider.notifier).select(task.id);
   }
+
 }
 
 /// Screen-global Y (reference space) the open panel is pinned at — just above

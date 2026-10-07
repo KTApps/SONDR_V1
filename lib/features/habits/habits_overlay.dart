@@ -1,6 +1,8 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+
+import '../../shared/sondr_prompt.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
@@ -123,40 +125,15 @@ class HabitsOverlay extends ConsumerWidget {
   }
 
   Future<void> _promptAddHabit(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
-    final tokens = GreyscaleTokens.of(context);
-
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: tokens.surface,
-          title: const Text('Add habit'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(hintText: 'e.g. Cold shower'),
-            onSubmitted: (v) => Navigator.of(context).pop(v),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              child: const Text('Add'),
-            ),
-          ],
-        );
-      },
+    final name = await showSondrPrompt(
+      context,
+      title: 'Add habit',
+      confirmLabel: 'Add',
     );
-
-    final trimmed = name?.trim() ?? '';
-    if (trimmed.isEmpty) return;
-    await ref.read(habitsProvider.notifier).addHabit(trimmed);
+    if (name == null) return;
+    await ref.read(habitsProvider.notifier).addHabit(name);
   }
+
 
   static String _weekday(int w) => const [
     'Monday',

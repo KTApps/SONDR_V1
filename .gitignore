@@ -19,3 +19,6 @@ build/
 .cursor/
 # Widget Preview related
 .widget_preview/
+
+# Local design-review renders — never committed.
+design-review/

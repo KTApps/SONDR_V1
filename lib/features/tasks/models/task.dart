@@ -12,6 +12,7 @@ class Task {
     required this.id,
     required this.name,
     this.secondsByDay = const {},
+    this.archived = false,
   });
 
   final String id;
@@ -20,6 +21,18 @@ class Task {
   /// Seconds logged on each calendar day, keyed by [DayKey]. The map is the
   /// source of truth; totals and "today" derive from it.
   final Map<String, int> secondsByDay;
+
+  /// Put away, not deleted.
+  ///
+  /// An archived task disappears from the places you CHOOSE a task — the
+  /// dropdown, Profile's in-progress strip — and nowhere else. Every second it
+  /// logged is still logged: the calendar, the day detail and the Milestones
+  /// page are untouched, because archiving is a statement about what you are
+  /// working on now, never about what you did.
+  ///
+  /// **Additive and forward-only.** A document written before the field
+  /// existed has no `archived` key and reads back false.
+  final bool archived;
 
   /// Hours per milestone band — first competence milestone and the cadence
   /// thereafter (20h, 40h, 60h, ...).
@@ -81,13 +94,28 @@ class Task {
     final key = DayKey.of(day);
     final next = Map<String, int>.from(secondsByDay);
     next[key] = (next[key] ?? 0) + extraSeconds;
-    return Task(id: id, name: name, secondsByDay: next);
+    return Task(
+      id: id,
+      name: name,
+      secondsByDay: next,
+      archived: archived,
+    );
   }
+
+  /// Returns a copy archived (or restored). Carries the history across —
+  /// putting a task away must not touch a single logged second.
+  Task archivedAs(bool value) => Task(
+        id: id,
+        name: name,
+        secondsByDay: secondsByDay,
+        archived: value,
+      );
 
   /// Document body for persistence (the id is the doc key, kept separate).
   Map<String, dynamic> toMap() => {
         'name': name,
         'secondsByDay': secondsByDay,
+        'archived': archived,
       };
 
   /// Rebuild from a stored document. Tolerates numbers coming back as `num`.
@@ -103,6 +131,9 @@ class Task {
       id: id,
       name: (map['name'] as String?) ?? '',
       secondsByDay: seconds,
+      // Anything that is not an explicit `true` — a missing key on an older
+      // document included — means active.
+      archived: map['archived'] == true,
     );
   }
 }

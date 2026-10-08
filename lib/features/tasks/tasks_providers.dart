@@ -36,6 +36,19 @@ class TasksController extends AsyncNotifier<List<Task>> {
     return task;
   }
 
+  /// Archives [taskId] (or restores it), then refreshes the list.
+  ///
+  /// A no-op when the task is already in that state, so a double tap on the
+  /// swipe tray costs nothing. The write goes through the same [save] as
+  /// logging time — a merge — so no other field is disturbed.
+  Future<void> setArchived(String taskId, bool archived) async {
+    final current = state.value ?? await _repo.fetchAll();
+    final task = current.where((t) => t.id == taskId).firstOrNull;
+    if (task == null || task.archived == archived) return;
+    await _repo.save(task.archivedAs(archived));
+    state = AsyncData(await _repo.fetchAll());
+  }
+
   /// Logs [seconds] of effort against [taskId] on the day [when]. This is how a
   /// finished/paused timer session lands in a task's history.
   Future<void> logSeconds(String taskId, int seconds, DateTime when) async {
@@ -50,6 +63,27 @@ class TasksController extends AsyncNotifier<List<Task>> {
 
 final tasksProvider =
     AsyncNotifierProvider<TasksController, List<Task>>(TasksController.new);
+
+/// The tasks you are working on NOW — everything not archived.
+///
+/// This is the list every CHOOSING surface reads: the dropdown and Profile's
+/// in-progress strip. Deliberately not the list the records read — the
+/// calendar, the day detail and the Milestones page stay on [tasksProvider],
+/// because archiving a task does not un-log its hours.
+final activeTasksProvider = Provider<List<Task>>((ref) {
+  return [
+    for (final t in ref.watch(tasksProvider).value ?? const <Task>[])
+      if (!t.archived) t,
+  ];
+});
+
+/// The put-away tasks, for the archived view behind the dropdown's "Archived".
+final archivedTasksProvider = Provider<List<Task>>((ref) {
+  return [
+    for (final t in ref.watch(tasksProvider).value ?? const <Task>[])
+      if (t.archived) t,
+  ];
+});
 
 /// The id of the explicitly selected task. **Null is the default "Task"
 /// (collective overview) mode** — no specific task; the dial shows every task's

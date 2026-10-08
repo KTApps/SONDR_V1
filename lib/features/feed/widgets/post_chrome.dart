@@ -93,9 +93,8 @@ class PostAuthorRow extends StatelessWidget {
   }
 }
 
-/// Like + comment row. The heart reflects the post's likeCount and whether this
-/// user has liked it (tap toggles); the comment icon shows commentCount and
-/// opens the comments sheet.
+/// Like + comments row. Two words, no figures: "Like" toggles (and becomes
+/// "Liked"), "Comments" opens the sheet.
 class PostInteractions extends ConsumerStatefulWidget {
   const PostInteractions({super.key, required this.post, this.onPhoto = false});
 
@@ -116,9 +115,7 @@ class _PostInteractionsState extends ConsumerState<PostInteractions> {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);
-    final color = onPhoto ? kOnPhotoDim : tokens.textSecondary;
-    final activeColor = onPhoto ? kOnPhoto : tokens.textPrimary;
-    final countColor = onPhoto ? kOnPhotoDim : tokens.textTertiary;
+    final labelColor = onPhoto ? kOnPhoto : tokens.textPrimary;
     final shadows = onPhoto ? kTextShadows : null;
 
     final liked = ref
@@ -126,59 +123,35 @@ class _PostInteractionsState extends ConsumerState<PostInteractions> {
         .maybeWhen(data: (ids) => ids.contains(post.id), orElse: () => false);
     final repo = ref.read(postsRepositoryProvider);
 
-    // Text, never a glyph. The word carries the action and the count sits
-    // beside it as metadata; the Like state is told by TONE ALONE — "Like"
-    // grey, "Liked" white. The weight stays bold in both states: letting the
-    // weight move too made the unliked word read as a different, lesser kind
-    // of control rather than the same one in another state.
-    Widget action({
-      required String label,
-      required int count,
-      required bool active,
-      required VoidCallback? onTap,
-    }) => GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: kSpacingBase * scale),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
+    // Text, never a glyph — and no figures either. The counts are gone: a
+    // post's worth is not a number on it, and "4" beside Like invited reading
+    // the feed as a scoreboard. The word alone carries the action, and the
+    // Like state is carried by the WORD — "Like" before, "Liked" after. Both
+    // labels are the full-emphasis action style (15/bold/textPrimary), the
+    // same as every SondrAction: with the figures gone there is nothing left
+    // for a dimmer tone to separate them from.
+    Widget action({required String label, required VoidCallback? onTap}) =>
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: kSpacingBase * scale),
+            child: Text(
               label,
               style: theme.textTheme.bodyMedium?.copyWith(
-                // The app's action size — the same 15/bold as the Friends
-                // heading and every SondrAction.
                 fontSize: 15 * scale,
                 fontWeight: FontWeight.w700,
-                color: active ? activeColor : color,
+                color: labelColor,
                 shadows: shadows,
               ),
             ),
-            // A zero count says nothing worth the space.
-            if (count > 0) ...[
-              SizedBox(width: kSpacingPair * scale),
-              Text(
-                '$count',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontSize: 15 * scale,
-                  fontWeight: FontWeight.w700,
-                  color: countColor,
-                  shadows: shadows,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
+          ),
+        );
 
     final row = Row(
       children: [
         action(
           label: liked ? 'Liked' : 'Like',
-          count: post.likeCount,
-          active: liked,
           onTap: repo == null
               ? null
               : () async {
@@ -199,9 +172,7 @@ class _PostInteractionsState extends ConsumerState<PostInteractions> {
         ),
         SizedBox(width: kSpacingSection * scale),
         action(
-          label: 'Comment',
-          count: post.commentCount,
-          active: true,
+          label: 'Comments',
           onTap: () => showCommentsSheet(context, post.id),
         ),
       ],

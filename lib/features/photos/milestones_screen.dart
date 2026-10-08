@@ -78,14 +78,19 @@ enum _Lens { milestones, photos }
 /// `cumulativeSeconds` existed) is invisible under the first lens and present
 /// under the second, and the gallery is how you know nothing was lost.
 class MilestonesScreen extends ConsumerStatefulWidget {
-  const MilestonesScreen({super.key});
+  const MilestonesScreen({super.key, this.startOnPhotos = false});
+
+  /// Open on the Photos lens instead of Milestones. For a caller that already
+  /// knows there are no milestones to land on — the Profile doorway when it is
+  /// counting captures rather than milestones.
+  final bool startOnPhotos;
 
   @override
   ConsumerState<MilestonesScreen> createState() => _MilestonesScreenState();
 }
 
 class _MilestonesScreenState extends ConsumerState<MilestonesScreen> {
-  _Lens _lens = _Lens.milestones;
+  late _Lens _lens = widget.startOnPhotos ? _Lens.photos : _Lens.milestones;
 
   @override
   Widget build(BuildContext context) {

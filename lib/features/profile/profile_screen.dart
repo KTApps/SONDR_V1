@@ -13,7 +13,6 @@ import '../debug/debug_panel.dart';
 import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
-import '../history/calendar_screen.dart';
 import '../photos/collages_repository.dart';
 import '../photos/milestones_screen.dart';
 import '../photos/models/collage.dart';
@@ -64,9 +63,8 @@ class ProfileScreen extends ConsumerWidget {
               ),
               SizedBox(height: kSpacingSection * scale),
               const _FriendsRow(),
-              // Gallery doorway — self-spaced (top gap inside), so when it's
-              // hidden (no photos) the Friends→Tasks spacing is unchanged.
-              const _GalleryDoorway(),
+              // Self-spaced (top gap inside), so when it's hidden (nothing
+              // captured yet) the Friends→Tasks spacing is unchanged.
               const _MilestonesDoorway(),
               SizedBox(height: kSpacingBase * scale),
               _TasksInProgress(tasks: tasks),
@@ -224,58 +222,15 @@ class _FriendsRow extends ConsumerWidget {
 const double _kGalleryThumbSaturation = 0.85;
 const Color _kGalleryThumbTint = Color(0x1A000000);
 
-/// A doorway into the photo calendar: a strip of the most recent captures, a
-/// count, and a chevron — mirrors [_FriendsRow]. Hidden entirely until there's
-/// at least one photo. Opens the step-3 [CalendarScreen] (same route pattern as
-/// the home "View your progress" CTA).
-class _GalleryDoorway extends ConsumerWidget {
-  const _GalleryDoorway();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
-    final preview = ref.watch(galleryPreviewProvider).value;
-    if (preview == null || preview.total == 0) return const SizedBox.shrink();
-
-    return Padding(
-      padding: EdgeInsets.only(top: kSpacingBase * figmaScale(context)),
-      child: Material(
-        color: tokens.surface,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const CalendarScreen())),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            child: Row(
-              children: [
-                for (final p in preview.recent) ...[
-                  _GalleryThumb(photo: p),
-                  const SizedBox(width: 6),
-                ],
-                const Spacer(),
-                Text(
-                  '${preview.total} captured',
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: tokens.textSecondary,
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: tokens.textTertiary),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A doorway into the milestone collages — a preview of the newest collage's
-/// photos, a count, and a chevron. Mirrors [_GalleryDoorway]; hidden until there
-/// is at least one (non-empty) collage. Opens [MilestonesScreen].
+/// The one doorway into [MilestonesScreen] — a strip of thumbnails, a count
+/// and a chevron, mirroring [_FriendsRow]. Hidden until there is something
+/// behind it.
+///
+/// It names whatever the page has to show. Milestones when the user has any;
+/// otherwise the raw photo count, opening straight onto the Photos lens. The
+/// page is now the home for both, and a doorway gated on collages alone would
+/// hide every photo belonging to someone who has not reached 20 hours yet —
+/// which is exactly who the Photos lens was built for.
 class _MilestonesDoorway extends ConsumerWidget {
   const _MilestonesDoorway();
 
@@ -284,14 +239,22 @@ class _MilestonesDoorway extends ConsumerWidget {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final collages = ref.watch(collagesListProvider).value ?? const <Collage>[];
-    if (collages.isEmpty) return const SizedBox.shrink();
+    final gallery = ref.watch(galleryPreviewProvider).value;
+    final captured = gallery?.total ?? 0;
+    if (collages.isEmpty && captured == 0) return const SizedBox.shrink();
 
-    final preview =
-        ref
-            .watch(collagePhotosProvider(collages.first.photoIds.join(',')))
-            .value ??
-        const <Photo>[];
     final n = collages.length;
+    final hasMilestones = n > 0;
+    final List<Photo> preview;
+    if (hasMilestones) {
+      final ids = collages.first.photoIds.join(',');
+      preview = ref.watch(collagePhotosProvider(ids)).value ?? const <Photo>[];
+    } else {
+      preview = gallery?.recent ?? const <Photo>[];
+    }
+    final label = hasMilestones
+        ? '$n milestone${n == 1 ? '' : 's'}'
+        : '$captured captured';
 
     return Padding(
       padding: EdgeInsets.only(top: kSpacingBase * figmaScale(context)),
@@ -300,9 +263,11 @@ class _MilestonesDoorway extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const MilestonesScreen())),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => MilestonesScreen(startOnPhotos: !hasMilestones),
+            ),
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             child: Row(
@@ -313,7 +278,7 @@ class _MilestonesDoorway extends ConsumerWidget {
                 ],
                 const Spacer(),
                 Text(
-                  '$n milestone${n == 1 ? '' : 's'}',
+                  label,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: tokens.textSecondary,
                   ),

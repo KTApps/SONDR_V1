@@ -62,6 +62,19 @@ void main() {
 
   _galleryTests();
 
+  testWidgets('a caller can open straight onto the Photos lens', (
+    tester,
+  ) async {
+    // The Profile doorway does this when it is counting captures rather than
+    // milestones: landing on an empty Milestones lens would be a dead end.
+    await tester.pumpWidget(
+      const ProviderScope(child: _Harness(startOnPhotos: true)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No photos yet.'), findsOneWidget);
+    expect(find.text('Golf'), findsNothing);
+  });
+
   testWidgets('leaving is the same Back under either lens', (tester) async {
     await pumpScreen(tester);
     expect(find.text('Back'), findsOneWidget);
@@ -136,9 +149,13 @@ void _galleryTests() {
 }
 
 class _Harness extends StatelessWidget {
-  const _Harness();
+  const _Harness({this.startOnPhotos = false});
+
+  final bool startOnPhotos;
 
   @override
-  Widget build(BuildContext context) =>
-      MaterialApp(theme: AppTheme.dark(), home: const MilestonesScreen());
+  Widget build(BuildContext context) => MaterialApp(
+    theme: AppTheme.dark(),
+    home: MilestonesScreen(startOnPhotos: startOnPhotos),
+  );
 }

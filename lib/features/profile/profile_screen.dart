@@ -179,8 +179,9 @@ class _FriendsRow extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           child: Row(
             children: [
-              Icon(Icons.people_outline, color: tokens.textSecondary),
-              const SizedBox(width: 14),
+              // The word alone — no glyph. (DESIGN.md: text for every action;
+              // a people symbol was a second vocabulary for one that already
+              // says what it is.)
               Text('Friends', style: theme.textTheme.bodyLarge),
               const Spacer(),
               if (pending > 0) ...[

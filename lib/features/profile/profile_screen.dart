@@ -15,7 +15,7 @@ import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
 import '../photos/collages_repository.dart';
-import '../photos/collages_screen.dart';
+import '../photos/milestones_screen.dart';
 import '../photos/models/collage.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
@@ -275,7 +275,7 @@ class _GalleryDoorway extends ConsumerWidget {
 
 /// A doorway into the milestone collages — a preview of the newest collage's
 /// photos, a count, and a chevron. Mirrors [_GalleryDoorway]; hidden until there
-/// is at least one (non-empty) collage. Opens [CollagesScreen].
+/// is at least one (non-empty) collage. Opens [MilestonesScreen].
 class _MilestonesDoorway extends ConsumerWidget {
   const _MilestonesDoorway();
 
@@ -302,7 +302,7 @@ class _MilestonesDoorway extends ConsumerWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: () => Navigator.of(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const CollagesScreen())),
+          ).push(MaterialPageRoute(builder: (_) => const MilestonesScreen())),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             child: Row(

@@ -2,7 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../core/utils/figma_scale.dart';
 
-/// A row whose destructive actions are hidden until swiped left.
+/// Which edge a [SondrSwipeRow]'s tray is uncovered from.
+///
+/// [trailing] is the app's established direction — swipe left, tray on the
+/// right — used by Friends and the comments sheet. [leading] is its mirror,
+/// swipe right, for the task rows.
+enum SondrSwipeSide { trailing, leading }
+
+/// A row whose actions are hidden until swiped sideways.
 ///
 /// Reveal, never dismiss: swiping uncovers the actions and waits; nothing is
 /// destroyed by the gesture itself. Swipe back, or tap the row, to close.
@@ -22,9 +29,14 @@ class SondrSwipeRow extends StatefulWidget {
     super.key,
     required this.child,
     required this.actions,
+    this.side = SondrSwipeSide.trailing,
   });
 
   final Widget child;
+
+  /// The edge the tray comes from, and so the direction of the swipe that
+  /// opens it. Defaults to the app's established trailing/swipe-left.
+  final SondrSwipeSide side;
 
   /// Most severe LAST, so the outermost action is the gravest one.
   final List<Widget> actions;
@@ -69,21 +81,29 @@ class _SondrSwipeRowState extends State<SondrSwipeRow>
     super.dispose();
   }
 
+  /// +1 when opening means dragging RIGHT (a leading tray), -1 for the
+  /// trailing default. Both the drag and the fling read from this, so the two
+  /// can never disagree about which way is open.
+  double get _sign => widget.side == SondrSwipeSide.leading ? 1 : -1;
+
   void _drag(DragUpdateDetails d) {
     if (_trayWidth <= 0) return;
-    _open.value = (_open.value - d.primaryDelta! / _trayWidth).clamp(0.0, 1.0);
+    final delta = _sign * d.primaryDelta! / _trayWidth;
+    _open.value = (_open.value + delta).clamp(0.0, 1.0);
   }
 
   void _settle(DragEndDetails d) {
-    final flung = d.velocity.pixelsPerSecond.dx;
-    if (flung < -250) return _open.forward().ignore();
-    if (flung > 250) return _open.reverse().ignore();
+    final flung = _sign * d.velocity.pixelsPerSecond.dx;
+    if (flung > 250) return _open.forward().ignore();
+    if (flung < -250) return _open.reverse().ignore();
     (_open.value > 0.5 ? _open.forward() : _open.reverse()).ignore();
   }
 
   @override
   Widget build(BuildContext context) {
     final scale = figmaScale(context);
+    final leading = widget.side == SondrSwipeSide.leading;
+    final edge = leading ? Alignment.centerLeft : Alignment.centerRight;
 
     // The whole thing rebuilds with the animation, not just the tray: the tap
     // handler has to read the LIVE open value. Built outside the listener it
@@ -101,7 +121,7 @@ class _SondrSwipeRowState extends State<SondrSwipeRow>
           // reversible without having to find the exact swipe back.
           onTap: _open.value > 0 ? () => _open.reverse() : null,
           child: Stack(
-            alignment: Alignment.centerRight,
+            alignment: edge,
             children: [
               // The tray is uncovered from the right edge inwards. The row
               // itself never moves: with identical placeholder photos the
@@ -109,13 +129,15 @@ class _SondrSwipeRowState extends State<SondrSwipeRow>
               // remove, so it stays put and readable beside the actions.
               ClipRect(
                 child: Align(
-                  alignment: Alignment.centerRight,
+                  alignment: edge,
                   widthFactor: _open.value,
                   // The key is on the padding, not the row inside it, so the
                   // measured width includes the tray's own outer inset.
                   child: Padding(
                     key: _trayKey,
-                    padding: EdgeInsets.only(right: 24 * scale),
+                    padding: leading
+                        ? EdgeInsets.only(left: 24 * scale)
+                        : EdgeInsets.only(right: 24 * scale),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: widget.actions,
@@ -126,7 +148,9 @@ class _SondrSwipeRowState extends State<SondrSwipeRow>
               // The content's width shrinks by exactly what the tray takes, so
               // a long name ellipsises rather than sliding under the actions.
               Padding(
-                padding: EdgeInsets.only(right: revealed),
+                padding: leading
+                    ? EdgeInsets.only(left: revealed)
+                    : EdgeInsets.only(right: revealed),
                 child: widget.child,
               ),
             ],

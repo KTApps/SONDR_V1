@@ -34,7 +34,8 @@ class ProfileScreen extends ConsumerWidget {
     final lifetime = ref.watch(lifetimeDurationProvider);
     final streak = ref.watch(habitStreakProvider);
     final milestones = ref.watch(milestonesReachedProvider);
-    final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
+    // Active only: an archived task is not something you are in the middle of.
+    final tasks = ref.watch(activeTasksProvider);
     final scale = figmaScale(context);
 
     return Scaffold(

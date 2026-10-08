@@ -9,7 +9,6 @@ import '../../shared/cached_photo.dart';
 import '../../shared/ring/ring_dial.dart';
 import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
-import '../../shared/sondr_header.dart';
 import '../../shared/sondr_loading.dart';
 import '../history/day_detail_sheet.dart';
 import '../tasks/models/task.dart';
@@ -369,12 +368,9 @@ class _TaskJourneyScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24 * scale),
-              child: SondrHeader(
-                title: '${task.name} · ${task.wholeHours} hours',
-              ),
-            ),
+            // No title. The band rows each name the task, and the pinned
+            // grey Back at the foot is the way out — the same one every
+            // other screen uses in place of a chevron.
             SizedBox(height: kSpacingSection * scale),
             Expanded(
               child: ListView(
@@ -495,7 +491,11 @@ class _BandEntryState extends ConsumerState<_BandEntry> {
               SizedBox(width: kSpacingBase * scale),
               Expanded(
                 child: Text(
-                  '${widget.bandHours} hours',
+                  // The ring beside this already reads "40h", so repeating
+                  // the figure in words said nothing. The task's name does.
+                  widget.task.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontSize: 15 * scale,
                     fontWeight: FontWeight.w700,

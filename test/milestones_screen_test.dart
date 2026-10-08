@@ -89,6 +89,26 @@ void main() {
     );
   });
 
+  testWidgets('a task journey has no title, and names the task per band', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await tester.tap(find.text('Golf'));
+    await tester.pumpAndSettle();
+
+    // We are on the journey: Golf is just past 20h, so it has one band, and
+    // with no photo store behind the test that band is empty.
+    expect(find.text('No photos from this stretch.'), findsOneWidget);
+    // No title, in either of its old forms.
+    expect(find.byType(SondrHeader), findsNothing);
+    expect(find.text('Golf · 20 hours'), findsNothing);
+    // The band row names the TASK now; the ring already says "20h".
+    expect(find.text('20 hours'), findsNothing);
+    expect(find.text('20h'), findsWidgets);
+    // Still dismissable.
+    expect(find.text('Back'), findsWidgets);
+  });
+
   testWidgets('a caller can open straight onto the Photos lens', (
     tester,
   ) async {

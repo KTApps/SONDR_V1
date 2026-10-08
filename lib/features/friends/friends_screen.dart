@@ -36,6 +36,12 @@ class FriendsScreen extends ConsumerStatefulWidget {
 
 class _FriendsScreenState extends ConsumerState<FriendsScreen> {
   final _handle = TextEditingController();
+
+  /// Focus on the handle field means the keyboard is up and the page has
+  /// roughly half its height. The footer sheds everything but Invite while
+  /// that lasts, so the results have the room instead.
+  final _handleFocus = FocusNode();
+  bool _searching = false;
   bool _busy = false;
 
   /// Which request section is open, if any. At most one: opening Requests
@@ -92,8 +98,19 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       );
 
   @override
+  void initState() {
+    super.initState();
+    _handleFocus.addListener(() {
+      if (_handleFocus.hasFocus != _searching) {
+        setState(() => _searching = _handleFocus.hasFocus);
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
+    _handleFocus.dispose();
     _handle.dispose();
     super.dispose();
   }
@@ -273,6 +290,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
               // this takes, so the capsule would only add furniture.
               SondrField(
                 controller: _handle,
+                focusNode: _handleFocus,
                 enabled: !_busy,
                 autocorrect: false,
                 filled: false,
@@ -441,7 +459,8 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         // undo — but undoing it has to be possible from somewhere, and
         // Friends is where the blocking happened. Supporting tone: it sits
         // with Back, below the one white action on the screen.
-        if (ref.watch(blockedAccountsProvider).value?.isNotEmpty ?? false)
+        if (!_searching &&
+            (ref.watch(blockedAccountsProvider).value?.isNotEmpty ?? false))
           Center(
             child: SondrAction(
               label: 'Blocked accounts',
@@ -455,13 +474,16 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
           ),
         // Leaving is an exit, so it takes the supporting treatment and sits
         // last. This replaces the back chevron that used to head the screen.
-        Center(
-          child: SondrAction(
-            label: 'Back',
-            supporting: true,
-            onPressed: () => Navigator.of(context).maybePop(),
+        // Hidden while searching: with the keyboard up, Invite is the only
+        // footer action worth the space.
+        if (!_searching)
+          Center(
+            child: SondrAction(
+              label: 'Back',
+              supporting: true,
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
           ),
-        ),
         SizedBox(height: _kInviteGap * scale),
       ],
     );

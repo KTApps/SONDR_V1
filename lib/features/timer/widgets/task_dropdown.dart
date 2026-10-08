@@ -171,10 +171,12 @@ double _panelHeightFor(double listHeight) =>
 /// sentinel).
 ///
 /// Two lists, one sheet. The active list is the default: pills, "Add Task"
-/// centred, and a quiet "Archived" to its right. "Archived" swaps the SAME
-/// sheet over to the put-away tasks — same pills, same progress bars — where
-/// the footer is a single grey "Back". The mode is local to the open sheet, so
-/// closing the dropdown and reopening it always lands on the active list.
+/// centred, and "Archive" hard right at the same weight and tone — two
+/// actions of equal standing, told apart by position. "Archive" swaps the
+/// SAME sheet over to the put-away tasks — same pills, same progress bars —
+/// where the footer is a single grey "Back". The mode is local to the open
+/// sheet, so closing the dropdown and reopening it always lands on the active
+/// list.
 class _TaskMenuPanel extends ConsumerStatefulWidget {
   const _TaskMenuPanel();
 
@@ -346,12 +348,15 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                           primaryStyle,
                           () => Navigator.of(context).pop(_addTaskValue),
                         ),
-                        // Same row, same baseline, hard right.
+                        // Same row, same baseline, hard right — and the
+                        // same type as "Add Task" beside it. Two actions of
+                        // equal standing, told apart by position alone, which
+                        // is where hierarchy is supposed to come from.
                         Positioned(
                           right: 2 * scale,
                           child: footerAction(
-                            'Archived',
-                            quietStyle,
+                            'Archive',
+                            primaryStyle,
                             () => setState(() => _archived = true),
                           ),
                         ),

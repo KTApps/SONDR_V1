@@ -156,6 +156,17 @@ void main() {
       matching: find.text(name),
     );
 
+    /// The OPEN swipe tray's action. Every row builds its tray, so the word is
+    /// in the tree once per row; only the uncovered one can be hit.
+    Finder tray(String label) => find
+        .descendant(of: find.byType(SondrSwipeRow), matching: find.text(label))
+        .hitTestable();
+
+    /// The footer's "Archive" toggle — which now shares its word with the
+    /// trays above it. The footer sits after the pill list in the panel's
+    /// Stack, so it is the last match.
+    Finder archiveToggle() => find.text('Archive').last;
+
     testWidgets('lists the active tasks, with both footer actions', (
       tester,
     ) async {
@@ -163,22 +174,36 @@ void main() {
       expect(find.text('Golf'), findsOneWidget);
       expect(find.text('Spanish'), findsOneWidget);
       expect(find.text('Add Task'), findsOneWidget);
-      expect(find.text('Archived'), findsOneWidget);
+      expect(archiveToggle(), findsOneWidget);
       expect(find.text('Back'), findsNothing);
     });
 
-    testWidgets('"Archived" swaps the sheet, "Back" swaps it straight back', (
+    testWidgets('the Archive toggle is styled exactly like Add Task', (
+      tester,
+    ) async {
+      // Equal standing: same size, same weight, same tone. Hierarchy between
+      // them comes from position alone.
+      await openMenu(tester);
+      final add = tester.widget<Text>(find.text('Add Task')).style!;
+      final archive = tester.widget<Text>(archiveToggle()).style!;
+      expect(archive.fontSize, add.fontSize);
+      expect(archive.fontWeight, add.fontWeight);
+      expect(archive.color, add.color);
+    });
+
+    testWidgets('"Archive" swaps the sheet, "Back" swaps it straight back', (
       tester,
     ) async {
       await openMenu(tester);
 
-      await tester.tap(find.text('Archived'));
+      await tester.tap(archiveToggle());
       await tester.pumpAndSettle();
       expect(find.text('No archived tasks.'), findsOneWidget);
       expect(find.text('Back'), findsOneWidget);
-      // The archived view carries neither the add nor a second toggle.
+      // The archived view carries neither the add nor a second toggle, and
+      // with no rows there is no tray to borrow the word either.
       expect(find.text('Add Task'), findsNothing);
-      expect(find.text('Archived'), findsNothing);
+      expect(find.text('Archive'), findsNothing);
       expect(find.text('Golf'), findsNothing);
 
       await tester.tap(find.text('Back'));
@@ -194,32 +219,32 @@ void main() {
       await openMenu(tester);
       // The tray is always BUILT (clipped to nothing until opened), so the
       // question is whether it can be reached, not whether it exists.
-      expect(find.text('Archive').hitTestable(), findsNothing);
+      expect(tray('Archive'), findsNothing);
 
       await tester.drag(row('Golf'), const Offset(-200, 0));
       await tester.pumpAndSettle();
-      expect(find.text('Archive').hitTestable(), findsOneWidget);
+      expect(tray('Archive'), findsOneWidget);
 
-      await tester.tap(find.text('Archive').hitTestable());
+      await tester.tap(tray('Archive'));
       await tester.pumpAndSettle();
 
       // Gone from the active list, and on the archived one with the reverse.
       expect(find.text('Golf'), findsNothing);
       expect(containerOf(tester).read(archivedTasksProvider).length, 1);
 
-      await tester.tap(find.text('Archived'));
+      await tester.tap(archiveToggle());
       await tester.pumpAndSettle();
       expect(find.text('Golf'), findsOneWidget);
       await tester.drag(row('Golf'), const Offset(-200, 0));
       await tester.pumpAndSettle();
-      expect(find.text('Unarchive').hitTestable(), findsOneWidget);
+      expect(tray('Unarchive'), findsOneWidget);
     });
 
     testWidgets('swiping the other way leaves the tray shut', (tester) async {
       await openMenu(tester);
       await tester.drag(row('Golf'), const Offset(200, 0));
       await tester.pumpAndSettle();
-      expect(find.text('Archive').hitTestable(), findsNothing);
+      expect(tray('Archive'), findsNothing);
     });
 
     testWidgets('tapping a row still picks that task', (tester) async {
@@ -244,7 +269,7 @@ void main() {
       await tapSelector(tester);
       await tester.drag(row('Golf'), const Offset(-200, 0));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Archive').hitTestable());
+      await tester.tap(tray('Archive'));
       await tester.pumpAndSettle();
 
       // No ghost: nothing is selected, so Home is back on the collective
@@ -278,7 +303,7 @@ void main() {
 
       await tapSelector(tester);
       expect(find.text('Add Task'), findsNothing);
-      expect(find.text('Archived'), findsNothing);
+      expect(find.text('Archive'), findsNothing);
     });
   });
 

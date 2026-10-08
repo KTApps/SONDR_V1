@@ -8,6 +8,7 @@ import 'package:sondr/features/photos/milestones_screen.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/photos/widgets/collage_grid.dart';
+import 'package:sondr/shared/sondr_header.dart';
 
 /// The lens toggle is the only state this screen owns, so the thing worth
 /// asserting is that it actually swaps what is on screen.
@@ -22,8 +23,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  // The header says "Milestones" as well, so the lens option is the 2nd match.
-  Finder milestonesLens() => find.text('Milestones').last;
+  // The page has no title any more, so the only "Milestones" is the tab.
+  Finder milestonesLens() => find.text('Milestones');
 
   testWidgets('opens on the Milestones lens', (tester) async {
     await pumpScreen(tester);
@@ -53,16 +54,40 @@ void main() {
   ) async {
     await pumpScreen(tester);
     expect(find.text('Photos'), findsOneWidget);
-    expect(find.text('Milestones'), findsNWidgets(2)); // header + lens
+    expect(find.text('Milestones'), findsOneWidget);
 
     await tester.tap(find.text('Photos'));
     await tester.pumpAndSettle();
     expect(find.text('Photos'), findsOneWidget);
-    expect(find.text('Milestones'), findsNWidgets(2));
+    expect(find.text('Milestones'), findsOneWidget);
   });
 
   _galleryTests();
   _journeyGridTests();
+
+  testWidgets('the page opens on the tabs, with no title above them', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    expect(find.byType(SondrHeader), findsNothing);
+  });
+
+  testWidgets('each tab is centred in its own half of the screen', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    // Measured, not reasoned about: the halves are of the FULL width, so the
+    // two centres land on the screen's quarter points.
+    final width = tester.getSize(find.byType(MilestonesScreen)).width;
+    expect(
+      tester.getCenter(find.text('Milestones')).dx,
+      moreOrLessEquals(width / 4, epsilon: 0.5),
+    );
+    expect(
+      tester.getCenter(find.text('Photos')).dx,
+      moreOrLessEquals(width * 3 / 4, epsilon: 0.5),
+    );
+  });
 
   testWidgets('a caller can open straight onto the Photos lens', (
     tester,

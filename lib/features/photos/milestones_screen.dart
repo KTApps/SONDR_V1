@@ -102,28 +102,35 @@ class _MilestonesScreenState extends ConsumerState<MilestonesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24 * scale),
-              child: const SondrHeader(title: 'Milestones'),
-            ),
+            // No title. The page opens on the lens control itself — a
+            // "Milestones" heading over a "Milestones" tab was the same word
+            // twice, and the tabs already say where you are.
             SizedBox(height: kSpacingBase * scale),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24 * scale),
-              child: Row(
-                children: [
-                  _LensOption(
-                    label: 'Milestones',
-                    active: _lens == _Lens.milestones,
-                    onTap: () => setState(() => _lens = _Lens.milestones),
+            // Each tab centred in its own half of the FULL screen width, so
+            // the pair reads as one control split down the middle. No page
+            // gutter here on purpose: inset by 24 the halves would be of the
+            // content box, and the centres would miss the screen's quarters.
+            Row(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: _LensOption(
+                      label: 'Milestones',
+                      active: _lens == _Lens.milestones,
+                      onTap: () => setState(() => _lens = _Lens.milestones),
+                    ),
                   ),
-                  SizedBox(width: kSpacingSection * scale),
-                  _LensOption(
-                    label: 'Photos',
-                    active: _lens == _Lens.photos,
-                    onTap: () => setState(() => _lens = _Lens.photos),
+                ),
+                Expanded(
+                  child: Center(
+                    child: _LensOption(
+                      label: 'Photos',
+                      active: _lens == _Lens.photos,
+                      onTap: () => setState(() => _lens = _Lens.photos),
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
             SizedBox(height: kSpacingBase * scale),
             Expanded(

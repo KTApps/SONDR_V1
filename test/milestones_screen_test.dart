@@ -7,6 +7,7 @@ import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/features/photos/milestones_screen.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
+import 'package:sondr/features/photos/widgets/collage_grid.dart';
 
 /// The lens toggle is the only state this screen owns, so the thing worth
 /// asserting is that it actually swaps what is on screen.
@@ -61,6 +62,7 @@ void main() {
   });
 
   _galleryTests();
+  _journeyGridTests();
 
   testWidgets('a caller can open straight onto the Photos lens', (
     tester,
@@ -85,7 +87,7 @@ void main() {
   });
 }
 
-Photo _photo(String dayKey, int micros) => Photo(
+Photo _photo(String dayKey, int micros, {int? sharedAt}) => Photo(
   taskId: 'task_2',
   taskName: 'Golf',
   dayKey: dayKey,
@@ -93,6 +95,7 @@ Photo _photo(String dayKey, int micros) => Photo(
   sessionSeconds: 1800,
   photoUrl: 'https://example.invalid/$micros.jpg',
   storagePath: 'users/me/photos/$micros.jpg',
+  sharedAt: sharedAt,
 );
 
 /// The gallery itself, with a month store standing in for Firestore: does it
@@ -107,7 +110,11 @@ void _galleryTests() {
   final older = DateTime(now.year, now.month - 2);
   final day = DayKey.of(DateTime(now.year, now.month, 1));
 
-  Future<void> pumpGallery(WidgetTester tester, int count) async {
+  Future<void> pumpGallery(
+    WidgetTester tester,
+    int count, {
+    bool shareFirst = true,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -117,7 +124,15 @@ void _galleryTests() {
           photosForMonthProvider.overrideWith((ref, monthKey) async {
             if (monthKey != DayKey.monthPrefix(thisMonth)) return const {};
             return {
-              day: [for (var i = 0; i < count; i++) _photo(day, 1000 + i)],
+              // The first one has been posted to the feed; the rest have not.
+              day: [
+                for (var i = 0; i < count; i++)
+                  _photo(
+                    day,
+                    1000 + i,
+                    sharedAt: shareFirst && i == 0 ? 1759999999 : null,
+                  ),
+              ],
             };
           }),
         ],
@@ -139,12 +154,50 @@ void _galleryTests() {
     expect(find.text('No photos yet.'), findsNothing);
   });
 
+  testWidgets('only the shared photo is tagged', (tester) async {
+    await pumpGallery(tester, 5);
+    expect(find.text('Shared'), findsOneWidget);
+  });
+
+  testWidgets('nothing is tagged when nothing has been shared', (tester) async {
+    await pumpGallery(tester, 1, shareFirst: false);
+    expect(find.byType(SondrPhoto), findsOneWidget);
+    expect(find.text('Shared'), findsNothing);
+  });
+
   testWidgets('a month with nothing in it gets no heading', (tester) async {
     await pumpGallery(tester, 5);
     expect(
       find.text('${DayKey.monthName(older.month)} ${older.year}'),
       findsNothing,
     );
+  });
+}
+
+/// The journey's grid is the collage grid, so the tag has to work there too —
+/// and it is the one that also carries the curation editor's ×, which is why
+/// the tag sits in the opposite corner.
+void _journeyGridTests() {
+  testWidgets('the collage grid tags only the photos that were shared', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(),
+        home: Scaffold(
+          body: CollageGrid(
+            photos: [
+              _photo('2026-10-01', 1, sharedAt: 1759999999),
+              _photo('2026-10-01', 2),
+              _photo('2026-10-01', 3),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(CollageGrid), findsOneWidget);
+    expect(find.text('Shared'), findsOneWidget);
   });
 }
 

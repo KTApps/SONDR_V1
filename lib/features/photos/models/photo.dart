@@ -23,6 +23,7 @@ class Photo {
     required this.storagePath,
     this.milestoneHours,
     this.cumulativeSeconds,
+    this.sharedAt,
   });
 
   final String taskId;
@@ -57,6 +58,20 @@ class Photo {
   /// (a missing photo beats a wrong-band one).
   final int? cumulativeSeconds;
 
+  /// Microseconds since epoch when this photo was last posted to the feed, or
+  /// null if it never has been.
+  ///
+  /// **Additive and forward-only.** Every photo that existed before the field
+  /// did reads back null, which is honest rather than merely convenient: the
+  /// app has no record of past shares, so claiming one would be a guess. The
+  /// same microsecond convention as [timestamp] keeps the model free of any
+  /// Firestore type — it stays a plain object the unit tests can build.
+  final int? sharedAt;
+
+  /// Whether this photo has been posted to the feed. Only ever true for a
+  /// share made after the field existed.
+  bool get isShared => sharedAt != null;
+
   /// Deterministic, self-describing id: `{taskId}_{timestamp}`. Dedupe is
   /// trivial and identity is readable. Equals the Firestore document id by
   /// construction, so [Photo.fromMap] needs no separate id argument.
@@ -77,6 +92,7 @@ class Photo {
         'storagePath': storagePath,
         'milestoneHours': milestoneHours,
         'cumulativeSeconds': cumulativeSeconds,
+        'sharedAt': sharedAt,
       };
 
   /// Rebuild from a stored document. Tolerates numbers coming back as `num`.
@@ -92,6 +108,7 @@ class Photo {
       storagePath: (map['storagePath'] as String?) ?? '',
       milestoneHours: (map['milestoneHours'] as num?)?.toInt(),
       cumulativeSeconds: (map['cumulativeSeconds'] as num?)?.toInt(),
+      sharedAt: (map['sharedAt'] as num?)?.toInt(),
     );
   }
 }

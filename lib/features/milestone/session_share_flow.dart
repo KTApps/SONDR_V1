@@ -7,6 +7,7 @@ import '../../core/utils/session_duration.dart';
 import '../feed/models/post.dart';
 import '../feed/posts_repository.dart';
 import '../photos/photo_capture_flow.dart';
+import '../photos/photos_repository.dart';
 import 'share_caption_screen.dart';
 
 /// The 20h+ session share flow (a task past its first milestone stopping without
@@ -17,7 +18,8 @@ import 'share_caption_screen.dart';
 /// **Single-photo only** — the schema allows a list, but this write path only
 /// ever attaches the one captured photo (no journey multi-add). A kept photo has
 /// already saved to the task's gallery series inside [showPhotoCapture], so
-/// capture and post stay independent.
+/// capture and post stay independent; posting then tags that gallery original
+/// as shared, best-effort.
 Future<void> showSessionShareFlow(
   BuildContext context, {
   required String taskId,
@@ -43,7 +45,7 @@ Future<void> showSessionShareFlow(
         // Skipping capture still lands here, so there may be no photo.
         hasPhoto: captured != null,
         preview: _SessionPreview(
-          capturedFile: captured,
+          capturedFile: captured?.file,
           taskName: taskName,
           sessionSeconds: sessionSeconds,
         ),
@@ -52,7 +54,7 @@ Future<void> showSessionShareFlow(
           if (repo == null) throw StateError('not signed in');
           final photos = <PostPhoto>[];
           if (captured != null) {
-            final up = await repo.uploadPostPhoto(captured);
+            final up = await repo.uploadPostPhoto(captured.file);
             photos.add(PostPhoto(url: up.url, storagePath: up.storagePath));
           }
           await repo.createSessionPost(
@@ -61,6 +63,11 @@ Future<void> showSessionShareFlow(
             caption: caption,
             photos: photos,
           );
+          // The post is written. Tagging its source is a nicety from here on
+          // and must never be able to fail the share — see [tagShared].
+          await tagShared(ref, [
+            if (captured != null) captured.photoId,
+          ]);
         },
       ),
     ),

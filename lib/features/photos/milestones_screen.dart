@@ -19,6 +19,7 @@ import 'models/collage.dart';
 import 'models/photo.dart';
 import 'photos_repository.dart';
 import 'widgets/collage_grid.dart';
+import 'widgets/shared_tag.dart';
 
 /// A completed milestone ring with its figure in the middle.
 ///
@@ -705,12 +706,18 @@ class _PhotoGrid extends StatelessWidget {
             onTap: () => showDayDetailSheet(context, p.dayKey),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10 * scale),
-              child: SondrPhoto(
-                url: p.photoUrl,
-                saturation: _kGallerySaturation,
-                tint: _kGalleryTint,
-                placeholder: (_) => ColoredBox(color: tokens.surface),
-                error: (_) => ColoredBox(color: tokens.ringTrack),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  SondrPhoto(
+                    url: p.photoUrl,
+                    saturation: _kGallerySaturation,
+                    tint: _kGalleryTint,
+                    placeholder: (_) => ColoredBox(color: tokens.surface),
+                    error: (_) => ColoredBox(color: tokens.ringTrack),
+                  ),
+                  if (p.isShared) const SharedTag(),
+                ],
               ),
             ),
           ),

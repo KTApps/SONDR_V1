@@ -188,7 +188,7 @@ void main() {
       expect(find.text('No archived tasks.'), findsNothing);
     });
 
-    testWidgets('swiping a row RIGHT reveals Archive, and it archives', (
+    testWidgets('swiping a row LEFT reveals Archive, and it archives', (
       tester,
     ) async {
       await openMenu(tester);
@@ -196,7 +196,7 @@ void main() {
       // question is whether it can be reached, not whether it exists.
       expect(find.text('Archive').hitTestable(), findsNothing);
 
-      await tester.drag(row('Golf'), const Offset(200, 0));
+      await tester.drag(row('Golf'), const Offset(-200, 0));
       await tester.pumpAndSettle();
       expect(find.text('Archive').hitTestable(), findsOneWidget);
 
@@ -210,14 +210,14 @@ void main() {
       await tester.tap(find.text('Archived'));
       await tester.pumpAndSettle();
       expect(find.text('Golf'), findsOneWidget);
-      await tester.drag(row('Golf'), const Offset(200, 0));
+      await tester.drag(row('Golf'), const Offset(-200, 0));
       await tester.pumpAndSettle();
       expect(find.text('Unarchive').hitTestable(), findsOneWidget);
     });
 
-    testWidgets('swiping LEFT leaves the tray shut', (tester) async {
+    testWidgets('swiping the other way leaves the tray shut', (tester) async {
       await openMenu(tester);
-      await tester.drag(row('Golf'), const Offset(-200, 0));
+      await tester.drag(row('Golf'), const Offset(200, 0));
       await tester.pumpAndSettle();
       expect(find.text('Archive').hitTestable(), findsNothing);
     });
@@ -242,7 +242,7 @@ void main() {
       expect(c.read(selectedTaskProvider)?.name, 'Golf');
 
       await tapSelector(tester);
-      await tester.drag(row('Golf'), const Offset(200, 0));
+      await tester.drag(row('Golf'), const Offset(-200, 0));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Archive').hitTestable());
       await tester.pumpAndSettle();

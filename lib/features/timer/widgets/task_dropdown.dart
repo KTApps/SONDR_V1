@@ -293,11 +293,12 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                           SizedBox(height: _panelSpacing * scale),
                       itemBuilder: (context, i) {
                         final task = tasks[i];
+                        // The app's one swipe: left to reveal, tray on the
+                        // right, exactly as Friends and the comments sheet do
+                        // it. Reveal, never dismiss — the gesture uncovers the
+                        // word and waits for a tap, and a tap anywhere on the
+                        // open row closes it again.
                         return SondrSwipeRow(
-                          // Swipe RIGHT on a task row. Reveal, never dismiss:
-                          // the gesture uncovers the word and waits for a tap,
-                          // and a tap anywhere on the open row closes it.
-                          side: SondrSwipeSide.leading,
                           actions: [
                             _PillTrayAction(
                               label: _archived ? 'Unarchive' : 'Archive',

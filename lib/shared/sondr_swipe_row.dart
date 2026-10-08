@@ -4,9 +4,10 @@ import '../core/utils/figma_scale.dart';
 
 /// Which edge a [SondrSwipeRow]'s tray is uncovered from.
 ///
-/// [trailing] is the app's established direction — swipe left, tray on the
-/// right — used by Friends and the comments sheet. [leading] is its mirror,
-/// swipe right, for the task rows.
+/// [trailing] is the app's direction everywhere — swipe left, tray on the
+/// right — and the default. [leading] is its mirror, swipe right, which
+/// nothing uses today: one direction app-wide is the point, so reach for this
+/// only where a row genuinely cannot open the other way.
 enum SondrSwipeSide { trailing, leading }
 
 /// A row whose actions are hidden until swiped sideways.

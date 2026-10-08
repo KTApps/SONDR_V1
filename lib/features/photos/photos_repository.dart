@@ -133,6 +133,15 @@ class PhotosRepository {
     return [for (final d in snap.docs) Photo.fromMap(d.data())];
   }
 
+  /// When the user's first photo was taken, or null when there are none. A
+  /// single doc off the ascending `timestamp` index — no collection scan. Backs
+  /// the gallery's month range: how far back there is anything to show.
+  Future<DateTime?> earliestPhotoTime() async {
+    final snap = await _col.orderBy('timestamp').limit(1).get();
+    if (snap.docs.isEmpty) return null;
+    return Photo.fromMap(snap.docs.first.data()).capturedAt;
+  }
+
   /// Total number of photos, via an aggregation query (doesn't read the docs).
   Future<int> photosCount() async {
     final agg = await _col.count().get();
@@ -211,6 +220,18 @@ final photosForMonthProvider = FutureProvider.family
       return repo.photosForMonth(
         DateTime(int.parse(parts[0]), int.parse(parts[1])),
       );
+    });
+
+/// The month the user's first photo falls in, or null when there are none.
+/// The gallery walks months back from today to this one, asking
+/// [photosForMonthProvider] for each — so this is what stops the walk. One doc
+/// read; autoDispose so a first-ever capture is picked up on re-entry.
+final earliestPhotoMonthProvider =
+    FutureProvider.autoDispose<DateTime?>((ref) async {
+      final repo = ref.watch(photosRepositoryProvider);
+      if (repo == null) return null;
+      final when = await repo.earliestPhotoTime();
+      return when == null ? null : DateTime(when.year, when.month);
     });
 
 /// The profile gallery doorway preview: the few most recent photos plus the

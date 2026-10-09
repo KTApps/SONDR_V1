@@ -174,7 +174,7 @@ class _MonthGrid extends ConsumerWidget {
       Widget dial = SegmentedDial(
         size: 49,
         compact: true,
-        stroke: 5, // a touch thinner than the proportional ~6
+        // Stroke comes from the shared thin ratio now, like every other ring.
         taskTodaySeconds: segments,
         habitStates: habitStates,
         fill: hasPhoto ? _PhotoFill(url: hero.photoUrl) : null,

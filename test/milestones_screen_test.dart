@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/utils/date.dart';
+import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/features/photos/milestones_screen.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/photos/widgets/collage_grid.dart';
+import 'package:sondr/shared/ring/ring_dial.dart';
+import 'package:sondr/shared/ring/ring_metrics.dart';
 import 'package:sondr/shared/sondr_header.dart';
 
 /// The lens toggle is the only state this screen owns, so the thing worth
@@ -87,6 +90,22 @@ void main() {
       tester.getCenter(find.text('Photos')).dx,
       moreOrLessEquals(width * 3 / 4, epsilon: 0.5),
     );
+  });
+
+  testWidgets('a completed ring is Ø56 at the same thin weight', (
+    tester,
+  ) async {
+    // One thickness across the app: the done rings here and the profile's
+    // progress rings are the same weight, so a ring reads as a ring whichever
+    // screen it is standing on.
+    await pumpScreen(tester);
+    final finder = find.byType(RingDial).first;
+    final scale = figmaScale(tester.element(finder));
+    final dial = tester.widget<RingDial>(finder);
+
+    expect(dial.size, closeTo(56 * scale, 0.001));
+    expect(dial.outerStroke, closeTo(3 * scale, 0.001));
+    expect(dial.outerStroke, closeTo(thinRingStroke(dial.size), 0.001));
   });
 
   testWidgets('a task journey has no title, and names the task per band', (

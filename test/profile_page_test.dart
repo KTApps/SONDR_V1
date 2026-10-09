@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/backend.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/theme/greyscale_tokens.dart';
+import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/auth/models/profile.dart';
 import 'package:sondr/features/auth/profile_repository.dart';
 import 'package:sondr/features/photos/models/photo.dart';
@@ -16,6 +17,7 @@ import 'package:sondr/features/tasks/tasks_providers.dart';
 import 'package:sondr/features/tasks/tasks_repository.dart';
 import 'package:sondr/shared/ring/progress_ring.dart';
 import 'package:sondr/shared/ring/ring_dial.dart';
+import 'package:sondr/shared/ring/ring_metrics.dart';
 
 /// The profile page reorganised around one hero emblem.
 ///
@@ -57,18 +59,32 @@ Photo _photo(int micros) => Photo(
   storagePath: 'users/me/photos/$micros.jpg',
 );
 
-/// Drains the exceptions a Firebase-less test raises, and fails on an overflow
-/// or on anything that is not the known Firebase absence.
-void expectNoRealException(WidgetTester tester) {
+/// Swallows the one error this page cannot avoid in a unit test, and only
+/// that one.
+///
+/// The account block reads `FirebaseAuth.instance`, which throws with no
+/// Firebase initialised. It throws once per build of that block, and the page
+/// settles over several frames (the in-progress row is a ListView), so
+/// draining them afterwards is not enough — a second arriving while the first
+/// is still pending fails the test outright. Filtering it at the source
+/// leaves every OTHER error, an overflow included, failing as it should.
+void ignoreFirebaseAbsence() {
+  final previous = FlutterError.onError;
+  FlutterError.onError = (details) {
+    if (details.exception.toString().contains('No Firebase App')) return;
+    previous?.call(details);
+  };
+  addTearDown(() => FlutterError.onError = previous);
+}
+
+/// Fails if the page overflowed. Anything else real has already failed the
+/// test through [FlutterError.onError].
+void expectNoOverflow(WidgetTester tester) {
   final thrown = <Object>[];
   for (Object? e = tester.takeException(); e != null; e = tester.takeException()) {
     thrown.add(e);
   }
   expect(thrown.where((e) => e.toString().contains('overflowed')), isEmpty);
-  expect(
-    thrown.where((e) => !e.toString().contains('No Firebase App')),
-    isEmpty,
-  );
 }
 
 void main() {
@@ -128,6 +144,7 @@ void main() {
       List<Photo> recent = const [],
       Profile? profile,
     }) async {
+      ignoreFirebaseAbsence();
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -164,7 +181,106 @@ void main() {
       );
       expect(tokens.ringFillInner, const Color(0xFFADADAD));
       expect(tokens.textPrimary, const Color(0xFFFAFAFA));
-      expectNoRealException(tester);
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the hero is Ø132 with a 6 stroke and a Ø104 photo', (
+      tester,
+    ) async {
+      // Four numbers that only work together: 132 − 2×6 leaves 120, and a 104
+      // photo centred in that IS the 8 gap the reference asks for.
+      await pumpProfile(
+        tester,
+        recent: [_photo(3000)],
+        tasks: [_task('Spanish', seconds: 3600)],
+      );
+      final heroFinder = find.byType(ProgressRing).first;
+      final scale = figmaScale(tester.element(heroFinder));
+      final hero = tester.widget<ProgressRing>(heroFinder);
+
+      expect(hero.size, closeTo(132 * scale, 0.001));
+      expect(hero.stroke, closeTo(6 * scale, 0.001));
+      expect(
+        tester.getSize(find.byType(ClipOval)).height,
+        closeTo(104 * scale, 0.001),
+      );
+      // The hole left by the stroke, minus the photo, halved: the gap.
+      final gap = ((hero.size - 2 * hero.stroke!) - 104 * scale) / 2;
+      expect(gap, closeTo(8 * scale, 0.001));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('an in-progress ring is Ø56 at the thin weight', (
+      tester,
+    ) async {
+      await pumpProfile(tester, tasks: [_task('Spanish', seconds: 3600)]);
+      // The hero is first in the tree; the tile's ring follows it.
+      final tileFinder = find.byType(ProgressRing).last;
+      final scale = figmaScale(tester.element(tileFinder));
+      final ring = tester.widget<ProgressRing>(tileFinder);
+
+      expect(ring.size, closeTo(56 * scale, 0.001));
+      expect(ring.stroke, closeTo(3 * scale, 0.001));
+      expect(ring.stroke, closeTo(thinRingStroke(ring.size), 0.001));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('a nonzero ring is never empty, and never closed', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        tasks: [
+          // 12 minutes of a 20-hour band, and one minute short of 20 hours.
+          _task('Spanish', seconds: 12 * 60),
+          _task('Piano', seconds: 20 * 3600 - 60),
+        ],
+      );
+      final rings = tester
+          .widgetList<ProgressRing>(find.byType(ProgressRing))
+          .toList();
+      // Hero first, then the two tiles in order.
+      expect(rings[1].progress, kProgressFloor);
+      expect(rings[2].progress, kProgressCeiling);
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('in progress is ONE row however many tasks there are', (
+      tester,
+    ) async {
+      Finder strip() => find.byWidgetPredicate(
+        (w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+      );
+
+      await pumpProfile(
+        tester,
+        tasks: [for (var i = 0; i < 2; i++) _task('T$i', seconds: 3600)],
+      );
+      final twoTasks = tester.getSize(strip()).height;
+
+      await pumpProfile(
+        tester,
+        tasks: [for (var i = 0; i < 8; i++) _task('T$i', seconds: 3600)],
+      );
+      // Eight tasks, same height: the row grows sideways, never downward.
+      expect(tester.getSize(strip()).height, twoTasks);
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the count reads the non-archived tasks', (tester) async {
+      await pumpProfile(
+        tester,
+        tasks: [
+          _task('Spanish', seconds: 3600),
+          _task('Piano', seconds: 3600),
+          _task('Golf', seconds: 3600, archived: true),
+        ],
+      );
+      expect(find.text('2 active'), findsOneWidget);
+      expect(find.text('3 active'), findsNothing);
+      // And the archived one is not in the row either.
+      expect(find.text('Golf'), findsNothing);
+      expectNoOverflow(tester);
     });
 
     testWidgets('the subline counts down to the nearest milestone', (
@@ -172,7 +288,7 @@ void main() {
     ) async {
       await pumpProfile(tester, tasks: [_task('Spanish', seconds: 19 * 3600)]);
       expect(find.text('1h to your next milestone'), findsOneWidget);
-      expectNoRealException(tester);
+      expectNoOverflow(tester);
     });
 
     testWidgets('with no task the ring is empty and the line is neutral', (
@@ -182,7 +298,7 @@ void main() {
       expect(find.text('No task in progress.'), findsOneWidget);
       final ring = tester.widget<ProgressRing>(find.byType(ProgressRing));
       expect(ring.progress, 0);
-      expectNoRealException(tester);
+      expectNoOverflow(tester);
     });
 
     testWidgets('the handle sits in the hero', (tester) async {
@@ -193,13 +309,13 @@ void main() {
       expect(find.text('@tanaka'), findsOneWidget);
       // And is not repeated in the account block below.
       expect(find.text('Handle'), findsNothing);
-      expectNoRealException(tester);
+      expectNoOverflow(tester);
     });
 
     testWidgets('no handle yet means no faked one', (tester) async {
       await pumpProfile(tester);
       expect(find.textContaining('@'), findsNothing);
-      expectNoRealException(tester);
+      expectNoOverflow(tester);
     });
 
     testWidgets('the centre is the monogram until a photo exists', (
@@ -215,7 +331,7 @@ void main() {
       );
       expect(find.text('T'), findsOneWidget);
       expect(find.byType(ClipOval), findsNothing);
-      expectNoRealException(tester);
+      expectNoOverflow(tester);
     });
 
     testWidgets('the monogram falls back to the handle', (tester) async {
@@ -224,7 +340,7 @@ void main() {
         profile: const Profile(uid: 'me', username: 'zed', displayName: ''),
       );
       expect(find.text('Z'), findsOneWidget);
-      expectNoRealException(tester);
+      expectNoOverflow(tester);
     });
 
     testWidgets('the newest capture takes the centre once there is one', (
@@ -239,7 +355,7 @@ void main() {
       );
       expect(find.byType(ClipOval), findsOneWidget);
       expect(find.text('T'), findsNothing); // the monogram has given way
-      expectNoRealException(tester);
+      expectNoOverflow(tester);
     });
 
     testWidgets('an in-progress ring names the target it climbs to', (
@@ -259,7 +375,7 @@ void main() {
       expect(find.text('40h'), findsOneWidget);
       expect(find.text('19h'), findsNothing);
       expect(find.text('21h'), findsNothing);
-      expectNoRealException(tester);
+      expectNoOverflow(tester);
     });
 
     testWidgets('nothing is carded, and nothing wears a chevron', (
@@ -270,7 +386,7 @@ void main() {
       expect(find.byIcon(Icons.people_outline), findsNothing);
       // A filled rounded card reads as a button; the rows are bare now.
       expect(find.byType(InkWell), findsNothing);
-      expectNoRealException(tester);
+      expectNoOverflow(tester);
     });
 
     testWidgets('the sections run in order, with the account block last', (
@@ -286,7 +402,7 @@ void main() {
       expect(y('@tanaka'), lessThan(y('Friends')));
       expect(y('Friends'), lessThan(y('Milestones')));
       expect(y('Milestones'), lessThan(y('In progress')));
-      expectNoRealException(tester);
+      expectNoOverflow(tester);
     });
   });
 }

@@ -7,6 +7,7 @@ import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
+import '../../shared/ring/ring_metrics.dart';
 import '../auth/account_screen.dart';
 import '../auth/guest_prompts.dart';
 import '../auth/models/profile.dart';
@@ -145,11 +146,13 @@ class _Section extends StatelessWidget {
 class _HeroEmblem extends ConsumerWidget {
   const _HeroEmblem();
 
+  /// Ø132 outer, a 6 stroke, then an 8 gap, then the photo at Ø104 — four
+  /// numbers that only work together: 132 − 2×6 leaves a 120 hole, and a 104
+  /// photo centred in it IS the 8 gap. The photo is ≈80% of the outer
+  /// diameter, which is what stops the ring reading as a thick frame.
   static const double _ring = 132;
-
-  /// The circle inside the ring. The ring's stroke is size * 7/57 (≈16 here),
-  /// so the hole is ≈100 — this sits comfortably inside it.
-  static const double _centre = 92;
+  static const double _stroke = 6;
+  static const double _photo = 104;
 
   /// The first letter of the display name, or failing that the handle.
   /// Empty when there is neither, and then the ring simply stands alone.
@@ -184,11 +187,13 @@ class _HeroEmblem extends ConsumerWidget {
       children: [
         ProgressRing(
           size: _ring * scale,
-          // An empty grey track when there is nothing to climb.
-          progress: next?.progress ?? 0,
+          stroke: _stroke * scale,
+          // An empty grey track when there is nothing to climb, and never a
+          // closed one: see [shownProgress].
+          progress: shownProgress(next?.progress ?? 0),
           center: SizedBox(
-            width: _centre * scale,
-            height: _centre * scale,
+            width: _photo * scale,
+            height: _photo * scale,
             child: newest == null
                 ? Center(
                     child: Text(
@@ -450,10 +455,10 @@ class _MilestonesRow extends ConsumerWidget {
 /// Tasks-in-progress: one grey ring per active task, filling toward its next
 /// 20-hour mark with that mark's figure in the middle.
 ///
-/// A wrap, not the horizontal strip this used to be: that strip was a fixed
-/// height with the next column clipped at the right edge, which read as
-/// something broken rather than as something scrollable. The page scrolls now,
-/// so the rings can simply have the room.
+/// ONE row, scrolling sideways — a few rings visible and the rest a swipe
+/// away. Listing every task down the page instead is what turned this section
+/// into the bulk of a long scroll; the section's job is "what am I on", which
+/// a row answers and a grid buries.
 class _TasksInProgress extends StatelessWidget {
   const _TasksInProgress({required this.tasks});
 
@@ -468,12 +473,27 @@ class _TasksInProgress extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'In progress',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontSize: 15 * scale,
-            fontWeight: FontWeight.w700,
-          ),
+        Row(
+          children: [
+            Text(
+              'In progress',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontSize: 15 * scale,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
+            // The same set the row scrolls through: tasks not archived.
+            if (tasks.isNotEmpty)
+              Text(
+                '${tasks.length} active',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontSize: 12 * scale,
+                  fontWeight: FontWeight.w700,
+                  color: tokens.textTertiary,
+                ),
+              ),
+          ],
         ),
         SizedBox(height: kSpacingBase * scale),
         if (tasks.isEmpty)
@@ -485,10 +505,23 @@ class _TasksInProgress extends StatelessWidget {
             ),
           )
         else
-          Wrap(
-            spacing: kSpacingSection * scale,
-            runSpacing: kSpacingBase * scale,
-            children: [for (final t in tasks) _TaskTile(task: t)],
+          // One tile tall whatever the task count — the row grows sideways,
+          // never downward. A scroll view around a Row rather than a ListView
+          // on purpose: a ListView needs its cross-axis extent declared, and
+          // the declared number was a hair under what a 12pt line actually
+          // measures, which clipped the task names by a fraction of a pixel.
+          // This takes its height from the tiles themselves.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
+            child: Row(
+              children: [
+                for (var i = 0; i < tasks.length; i++) ...[
+                  if (i > 0) SizedBox(width: kSpacingSection * scale),
+                  _TaskTile(task: tasks[i]),
+                ],
+              ],
+            ),
           ),
       ],
     );
@@ -499,7 +532,7 @@ class _TaskTile extends StatelessWidget {
   const _TaskTile({required this.task});
   final Task task;
 
-  static const double ringSize = 72;
+  static const double ringSize = 56;
   static const double labelGap = 8;
   static const double width = 84;
 
@@ -524,9 +557,12 @@ class _TaskTile extends StatelessWidget {
         children: [
           ProgressRing(
             size: ringSize * scale,
+            stroke: thinRingStroke(ringSize * scale),
             // Progress through the CURRENT 20h block, so the ring keeps
-            // climbing toward the next milestone rather than pinning full.
-            progress: task.milestoneProgress,
+            // climbing toward the next milestone rather than pinning full —
+            // and clamped, so a first session shows and a last hour doesn't
+            // read as finished.
+            progress: shownProgress(task.milestoneProgress),
             // The TARGET, not the total: the figure names the thing the ring
             // is filling toward, which is what the ring is about. Lifetime
             // hours are up in the figures at the top of the page.

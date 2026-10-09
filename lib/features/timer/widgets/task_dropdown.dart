@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/utils/figma_scale.dart';
+import '../../../shared/ring/ring_metrics.dart';
 import '../../../shared/sondr_swipe_row.dart';
 import '../../tasks/models/task.dart';
 import '../../tasks/tasks_providers.dart';
@@ -311,7 +312,6 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                             scale: scale,
                             label: task.name,
                             progress: task.milestoneProgress,
-                            started: task.totalSeconds >= 60,
                             selected: task.id == selectedId,
                             // An archived pill is a record, not a choice —
                             // tapping it must not put you back on it. Bring it
@@ -413,10 +413,11 @@ class _PillTrayAction extends StatelessWidget {
 /// lighter-grey fill sweeps from the left over a darker remainder, in proportion
 /// to [progress] (0..1) through the current 20-hour block — the same measure
 /// the profile rings use, so a filled bar means the same thing everywhere.
-/// Empty = all dark, complete = all light; it resets on each milestone and
-/// climbs again toward the next. Once [started] (a minute or more logged) the fill is
-/// never narrower than a thin sliver, so a little time never reads as
-/// none. The filled left end is rounded by the pill; the
+/// Empty = all dark; it resets on each milestone and climbs again toward the
+/// next. The fill is drawn through [shownProgress], the same clamp the rings
+/// use, so any time at all shows a nub and a nearly-finished band keeps a
+/// visible gap — a bar that filled to the end would claim a milestone the
+/// task has not reached. The filled left end is rounded by the pill; the
 /// filled/unfilled boundary is a clean vertical edge. Name centred, Inter bold
 /// 12, white. Pure greyscale — fill and remainder are a brightness step apart.
 class _TaskPill extends StatelessWidget {
@@ -424,22 +425,17 @@ class _TaskPill extends StatelessWidget {
     required this.scale,
     required this.label,
     required this.progress,
-    required this.started,
     required this.selected,
     required this.onTap,
   });
 
   static const double _height = 28;
 
-  /// Narrowest fill once [started]: a thin sliver of the rounded left end.
-  static const double _minFill = 8;
-
   /// Figma-reference scale, so pills grow with the panel around them.
   final double scale;
 
   final String label;
   final double progress;
-  final bool started;
   final bool selected;
 
   /// Null on an archived row — a record, not a choice.
@@ -450,6 +446,7 @@ class _TaskPill extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final height = _height * scale;
+    final shown = shownProgress(progress);
     final remainder = Color.lerp(tokens.surface, tokens.ringTrack, 0.5)!;
     final fill = Color.lerp(tokens.ringTrack, tokens.ringFillInner, 0.35)!;
     final nameStyle = (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
@@ -469,13 +466,10 @@ class _TaskPill extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               ColoredBox(color: remainder),
-              if (started || progress > 0)
+              if (shown > 0)
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final full = constraints.maxWidth;
-                    var width = full * progress.clamp(0.0, 1.0);
-                    final minFill = _minFill * scale;
-                    if (started && width < minFill) width = minFill;
+                    final width = constraints.maxWidth * shown;
                     return Align(
                       alignment: Alignment.centerLeft,
                       child: SizedBox(

@@ -27,6 +27,7 @@ class SharePostCaptionScreen extends ConsumerStatefulWidget {
     super.key,
     required this.preview,
     required this.onSubmit,
+    required this.hasPhoto,
     this.submitLabel = 'Create',
     this.submitBusyLabel = 'Creating…',
   });
@@ -34,6 +35,12 @@ class SharePostCaptionScreen extends ConsumerStatefulWidget {
   final Widget preview;
   final String submitLabel;
   final String submitBusyLabel;
+
+  /// Whether a photo is actually in hand — captured and kept, or picked from
+  /// the band. Decides what leaving without posting is CALLED: with a photo
+  /// it is "Keep" (it is already yours), without one there is nothing to
+  /// keep and it is merely "Not now".
+  final bool hasPhoto;
 
   /// Does the actual post creation with the entered [caption] (null when blank).
   /// Given the screen's own [ref]. Throwing surfaces a generic error toast.
@@ -55,6 +62,14 @@ class _SharePostCaptionScreenState
     _caption.dispose();
     super.dispose();
   }
+
+  /// Leave without posting.
+  ///
+  /// Writes nothing, deliberately: a kept photo already saved to the task's
+  /// private gallery inside showPhotoCapture, and the session was logged
+  /// before this screen existed. Sharing to the feed is the only thing this
+  /// screen adds, so declining it just closes the flow.
+  void _exit() => Navigator.of(context).popUntil((r) => r.isFirst);
 
   Future<void> _submit() async {
     setState(() => _busy = true);
@@ -112,6 +127,14 @@ class _SharePostCaptionScreenState
                         minLines: 1,
                         maxLength: 200,
                         textCapitalization: TextCapitalization.sentences,
+                        // Return puts the keyboard away rather than adding a
+                        // line. The field still SOFT-wraps to its three lines
+                        // as the text runs on; what it no longer does is take
+                        // a hard newline from the key — a caption is a
+                        // sentence, and the key you reach for to finish
+                        // typing should finish typing.
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => FocusScope.of(context).unfocus(),
                         style: theme.textTheme.bodyLarge,
                         decoration: InputDecoration(
                           hintText: 'Add a caption (optional)',
@@ -135,6 +158,17 @@ class _SharePostCaptionScreenState
                 SondrError(_error!, textAlign: TextAlign.center),
                 const SizedBox(height: 12),
               ],
+              // Above Share, as asked. NOTE this puts the supporting action
+              // ON TOP of the primary, which inverts every other pair in the
+              // app (delete-blur, the guest landing, keep/retake all lead
+              // with the white one). Swapping the two lines flips it back.
+              Center(
+                child: SondrAction(
+                  label: widget.hasPhoto ? 'Keep' : 'Not now',
+                  supporting: true,
+                  onPressed: _busy ? null : _exit,
+                ),
+              ),
               SharePrimaryButton(
                 label: widget.submitLabel,
                 busyLabel: widget.submitBusyLabel,

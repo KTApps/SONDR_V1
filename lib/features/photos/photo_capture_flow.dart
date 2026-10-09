@@ -13,8 +13,17 @@ import 'models/photo.dart';
 import 'photo_picker.dart';
 import 'photos_repository.dart';
 
+/// A kept capture: the local [file] the share flows preview and upload, and the
+/// [photoId] of the gallery document it was just saved as.
+///
+/// The id travels with the file because a share needs to tag its SOURCE photo,
+/// and the only place that id exists is the moment of the save — it is derived
+/// from the capture's own microsecond, so nothing downstream could recompute
+/// it.
+typedef KeptCapture = ({File file, String photoId});
+
 /// Show the optional end-of-session photo capture as a full-screen moment, over
-/// the home dial. Resolves to the kept photo's [File] (or null if the user
+/// the home dial. Resolves to the [KeptCapture] (or null if the user
 /// skipped/dismissed) — an ordinary stop ignores it and lands back on home,
 /// while the share flows carry the kept file forward to pre-select it.
 ///
@@ -22,7 +31,7 @@ import 'photos_repository.dart';
 ///
 /// Only call this when a task was actually credited ([taskId] non-null upstream)
 /// and the session logged time — a photo must never exist without a task.
-Future<File?> showPhotoCapture(
+Future<KeptCapture?> showPhotoCapture(
   BuildContext context, {
   required String taskId,
   required String taskName,
@@ -30,7 +39,7 @@ Future<File?> showPhotoCapture(
   int? milestoneHours,
   int? cumulativeSeconds,
 }) {
-  return Navigator.of(context).push<File>(
+  return Navigator.of(context).push<KeptCapture>(
     PageRouteBuilder(
       opaque: true,
       transitionDuration: const Duration(milliseconds: 280),
@@ -114,9 +123,10 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
         ),
       );
       if (!mounted) return;
-      // Return the kept file so the milestone flow can carry it forward
-      // (pre-selected in the share picker). Ordinary stops ignore it.
-      Navigator.of(context).pop(_photo);
+      // Return the kept file AND the id it was saved under, so the milestone
+      // flow can carry it forward (pre-selected in the share picker) and tag
+      // the gallery original if it gets posted. Ordinary stops ignore both.
+      Navigator.of(context).pop((file: _photo!, photoId: photoId));
     } catch (e) {
       debugPrint('SONDR photo save error: $e');
       if (mounted) {

@@ -107,3 +107,37 @@ final collagePhotosProvider =
   final ids = [for (final s in idsCsv.split(',')) if (s.isNotEmpty) s];
   return repo.photosByIds(ids);
 });
+
+/// Every photo in one task's milestone band, chronological and uncapped —
+/// the stretch itself, before any curation. Keyed "taskId|hours" rather than
+/// a record so the family key is a plain stable value, matching
+/// [collagePhotosProvider]'s csv key.
+///
+/// A band with no stored [Collage] still has photos; this is what the journey
+/// shows for it.
+final bandPhotosProvider =
+    FutureProvider.family.autoDispose<List<Photo>, String>((ref, key) async {
+  final repo = ref.watch(photosRepositoryProvider);
+  if (repo == null) return const [];
+  final parts = key.split('|');
+  if (parts.length != 2) return const [];
+  final hours = int.tryParse(parts[1]);
+  if (hours == null) return const [];
+  return repo.photosForBand(parts[0], hours);
+});
+
+/// Every photo a task has that belongs to a REACHED band, newest band first.
+/// Backs the task row's photo count and its representative thumbnail.
+/// Photos with a null cumulativeSeconds are unassignable and excluded, the
+/// same rule the bands themselves use.
+final taskBandPhotosProvider =
+    FutureProvider.family.autoDispose<List<Photo>, String>((ref, taskId) async {
+  final repo = ref.watch(photosRepositoryProvider);
+  if (repo == null) return const [];
+  final all = await repo.photosForTask(taskId);
+  final assignable = [
+    for (final p in all)
+      if (p.cumulativeSeconds != null) p,
+  ]..sort((a, b) => b.cumulativeSeconds!.compareTo(a.cumulativeSeconds!));
+  return assignable;
+});

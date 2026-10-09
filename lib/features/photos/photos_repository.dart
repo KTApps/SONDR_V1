@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -108,6 +109,24 @@ class PhotosRepository {
     return byDay;
   }
 
+  /// Tag [ids] as having been posted to the feed, in one batch.
+  ///
+  /// Additive: it writes only `sharedAt`, so nothing else on the doc can be
+  /// disturbed by a share. The owner's own `users/{uid}/**` write rule already
+  /// covers it — no rules change was needed. A batch rather than N updates so
+  /// the whole tag is one round trip and one failure mode; a doc that has since
+  /// been deleted fails the batch, and the caller swallows that (see
+  /// [tagShared]).
+  Future<void> markShared(Iterable<String> ids) async {
+    if (ids.isEmpty) return;
+    final when = DateTime.now().microsecondsSinceEpoch;
+    final batch = db.batch();
+    for (final id in ids) {
+      batch.update(_col.doc(id), {'sharedAt': when});
+    }
+    await batch.commit();
+  }
+
   /// Remove a photo entirely — both the Firestore doc and its Storage binary.
   /// The doc is deleted first so the photo disappears from every surface at
   /// once; the binary is then deleted best-effort (a missing object is fine). If
@@ -131,6 +150,15 @@ class PhotosRepository {
         .limit(limit)
         .get();
     return [for (final d in snap.docs) Photo.fromMap(d.data())];
+  }
+
+  /// When the user's first photo was taken, or null when there are none. A
+  /// single doc off the ascending `timestamp` index — no collection scan. Backs
+  /// the gallery's month range: how far back there is anything to show.
+  Future<DateTime?> earliestPhotoTime() async {
+    final snap = await _col.orderBy('timestamp').limit(1).get();
+    if (snap.docs.isEmpty) return null;
+    return Photo.fromMap(snap.docs.first.data()).capturedAt;
   }
 
   /// Total number of photos, via an aggregation query (doesn't read the docs).
@@ -181,6 +209,24 @@ class PhotosRepository {
   }
 }
 
+/// Tag the gallery photos a post was made from as shared — **best effort**.
+///
+/// Call this only once the post itself is written, and never let it speak up:
+/// everything is swallowed. By this point the share has succeeded, and the tag
+/// is a nicety on top of it — offline, a rules change, a photo deleted since
+/// it was picked, no photo store at all on the local backend. None of those
+/// may turn a post that worked into an error the user sees.
+///
+/// The cost of swallowing is a share that shows no tag. That is the right way
+/// round: the field is decoration on a record the feed already holds.
+Future<void> tagShared(WidgetRef ref, Iterable<String> photoIds) async {
+  try {
+    await ref.read(photosRepositoryProvider)?.markShared(photoIds);
+  } catch (e) {
+    debugPrint('SONDR shared-tag skipped: $e');
+  }
+}
+
 /// The private photo store, or null on the local/offline backend or before a uid
 /// exists — mirrors [postsRepositoryProvider].
 final photosRepositoryProvider = Provider<PhotosRepository?>((ref) {
@@ -211,6 +257,18 @@ final photosForMonthProvider = FutureProvider.family
       return repo.photosForMonth(
         DateTime(int.parse(parts[0]), int.parse(parts[1])),
       );
+    });
+
+/// The month the user's first photo falls in, or null when there are none.
+/// The gallery walks months back from today to this one, asking
+/// [photosForMonthProvider] for each — so this is what stops the walk. One doc
+/// read; autoDispose so a first-ever capture is picked up on re-entry.
+final earliestPhotoMonthProvider =
+    FutureProvider.autoDispose<DateTime?>((ref) async {
+      final repo = ref.watch(photosRepositoryProvider);
+      if (repo == null) return null;
+      final when = await repo.earliestPhotoTime();
+      return when == null ? null : DateTime(when.year, when.month);
     });
 
 /// The profile gallery doorway preview: the few most recent photos plus the

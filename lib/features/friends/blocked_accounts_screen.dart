@@ -57,9 +57,20 @@ class _BlockedAccountsScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // The word is gone, the space it occupied is not. Kept as a
+            // maintained-size Visibility rather than a hand-measured
+            // SizedBox so the gap stays exactly one header tall even if the
+            // header's type changes — the list and the pinned Back below do
+            // not move by a pixel.
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24 * scale),
-              child: const SondrHeader(title: 'Blocked'),
+              child: const Visibility(
+                visible: false,
+                maintainSize: true,
+                maintainAnimation: true,
+                maintainState: true,
+                child: SondrHeader(title: 'Blocked'),
+              ),
             ),
             SizedBox(height: kSpacingSection * scale),
             Expanded(

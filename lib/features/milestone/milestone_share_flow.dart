@@ -9,6 +9,7 @@ import '../../shared/ring/progress_ring.dart';
 import '../feed/models/post.dart';
 import '../feed/posts_repository.dart';
 import '../photos/models/photo.dart';
+import '../photos/photos_repository.dart';
 import 'share_caption_screen.dart';
 
 /// The band photos selected for the post, in pool order (chronological). Pure —
@@ -32,6 +33,7 @@ class ShareMilestoneScreen extends ConsumerStatefulWidget {
     required this.milestoneHours,
     required this.totalHours,
     required this.capturedFile,
+    required this.capturedPhotoId,
     required this.pool,
   });
 
@@ -42,6 +44,10 @@ class ShareMilestoneScreen extends ConsumerStatefulWidget {
 
   /// The just-captured photo, or null if the user skipped capture.
   final File? capturedFile;
+
+  /// The gallery document id [capturedFile] was saved as, so posting it can
+  /// tag the original. Null whenever [capturedFile] is.
+  final String? capturedPhotoId;
 
   /// This band's prior in-app captures (<=9), the pool that can be added.
   final List<Photo> pool;
@@ -70,10 +76,21 @@ class _ShareMilestoneScreenState extends ConsumerState<ShareMilestoneScreen> {
   void _continue() {
     final captured = _capturedSelected ? widget.capturedFile : null;
     final band = selectedBandInOrder(widget.pool, _selectedBand);
+    // The gallery originals behind this post: the capture (if it is still in)
+    // plus every band photo picked. Both kinds are already saved privately —
+    // posting only tags them.
+    final sourceIds = <String>[
+      if (captured != null && widget.capturedPhotoId != null)
+        widget.capturedPhotoId!,
+      for (final p in band) p.id,
+    ];
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SharePostCaptionScreen(
           submitLabel: 'Create',
+          // Either the fresh capture or a band photo counts — both are
+          // already saved privately.
+          hasPhoto: captured != null || band.isNotEmpty,
           preview: _MilestonePreview(
             milestoneHours: widget.milestoneHours,
             capturedFile: captured,
@@ -100,6 +117,9 @@ class _ShareMilestoneScreenState extends ConsumerState<ShareMilestoneScreen> {
               caption: caption,
               photos: photos,
             );
+            // The post is written. Tagging its sources is a nicety from here
+            // on and must never be able to fail the share — see [tagShared].
+            await tagShared(ref, sourceIds);
           },
         ),
       ),

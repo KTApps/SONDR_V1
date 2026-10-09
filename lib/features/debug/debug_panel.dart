@@ -12,7 +12,7 @@ import '../history/calendar_screen.dart';
 import '../history/day_detail_sheet.dart';
 import '../photos/collage_selection.dart';
 import '../photos/collages_repository.dart';
-import '../photos/collages_screen.dart';
+import '../photos/milestones_screen.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
 import '../tasks/models/task.dart';
@@ -294,7 +294,7 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
 
             _section('Quick nav'),
             _btn('Open Calendar', () => _push(const CalendarScreen())),
-            _btn('Open Collages', () => _push(const CollagesScreen())),
+            _btn('Open Collages', () => _push(const MilestonesScreen())),
             _btn(
               "Open today's day-detail",
               () => showDayDetailSheet(context, DayKey.of(DateTime.now())),

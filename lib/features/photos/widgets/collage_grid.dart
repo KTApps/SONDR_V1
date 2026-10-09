@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../shared/cached_photo.dart';
 import '../models/photo.dart';
+import 'shared_tag.dart';
 
 // Collage tint — near-raw (a celebration of the milestone, meant to be enjoyed),
 // same whisper as the day-detail Captured thumbnails via the shared matrix.
@@ -113,7 +114,12 @@ class _CollageTile extends StatelessWidget {
       ),
     );
 
-    if (!editing) return image;
+    // A photo that has been posted to the feed says so, under either mode.
+    final tile = photo.isShared
+        ? Stack(fit: StackFit.expand, children: [image, const SharedTag()])
+        : image;
+
+    if (!editing) return tile;
 
     // A marked tile can always be un-marked; an un-marked one only if it wouldn't
     // empty the collage (min 1).
@@ -123,7 +129,7 @@ class _CollageTile extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          image,
+          tile,
           if (marked)
             ClipRRect(
               borderRadius: BorderRadius.circular(radius),

@@ -10,17 +10,17 @@ import 'package:sondr/shared/ring/segmented_dial.dart';
 /// Today's habits as a full page.
 ///
 /// The dials' own weights and tones are deliberate and hand-tuned, and are not
-/// this page's business — what IS pinned here is that the page borrows the
-/// dial's done-grey rather than inventing one, and never reaches for white:
-/// white is a milestone reached, and a habit is not a milestone.
-void main() {
-  group('the tones it borrows', () {
-    test('the dial greys are the originals', () {
-      expect(kDialFilled, const Color(0xFF777777));
-      expect(kDialEmpty, const Color(0xFF232323));
-    });
+/// this page's business. What IS pinned here is the list's own ladder:
+/// completing a habit brightens its name by exactly one step — tertiary to
+/// secondary — and never reaches white, because white is a milestone reached
+/// and a habit is not one.
+const Color _secondary = Color(0xFFB0B0B0);
+const Color _tertiary = Color(0xFF6E6E6E);
+const Color _white = Color(0xFFFAFAFA);
 
-    test('the summary ring takes the dial band weight', () {
+void main() {
+  group('the summary band', () {
+    test('takes the dial band weight', () {
       // 7 on a 57 box, the compact dial proportion, at whatever size.
       expect(const HabitsRing(states: []).stroke, closeTo(44 * 7 / 57, 1e-9));
       expect(
@@ -61,7 +61,7 @@ void main() {
       expect(find.textContaining('of'), findsNothing);
     });
 
-    testWidgets('a done habit takes the dial grey, never white', (
+    testWidgets('completing a habit brightens its name one step', (
       tester,
     ) async {
       await pumpHabits(tester);
@@ -69,10 +69,12 @@ void main() {
       final done = styleOf(tester, '6AM wake');
       final notDone = styleOf(tester, 'Cold shower');
 
-      expect(done.color, kDialFilled);
-      expect(done.color, isNot(const Color(0xFFFAFAFA)));
-      expect(notDone.color, const Color(0xFFB0B0B0));
-      // The weight is what carries the change.
+      expect(notDone.color, _tertiary);
+      expect(done.color, _secondary);
+      // Up the ladder, not to the top of it, and not to the dial's fill grey.
+      expect(done.color, isNot(_white));
+      expect(done.color, isNot(const Color(0xFF777777)));
+      // The weight moves with it.
       expect(done.fontWeight, FontWeight.w700);
       expect(notDone.fontWeight, FontWeight.w400);
       // No circle, no box, no strike-through.
@@ -88,14 +90,14 @@ void main() {
 
       await tester.tap(find.text('Cold shower'));
       await tester.pumpAndSettle();
-      expect(styleOf(tester, 'Cold shower').color, kDialFilled);
+      expect(styleOf(tester, 'Cold shower').color, _secondary);
       // The summary ring IS the dial's inner band: the segment fills with the
-      // row, in the same grey.
+      // row, in the dial's own grey.
       expect(ringOf(tester).states, [true, true, true, false, false]);
 
       await tester.tap(find.text('Cold shower'));
       await tester.pumpAndSettle();
-      expect(styleOf(tester, 'Cold shower').color, const Color(0xFFB0B0B0));
+      expect(styleOf(tester, 'Cold shower').color, _tertiary);
       expect(ringOf(tester).states, [true, true, false, false, false]);
     });
 
@@ -126,7 +128,7 @@ void main() {
       expect(find.text('Add habit'), findsOneWidget);
       expect(find.text('Back'), findsOneWidget);
       for (final label in ['Add habit', 'Back']) {
-        expect(styleOf(tester, label).color, const Color(0xFFB0B0B0));
+        expect(styleOf(tester, label).color, _secondary);
       }
     });
   });

@@ -159,13 +159,13 @@ class HabitsScreen extends ConsumerWidget {
   }
 }
 
-/// One habit. The NAME is the control and the state: supporting grey and
-/// regular when it is not done, the dial's done-grey and bold when it is.
+/// One habit. The NAME is the control and the state: tertiary grey and regular
+/// while it is outstanding, secondary grey and bold once it is done.
 ///
-/// Done is a DIMMER grey than undone rather than a brighter one — the same
-/// direction the old list took when it crossed a habit off — and it is not
-/// white because white is a milestone reached, which a habit is not. The
-/// WEIGHT is what carries the change, with the tone following it.
+/// Completing it brightens the name by exactly one step on the ladder, which
+/// is the whole move — no white, because white is a milestone reached and a
+/// habit is not one, and no jump to the dial's fill grey, which is pitched for
+/// a thin arc rather than for a word you have to read.
 ///
 /// No circle, no checkbox, no strike-through. A checkbox is a second thing to
 /// read on a row that already says everything, and a struck-out name reads as
@@ -197,10 +197,12 @@ class _HabitRow extends ConsumerWidget {
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontSize: 15 * scale,
                   fontWeight: tick.done ? FontWeight.w700 : FontWeight.w400,
-                  // The dial's own done-grey, taken from one place so the row
-                  // and the ring beside it say the same thing. NOT white:
-                  // white belongs to a milestone reached and nothing else.
-                  color: tick.done ? kDialFilled : tokens.textSecondary,
+                  // One step UP the ladder on completion: tertiary while it is
+                  // outstanding, secondary once it is done. Never white —
+                  // white is a milestone reached, and never the dial's fill
+                  // grey either, which is a tone for a 3pt arc rather than for
+                  // a name you have to read.
+                  color: tick.done ? tokens.textSecondary : tokens.textTertiary,
                 ),
               ),
             ),

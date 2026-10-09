@@ -2,14 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// The dial's recorded/filled tone. Public because the habits list renders a
-/// completed habit in exactly this grey — one source, so the ring and the row
-/// cannot drift apart.
-const Color kDialFilled = Color(0xFF777777);
-
-/// The dial's empty/no-data tone.
-const Color kDialEmpty = Color(0xFF232323);
-
 /// The home dial's data-driven dual ring (segmented, pure greyscale).
 ///
 /// Distinct from [RingDial] (now used only by the feed's photo milestone
@@ -75,8 +67,8 @@ class SegmentedDial extends StatelessWidget {
   final VoidCallback? onInnerRingTap;
 
   // Exact Figma values: recorded/filled and empty/no-data.
-  static const Color _filled = kDialFilled;
-  static const Color _empty = kDialEmpty;
+  static const Color _filled = Color(0xFF777777);
+  static const Color _empty = Color(0xFF232323);
 
   // Both proportion sets scale fully with the box, so stroke, gap and slit all
   // shrink together and the circles look proportionally identical at any size:
@@ -272,10 +264,10 @@ class _SegmentedDialPainter extends CustomPainter {
 /// The dial's habits band on its own, for a header that wants the summary
 /// without the dial around it.
 ///
-/// Same construction, same painter and the same two greys as [SegmentedDial]'s
-/// inner band — a done habit is [kDialFilled], an undone one [kDialEmpty] — so
-/// the summary and the dial can never disagree. It takes the dial's compact
-/// band weight for the same reason.
+/// Same construction, same painter and the very same two greys as
+/// [SegmentedDial]'s inner band — it reads the dial's own constants, so the
+/// summary and the dial can never disagree. It takes the dial's compact band
+/// weight for the same reason.
 class HabitsRing extends StatelessWidget {
   const HabitsRing({super.key, required this.states, this.size = 44});
 
@@ -290,11 +282,11 @@ class HabitsRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final data = states.isEmpty
-        ? const _RingData([_Seg(1, kDialEmpty)], slits: false)
+        ? const _RingData([_Seg(1, SegmentedDial._empty)], slits: false)
         : _RingData(
             [
               for (final done in states)
-                _Seg(1, done ? kDialFilled : kDialEmpty),
+                _Seg(1, done ? SegmentedDial._filled : SegmentedDial._empty),
             ],
             slits: true,
           );

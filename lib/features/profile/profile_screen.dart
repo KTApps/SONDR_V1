@@ -104,12 +104,20 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-/// A section break: one hairline with the same gap either side.
+/// A section break: one hairline, closer to what came before it than to what
+/// comes after.
 ///
 /// Sections are borderless — no cards, no fills, nothing that signals
 /// "tappable" around something that isn't — so the only thing between them is
-/// a single track-toned line. Every break is identical, which is what keeps
-/// one rhythm from the hero to the account block.
+/// a single track-toned line.
+///
+/// The gaps are deliberately NOT equal. 12 above the line and 24 below it
+/// means a heading has more space over it than under it, so it hugs the
+/// content it introduces instead of floating between two sections; a break
+/// that was 24 either way read as a divider belonging to neither. It also
+/// gives the page back 48, which is the difference between one screen and a
+/// scroll on most devices. Every break is identical, which is what keeps one
+/// rhythm from the hero to the account block.
 class _Section extends StatelessWidget {
   const _Section({required this.child});
 
@@ -118,14 +126,14 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
-    final gap = kSpacingSection * figmaScale(context);
+    final scale = figmaScale(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(height: gap),
+        SizedBox(height: kSpacingBase * scale),
         // Unscaled: a hairline is a hairline at every screen size.
         SizedBox(height: 1, child: ColoredBox(color: tokens.ringTrack)),
-        SizedBox(height: gap),
+        SizedBox(height: kSpacingSection * scale),
         child,
       ],
     );

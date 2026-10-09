@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/backend.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/theme/greyscale_tokens.dart';
+import 'package:sondr/core/theme/spacing.dart';
 import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/auth/models/profile.dart';
 import 'package:sondr/features/auth/profile_repository.dart';
@@ -386,6 +387,38 @@ void main() {
       expect(find.byIcon(Icons.people_outline), findsNothing);
       // A filled rounded card reads as a button; the rows are bare now.
       expect(find.byType(InkWell), findsNothing);
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('a section break sits closer to what it follows', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        tasks: [_task('Spanish', seconds: 3600)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+      );
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+      final hairlines = find.byWidgetPredicate(
+        (w) => w is SizedBox && w.height == 1,
+      );
+      // Friends, Milestones, In progress, Account.
+      expect(hairlines, findsNWidgets(4));
+
+      // The first break: the stats row above it ('day streak' is the middle
+      // stat's label, and the three stat columns are the same height), and
+      // "Friends" below.
+      final line = hairlines.first;
+      final above =
+          tester.getTopLeft(line).dy - tester.getBottomLeft(find.text('day streak')).dy;
+      final below =
+          tester.getTopLeft(find.text('Friends')).dy -
+          tester.getBottomLeft(line).dy;
+
+      // Asymmetric on purpose: the heading hugs the content it introduces.
+      expect(above, closeTo(kSpacingBase * scale, 0.01));
+      expect(below, closeTo(kSpacingSection * scale, 0.01));
+      expect(above, lessThan(below));
       expectNoOverflow(tester);
     });
 

@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
+import '../../shared/home_metrics.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../auth/account_screen.dart';
 import '../auth/guest_prompts.dart';
 import '../auth/models/profile.dart';
+import '../auth/handle_screen.dart';
 import '../auth/profile_repository.dart';
-import '../debug/debug_panel.dart';
 import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
@@ -31,15 +31,19 @@ import 'profile_providers.dart';
 const double _kPhotoSaturation = 0.85;
 const Color _kPhotoTint = Color(0x1A000000);
 
-/// The Profile tab: who you are, then what you are climbing toward.
+/// The Profile tab, laid on Home's skeleton.
 ///
-/// One hero emblem — a grey progress ring with your newest capture at its
-/// centre — then the handle, the three figures, and the rest of the page as
-/// borderless sections at one rhythm. The account block is the last of those
-/// sections rather than something pinned to the bottom of the screen, which is
-/// what left a dead void above it when the content above was short.
+/// The title, the hero band, the supporting line and the first full-width
+/// block sit on Home's exact vertical lines (see
+/// [lib/shared/home_metrics.dart]) — the handle where the task selector is,
+/// the emblem in the dial's band at the dial's diameter, the next-milestone
+/// line where the collective hint is, the totals where "Last 10 days" starts.
+/// Moving between the two tabs should read as one page changing its contents
+/// rather than two pages that happen to be adjacent.
 ///
-/// NOT a photo grid.
+/// It scrolls, and only just: the content down to the in-progress row fills
+/// the first screen and the account block sits below the fold, a short pull
+/// away. NOT a photo grid.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -51,121 +55,139 @@ class ProfileScreen extends ConsumerWidget {
     // Active only: an archived task is not something you are in the middle of.
     final tasks = ref.watch(activeTasksProvider);
     final scale = figmaScale(context);
+    final gap = SizedBox(height: kSpacingBase * scale);
 
     return Scaffold(
-      // No AppBar — the redundant "Profile" title is removed (matches Feed).
-      body: SafeArea(
-        child: SingleChildScrollView(
-          // Clamping, not bouncing. The page runs past the viewport now, so it
-          // genuinely scrolls; on a short page (a new account with no tasks)
-          // iOS's bounce made the whole thing feel loose and unanchored, which
-          // is why this page refused a scroll view at all before.
-          physics: const ClampingScrollPhysics(),
-          child: Padding(
-            // The page's own edge: 12 top and bottom, not 24. The section
-            // breaks below carry the page's rhythm, and the first and last of
-            // them were being doubled up on by a full section gap against the
-            // screen edge — which is the 24 that kept the page off one screen.
-            // The 24 gutter either side is untouched.
-            padding: EdgeInsets.symmetric(
-              horizontal: 24 * scale,
-              vertical: kSpacingBase * scale,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _HeroEmblem(),
-                SizedBox(height: kSpacingSection * scale),
-                _EffortSummary(
-                  lifetime: lifetime,
-                  streak: streak,
-                  milestones: milestones,
-                ),
-                const _Section(child: _FriendsRow()),
-                const _Section(child: _MilestonesRow()),
-                _Section(child: _TasksInProgress(tasks: tasks)),
-                // QA-only entry — const-false in release builds, so this whole
-                // branch (and DebugPanel, referenced only here) tree-shakes
-                // out. Not a section: no hairline earns it.
-                if (kDebugTools) ...[
-                  SizedBox(height: kSpacingSection * scale),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const DebugPanel()),
-                      ),
-                      child: const Text('DEBUG PANEL'),
-                    ),
+      // No AppBar and no SafeArea — Home has neither, and the whole point is
+      // that a y on this page is the same y on that one.
+      body: SingleChildScrollView(
+        // Clamping, not bouncing: the page runs just past the viewport, and a
+        // bounce on a page this close to fitting reads as slack.
+        physics: const ClampingScrollPhysics(),
+        child: Stack(
+          children: [
+            // The flowing half, and the Stack's sizing child: it starts on
+            // Home's block line, so everything above can be pinned over the
+            // space its top padding leaves.
+            Padding(
+              padding: EdgeInsets.only(
+                top: kHomeBlockTop * scale,
+                left: kHomeGutter * scale,
+                right: kHomeGutter * scale,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Totals(
+                    lifetime: lifetime,
+                    streak: streak,
+                    milestones: milestones,
                   ),
+                  gap,
+                  const _MilestonesRow(),
+                  gap,
+                  const _FriendsRow(),
+                  gap,
+                  _TasksInProgress(tasks: tasks),
+                  // Below the fold from here: the account block is something
+                  // you go looking for, not something the page leads with.
+                  SizedBox(height: kSpacingSection * scale),
+                  const AccountBody(),
                 ],
-                const _Section(child: AccountBody()),
-              ],
+              ),
             ),
-          ),
+            // Home's title line.
+            Positioned(
+              top: kHomeTitleTop * scale,
+              left: 0,
+              right: 0,
+              child: const Center(child: _HandleTitle()),
+            ),
+            // Home's dial band, at the dial's diameter.
+            Positioned(
+              top: kHomeDialTop * scale,
+              left: 0,
+              right: 0,
+              child: const Center(child: _HeroEmblem()),
+            ),
+            // Home's supporting line.
+            Positioned(
+              top: kHomeSupportingTop * scale,
+              left: 0,
+              right: 0,
+              child: const Center(child: _NextMilestoneLine()),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// A section break: one hairline, closer to what came before it than to what
-/// comes after.
+/// The page's title: the person whose page it is.
 ///
-/// Sections are borderless — no cards, no fills, nothing that signals
-/// "tappable" around something that isn't — so the only thing between them is
-/// a single track-toned line.
-///
-/// The gaps are deliberately NOT equal. 12 above the line and 24 below it
-/// means a heading has more space over it than under it, so it hugs the
-/// content it introduces instead of floating between two sections; a break
-/// that was 24 either way read as a divider belonging to neither. It also
-/// gives the page back 48, which is the difference between one screen and a
-/// scroll on most devices. Every break is identical, which is what keeps one
-/// rhythm from the hero to the account block.
-class _Section extends StatelessWidget {
-  const _Section({required this.child});
-
-  final Widget child;
+/// Exactly Home's selector type and padding (20/bold, 8/4), so the two titles
+/// share a baseline rather than merely a top. With no handle set it offers to
+/// set one — the same fallback the account block used to carry alone.
+class _HandleTitle extends ConsumerWidget {
+  const _HandleTitle();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
-    final scale = figmaScale(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(height: kSpacingBase * scale),
-        // Unscaled: a hairline is a hairline at every screen size.
-        SizedBox(height: 1, child: ColoredBox(color: tokens.ringTrack)),
-        SizedBox(height: kSpacingSection * scale),
-        child,
-      ],
+    final theme = Theme.of(context);
+    final handle = ref.watch(currentProfileProvider).value?.username ?? '';
+
+    final style = theme.textTheme.titleLarge?.copyWith(
+      fontSize: 20,
+      fontWeight: FontWeight.w700,
+      color: tokens.textPrimary,
+    );
+    const padding = EdgeInsets.symmetric(
+      horizontal: kHomeTitlePadH,
+      vertical: kHomeTitlePadV,
+    );
+
+    if (handle.isEmpty) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const HandleScreen()),
+        ),
+        child: Padding(
+          padding: padding,
+          child: Text('Set your handle', style: style),
+        ),
+      );
+    }
+    return Padding(
+      padding: padding,
+      child: Text('@$handle', style: style),
     );
   }
 }
 
-/// The hero: a grey progress ring around your newest capture, your handle, and
-/// how far the nearest milestone is.
+/// The hero: a grey progress ring around your newest capture.
 ///
-/// The ring is a PROGRESS ring and so takes the progress tone
-/// ([GreyscaleTokens.ringFillInner], the same grey Home fills with). White is
-/// kept for a milestone already finished — the full rings on the Milestones
-/// page — so the two can never be confused at a glance.
+/// Sized to Home's dial so the rows beneath line up across the tabs, with its
+/// own proportions carried across rather than re-picked — the stroke and the
+/// photo keep the same share of the diameter they had at 132, which is what
+/// stops a bigger ring reading as a heavier one.
 ///
-/// The centre is the newest photo across ALL tasks, which means it changes
-/// itself as captures happen; before there is one it is your initial. The ring
-/// works from the first day either way.
+/// The ring is a PROGRESS ring and takes the progress tone
+/// ([GreyscaleTokens.ringFillInner]). White is kept for a milestone already
+/// finished, so the two can never be confused at a glance.
+///
+/// The centre is the newest photo across ALL tasks, so it changes itself as
+/// captures happen; before there is one it is your initial. The ring works
+/// from the first day either way.
 class _HeroEmblem extends ConsumerWidget {
   const _HeroEmblem();
 
-  /// Ø132 outer, a 6 stroke, then an 8 gap, then the photo at Ø104 — four
-  /// numbers that only work together: 132 − 2×6 leaves a 120 hole, and a 104
-  /// photo centred in it IS the 8 gap. The photo is ≈80% of the outer
-  /// diameter, which is what stops the ring reading as a thick frame.
-  static const double _ring = 132;
-  static const double _stroke = 6;
-  static const double _photo = 104;
+  /// The emblem's own proportions, as shares of its diameter: a 6 stroke and a
+  /// 104 photo on the 132 ring they were measured at.
+  static const double _strokeShare = 6 / 132;
+  static const double _photoShare = 104 / 132;
 
   /// The first letter of the display name, or failing that the handle.
   /// Empty when there is neither, and then the ring simply stands alone.
@@ -191,80 +213,82 @@ class _HeroEmblem extends ConsumerWidget {
         ref.watch(galleryPreviewProvider).value?.recent ?? const <Photo>[];
     final newest = recent.isEmpty ? null : recent.first;
 
-    final handle = profile?.username ?? '';
-    final subline = next == null
+    final size = kHomeDialSize * scale;
+    final photo = size * _photoShare;
+
+    return ProgressRing(
+      size: size,
+      stroke: size * _strokeShare,
+      // An empty grey track when there is nothing to climb, and never a
+      // closed one: see [shownProgress].
+      progress: shownProgress(next?.progress ?? 0),
+      center: SizedBox(
+        width: photo,
+        height: photo,
+        child: newest == null
+            ? Center(
+                child: Text(
+                  initialOf(profile),
+                  style: theme.textTheme.displayLarge?.copyWith(
+                    fontSize: 44 * scale,
+                    fontWeight: FontWeight.w700,
+                    color: tokens.textPrimary,
+                  ),
+                ),
+              )
+            : ClipOval(
+                child: SondrPhoto(
+                  url: newest.photoUrl,
+                  saturation: _kPhotoSaturation,
+                  tint: _kPhotoTint,
+                  placeholder: (_) => ColoredBox(color: tokens.surface),
+                  error: (_) => ColoredBox(color: tokens.surface),
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+/// How far the nearest milestone is.
+///
+/// The same band, type and tone as Home's collective hint, so the line lands
+/// on the same baseline there and here rather than merely in the same region.
+class _NextMilestoneLine extends ConsumerWidget {
+  const _NextMilestoneLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final next = ref.watch(nextMilestoneProvider);
+    final text = next == null
         ? 'No task in progress.'
         : '${next.hoursRemaining}h to your next milestone';
 
-    return Column(
-      children: [
-        ProgressRing(
-          size: _ring * scale,
-          stroke: _stroke * scale,
-          // An empty grey track when there is nothing to climb, and never a
-          // closed one: see [shownProgress].
-          progress: shownProgress(next?.progress ?? 0),
-          center: SizedBox(
-            width: _photo * scale,
-            height: _photo * scale,
-            child: newest == null
-                ? Center(
-                    child: Text(
-                      initialOf(profile),
-                      style: theme.textTheme.displayLarge?.copyWith(
-                        fontSize: 44 * scale,
-                        fontWeight: FontWeight.w700,
-                        color: tokens.textPrimary,
-                      ),
-                    ),
-                  )
-                : ClipOval(
-                    child: SondrPhoto(
-                      url: newest.photoUrl,
-                      saturation: _kPhotoSaturation,
-                      tint: _kPhotoTint,
-                      placeholder: (_) => ColoredBox(color: tokens.surface),
-                      error: (_) => ColoredBox(color: tokens.surface),
-                    ),
-                  ),
-          ),
-        ),
-        SizedBox(height: kSpacingBase * scale),
-        // The person, at the top of their own page at last. Omitted rather
-        // than faked when there is no handle yet — the account block below
-        // still offers to set one.
-        if (handle.isNotEmpty) ...[
-          Text(
-            '@$handle',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontSize: 20 * scale,
-              fontWeight: FontWeight.w700,
-              color: tokens.textPrimary,
-            ),
-          ),
-          SizedBox(height: kSpacingPair * scale),
-        ],
-        Text(
-          subline,
+    return SizedBox(
+      height: kHomeSupportingHeight,
+      child: Center(
+        child: Text(
+          text,
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontSize: 13 * scale,
-            color: tokens.textSecondary,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: tokens.textTertiary),
         ),
-      ],
+      ),
     );
   }
 }
 
 /// Three figures across the page — lifetime hours, current streak, milestones
-/// reached. Brightness, not colour, carries the emphasis.
+/// reached — sitting where Home's "Last 10 days" heading sits, at that
+/// heading's size. Brightness, not colour, carries the emphasis.
 ///
 /// No box and nothing drawn between them: equal thirds of the page's width is
 /// air enough to read as three figures rather than one, which is the job a
 /// rule would otherwise do (DESIGN.md).
-class _EffortSummary extends StatelessWidget {
-  const _EffortSummary({
+class _Totals extends StatelessWidget {
+  const _Totals({
     required this.lifetime,
     required this.streak,
     required this.milestones,
@@ -279,6 +303,10 @@ class _EffortSummary extends StatelessWidget {
     final hours = (lifetime.inMinutes / 60).round();
 
     return Row(
+      // Tops, not centres: a label that wraps to two lines would otherwise
+      // push its own figure down and drag the other two up with it, and the
+      // figures are the thing that has to sit on Home's line.
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: _Stat(value: '$hours', label: hours == 1 ? 'hour' : 'hours'),
@@ -304,21 +332,26 @@ class _Stat extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
+    final scale = figmaScale(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Home's "Last 10 days" heading size, so the two blocks read as the
+        // same rung of the page rather than one shouting over the other.
         Text(
           value,
-          style: theme.textTheme.headlineMedium?.copyWith(
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: 20 * scale,
+            fontWeight: FontWeight.w700,
             color: tokens.textPrimary,
-            fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: kSpacingPair * scale),
         Text(
           label,
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontSize: 12 * scale,
             color: tokens.textTertiary,
           ),
         ),

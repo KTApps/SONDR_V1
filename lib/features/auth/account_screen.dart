@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../shared/sondr_action.dart';
 import '../../shared/sondr_loading.dart';
 import '../../core/utils/figma_scale.dart';
+import '../debug/debug_panel.dart';
 import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
 import 'auth_screen.dart';
@@ -154,13 +156,32 @@ class _SignedInView extends ConsumerWidget {
         // Both on-tier, both the tightest the 44 tap target allows, and the
         // footer no longer jumps between the two handle states.
         Center(
-          child: SondrAction(
-            // Sign-out starts a fresh guest session; AccountBody watches the
-            // auth stream and rebuilds itself into the guest view — nothing to
-            // pop now that this lives inside the Profile tab.
-            label: 'Sign out',
-            supporting: true,
-            onPressed: () => ref.read(authRepositoryProvider).signOut(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SondrAction(
+                // Sign-out starts a fresh guest session; AccountBody watches
+                // the auth stream and rebuilds itself into the guest view —
+                // nothing to pop now that this lives inside the Profile tab.
+                label: 'Sign out',
+                supporting: true,
+                onPressed: () => ref.read(authRepositoryProvider).signOut(),
+              ),
+              // QA-only, and a plain word rather than an outlined pill: a
+              // border around a dev entry made it the loudest thing in the
+              // footer. const-false in release builds, so this branch and
+              // DebugPanel both tree-shake out.
+              if (kDebugTools) ...[
+                SizedBox(width: SondrActionPair.gap * scale),
+                SondrAction(
+                  label: 'Debug',
+                  supporting: true,
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const DebugPanel()),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         // The footer's own bottom margin, clearing the tab bar. The page no

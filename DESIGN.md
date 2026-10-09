@@ -206,10 +206,48 @@ zero is not shown: it tells the reader nothing and costs a number.
 The feed's like, comment, send and delete glyphs were the last icons in the
 app, and they are now text. The only glyph left anywhere is the back chevron.
 
-**The concentric ring is the signature.** Two rings — outer for tasks, inner for
-habits — one brightness step apart. It appears at hero size on Home, small in
-the "Last 10 days" cells, and as a motif elsewhere. Keep it subtle: it should
-read as the app's fingerprint, not as decoration applied on top.
+**The concentric ring is the signature.** It appears at hero size on Home, small
+in the "Last 10 days" cells, as the emblem at the top of Profile, and as a motif
+elsewhere. Keep it subtle: it should read as the app's fingerprint, not as
+decoration applied on top.
+
+**Every ring in the app shares one stroke and one fill language.** A ring that
+looked like a different pen on a different screen was the single thing that most
+gave the app away as having been built in pieces.
+
+*One stroke.* The stroke is **≈5.4% of that ring's own diameter**
+(`kThinRingStrokeRatio` in
+[`lib/shared/ring/ring_metrics.dart`](lib/shared/ring/ring_metrics.dart), stated
+as a ratio so it holds at every size — 3 on a 56 ring, 6 on the 132 hero). This
+applies to each band independently: on a two-band dial the inner band takes
+5.4% of ITS diameter, so it is proportionally as light as the outer one rather
+than heavier for being smaller.
+
+*One fill language.* Three tones, and nothing else:
+
+| Tone | Token | Means |
+|---|---|---|
+| `#ADADAD` | `ringFillInner` | in progress — time logged, a band being climbed |
+| `#FAFAFA` | `ringFillOuter` | reached — a completed milestone, a habit done today |
+| `#3A3A3A` | `ringTrack` | neither — the unfilled remainder, and a dimmed segment |
+
+Time is always grey. A day's time has no target, so it can never be "reached";
+only a thing with a finish line earns white.
+
+**A completed habit is white even though it sits inside the grey time band, and
+that is intended.** The inner band can therefore read brighter than the outer
+one. Brightness here means state, not hierarchy — this rule replaces the older
+"outer for tasks, inner for habits, one brightness step apart", which described
+the rings by their position instead of by what they are saying.
+
+*Segments are the things a ring counts.* The time band is segmented by task,
+each arc proportional to that task's hours. The habits band is one equal arc per
+habit, each filling white as that habit is done.
+
+*A progress ring is never drawn closed.* Fills go through `shownProgress`: zero
+stays an empty track, and anything above zero is clamped to 0.04–0.95, so a
+first session always shows something and a nearly-finished band always keeps a
+visible gap. A closed ring means reached, and that ring is white.
 
 ## Checklist before shipping a screen
 
@@ -222,5 +260,7 @@ read as the app's fingerprint, not as decoration applied on top.
 - One spacing unit, evenly applied
 - Type sizes from the table above
 - Tones read from `GreyscaleTokens`, nothing hardcoded
+- Rings at one stroke ratio, and filled grey for in progress / white for
+  reached
 - Every word earns its place
 - Scales with `figmaScale()` rather than fixed pixel positions

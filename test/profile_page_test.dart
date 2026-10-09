@@ -277,8 +277,9 @@ void main() {
           _task('Golf', seconds: 3600, archived: true),
         ],
       );
-      expect(find.text('2 active'), findsOneWidget);
-      expect(find.text('3 active'), findsNothing);
+      // A bare number, like the Friends and Milestones counts above it.
+      expect(find.text('2'), findsOneWidget);
+      expect(find.textContaining('active'), findsNothing);
       // And the archived one is not in the row either.
       expect(find.text('Golf'), findsNothing);
       expectNoOverflow(tester);
@@ -376,6 +377,49 @@ void main() {
       expect(find.text('40h'), findsOneWidget);
       expect(find.text('19h'), findsNothing);
       expect(find.text('21h'), findsNothing);
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the milestone count is the same figure in both places', (
+      tester,
+    ) async {
+      // 21h is one milestone, 65h is three: four in total. The totals figure
+      // and the doorway count are now the same provider, so there is one
+      // number rather than a stat and a collage tally that drift apart.
+      //
+      // Four rather than three deliberately: the local habits seed makes the
+      // day streak 3, and a figure that collides with it would pass whatever
+      // the doorway said.
+      await pumpProfile(
+        tester,
+        tasks: [
+          _task('Spanish', seconds: 21 * 3600),
+          _task('Golf', seconds: 65 * 3600),
+        ],
+      );
+      expect(find.text('milestones'), findsOneWidget); // the totals' label
+      // Twice: once as the totals figure, once as the doorway's count.
+      expect(find.text('4'), findsNWidgets(2));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('a milestone with no collage behind it still counts', (
+      tester,
+    ) async {
+      // The doorway used to count saved collages, so a milestone reached with
+      // nothing captured in its band went missing from it. There is no photo
+      // store in this test at all, so every collage is absent.
+      // Two tasks so the in-progress count is 2 and cannot be mistaken for
+      // the milestone figure.
+      await pumpProfile(
+        tester,
+        tasks: [
+          _task('Spanish', seconds: 21 * 3600),
+          _task('Piano', seconds: 3600),
+        ],
+      );
+      expect(find.text('1'), findsNWidgets(2)); // totals figure + doorway
+      expect(find.text('milestone'), findsOneWidget);
       expectNoOverflow(tester);
     });
 

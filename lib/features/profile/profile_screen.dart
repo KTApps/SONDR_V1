@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
@@ -12,7 +11,6 @@ import '../auth/account_screen.dart';
 import '../auth/guest_prompts.dart';
 import '../auth/models/profile.dart';
 import '../auth/profile_repository.dart';
-import '../debug/debug_panel.dart';
 import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
@@ -84,21 +82,9 @@ class ProfileScreen extends ConsumerWidget {
                 const _Section(child: _FriendsRow()),
                 const _Section(child: _MilestonesRow()),
                 _Section(child: _TasksInProgress(tasks: tasks)),
-                // QA-only entry — const-false in release builds, so this whole
-                // branch (and DebugPanel, referenced only here) tree-shakes
-                // out. Not a section: no hairline earns it.
-                if (kDebugTools) ...[
-                  SizedBox(height: kSpacingSection * scale),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const DebugPanel()),
-                      ),
-                      child: const Text('DEBUG PANEL'),
-                    ),
-                  ),
-                ],
+                // The QA entry lives in the account block now, as a plain
+                // word beside Sign out — a dev-only control has no business
+                // being the one outlined thing on the page.
                 const _Section(child: AccountBody()),
               ],
             ),
@@ -399,6 +385,14 @@ class _FriendsRow extends ConsumerWidget {
 ///
 /// Borderless like Friends, and it opens the page on its default lens — the
 /// row is always here, so the Photos lens is one tab away once you arrive.
+///
+/// The COUNT is [milestonesReachedProvider], the same figure the totals above
+/// show. It used to be the number of saved collages, which is a different
+/// thing: a collage is written when a milestone is crossed with photos in its
+/// band, so a milestone reached with nothing captured, or crossed before the
+/// auto-compose existed, had no collage and went uncounted. The photo strip
+/// still comes from the newest collage — that is a preview, and a preview may
+/// well have less behind it than the count.
 class _MilestonesRow extends ConsumerWidget {
   const _MilestonesRow();
 
@@ -408,10 +402,10 @@ class _MilestonesRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final scale = figmaScale(context);
 
+    final n = ref.watch(milestonesReachedProvider);
     final collages = ref.watch(collagesListProvider).value ?? const <Collage>[];
-    final n = collages.length;
     final List<Photo> strip;
-    if (n > 0) {
+    if (collages.isNotEmpty) {
       final ids = collages.first.photoIds.join(',');
       strip = ref.watch(collagePhotosProvider(ids)).value ?? const <Photo>[];
     } else {
@@ -496,10 +490,12 @@ class _TasksInProgress extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            // The same set the row scrolls through: tasks not archived.
+            // A bare number, like the counts on the Friends and Milestones
+            // rows above it. The same set the row scrolls through: tasks not
+            // archived.
             if (tasks.isNotEmpty)
               Text(
-                '${tasks.length} active',
+                '${tasks.length}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontSize: 12 * scale,
                   fontWeight: FontWeight.w700,

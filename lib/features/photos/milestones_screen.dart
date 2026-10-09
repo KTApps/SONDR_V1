@@ -284,10 +284,17 @@ class _TaskRow extends ConsumerWidget {
 
     final photos =
         ref.watch(taskBandPhotosProvider(task.id)).value ?? const <Photo>[];
-    final supporting = photos.isEmpty
-        ? '${task.wholeHours} hours · no photos'
-        : '${task.wholeHours} hours · ${photos.length} '
-            '${photos.length == 1 ? 'photo' : 'photos'}';
+    // The task's own milestones, not the app's total — the rows SUM to the
+    // figure on Profile. Counting the rows instead was the easy mistake:
+    // fourteen rows is fourteen tasks, which is not fourteen milestones.
+    //
+    // The hours are not repeated here: the ring beside this already reads
+    // "40h", and the line said the same number twice.
+    final reached = task.milestonesReached;
+    final supporting =
+        '$reached ${reached == 1 ? 'milestone' : 'milestones'} · '
+        '${photos.isEmpty ? 'no photos' : '${photos.length} '
+              '${photos.length == 1 ? 'photo' : 'photos'}'}';
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

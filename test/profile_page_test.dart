@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/backend.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/theme/greyscale_tokens.dart';
+import 'package:sondr/core/theme/spacing.dart';
 import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/auth/models/profile.dart';
 import 'package:sondr/features/auth/profile_repository.dart';
@@ -14,13 +15,9 @@ import 'package:sondr/features/profile/profile_providers.dart';
 import 'package:sondr/features/profile/profile_screen.dart';
 import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/tasks/tasks_providers.dart';
-import 'package:sondr/features/auth/account_screen.dart';
 import 'package:sondr/features/tasks/tasks_repository.dart';
 import 'package:sondr/shared/ring/progress_ring.dart';
 import 'package:sondr/shared/ring/ring_dial.dart';
-
-import 'support/app_viewport.dart';
-import 'package:sondr/shared/home_metrics.dart';
 import 'package:sondr/shared/ring/ring_metrics.dart';
 
 /// The profile page reorganised around one hero emblem.
@@ -147,7 +144,6 @@ void main() {
       List<Task> tasks = const [],
       List<Photo> recent = const [],
       Profile? profile,
-      bool inShell = false,
     }) async {
       ignoreFirebaseAbsence();
       await tester.pumpWidget(
@@ -163,44 +159,11 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.dark(),
-            // A tab screen's body is the screen minus the tab bar and the
-            // bottom inset — forget that and the fold reads 74 too generous.
-            home: inShell
-                ? Scaffold(
-                    body: const ProfileScreen(),
-                    bottomNavigationBar: const SizedBox(
-                      height: kTabBarHeight + kRefBottomInset,
-                    ),
-                  )
-                : const ProfileScreen(),
+            home: const ProfileScreen(),
           ),
         ),
       );
       await tester.pumpAndSettle();
-    }
-
-    /// The hero and the in-progress tiles are all ProgressRings; tell them
-    /// apart by diameter rather than by tree order, which the Stack reshuffled
-    /// when the flow became its sizing child.
-    ProgressRing ringOfSize(WidgetTester tester, double reference) {
-      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
-      return tester
-          .widgetList<ProgressRing>(find.byType(ProgressRing))
-          .firstWhere((r) => (r.size - reference * scale).abs() < 0.01);
-    }
-
-    Finder ringFinder(WidgetTester tester, double reference) {
-      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
-      return find.byWidgetPredicate(
-        (w) => w is ProgressRing && (w.size - reference * scale).abs() < 0.01,
-      );
-    }
-
-    Iterable<ProgressRing> ringsOfSize(WidgetTester tester, double reference) {
-      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
-      return tester
-          .widgetList<ProgressRing>(find.byType(ProgressRing))
-          .where((r) => (r.size - reference * scale).abs() < 0.01);
     }
 
     testWidgets('the hero ring is a PROGRESS ring, in the progress grey', (
@@ -222,26 +185,29 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('the hero fills Home\'s dial band, at its own proportions', (
+    testWidgets('the hero is Ø132 with a 6 stroke and a Ø104 photo', (
       tester,
     ) async {
+      // Four numbers that only work together: 132 − 2×6 leaves 120, and a 104
+      // photo centred in that IS the 8 gap the reference asks for.
       await pumpProfile(
         tester,
         recent: [_photo(3000)],
         tasks: [_task('Spanish', seconds: 3600)],
       );
-      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
-      final hero = ringOfSize(tester, kHomeDialSize);
+      final heroFinder = find.byType(ProgressRing).first;
+      final scale = figmaScale(tester.element(heroFinder));
+      final hero = tester.widget<ProgressRing>(heroFinder);
 
-      // Home's diameter, so the rows beneath line up across the tabs.
-      expect(hero.size, closeTo(kHomeDialSize * scale, 0.01));
-      // And its OWN proportions carried across from the 132 it was measured
-      // at: a 6 stroke and a 104 photo become the same shares of 260.
-      expect(hero.stroke, closeTo(kHomeDialSize * scale * 6 / 132, 0.01));
+      expect(hero.size, closeTo(132 * scale, 0.001));
+      expect(hero.stroke, closeTo(6 * scale, 0.001));
       expect(
         tester.getSize(find.byType(ClipOval)).height,
-        closeTo(kHomeDialSize * scale * 104 / 132, 0.01),
+        closeTo(104 * scale, 0.001),
       );
+      // The hole left by the stroke, minus the photo, halved: the gap.
+      final gap = ((hero.size - 2 * hero.stroke!) - 104 * scale) / 2;
+      expect(gap, closeTo(8 * scale, 0.001));
       expectNoOverflow(tester);
     });
 
@@ -249,8 +215,10 @@ void main() {
       tester,
     ) async {
       await pumpProfile(tester, tasks: [_task('Spanish', seconds: 3600)]);
-      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
-      final ring = ringOfSize(tester, 56);
+      // The hero is first in the tree; the tile's ring follows it.
+      final tileFinder = find.byType(ProgressRing).last;
+      final scale = figmaScale(tester.element(tileFinder));
+      final ring = tester.widget<ProgressRing>(tileFinder);
 
       expect(ring.size, closeTo(56 * scale, 0.001));
       expect(ring.stroke, closeTo(3 * scale, 0.001));
@@ -269,11 +237,12 @@ void main() {
           _task('Piano', seconds: 20 * 3600 - 60),
         ],
       );
-      // The two tiles, in row order.
-      final tiles = ringsOfSize(tester, 56).toList();
-      expect(tiles, hasLength(2));
-      expect(tiles[0].progress, kProgressFloor);
-      expect(tiles[1].progress, kProgressCeiling);
+      final rings = tester
+          .widgetList<ProgressRing>(find.byType(ProgressRing))
+          .toList();
+      // Hero first, then the two tiles in order.
+      expect(rings[1].progress, kProgressFloor);
+      expect(rings[2].progress, kProgressCeiling);
       expectNoOverflow(tester);
     });
 
@@ -333,7 +302,7 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('the handle is the page title', (tester) async {
+    testWidgets('the handle sits in the hero', (tester) async {
       await pumpProfile(
         tester,
         profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
@@ -344,12 +313,9 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('no handle yet offers to set one, in the title', (
-      tester,
-    ) async {
+    testWidgets('no handle yet means no faked one', (tester) async {
       await pumpProfile(tester);
       expect(find.textContaining('@'), findsNothing);
-      expect(find.text('Set your handle'), findsOneWidget);
       expectNoOverflow(tester);
     });
 
@@ -424,77 +390,51 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('the rows run in order, with the account below the fold', (
+    testWidgets('a section break sits closer to what it follows', (
       tester,
     ) async {
-      useReferenceViewport(tester);
       await pumpProfile(
         tester,
         tasks: [_task('Spanish', seconds: 3600)],
         profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
-        inShell: true,
       );
-
-      double y(String text) => tester.getTopLeft(find.text(text)).dy;
-      expect(y('@tanaka'), lessThan(y('Milestones')));
-      expect(y('Milestones'), lessThan(y('Friends')));
-      expect(y('Friends'), lessThan(y('In progress')));
-
-      // At rest the account block starts past the height a tab screen gets,
-      // so it is a short pull away rather than part of the first screen.
-      expect(
-        tester.getTopLeft(find.byType(AccountBody)).dy,
-        greaterThan(refBodyHeight()),
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+      final hairlines = find.byWidgetPredicate(
+        (w) => w is SizedBox && w.height == 1,
       );
+      // Friends, Milestones, In progress, Account.
+      expect(hairlines, findsNWidgets(4));
+
+      // The first break: the stats row above it ('day streak' is the middle
+      // stat's label, and the three stat columns are the same height), and
+      // "Friends" below.
+      final line = hairlines.first;
+      final above =
+          tester.getTopLeft(line).dy - tester.getBottomLeft(find.text('day streak')).dy;
+      final below =
+          tester.getTopLeft(find.text('Friends')).dy -
+          tester.getBottomLeft(line).dy;
+
+      // Asymmetric on purpose: the heading hugs the content it introduces.
+      expect(above, closeTo(kSpacingBase * scale, 0.01));
+      expect(below, closeTo(kSpacingSection * scale, 0.01));
+      expect(above, lessThan(below));
       expectNoOverflow(tester);
     });
 
-    testWidgets('the top block lands on Home\'s vertical lines', (
+    testWidgets('the sections run in order, with the account block last', (
       tester,
     ) async {
-      // Home reads these same constants (see lib/shared/home_metrics.dart),
-      // so landing on them IS landing on Home's lines.
-      useReferenceViewport(tester);
       await pumpProfile(
         tester,
         tasks: [_task('Spanish', seconds: 3600)],
         profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
-        inShell: true,
       );
-      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
 
-      // The title's BOX, which carries the selector's own 8/4 padding, so the
-      // text inside it shares Home's baseline and not just its top.
-      final title = find.ancestor(
-        of: find.text('@tanaka'),
-        matching: find.byType(Padding),
-      );
-      expect(
-        tester.getTopLeft(title.first).dy,
-        closeTo(kHomeTitleTop * scale, 0.01),
-      );
-      expect(
-        tester.getTopLeft(ringFinder(tester, kHomeDialSize)).dy,
-        closeTo(kHomeDialTop * scale, 0.01),
-      );
-      // The supporting BAND, the same 56 Home centres its hint inside, so the
-      // text sits on the same baseline rather than merely in the same region.
-      final band = find.ancestor(
-        of: find.text('19h to your next milestone'),
-        matching: find.byWidgetPredicate(
-          (w) => w is SizedBox && w.height == kHomeSupportingHeight,
-        ),
-      );
-      expect(
-        tester.getTopLeft(band.first).dy,
-        closeTo(kHomeSupportingTop * scale, 0.01),
-      );
-      // The totals begin where Home's "Last 10 days" heading does. One task
-      // at an hour, so the figures read 1 / 0 / 0.
-      expect(
-        tester.getTopLeft(find.text('1')).dy,
-        closeTo(kHomeBlockTop * scale, 0.01),
-      );
+      double y(String text) => tester.getTopLeft(find.text(text)).dy;
+      expect(y('@tanaka'), lessThan(y('Friends')));
+      expect(y('Friends'), lessThan(y('Milestones')));
+      expect(y('Milestones'), lessThan(y('In progress')));
       expectNoOverflow(tester);
     });
   });

@@ -85,3 +85,37 @@ final habitStreakProvider = Provider<int>((ref) {
   }
   return streak;
 });
+
+/// Consecutive days ending at YESTERDAY on which one habit was done.
+///
+/// The same semantics as [habitStreakProvider], read per habit: it looks only
+/// at frozen past days, so it is stable all day and ticking a habit now does
+/// not bump its streak until the day passes. A day the habit did not exist on,
+/// or existed and was not done, stops the count.
+///
+/// Zero is "nothing to show" — a habit added today has no streak yet, and a
+/// bare 0 beside its name would read as a score rather than as a start.
+final habitStreakForProvider = Provider.family<int, String>((ref, habitId) {
+  final state = ref.watch(habitsProvider).value;
+  if (state == null) return 0;
+
+  final now = DateTime.now();
+  var cursor = DateTime(
+    now.year,
+    now.month,
+    now.day,
+  ).subtract(const Duration(days: 1));
+  var streak = 0;
+  while (true) {
+    final record = state.days[DayKey.of(cursor)];
+    final tick = record?.ticks.where((t) => t.habitId == habitId).firstOrNull;
+    if (tick == null || !tick.done) break;
+    streak++;
+    cursor = DateTime(
+      cursor.year,
+      cursor.month,
+      cursor.day,
+    ).subtract(const Duration(days: 1));
+  }
+  return streak;
+});

@@ -33,6 +33,7 @@ class RingDial extends StatelessWidget {
     this.center,
     this.onInnerRingTap,
     this.showInnerRing = true,
+    this.outerStroke,
   });
 
   /// Per-task values for the day (e.g. seconds logged today). Order is stable
@@ -65,8 +66,16 @@ class RingDial extends StatelessWidget {
   /// only — e.g. the feed's completed-milestone ring, which carries no habits.
   final bool showInnerRing;
 
+  /// Overrides the outer ring's stroke.
+  ///
+  /// The dial's own 9% is right at hero sizes. The small rings that stand in a
+  /// row — the Milestones page's completed rings — take the app's thin weight
+  /// instead (see [thinRingStroke]), so they match the progress rings they sit
+  /// beside on other screens.
+  final double? outerStroke;
+
   // Stroke widths scale with the dial so the component looks right at any size.
-  double get _outerThickness => size * 0.090;
+  double get _outerThickness => outerStroke ?? size * 0.090;
   double get _innerThickness => size * 0.074;
 
   /// True if [p] (local to the dial) falls within the inner ring's band, with a

@@ -10,6 +10,7 @@ import '../../core/theme/spacing.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../core/utils/figma_scale.dart';
+import '../../shared/home_metrics.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../../shared/sondr_action.dart';
 import '../auth/guest_prompts.dart';
@@ -136,7 +137,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
           children: [
           // Task selector — nudged down slightly to tighten the gap to the dial.
           Positioned(
-            top: 102 * scale,
+            top: kHomeTitleTop * scale,
             left: 0,
             right: 0,
             child: Center(child: TaskDropdown()),
@@ -145,7 +146,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
           // below the open dropdown's top (146) and its bottom (412) above the
           // period dots (421), so the open dropdown fully covers it.
           Positioned(
-            top: 152 * scale,
+            top: kHomeDialTop * scale,
             left: 0,
             right: 0,
             child: Center(
@@ -153,7 +154,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
                 taskTodaySeconds: segments,
                 selectedTaskIndex: highlightIndex,
                 habitStates: habitStates,
-                size: 260 * scale,
+                size: kHomeDialSize * scale,
                 onInnerRingTap: () => showHabitsScreen(context),
                 center: GestureDetector(
                   behavior: HitTestBehavior.opaque,
@@ -183,7 +184,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
           // shorter than the filled button the gap was sized for, and this
           // centres it between the period dots and "Last 10 days".
           Positioned(
-            top: 448 * scale,
+            top: kHomeSupportingTop * scale,
             left: 0,
             right: 0,
             child: Center(
@@ -224,9 +225,9 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
           ),
           // "Last 10 days" block — Figma Y positions, shifted up with the stack.
           Positioned(
-            top: 511 * scale,
-            left: 24 * scale,
-            right: 24 * scale,
+            top: kHomeBlockTop * scale,
+            left: kHomeGutter * scale,
+            right: kHomeGutter * scale,
             child: _LastTenDays(now: now, scale: scale),
           ),
           // Dev-only milestone primer (DEBUG_TOOLS builds only; off by default).
@@ -534,7 +535,7 @@ class _CollectiveHint extends StatelessWidget {
         ? 'Pick a task to start a session'
         : 'Add a task to start tracking';
     return SizedBox(
-      height: 56,
+      height: kHomeSupportingHeight,
       child: Center(
         child: Text(
           text,

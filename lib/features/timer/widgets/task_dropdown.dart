@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/utils/figma_scale.dart';
+import '../../../shared/home_metrics.dart';
 import '../../../shared/ring/ring_metrics.dart';
 import '../../../shared/sondr_swipe_row.dart';
 import '../../tasks/models/task.dart';
@@ -56,7 +57,10 @@ class _TaskDropdownState extends ConsumerState<TaskDropdown> {
         onDoubleTap: (locked || isCollective) ? null : _snapToCollective,
         child: Container(
           key: _selectorKey,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(
+            horizontal: kHomeTitlePadH,
+            vertical: kHomeTitlePadV,
+          ),
           // The phantom left box equals the chevron + gap, so the TEXT is what
           // optically centres on screen while the chevron hangs off its right.
           child: Row(

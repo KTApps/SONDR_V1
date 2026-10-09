@@ -159,13 +159,17 @@ class HabitsScreen extends ConsumerWidget {
   }
 }
 
-/// One habit. The NAME is the control and the state: grey and regular when it
-/// is not done, white and bold when it is.
+/// One habit. The NAME is the control and the state: supporting grey and
+/// regular when it is not done, the dial's done-grey and bold when it is.
+///
+/// Done is a DIMMER grey than undone rather than a brighter one — the same
+/// direction the old list took when it crossed a habit off — and it is not
+/// white because white is a milestone reached, which a habit is not. The
+/// WEIGHT is what carries the change, with the tone following it.
 ///
 /// No circle, no checkbox, no strike-through. A checkbox is a second thing to
 /// read on a row that already says everything, and a struck-out name reads as
-/// cancelled rather than as finished — tone and weight carry it, as they do
-/// for every other piece of state in the app (DESIGN.md).
+/// cancelled rather than as finished.
 class _HabitRow extends ConsumerWidget {
   const _HabitRow({required this.tick});
 
@@ -193,7 +197,10 @@ class _HabitRow extends ConsumerWidget {
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontSize: 15 * scale,
                   fontWeight: tick.done ? FontWeight.w700 : FontWeight.w400,
-                  color: tick.done ? tokens.textPrimary : tokens.textSecondary,
+                  // The dial's own done-grey, taken from one place so the row
+                  // and the ring beside it say the same thing. NOT white:
+                  // white belongs to a milestone reached and nothing else.
+                  color: tick.done ? kDialFilled : tokens.textSecondary,
                 ),
               ),
             ),

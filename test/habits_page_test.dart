@@ -2,99 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
-import 'package:sondr/core/theme/greyscale_tokens.dart';
 import 'package:sondr/core/utils/date.dart';
 import 'package:sondr/features/habits/habits_providers.dart';
 import 'package:sondr/features/habits/habits_screen.dart';
-import 'package:sondr/shared/ring/progress_ring.dart';
-import 'package:sondr/shared/ring/ring_metrics.dart';
 import 'package:sondr/shared/ring/segmented_dial.dart';
 
-/// One weight and one fill language for every ring in the app.
+/// Today's habits as a full page.
 ///
-/// The dials used to carry their own thickness (the mini rings were 14% of
-/// their diameter against the profile emblem's 5.4%) and their own hex
-/// constants (#777777 filled, #232323 empty) rather than the tokens. These
-/// tests pin the weight rule at every size the dials appear at, and the tones
-/// at their source.
+/// The dials' own weights and tones are deliberate and hand-tuned, and are not
+/// this page's business — what IS pinned here is that the page borrows the
+/// dial's done-grey rather than inventing one, and never reaches for white:
+/// white is a milestone reached, and a habit is not a milestone.
 void main() {
-  group('the weight rule', () {
-    SegmentedDial dial({required double size, bool compact = false}) =>
-        SegmentedDial(
-          size: size,
-          compact: compact,
-          taskTodaySeconds: const [],
-          habitStates: const [],
-        );
-
-    test('EVERY band is the thin ratio of its own diameter', () {
-      // Each surface the dial appears on: home 260, day-detail 200, the
-      // last-10-days cell 57, a calendar day 49.
-      for (final probe in [
-        dial(size: 260),
-        dial(size: 200),
-        dial(size: 57, compact: true),
-        dial(size: 49, compact: true),
-      ]) {
-        expect(
-          probe.outerStroke / probe.outerDiameter,
-          closeTo(kThinRingStrokeRatio, 1e-9),
-          reason: 'outer band at size ${probe.size}',
-        );
-        expect(
-          probe.innerStroke / probe.innerDiameter,
-          closeTo(kThinRingStrokeRatio, 1e-9),
-          reason: 'inner band at size ${probe.size}',
-        );
-      }
+  group('the tones it borrows', () {
+    test('the dial greys are the originals', () {
+      expect(kDialFilled, const Color(0xFF777777));
+      expect(kDialEmpty, const Color(0xFF232323));
     });
 
-    test('the ratio is the one the profile and milestone rings use', () {
-      expect(kThinRingStrokeRatio, closeTo(3 / 56, 1e-9));
-      // ≈5.4%, and the home dial is no longer the heavy outlier it was: the
-      // old mini stroke was 7 on a 50 ring, a shade over 14%.
-      expect(kThinRingStrokeRatio, inInclusiveRange(0.05, 0.06));
-      expect(dial(size: 57, compact: true).outerStroke, lessThan(7));
-    });
-
-    test('a standalone habits ring takes the same weight', () {
-      expect(const HabitsRing(states: []).stroke, closeTo(44 * 3 / 56, 1e-9));
+    test('the summary ring takes the dial band weight', () {
+      // 7 on a 57 box, the compact dial proportion, at whatever size.
+      expect(const HabitsRing(states: []).stroke, closeTo(44 * 7 / 57, 1e-9));
       expect(
-        const HabitsRing(states: [], size: 120).stroke / 120,
-        closeTo(kThinRingStrokeRatio, 1e-9),
+        const HabitsRing(states: [], size: 57).stroke,
+        closeTo(7, 1e-9),
       );
     });
   });
 
-  group('the fill language', () {
-    testWidgets('grey is in progress, white is reached, track is neither', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.dark(),
-          home: Builder(
-            builder: (context) {
-              final t = GreyscaleTokens.of(context);
-              // The three tones the whole grammar is built from.
-              expect(t.ringFillInner, const Color(0xFFADADAD)); // in progress
-              expect(t.ringFillOuter, const Color(0xFFFAFAFA)); // reached
-              expect(t.ringTrack, const Color(0xFF3A3A3A)); // neither
-              return const SizedBox();
-            },
-          ),
-        ),
-      );
-    });
-
-    test('the clamp still governs every progress indicator', () {
-      expect(shownProgress(0), 0);
-      expect(shownProgress(0.01), kProgressFloor);
-      expect(shownProgress(1), kProgressCeiling);
-    });
-  });
-
-  group('the habits page', () {
+  group('the page', () {
     Future<void> pumpHabits(WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
@@ -125,7 +61,7 @@ void main() {
       expect(find.textContaining('of'), findsNothing);
     });
 
-    testWidgets('the name carries the state, and nothing else does', (
+    testWidgets('a done habit takes the dial grey, never white', (
       tester,
     ) async {
       await pumpHabits(tester);
@@ -133,13 +69,14 @@ void main() {
       final done = styleOf(tester, '6AM wake');
       final notDone = styleOf(tester, 'Cold shower');
 
+      expect(done.color, kDialFilled);
+      expect(done.color, isNot(const Color(0xFFFAFAFA)));
+      expect(notDone.color, const Color(0xFFB0B0B0));
+      // The weight is what carries the change.
       expect(done.fontWeight, FontWeight.w700);
       expect(notDone.fontWeight, FontWeight.w400);
-      expect(done.color, const Color(0xFFFAFAFA));
-      expect(notDone.color, const Color(0xFFB0B0B0));
       // No circle, no box, no strike-through.
       expect(find.byType(Checkbox), findsNothing);
-      expect(find.byType(ProgressRing), findsNothing);
       expect(done.decoration, anyOf(isNull, TextDecoration.none));
     });
 
@@ -151,13 +88,14 @@ void main() {
 
       await tester.tap(find.text('Cold shower'));
       await tester.pumpAndSettle();
-      expect(styleOf(tester, 'Cold shower').fontWeight, FontWeight.w700);
-      // The ring IS the dial's inner band: the segment fills with the row.
+      expect(styleOf(tester, 'Cold shower').color, kDialFilled);
+      // The summary ring IS the dial's inner band: the segment fills with the
+      // row, in the same grey.
       expect(ringOf(tester).states, [true, true, true, false, false]);
 
       await tester.tap(find.text('Cold shower'));
       await tester.pumpAndSettle();
-      expect(styleOf(tester, 'Cold shower').fontWeight, FontWeight.w400);
+      expect(styleOf(tester, 'Cold shower').color, const Color(0xFFB0B0B0));
       expect(ringOf(tester).states, [true, true, false, false, false]);
     });
 

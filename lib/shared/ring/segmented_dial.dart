@@ -2,31 +2,29 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../core/theme/greyscale_tokens.dart';
-import 'ring_metrics.dart';
+/// The dial's recorded/filled tone. Public because the habits list renders a
+/// completed habit in exactly this grey — one source, so the ring and the row
+/// cannot drift apart.
+const Color kDialFilled = Color(0xFF777777);
 
-/// The app's data-driven dual ring (segmented, pure greyscale).
+/// The dial's empty/no-data tone.
+const Color kDialEmpty = Color(0xFF232323);
+
+/// The home dial's data-driven dual ring (segmented, pure greyscale).
 ///
 /// Distinct from [RingDial] (now used only by the feed's photo milestone
-/// card): this one renders a day's live state as discrete segments cut by
-/// slits.
+/// card): this one renders today's live state as discrete segments cut by
+/// slits, per the Figma.
 ///
-///  * **Outer ring** = that day's time split across tasks. One segment per
-///    task with time, arc length proportional to that time, in the PROGRESS
-///    tone. One task → a full solid ring (no slit); no tasks → an empty track.
-///    When a specific task is selected, its segment keeps the fill and the
-///    rest drop to the track tone.
-///  * **Inner ring** = that day's habits. One EQUAL segment per defined habit
-///    (slits always present), filled WHITE when that habit is done and left as
-///    track when it is not.
+///  * **Outer ring** = today's time split across tasks. One segment per task
+///    with time today, arc length proportional to that time. One task → a full
+///    solid ring (no slit); no tasks → a full empty ring (no slit). When a
+///    specific task is selected, its segment is filled and the rest dimmed.
+///  * **Inner ring** = today's habits. One segment per *defined* habit (slits
+///    always present), filled if completed today, empty if not.
 ///
-/// The two tones are the whole grammar: grey is in progress, white is reached.
-/// A day's time is never "reached" — there is no target — so the outer ring is
-/// always grey; a habit is binary, so it is always white or nothing.
-///
-/// Every band is stroked at [kThinRingStrokeRatio] of ITS OWN diameter, which
-/// is what makes this dial the same pen as the profile emblem and the
-/// Milestones rings at any size.
+/// Dimensions follow the Figma proportionally (outer 290 / inner 220 / stroke
+/// 20 / slit 5, scaled to [size]).
 class SegmentedDial extends StatelessWidget {
   const SegmentedDial({
     super.key,
@@ -35,89 +33,84 @@ class SegmentedDial extends StatelessWidget {
     required this.habitStates,
     this.size = 260,
     this.compact = false,
+    this.stroke,
     this.center,
     this.fill,
     this.onInnerRingTap,
   });
 
-  /// Seconds logged on the day per task, in stable task order (zeros included).
+  /// Seconds logged today per task, in stable task order (zeros included).
   final List<double> taskTodaySeconds;
 
   /// Index into [taskTodaySeconds] of the selected task, or null for the
   /// collective ("all tasks") view.
   final int? selectedTaskIndex;
 
-  /// Completion state of each *defined* habit that day (one entry per habit).
+  /// Completion state of each *defined* habit today (one entry per habit).
   final List<bool> habitStates;
 
   /// Overall diameter of the dial box.
   final double size;
 
   /// Use the smaller-circle proportions (Last-10-days / calendar minis): a
-  /// tighter inner ring per the Figma mini (outer 50 / inner 28, extent 57).
-  /// False → the main dial proportions.
+  /// heavier stroke and a tighter inner ring per the Figma mini (outer 50 /
+  /// inner 28 / stroke 7, extent 57). False → the main dial proportions.
   final bool compact;
+
+  /// Optional explicit stroke weight, overriding the proportional value. Used
+  /// to fine-tune one surface (e.g. slightly thinner calendar rings) without
+  /// affecting the others. Gap and slit stay proportional.
+  final double? stroke;
 
   /// Centre content (the screen owns the today/month figure and its gestures).
   final Widget? center;
 
-  /// Optional content composited inside the outer ring — circular-cropped to
-  /// the ring's inner diameter and layered between the rings and [center].
-  /// Used by the calendar to show a day's photo inside its effort ring.
+  /// Optional content composited inside the outer ring — circular-cropped to the
+  /// ring's inner diameter and layered between the rings and [center]. Used by
+  /// the calendar to show a day's photo inside its effort ring (the photo covers
+  /// the inner habit ring, which lives in day-detail instead).
   final Widget? fill;
 
   /// Tapped on the inner (habit) ring band.
   final VoidCallback? onInnerRingTap;
 
-  // Both proportion sets scale fully with the box, so the radii and slit
+  // Exact Figma values: recorded/filled and empty/no-data.
+  static const Color _filled = kDialFilled;
+  static const Color _empty = kDialEmpty;
+
+  // Both proportion sets scale fully with the box, so stroke, gap and slit all
   // shrink together and the circles look proportionally identical at any size:
-  //  * main dial — outer 290 / inner 220 / slit 5 (extent 312)
-  //  * compact   — outer 50 / inner 28 / slit 3.5 (extent 57)
+  //  * main dial — outer 290 / inner 220 / stroke 22 / slit 5 (extent 312)
+  //  * compact   — outer 50 / inner 28 / stroke 7 / slit 3.5 (extent 57)
+  // e.g. at size 57 the compact stroke is 7; at size 49 it is 49×7/57 ≈ 6.
+  double get _stroke => stroke ?? size * (compact ? 7 / 57 : 22 / 312);
   double get _outerRadius => size * (compact ? 25 / 57 : 145 / 312);
   double get _innerRadius => size * (compact ? 14 / 57 : 110 / 312);
   double get _slit => size * (compact ? 3.5 / 57 : 5 / 312);
 
-  /// The diameter of each band — public so the weight rule can be asserted
-  /// against the thing it is a fraction OF.
-  double get outerDiameter => _outerRadius * 2;
-  double get innerDiameter => _innerRadius * 2;
-
-  /// Each band takes the thin ratio of its OWN diameter, so the inner band is
-  /// proportionally as light as the outer one rather than looking heavier for
-  /// being smaller.
-  double get outerStroke => thinRingStroke(outerDiameter);
-  double get innerStroke => thinRingStroke(innerDiameter);
-
   bool _hitsInnerRing(Offset p) {
     final c = size / 2;
     final dist = (p - Offset(c, c)).distance;
-    // A generous band either side: the stroke itself is now too fine to aim at.
-    final low = _innerRadius - innerStroke / 2 - 12;
-    final high = _innerRadius + innerStroke / 2 + 12;
+    final low = _innerRadius - _stroke / 2 - 12;
+    final high = _innerRadius + _stroke / 2 + 12;
     return dist >= low && dist <= high;
   }
 
-  /// The time band: proportional slices of the day, in the progress tone.
-  _RingData _outer(GreyscaleTokens tokens) {
-    final fill = tokens.ringFillInner;
-    final track = tokens.ringTrack;
-
-    // Tasks with time, keeping their original index for selection.
+  _RingData _outer() {
+    // Tasks with time today, keeping their original index for selection.
     final entries = <MapEntry<int, double>>[];
     for (var i = 0; i < taskTodaySeconds.length; i++) {
-      if (taskTodaySeconds[i] > 0) {
-        entries.add(MapEntry(i, taskTodaySeconds[i]));
-      }
+      if (taskTodaySeconds[i] > 0) entries.add(MapEntry(i, taskTodaySeconds[i]));
     }
 
     if (entries.isEmpty) {
-      // Nothing logged → a solid empty track, no slits.
-      return _RingData([_Seg(1, track)], slits: false);
+      // No data today → solid empty ring, no slits.
+      return const _RingData([_Seg(1, _empty)], slits: false);
     }
 
     Color colourFor(int taskIndex) {
-      if (selectedTaskIndex == null) return fill; // collective: all filled
-      return taskIndex == selectedTaskIndex ? fill : track; // highlight one
+      if (selectedTaskIndex == null) return _filled; // collective: all filled
+      return taskIndex == selectedTaskIndex ? _filled : _empty; // highlight one
     }
 
     if (entries.length == 1) {
@@ -131,24 +124,20 @@ class SegmentedDial extends StatelessWidget {
     );
   }
 
-  /// The habits band: one equal arc per habit, white where it is done.
-  _RingData _inner(GreyscaleTokens tokens) {
+  _RingData _inner() {
     if (habitStates.isEmpty) {
-      // No habits defined → a solid empty track, no slits.
-      return _RingData([_Seg(1, tokens.ringTrack)], slits: false);
+      // No habits defined → solid empty ring, no slits.
+      return const _RingData([_Seg(1, _empty)], slits: false);
     }
+    // One equal segment per defined habit, slits always present.
     return _RingData(
-      [
-        for (final done in habitStates)
-          _Seg(1, done ? tokens.ringFillOuter : tokens.ringTrack),
-      ],
+      [for (final done in habitStates) _Seg(1, done ? _filled : _empty)],
       slits: true,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
     return SizedBox(
       width: size,
       height: size,
@@ -166,70 +155,25 @@ class SegmentedDial extends StatelessWidget {
                   },
             child: CustomPaint(
               size: Size.square(size),
-              painter: _SegmentedBandPainter(
+              painter: _SegmentedDialPainter(
+                outerRadius: _outerRadius,
+                innerRadius: _innerRadius,
+                stroke: _stroke,
                 slit: _slit,
-                bands: [
-                  _RingBand(_outerRadius, outerStroke, _outer(tokens)),
-                  _RingBand(_innerRadius, innerStroke, _inner(tokens)),
-                ],
+                outer: _outer(),
+                inner: _inner(),
               ),
             ),
           ),
           // Circular fill sized to sit just inside the outer ring's inner edge.
           if (fill != null)
             SizedBox(
-              width: _outerRadius * 2 - outerStroke,
-              height: _outerRadius * 2 - outerStroke,
+              width: _outerRadius * 2 - _stroke,
+              height: _outerRadius * 2 - _stroke,
               child: ClipOval(child: fill),
             ),
           ?center,
         ],
-      ),
-    );
-  }
-}
-
-/// The habits band on its own — the same ring the dials carry inside them, at
-/// whatever size a header needs.
-///
-/// One equal arc per habit, white where it is done, track where it is not, and
-/// the same thin stroke. It reads the same state as the dial's inner band, so
-/// ticking a habit fills a segment in both places at once.
-class HabitsRing extends StatelessWidget {
-  const HabitsRing({super.key, required this.states, this.size = 44});
-
-  /// One entry per defined habit, true when it is done.
-  final List<bool> states;
-
-  final double size;
-
-  /// The thin weight at this diameter.
-  double get stroke => thinRingStroke(size);
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final radius = (size - stroke) / 2;
-    final data = states.isEmpty
-        ? _RingData([_Seg(1, tokens.ringTrack)], slits: false)
-        : _RingData(
-            [
-              for (final done in states)
-                _Seg(1, done ? tokens.ringFillOuter : tokens.ringTrack),
-            ],
-            slits: true,
-          );
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        size: Size.square(size),
-        // The slit scales with the ring, as it does on the dials.
-        painter: _SegmentedBandPainter(
-          slit: size * (3.5 / 57),
-          bands: [_RingBand(radius, stroke, data)],
-        ),
       ),
     );
   }
@@ -242,58 +186,54 @@ class _Seg {
   final Color color;
 }
 
-/// One ring's segments, and whether slits are cut between them.
+/// A ring's segments plus whether slits separate them.
 class _RingData {
   const _RingData(this.segments, {required this.slits});
   final List<_Seg> segments;
   final bool slits;
 }
 
-/// One concentric band: where it sits, how thick it is, and what it holds.
-class _RingBand {
-  const _RingBand(this.radius, this.stroke, this.data);
-  final double radius;
+class _SegmentedDialPainter extends CustomPainter {
+  _SegmentedDialPainter({
+    required this.outerRadius,
+    required this.innerRadius,
+    required this.stroke,
+    required this.slit,
+    required this.outer,
+    required this.inner,
+  });
+
+  final double outerRadius;
+  final double innerRadius;
   final double stroke;
-  final _RingData data;
-}
-
-/// Paints any number of concentric segmented bands, each at its own stroke.
-///
-/// Shared by the dual dial and the standalone habits ring — a segment drawn by
-/// two painters would drift apart.
-class _SegmentedBandPainter extends CustomPainter {
-  _SegmentedBandPainter({required this.slit, required this.bands});
-
-  /// Gap between segments, in logical pixels at the ring's radius.
   final double slit;
-  final List<_RingBand> bands;
+  final _RingData outer;
+  final _RingData inner;
 
   static const double _startAngle = -math.pi / 2; // 12 o'clock
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    for (final band in bands) {
-      _paintBand(canvas, center, band);
-    }
+    _paintRing(canvas, center, outerRadius, outer);
+    _paintRing(canvas, center, innerRadius, inner);
   }
 
-  void _paintBand(Canvas canvas, Offset center, _RingBand band) {
-    final segments = band.data.segments;
-    if (segments.isEmpty || band.radius <= 0) return;
+  void _paintRing(Canvas canvas, Offset center, double radius, _RingData data) {
+    final segments = data.segments;
+    if (segments.isEmpty || radius <= 0) return;
     final total = segments.fold<double>(0, (s, seg) => s + seg.weight);
     if (total <= 0) return;
 
-    final rect = Rect.fromCircle(center: center, radius: band.radius);
+    final rect = Rect.fromCircle(center: center, radius: radius);
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.butt // clean square slit edges
-      ..strokeWidth = band.stroke;
+      ..strokeWidth = stroke;
 
-    // A slit is a fixed gap in pixels; convert to an angle at this radius.
-    final slitAngle = (band.data.slits && segments.length > 1)
-        ? (slit / band.radius)
-        : 0.0;
+    // A slit is a 5px gap; convert to an angle at this radius.
+    final slitAngle =
+        (data.slits && segments.length > 1) ? (slit / radius) : 0.0;
     final available = (2 * math.pi) - (slitAngle * segments.length);
     var start = _startAngle + slitAngle / 2;
 
@@ -306,23 +246,74 @@ class _SegmentedBandPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_SegmentedBandPainter old) {
-    if (old.slit != slit || old.bands.length != bands.length) return true;
-    for (var i = 0; i < bands.length; i++) {
-      final a = old.bands[i];
-      final b = bands[i];
-      if (a.radius != b.radius || a.stroke != b.stroke) return true;
-      if (a.data.slits != b.data.slits ||
-          a.data.segments.length != b.data.segments.length) {
-        return true;
-      }
-      for (var j = 0; j < a.data.segments.length; j++) {
-        if (a.data.segments[j].weight != b.data.segments[j].weight ||
-            a.data.segments[j].color != b.data.segments[j].color) {
-          return true;
-        }
+  bool shouldRepaint(_SegmentedDialPainter old) {
+    return old.outerRadius != outerRadius ||
+        old.innerRadius != innerRadius ||
+        old.stroke != stroke ||
+        old.slit != slit ||
+        !_sameRing(old.outer, outer) ||
+        !_sameRing(old.inner, inner);
+  }
+
+  bool _sameRing(_RingData a, _RingData b) {
+    if (a.slits != b.slits || a.segments.length != b.segments.length) {
+      return false;
+    }
+    for (var i = 0; i < a.segments.length; i++) {
+      if (a.segments[i].weight != b.segments[i].weight ||
+          a.segments[i].color != b.segments[i].color) {
+        return false;
       }
     }
-    return false;
+    return true;
+  }
+}
+
+/// The dial's habits band on its own, for a header that wants the summary
+/// without the dial around it.
+///
+/// Same construction, same painter and the same two greys as [SegmentedDial]'s
+/// inner band — a done habit is [kDialFilled], an undone one [kDialEmpty] — so
+/// the summary and the dial can never disagree. It takes the dial's compact
+/// band weight for the same reason.
+class HabitsRing extends StatelessWidget {
+  const HabitsRing({super.key, required this.states, this.size = 44});
+
+  /// One entry per defined habit, true when it is done.
+  final List<bool> states;
+
+  final double size;
+
+  /// The dial's compact band weight at this diameter (7 on a 57 box).
+  double get stroke => size * 7 / 57;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = states.isEmpty
+        ? const _RingData([_Seg(1, kDialEmpty)], slits: false)
+        : _RingData(
+            [
+              for (final done in states)
+                _Seg(1, done ? kDialFilled : kDialEmpty),
+            ],
+            slits: true,
+          );
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        size: Size.square(size),
+        painter: _SegmentedDialPainter(
+          outerRadius: (size - stroke) / 2,
+          // Nothing in the inner band — the painter skips a zero radius.
+          innerRadius: 0,
+          stroke: stroke,
+          slit: size * 3.5 / 57,
+          outer: data,
+          inner: const _RingData([], slits: false),
+        ),
+      ),
+    );
   }
 }

@@ -62,9 +62,14 @@ class ProfileScreen extends ConsumerWidget {
           // is why this page refused a scroll view at all before.
           physics: const ClampingScrollPhysics(),
           child: Padding(
+            // The page's own edge: 12 top and bottom, not 24. The section
+            // breaks below carry the page's rhythm, and the first and last of
+            // them were being doubled up on by a full section gap against the
+            // screen edge — which is the 24 that kept the page off one screen.
+            // The 24 gutter either side is untouched.
             padding: EdgeInsets.symmetric(
               horizontal: 24 * scale,
-              vertical: kSpacingSection * scale,
+              vertical: kSpacingBase * scale,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

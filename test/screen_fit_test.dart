@@ -19,6 +19,14 @@ import 'support/app_viewport.dart';
 /// before — Profile by 42, and both times the arithmetic looked fine on
 /// paper. A Flutter overflow surfaces as an exception during layout, so
 /// [tester.takeException] is the whole assertion.
+///
+/// **Profile scrolls now** (the redesign around the hero emblem), so it can no
+/// longer overflow and its two cases here are the weaker claim that the page
+/// builds without throwing — worth keeping, because a Firebase-less
+/// ErrorWidget in the account block overflows by ~100,000px and that is
+/// exactly what these cases caught last time. The page's real structure is
+/// asserted in profile_page_test.dart. Friends does not scroll, and its
+/// budget is still a live constraint.
 
 /// Asserts the page did not overflow, tolerating the unavoidable Firebase
 /// "no app" error the account footer raises in a unit test.

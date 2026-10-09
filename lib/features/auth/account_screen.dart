@@ -32,18 +32,12 @@ class AccountBody extends ConsumerWidget {
     final user = auth.currentUser;
     final isGuest = user == null || user.isAnonymous;
 
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 24 * figmaScale(context)),
-      // The signed-in footer is short and sits in a fixed, non-scrolling page.
-      // The guest footer is far taller — heading, two actions, a divider and
-      // the Apple button — and genuinely does not fit beside the rest of
-      // Profile, so it keeps a scroll view of its own until it is redesigned
-      // (punchlist item 5, Auth). Scoping it here means the signed-in page has
-      // no vertical scrollable at all.
-      child: isGuest
-          ? SingleChildScrollView(child: _GuestView())
-          : _SignedInView(email: user.email ?? ''),
-    );
+    // No padding and no scroll view of its own: this is the last SECTION of
+    // the profile page, which supplies the gutter and does the scrolling. The
+    // guest view used to carry a SingleChildScrollView because the page was a
+    // fixed Column that it did not fit inside; nested in a scrolling page that
+    // would be a viewport with no bounded height.
+    return isGuest ? _GuestView() : _SignedInView(email: user.email ?? '');
   }
 }
 
@@ -133,30 +127,24 @@ class _SignedInView extends ConsumerWidget {
                 ?.copyWith(color: tokens.textSecondary)),
         SizedBox(height: kSpacingBase * scale),
 
-        // Handle row — set it or show it.
+        // The handle is shown in the hero at the top of the page now, so it
+        // is not repeated here. What stays is the way to SET one when there
+        // isn't yet a handle for the hero to show — without this there would
+        // be no entrance to the handle screen at all.
         profile.when(
           loading: () => const SondrLoading(),
           error: (_, _) => const SizedBox.shrink(),
           data: (p) {
-            if (p == null || p.username.isEmpty) {
-              return Center(
-                child: SondrAction(
-                  label: 'Set your handle',
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const HandleScreen()),
-                  ),
-                ),
-              );
+            if (p != null && p.username.isNotEmpty) {
+              return const SizedBox.shrink();
             }
-            return Row(
-              children: [
-                Text('Handle',
-                    style: theme.textTheme.bodyLarge?.copyWith(fontSize: 15)),
-                const Spacer(),
-                Text('@${p.username}',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                        fontSize: 15, color: tokens.textSecondary)),
-              ],
+            return Center(
+              child: SondrAction(
+                label: 'Set your handle',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const HandleScreen()),
+                ),
+              ),
             );
           },
         ),

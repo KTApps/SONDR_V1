@@ -9,6 +9,8 @@ import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../auth/account_screen.dart';
 import '../auth/guest_prompts.dart';
+import '../auth/models/profile.dart';
+import '../auth/profile_repository.dart';
 import '../debug/debug_panel.dart';
 import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
@@ -22,10 +24,21 @@ import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'profile_providers.dart';
 
-/// The Profile tab. Per the spec the hero is an effort summary — lifetime hours,
-/// current streak, milestones hit — followed by tasks-in-progress as mini rings
-/// (answering "what is this person working on and how far have they got").
-/// Account management is folded in at the bottom. NOT a photo grid.
+// Photo tints — the near-raw whisper the day-detail thumbnails use, so the
+// hero's face and the milestone strip sit in the same family as every other
+// photo surface.
+const double _kPhotoSaturation = 0.85;
+const Color _kPhotoTint = Color(0x1A000000);
+
+/// The Profile tab: who you are, then what you are climbing toward.
+///
+/// One hero emblem — a grey progress ring with your newest capture at its
+/// centre — then the handle, the three figures, and the rest of the page as
+/// borderless sections at one rhythm. The account block is the last of those
+/// sections rather than something pinned to the bottom of the screen, which is
+/// what left a dead void above it when the content above was short.
+///
+/// NOT a photo grid.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -40,61 +53,49 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       // No AppBar — the redundant "Profile" title is removed (matches Feed).
-      // SafeArea drops content below the status bar / island; the scroll view's
-      // top inset (8) keeps the summary card off the edge.
-      // Non-scrolling page: stats + Friends pinned at top, the In-progress
-      // strip scrolls horizontally, and the account section is pinned at the
-      // bottom (it scrolls internally only if the tall guest view would
-      // otherwise overflow).
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            24 * scale,
-            16 * scale,
-            24 * scale,
-            0,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _EffortSummary(
-                lifetime: lifetime,
-                streak: streak,
-                milestones: milestones,
-              ),
-              SizedBox(height: kSpacingSection * scale),
-              const _FriendsRow(),
-              // Self-spaced (top gap inside), so when it's hidden (nothing
-              // captured yet) the Friends→Tasks spacing is unchanged.
-              const _MilestonesDoorway(),
-              SizedBox(height: kSpacingBase * scale),
-              _TasksInProgress(tasks: tasks),
-              // QA-only entry — const-false in release builds, so this whole
-              // branch (and DebugPanel, referenced only here) tree-shakes out.
-              if (kDebugTools) ...[
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const DebugPanel()),
-                    ),
-                    child: const Text('DEBUG PANEL'),
-                  ),
+        child: SingleChildScrollView(
+          // Clamping, not bouncing. The page runs past the viewport now, so it
+          // genuinely scrolls; on a short page (a new account with no tasks)
+          // iOS's bounce made the whole thing feel loose and unanchored, which
+          // is why this page refused a scroll view at all before.
+          physics: const ClampingScrollPhysics(),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 24 * scale,
+              vertical: kSpacingSection * scale,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _HeroEmblem(),
+                SizedBox(height: kSpacingSection * scale),
+                _EffortSummary(
+                  lifetime: lifetime,
+                  streak: streak,
+                  milestones: milestones,
                 ),
+                const _Section(child: _FriendsRow()),
+                const _Section(child: _MilestonesRow()),
+                _Section(child: _TasksInProgress(tasks: tasks)),
+                // QA-only entry — const-false in release builds, so this whole
+                // branch (and DebugPanel, referenced only here) tree-shakes
+                // out. Not a section: no hairline earns it.
+                if (kDebugTools) ...[
+                  SizedBox(height: kSpacingSection * scale),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const DebugPanel()),
+                      ),
+                      child: const Text('DEBUG PANEL'),
+                    ),
+                  ),
+                ],
+                const _Section(child: AccountBody()),
               ],
-              // The footer is pinned to the bottom of the safe area; the
-              // flexible space sits here, never closing below a zone break.
-              //
-              // No scroll view: the page is a fixed Column that fills the safe
-              // area. A SingleChildScrollView shorter than its viewport still
-              // bounce-drags on iOS, which made the whole page feel loose even
-              // though nothing overflowed. Only the in-progress strip scrolls,
-              // and only sideways.
-              SizedBox(height: kSpacingSection * scale),
-              const Spacer(),
-              const AccountBody(),
-            ],
+            ),
           ),
         ),
       ),
@@ -102,8 +103,148 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-/// The hero: three figures across one card — total lifetime hours, current day
-/// streak, milestones reached. Brightness, not colour, carries the emphasis.
+/// A section break: one hairline with the same gap either side.
+///
+/// Sections are borderless — no cards, no fills, nothing that signals
+/// "tappable" around something that isn't — so the only thing between them is
+/// a single track-toned line. Every break is identical, which is what keeps
+/// one rhythm from the hero to the account block.
+class _Section extends StatelessWidget {
+  const _Section({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final gap = kSpacingSection * figmaScale(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(height: gap),
+        // Unscaled: a hairline is a hairline at every screen size.
+        SizedBox(height: 1, child: ColoredBox(color: tokens.ringTrack)),
+        SizedBox(height: gap),
+        child,
+      ],
+    );
+  }
+}
+
+/// The hero: a grey progress ring around your newest capture, your handle, and
+/// how far the nearest milestone is.
+///
+/// The ring is a PROGRESS ring and so takes the progress tone
+/// ([GreyscaleTokens.ringFillInner], the same grey Home fills with). White is
+/// kept for a milestone already finished — the full rings on the Milestones
+/// page — so the two can never be confused at a glance.
+///
+/// The centre is the newest photo across ALL tasks, which means it changes
+/// itself as captures happen; before there is one it is your initial. The ring
+/// works from the first day either way.
+class _HeroEmblem extends ConsumerWidget {
+  const _HeroEmblem();
+
+  static const double _ring = 132;
+
+  /// The circle inside the ring. The ring's stroke is size * 7/57 (≈16 here),
+  /// so the hole is ≈100 — this sits comfortably inside it.
+  static const double _centre = 92;
+
+  /// The first letter of the display name, or failing that the handle.
+  /// Empty when there is neither, and then the ring simply stands alone.
+  static String initialOf(Profile? profile) {
+    for (final source in [profile?.displayName, profile?.username]) {
+      final trimmed = (source ?? '').trim();
+      if (trimmed.isNotEmpty) return trimmed.substring(0, 1).toUpperCase();
+    }
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final scale = figmaScale(context);
+
+    final next = ref.watch(nextMilestoneProvider);
+    final profile = ref.watch(currentProfileProvider).value;
+    // photosRecent orders by timestamp descending, so the head of this list is
+    // the newest capture across every task.
+    final recent =
+        ref.watch(galleryPreviewProvider).value?.recent ?? const <Photo>[];
+    final newest = recent.isEmpty ? null : recent.first;
+
+    final handle = profile?.username ?? '';
+    final subline = next == null
+        ? 'No task in progress.'
+        : '${next.hoursRemaining}h to your next milestone';
+
+    return Column(
+      children: [
+        ProgressRing(
+          size: _ring * scale,
+          // An empty grey track when there is nothing to climb.
+          progress: next?.progress ?? 0,
+          center: SizedBox(
+            width: _centre * scale,
+            height: _centre * scale,
+            child: newest == null
+                ? Center(
+                    child: Text(
+                      initialOf(profile),
+                      style: theme.textTheme.displayLarge?.copyWith(
+                        fontSize: 44 * scale,
+                        fontWeight: FontWeight.w700,
+                        color: tokens.textPrimary,
+                      ),
+                    ),
+                  )
+                : ClipOval(
+                    child: SondrPhoto(
+                      url: newest.photoUrl,
+                      saturation: _kPhotoSaturation,
+                      tint: _kPhotoTint,
+                      placeholder: (_) => ColoredBox(color: tokens.surface),
+                      error: (_) => ColoredBox(color: tokens.surface),
+                    ),
+                  ),
+          ),
+        ),
+        SizedBox(height: kSpacingBase * scale),
+        // The person, at the top of their own page at last. Omitted rather
+        // than faked when there is no handle yet — the account block below
+        // still offers to set one.
+        if (handle.isNotEmpty) ...[
+          Text(
+            '@$handle',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontSize: 20 * scale,
+              fontWeight: FontWeight.w700,
+              color: tokens.textPrimary,
+            ),
+          ),
+          SizedBox(height: kSpacingPair * scale),
+        ],
+        Text(
+          subline,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontSize: 13 * scale,
+            color: tokens.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Three figures across the page — lifetime hours, current streak, milestones
+/// reached. Brightness, not colour, carries the emphasis.
+///
+/// No box and nothing drawn between them: equal thirds of the page's width is
+/// air enough to read as three figures rather than one, which is the job a
+/// rule would otherwise do (DESIGN.md).
 class _EffortSummary extends StatelessWidget {
   const _EffortSummary({
     required this.lifetime,
@@ -117,22 +258,14 @@ class _EffortSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
     final hours = (lifetime.inMinutes / 60).round();
 
-    // No container: a filled rounded rectangle signals "tappable", and this
-    // block is a read-only summary. It sits bare on the page at the same
-    // gutter as everything else (see DESIGN.md).
     return Row(
       children: [
         Expanded(
           child: _Stat(value: '$hours', label: hours == 1 ? 'hour' : 'hours'),
         ),
-        _Divider(tokens: tokens),
-        Expanded(
-          child: _Stat(value: '$streak', label: 'day streak'),
-        ),
-        _Divider(tokens: tokens),
+        Expanded(child: _Stat(value: '$streak', label: 'day streak')),
         Expanded(
           child: _Stat(
             value: '$milestones',
@@ -140,187 +273,6 @@ class _EffortSummary extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Tappable row into the Friends hub, showing the friend count and a badge for
-/// any requests awaiting the user.
-class _FriendsRow extends ConsumerWidget {
-  const _FriendsRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
-    final count = ref.watch(friendCountProvider);
-    final pending = ref.watch(incomingRequestsProvider).length;
-
-    return Material(
-      color: tokens.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          // Friends and handles live on a permanent account.
-          if (!requireAccount(
-            context,
-            ref,
-            message:
-                'Create an account to pick a handle and add friends. Your '
-                'friends and progress stay safe if you change phones.',
-          )) {
-            return;
-          }
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const FriendsScreen()));
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          child: Row(
-            children: [
-              // The word alone — no glyph. (DESIGN.md: text for every action;
-              // a people symbol was a second vocabulary for one that already
-              // says what it is.)
-              Text('Friends', style: theme.textTheme.bodyLarge),
-              const Spacer(),
-              if (pending > 0) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: tokens.ringFillOuter,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '$pending new',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: tokens.background,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-              ],
-              Text(
-                '$count',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: tokens.textSecondary,
-                ),
-              ),
-              Icon(Icons.chevron_right, color: tokens.textTertiary),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Gallery thumbnails use the near-raw tint (same as day-detail's Captured
-// thumbs) — light desaturation + a whisper of dark, via the shared matrix.
-const double _kGalleryThumbSaturation = 0.85;
-const Color _kGalleryThumbTint = Color(0x1A000000);
-
-/// The one doorway into [MilestonesScreen] — a strip of thumbnails, a count
-/// and a chevron, mirroring [_FriendsRow]. Hidden until there is something
-/// behind it.
-///
-/// It names whatever the page has to show. Milestones when the user has any;
-/// otherwise the raw photo count, opening straight onto the Photos lens. The
-/// page is now the home for both, and a doorway gated on collages alone would
-/// hide every photo belonging to someone who has not reached 20 hours yet —
-/// which is exactly who the Photos lens was built for.
-class _MilestonesDoorway extends ConsumerWidget {
-  const _MilestonesDoorway();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
-    final collages = ref.watch(collagesListProvider).value ?? const <Collage>[];
-    final gallery = ref.watch(galleryPreviewProvider).value;
-    final captured = gallery?.total ?? 0;
-    if (collages.isEmpty && captured == 0) return const SizedBox.shrink();
-
-    final n = collages.length;
-    final hasMilestones = n > 0;
-    final List<Photo> preview;
-    if (hasMilestones) {
-      final ids = collages.first.photoIds.join(',');
-      preview = ref.watch(collagePhotosProvider(ids)).value ?? const <Photo>[];
-    } else {
-      preview = gallery?.recent ?? const <Photo>[];
-    }
-    final label = hasMilestones
-        ? '$n milestone${n == 1 ? '' : 's'}'
-        : '$captured captured';
-
-    return Padding(
-      padding: EdgeInsets.only(top: kSpacingBase * figmaScale(context)),
-      child: Material(
-        color: tokens.surface,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => MilestonesScreen(startOnPhotos: !hasMilestones),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            child: Row(
-              children: [
-                for (final p in preview.take(4)) ...[
-                  _GalleryThumb(photo: p),
-                  const SizedBox(width: 6),
-                ],
-                const Spacer(),
-                Text(
-                  label,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: tokens.textSecondary,
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: tokens.textTertiary),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// One small gallery thumbnail — fixed size, near-raw tint, graceful fallback.
-class _GalleryThumb extends StatelessWidget {
-  const _GalleryThumb({required this.photo});
-
-  final Photo photo;
-
-  static const double _size = 34;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: _size,
-        height: _size,
-        // Cached (survives revisiting the profile) with the near-raw tint; a
-        // failed/loading URL shows a muted tile rather than a broken image.
-        child: SondrPhoto(
-          url: photo.photoUrl,
-          saturation: _kGalleryThumbSaturation,
-          tint: _kGalleryThumbTint,
-          placeholder: (_) => ColoredBox(color: tokens.ringTrack),
-          error: (_) => ColoredBox(color: tokens.ringTrack),
-        ),
-      ),
     );
   }
 }
@@ -357,32 +309,155 @@ class _Stat extends StatelessWidget {
   }
 }
 
-class _Divider extends StatelessWidget {
-  const _Divider({required this.tokens});
-  final GreyscaleTokens tokens;
+/// The way into the Friends hub: the word, and what is waiting there.
+///
+/// A borderless row, not a filled card. A rounded fill reads as a button, and
+/// a chevron is a second vocabulary for something a row already says by being
+/// tappable (DESIGN.md).
+class _FriendsRow extends ConsumerWidget {
+  const _FriendsRow();
+
   @override
-  Widget build(BuildContext context) =>
-      Container(width: 1, height: 36, color: tokens.ringTrack);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final scale = figmaScale(context);
+    final count = ref.watch(friendCountProvider);
+    final pending = ref.watch(incomingRequestsProvider).length;
+
+    final metadata = theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 12 * scale,
+      fontWeight: FontWeight.w700,
+    );
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        // Friends and handles live on a permanent account.
+        if (!requireAccount(
+          context,
+          ref,
+          message:
+              'Create an account to pick a handle and add friends. Your '
+              'friends and progress stay safe if you change phones.',
+        )) {
+          return;
+        }
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const FriendsScreen()));
+      },
+      child: Row(
+        children: [
+          Text(
+            'Friends',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 15 * scale,
+              fontWeight: FontWeight.w700,
+              color: tokens.textPrimary,
+            ),
+          ),
+          const Spacer(),
+          // A waiting request is the one thing here worth being told, so it
+          // is at full tone — as text, not as a filled pill.
+          if (pending > 0) ...[
+            Text(
+              '$pending new',
+              style: metadata?.copyWith(color: tokens.textPrimary),
+            ),
+            SizedBox(width: kSpacingBase * scale),
+          ],
+          // A count of zero tells the reader nothing and costs a number.
+          if (count > 0)
+            Text('$count', style: metadata?.copyWith(color: tokens.textTertiary)),
+        ],
+      ),
+    );
+  }
 }
 
-/// Tasks-in-progress: one mini ring per task filling toward its current 20-hour
-/// milestone band (same semantics as the home dial), the task's lifetime hours
-/// in the centre. A wrap so any number of tasks lays out tidily.
+/// The way into the Milestones page: the word, the count, and a strip of the
+/// most recent milestone's photos beneath it.
+///
+/// Borderless like Friends, and it opens the page on its default lens — the
+/// row is always here, so the Photos lens is one tab away once you arrive.
+class _MilestonesRow extends ConsumerWidget {
+  const _MilestonesRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final scale = figmaScale(context);
+
+    final collages = ref.watch(collagesListProvider).value ?? const <Collage>[];
+    final n = collages.length;
+    final List<Photo> strip;
+    if (n > 0) {
+      final ids = collages.first.photoIds.join(',');
+      strip = ref.watch(collagePhotosProvider(ids)).value ?? const <Photo>[];
+    } else {
+      strip = const <Photo>[];
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const MilestonesScreen())),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Milestones',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontSize: 15 * scale,
+                  fontWeight: FontWeight.w700,
+                  color: tokens.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              if (n > 0)
+                Text(
+                  '$n',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: 12 * scale,
+                    fontWeight: FontWeight.w700,
+                    color: tokens.textTertiary,
+                  ),
+                ),
+            ],
+          ),
+          if (strip.isNotEmpty) ...[
+            SizedBox(height: kSpacingBase * scale),
+            Row(
+              children: [
+                for (final p in strip.take(4)) ...[
+                  _GalleryThumb(photo: p),
+                  SizedBox(width: kSpacingPair * scale),
+                ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Tasks-in-progress: one grey ring per active task, filling toward its next
+/// 20-hour mark with that mark's figure in the middle.
+///
+/// A wrap, not the horizontal strip this used to be: that strip was a fixed
+/// height with the next column clipped at the right edge, which read as
+/// something broken rather than as something scrollable. The page scrolls now,
+/// so the rings can simply have the room.
 class _TasksInProgress extends StatelessWidget {
   const _TasksInProgress({required this.tasks});
+
   final List<Task> tasks;
-
-  static const double _tileWidth = 84; // matches _TaskTile width
-  static const double _colGap = 20;
-
-  /// On the base tier — it was 20, which was neither tier (see DESIGN.md).
-  static const double _rowGap = kSpacingBase;
-
-  /// The strip needs a bounded height, so it states exactly what it holds —
-  /// no more. These were 120 and 260 against 101-tall tiles, which left ~38 of
-  /// dead space at the bottom of the screen.
-  static const double _oneRowHeight = _TaskTile.height;
-  static const double _twoRowHeight = _TaskTile.height * 2 + _rowGap;
 
   @override
   Widget build(BuildContext context) {
@@ -402,56 +477,18 @@ class _TasksInProgress extends StatelessWidget {
         ),
         SizedBox(height: kSpacingBase * scale),
         if (tasks.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'Start a task on the timer to see it climb here.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: tokens.textSecondary,
-              ),
-            ),
-          )
-        else if (tasks.length <= 2)
-          // 1–2 tasks: a single horizontal row (no half-empty second row).
-          SizedBox(
-            height: _oneRowHeight * scale,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.zero,
-              itemCount: tasks.length,
-              separatorBuilder: (_, _) => const SizedBox(width: _colGap),
-              itemBuilder: (context, i) => _TaskTile(task: tasks[i]),
+          Text(
+            'Start a task on the timer to see it climb here.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 13 * scale,
+              color: tokens.textSecondary,
             ),
           )
         else
-          // 3+ tasks: two-row, column-major horizontal strip. Scrolls sideways;
-          // with 84px columns + 20 gap inside the 24px page padding, the next
-          // column peeks at the right edge.
-          SizedBox(
-            height: _twoRowHeight * scale,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.zero,
-              itemCount: (tasks.length / 2).ceil(),
-              separatorBuilder: (_, _) => SizedBox(width: _colGap * scale),
-              itemBuilder: (context, c) {
-                final topI = c * 2;
-                final botI = c * 2 + 1;
-                return SizedBox(
-                  width: _tileWidth * scale,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _TaskTile(task: tasks[topI]),
-                      if (botI < tasks.length) ...[
-                        SizedBox(height: _rowGap * scale),
-                        _TaskTile(task: tasks[botI]),
-                      ],
-                    ],
-                  ),
-                );
-              },
-            ),
+          Wrap(
+            spacing: kSpacingSection * scale,
+            runSpacing: kSpacingBase * scale,
+            children: [for (final t in tasks) _TaskTile(task: t)],
           ),
       ],
     );
@@ -464,22 +501,13 @@ class _TaskTile extends StatelessWidget {
 
   static const double ringSize = 72;
   static const double labelGap = 8;
-
-  /// Unscaled height of one tile: ring + gap + the label's line box. Measured
-  /// against the real text metrics rather than guessed — the strip that holds
-  /// these needs a bounded height, so it has to be stated somewhere, and
-  /// stating it here keeps it next to the parts it is made of.
-  static const double height = ringSize + labelGap + 17;
+  static const double width = 84;
 
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);
-    // The task's real accumulated time — every second ever logged to it, not
-    // a band figure and not milestones x 20h. Floored, so it can never claim a
-    // milestone the ring has not reached.
-    final hours = task.wholeHours;
 
     // ONE style object, used by both the in-ring figure and the name beneath
     // it, so the two can never drift apart in size or weight.
@@ -490,7 +518,7 @@ class _TaskTile extends StatelessWidget {
     );
 
     return SizedBox(
-      width: 84 * scale,
+      width: width * scale,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -499,7 +527,10 @@ class _TaskTile extends StatelessWidget {
             // Progress through the CURRENT 20h block, so the ring keeps
             // climbing toward the next milestone rather than pinning full.
             progress: task.milestoneProgress,
-            center: Text('${hours}h', style: figureStyle),
+            // The TARGET, not the total: the figure names the thing the ring
+            // is filling toward, which is what the ring is about. Lifetime
+            // hours are up in the figures at the top of the page.
+            center: Text('${task.activeMilestoneHours}h', style: figureStyle),
           ),
           SizedBox(height: labelGap * scale),
           Text(
@@ -510,6 +541,36 @@ class _TaskTile extends StatelessWidget {
             style: figureStyle,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One small photo in the milestones strip — fixed size, near-raw tint, and a
+/// muted tile rather than a broken image when a URL fails.
+class _GalleryThumb extends StatelessWidget {
+  const _GalleryThumb({required this.photo});
+
+  final Photo photo;
+
+  static const double _size = 34;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final scale = figmaScale(context);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8 * scale),
+      child: SizedBox(
+        width: _size * scale,
+        height: _size * scale,
+        child: SondrPhoto(
+          url: photo.photoUrl,
+          saturation: _kPhotoSaturation,
+          tint: _kPhotoTint,
+          placeholder: (_) => ColoredBox(color: tokens.ringTrack),
+          error: (_) => ColoredBox(color: tokens.ringTrack),
+        ),
       ),
     );
   }

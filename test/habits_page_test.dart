@@ -3,133 +3,261 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/utils/date.dart';
+import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/habits/habits_providers.dart';
 import 'package:sondr/features/habits/habits_screen.dart';
-import 'package:sondr/shared/ring/segmented_dial.dart';
+import 'package:sondr/shared/sondr_field.dart';
+import 'package:sondr/shared/sondr_swipe_row.dart';
 
-/// Today's habits as a full page.
+/// Today's habits, plain: a weekday, a centred list of names, "add habit".
 ///
-/// The dials' own weights and tones are deliberate and hand-tuned, and are not
-/// this page's business. What IS pinned here is the list's own ladder:
-/// completing a habit brightens its name by exactly one step — tertiary to
-/// secondary — and never reaches white, because white is a milestone reached
-/// and a habit is not one.
-const Color _secondary = Color(0xFFB0B0B0);
-const Color _tertiary = Color(0xFF6E6E6E);
+/// The names are the whole screen, so what is pinned here is the names — their
+/// tone, their casing, the number that trails them, and the three things you
+/// can do to one.
 const Color _white = Color(0xFFFAFAFA);
+const Color _tertiary = Color(0xFF6E6E6E);
 
 void main() {
-  group('the summary band', () {
-    test('takes the dial band weight', () {
-      // 7 on a 57 box, the compact dial proportion, at whatever size.
-      expect(const HabitsRing(states: []).stroke, closeTo(44 * 7 / 57, 1e-9));
-      expect(
-        const HabitsRing(states: [], size: 57).stroke,
-        closeTo(7, 1e-9),
-      );
+  Future<void> pumpHabits(WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(theme: AppTheme.dark(), home: const HabitsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  /// The styled run inside a name, which is a [Text.rich] — the habit and its
+  /// streak share one Text so they share a baseline.
+  TextStyle nameStyle(WidgetTester tester, String habit) {
+    final text = tester
+        .widgetList<Text>(find.byType(Text))
+        .firstWhere((t) => t.textSpan?.toPlainText().startsWith(habit) ?? false);
+    return (text.textSpan! as TextSpan).children!.first.style!;
+  }
+
+  double y(WidgetTester tester, String plainText) =>
+      tester.getCenter(find.text(plainText)).dy;
+
+  group('the screen', () {
+    testWidgets('is an overlay with a handle and no Back', (tester) async {
+      await pumpHabits(tester);
+      // Pulled down by the handle; there is no button to press.
+      expect(find.text('Back'), findsNothing);
+      expect(find.byType(BackdropFilter), findsOneWidget);
     });
-  });
 
-  group('the page', () {
-    Future<void> pumpHabits(WidgetTester tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(theme: AppTheme.dark(), home: const HabitsScreen()),
-        ),
-      );
-      await tester.pumpAndSettle();
-    }
-
-    TextStyle styleOf(WidgetTester tester, String name) =>
-        tester.widget<Text>(find.text(name)).style!;
-
-    HabitsRing ringOf(WidgetTester tester) =>
-        tester.widget<HabitsRing>(find.byType(HabitsRing));
-
-    testWidgets('the day is the title and the date is the subline', (
-      tester,
-    ) async {
+    testWidgets('the weekday is the whole header', (tester) async {
       await pumpHabits(tester);
       final now = DateTime.now();
       expect(find.text(DayKey.weekday(now.weekday)), findsOneWidget);
+      // No date, no label, no summary ring.
       expect(
         find.text('${now.day} ${DayKey.monthName(now.month)}'),
-        findsOneWidget,
+        findsNothing,
       );
-      // Neither label the ring already carries.
       expect(find.text('Habits'), findsNothing);
-      expect(find.textContaining('of'), findsNothing);
     });
 
-    testWidgets('completing a habit brightens its name one step', (
-      tester,
-    ) async {
+    testWidgets('pulling the handle down dismisses it', (tester) async {
+      // Pushed, so there is something to pop back to.
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: TextButton(
+                    onPressed: () => showHabitsScreen(context),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.byType(HabitsScreen), findsOneWidget);
+
+      // The handle is the one thing on the overlay that answers a vertical
+      // pull — which is also the whole claim being tested.
+      final handle = find.byWidgetPredicate(
+        (w) => w is GestureDetector && w.onVerticalDragUpdate != null,
+      );
+      await tester.drag(handle, const Offset(0, 120));
+      await tester.pumpAndSettle();
+      expect(find.byType(HabitsScreen), findsNothing);
+    });
+  });
+
+  group('a name', () {
+    testWidgets('is white when done and grey when not', (tester) async {
       await pumpHabits(tester);
       // The local seed checks the first two habits today.
-      final done = styleOf(tester, '6AM wake');
-      final notDone = styleOf(tester, 'Cold shower');
-
-      expect(notDone.color, _tertiary);
-      expect(done.color, _secondary);
-      // Up the ladder, not to the top of it, and not to the dial's fill grey.
-      expect(done.color, isNot(_white));
-      expect(done.color, isNot(const Color(0xFF777777)));
-      // The weight moves with it.
-      expect(done.fontWeight, FontWeight.w700);
-      expect(notDone.fontWeight, FontWeight.w400);
-      // No circle, no box, no strike-through.
-      expect(find.byType(Checkbox), findsNothing);
-      expect(done.decoration, anyOf(isNull, TextDecoration.none));
+      expect(nameStyle(tester, '6AM wake').color, _white);
+      expect(nameStyle(tester, 'Cold shower').color, _tertiary);
+      // Large and plain, and nothing struck through it.
+      final scale = figmaScale(tester.element(find.byType(HabitsScreen)));
+      expect(
+        nameStyle(tester, '6AM wake').fontSize,
+        closeTo(27 * scale, 0.01),
+      );
+      expect(
+        nameStyle(tester, '6AM wake').decoration,
+        anyOf(isNull, TextDecoration.none),
+      );
     });
 
-    testWidgets('tapping a row marks it done, tapping again undoes it', (
+    testWidgets('is rendered as typed', (tester) async {
+      await pumpHabits(tester);
+      // Not lowercased, not capitalised — the name the user chose.
+      expect(find.textContaining('6AM wake'), findsOneWidget);
+      expect(find.textContaining('6am wake'), findsNothing);
+    });
+
+    testWidgets('carries its streak on the same line, and nothing at 0', (
       tester,
     ) async {
       await pumpHabits(tester);
-      expect(ringOf(tester).states, [true, true, false, false, false]);
+      // The seed completes the previous three days, so each habit reads 3 —
+      // in the SAME Text as the name, which is what shares the baseline.
+      expect(find.text('6AM wake 3'), findsOneWidget);
+      expect(find.text('Cold shower 3'), findsOneWidget);
 
-      await tester.tap(find.text('Cold shower'));
-      await tester.pumpAndSettle();
-      expect(styleOf(tester, 'Cold shower').color, _secondary);
-      // The summary ring IS the dial's inner band: the segment fills with the
-      // row, in the dial's own grey.
-      expect(ringOf(tester).states, [true, true, true, false, false]);
-
-      await tester.tap(find.text('Cold shower'));
-      await tester.pumpAndSettle();
-      expect(styleOf(tester, 'Cold shower').color, _tertiary);
-      expect(ringOf(tester).states, [true, true, false, false, false]);
-    });
-
-    testWidgets('the streak is a bare number, and absent at zero', (
-      tester,
-    ) async {
-      await pumpHabits(tester);
-      // The seed completes the previous three days, so every habit reads 3.
-      expect(find.text('3'), findsNWidgets(5));
-      expect(find.textContaining('day streak'), findsNothing);
-      expect(find.text('0'), findsNothing);
-
-      // A habit added today has no run behind it, so it shows nothing.
       final container = ProviderScope.containerOf(
         tester.element(find.byType(HabitsScreen)),
       );
       await container.read(habitsProvider.notifier).addHabit('Journal');
       await tester.pumpAndSettle();
+      // No run behind it yet, so the name stands alone.
       expect(find.text('Journal'), findsOneWidget);
-      expect(find.text('3'), findsNWidgets(5)); // still only the seeded five
-      expect(find.text('0'), findsNothing);
+      expect(find.text('Journal 0'), findsNothing);
     });
 
-    testWidgets('both foot actions are there, and both are quiet', (
+    testWidgets('tapping it toggles today, tapping again undoes it', (
       tester,
     ) async {
       await pumpHabits(tester);
-      expect(find.text('Add habit'), findsOneWidget);
-      expect(find.text('Back'), findsOneWidget);
-      for (final label in ['Add habit', 'Back']) {
-        expect(styleOf(tester, label).color, _secondary);
-      }
+      expect(nameStyle(tester, 'Cold shower').color, _tertiary);
+
+      await tester.tap(find.text('Cold shower 3'));
+      await tester.pumpAndSettle();
+      expect(nameStyle(tester, 'Cold shower').color, _white);
+
+      await tester.tap(find.text('Cold shower 3'));
+      await tester.pumpAndSettle();
+      expect(nameStyle(tester, 'Cold shower').color, _tertiary);
+    });
+
+    testWidgets('the toggle writes TODAY and leaves the past alone', (
+      tester,
+    ) async {
+      await pumpHabits(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HabitsScreen)),
+      );
+      final today = DayKey.of(DateTime.now());
+      final yesterday = DayKey.of(
+        DateTime.now().subtract(const Duration(days: 1)),
+      );
+      final before = container.read(habitsProvider).value!;
+      final pastBefore = before.days[yesterday]!.completed;
+
+      await tester.tap(find.text('Cold shower 3'));
+      await tester.pumpAndSettle();
+
+      final after = container.read(habitsProvider).value!;
+      expect(after.days[today]!.completed, before.days[today]!.completed + 1);
+      expect(after.days[yesterday]!.completed, pastBefore);
+    });
+  });
+
+  group('add', () {
+    testWidgets('opens an invisible field where the first habit was', (
+      tester,
+    ) async {
+      await pumpHabits(tester);
+      expect(find.byType(SondrField), findsNothing);
+      final firstBefore = y(tester, '6AM wake 3');
+
+      await tester.tap(find.text('add habit'));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<SondrField>(find.byType(SondrField));
+      expect(field.filled, isFalse); // invisible until typed in
+      expect(field.centered, isTrue);
+      expect(field.autofocus, isTrue);
+      // The habit that was on top has moved down to make room.
+      expect(y(tester, '6AM wake 3'), greaterThan(firstBefore));
+    });
+
+    testWidgets('Enter adds the habit, and it takes the top slot', (
+      tester,
+    ) async {
+      await pumpHabits(tester);
+      await tester.tap(find.text('add habit'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(SondrField), 'Read');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SondrField), findsNothing); // closed again
+      expect(find.text('Read'), findsOneWidget);
+      // Above the habit that used to lead the list.
+      expect(y(tester, 'Read'), lessThan(y(tester, '6AM wake 3')));
+    });
+
+    testWidgets('Enter on an empty field cancels', (tester) async {
+      await pumpHabits(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HabitsScreen)),
+      );
+      final before = container.read(habitsProvider).value!.liveList.length;
+
+      await tester.tap(find.text('add habit'));
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SondrField), findsNothing);
+      expect(container.read(habitsProvider).value!.liveList.length, before);
+    });
+  });
+
+  group('remove', () {
+    testWidgets('is hidden until swiped, and deletes only on the tap', (
+      tester,
+    ) async {
+      await pumpHabits(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HabitsScreen)),
+      );
+      final before = container.read(habitsProvider).value!.liveList.length;
+
+      Finder tray() => find
+          .descendant(
+            of: find.byType(SondrSwipeRow),
+            matching: find.text('remove'),
+          )
+          .hitTestable();
+
+      expect(tray(), findsNothing);
+
+      // The app's one swipe direction: left, tray on the right.
+      await tester.drag(find.text('Cold shower 3'), const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      expect(tray(), findsOneWidget);
+      // The gesture alone destroys nothing.
+      expect(container.read(habitsProvider).value!.liveList.length, before);
+
+      await tester.tap(tray());
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Cold shower'), findsNothing);
+      expect(container.read(habitsProvider).value!.liveList.length, before - 1);
     });
   });
 }

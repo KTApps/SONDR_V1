@@ -98,7 +98,9 @@ class FirestoreHabitsRepository implements HabitsRepository {
   @override
   Future<HabitsState> addHabit(String name) async {
     final live = await _readLive();
-    live.add(Habit(id: _daysCol.doc().id, name: name.trim()));
+    // FIRST, not last: the field that creates a habit opens at the top of
+    // the list, so the name has to appear where it was typed.
+    live.insert(0, Habit(id: _daysCol.doc().id, name: name.trim()));
     await _writeLive(live);
     final days = await _readDays();
     await _syncToday(live, days);

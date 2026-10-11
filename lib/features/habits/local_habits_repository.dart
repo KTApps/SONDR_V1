@@ -93,7 +93,9 @@ class LocalHabitsRepository implements HabitsRepository {
 
   @override
   Future<HabitsState> addHabit(String name) async {
-    _live.add(Habit(id: _nextId(), name: name.trim()));
+    // FIRST, not last: the field that creates a habit opens at the top of
+    // the list, so the name has to appear where it was typed.
+    _live.insert(0, Habit(id: _nextId(), name: name.trim()));
     return _snapshot();
   }
 

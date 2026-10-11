@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,173 +7,247 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/figma_scale.dart';
-import '../../shared/ring/segmented_dial.dart';
 import '../../shared/sondr_action.dart';
-import '../../shared/sondr_prompt.dart';
+import '../../shared/sondr_field.dart';
 import '../../shared/sondr_swipe_row.dart';
 import 'habits_providers.dart';
 import 'models/daily_habits.dart';
 
-/// Opens today's habits as a full page.
+/// Reference size of a habit name. Large and plain: the names ARE the screen,
+/// so nothing else on it needs to be big.
+const double _kNameSize = 27;
+
+/// Shows today's habits as a frosted overlay over whatever is behind it.
 ///
-/// A page, not a sheet: there is no frosted blur and no grab handle, because
-/// this is somewhere you go rather than something that interrupts you. It is
-/// reached by tapping the habits band inside the home dial, and leaves by the
-/// Back at its foot.
+/// An overlay rather than a page: the habits are a glance at today, and the
+/// screen you came from staying visible through the blur is what makes this
+/// read as something lifted over the app rather than somewhere you navigated
+/// to. There is no Back — it is pulled down by the handle at its top.
 Future<void> showHabitsScreen(BuildContext context) {
   return Navigator.of(context).push(
-    MaterialPageRoute(builder: (_) => const HabitsScreen()),
+    PageRouteBuilder(
+      opaque: false,
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 200),
+      reverseTransitionDuration: const Duration(milliseconds: 160),
+      pageBuilder: (_, _, _) => const HabitsScreen(),
+      transitionsBuilder: (_, animation, _, child) =>
+          FadeTransition(opacity: animation, child: child),
+    ),
   );
 }
 
-/// Today's habits: the day, the habits band as a summary, the list, and the
-/// two quiet actions at the foot.
+/// Today's habits, plain: the weekday, the names, and "add habit".
 ///
-/// The day is the title because the list only ever shows today — a "Habits"
-/// label over a page of habits is a word the screen already says, and so is
-/// "N of M today" over a ring that shows exactly that.
-class HabitsScreen extends ConsumerWidget {
+/// Only today — there is no day browsing here. A name carries its own state
+/// (white when done, grey when not), tapping it toggles, and swiping it
+/// uncovers "remove". Nothing else is drawn: no checkbox, no ring, no rule.
+class HabitsScreen extends ConsumerStatefulWidget {
   const HabitsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HabitsScreen> createState() => _HabitsScreenState();
+}
+
+class _HabitsScreenState extends ConsumerState<HabitsScreen> {
+  final _name = TextEditingController();
+
+  /// Whether the in-place field is open at the top of the list.
+  bool _adding = false;
+
+  /// Distance pulled down on the handle so far. Accumulated rather than read
+  /// per-event, so a slow deliberate drag dismisses as readily as a flick.
+  double _pull = 0;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _openAdd() => setState(() {
+    _name.clear();
+    _adding = true;
+  });
+
+  void _closeAdd() {
+    if (!mounted) return;
+    setState(() {
+      _adding = false;
+      _name.clear();
+    });
+  }
+
+  /// Enter on the field. A name adds a habit; nothing typed is a cancel, not
+  /// an empty habit.
+  Future<void> _submit(String raw) async {
+    final name = raw.trim();
+    _closeAdd();
+    if (name.isEmpty) return;
+    await ref.read(habitsProvider.notifier).addHabit(name);
+  }
+
+  void _pullUpdate(DragUpdateDetails d) => _pull += d.primaryDelta ?? 0;
+
+  void _pullEnd(DragEndDetails d) {
+    final flung = d.velocity.pixelsPerSecond.dy;
+    if (_pull > 60 || flung > 500) Navigator.of(context).maybePop();
+    _pull = 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);
-    final today = ref.watch(todayHabitsProvider);
-    final ticks = today?.ticks ?? const <HabitTick>[];
+    final ticks = ref.watch(todayHabitsProvider)?.ticks ?? const <HabitTick>[];
     final now = DateTime.now();
 
-    return Scaffold(
-      // SafeArea, so the day clears the notch without a sheet's chrome.
-      body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: 24 * scale,
-            vertical: kSpacingBase * scale,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          DayKey.weekday(now.weekday),
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontSize: 20 * scale,
-                            fontWeight: FontWeight.w700,
-                            color: tokens.textPrimary,
-                          ),
-                        ),
-                        SizedBox(height: kSpacingPair * scale),
-                        Text(
-                          '${now.day} ${DayKey.monthName(now.month)}',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontSize: 13 * scale,
-                            color: tokens.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // The same band the dials carry: one arc per habit, white
-                  // where it is done. Ticking a row here fills a segment on
-                  // Home at the same moment, because both read one state.
-                  HabitsRing(
-                    size: 44 * scale,
-                    states: [for (final t in ticks) t.done],
-                  ),
-                ],
+    // A tap on empty canvas also closes it. The pull is the way out this
+    // screen advertises, but the overlay has no Back and no chrome, so the
+    // gesture the old overlay taught stays as the escape hatch. The names and
+    // "add habit" are deeper, so their taps still win.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context).maybePop(),
+      child: Stack(
+        children: [
+          // Frosted backdrop — blurs whatever is behind.
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: ColoredBox(
+                color: tokens.background.withValues(alpha: 0.55),
               ),
-              SizedBox(height: kSpacingSection * scale),
-              Expanded(
-                child: ticks.isEmpty
-                    ? Text(
-                        'No habits yet.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontSize: 13 * scale,
-                          color: tokens.textSecondary,
+            ),
+          ),
+          // Transparent Material, not a Scaffold: the field needs a Material
+          // ancestor to draw its cursor and selection into, and a Scaffold
+          // would paint its own background over the blur.
+          Material(
+            type: MaterialType.transparency,
+            child: SafeArea(
+              // Inside the safe area, so the handle is never under the notch
+              // or the Dynamic Island — an overlay you can only leave by
+              // grabbing its handle has to put that handle somewhere
+              // reachable.
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 32 * scale),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onVerticalDragUpdate: _pullUpdate,
+                      onVerticalDragEnd: _pullEnd,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: kSpacingBase * scale,
                         ),
-                      )
-                    : ListView.separated(
-                        padding: EdgeInsets.zero,
-                        itemCount: ticks.length,
-                        separatorBuilder: (_, _) => SizedBox(
-                          height: 1,
-                          child: ColoredBox(color: tokens.ringTrack),
+                        child: Center(
+                          child: Container(
+                            width: 36 * scale,
+                            height: 4 * scale,
+                            decoration: BoxDecoration(
+                              color: tokens.ringTrack,
+                              borderRadius: BorderRadius.circular(2 * scale),
+                            ),
+                          ),
                         ),
-                        itemBuilder: (context, i) {
-                          final tick = ticks[i];
-                          return SondrSwipeRow(
-                            key: ValueKey(tick.habitId),
-                            actions: [
-                              SondrAction(
-                                label: 'Remove',
-                                fontSize: kRowActionSize,
-                                onPressed: () => ref
-                                    .read(habitsProvider.notifier)
-                                    .removeHabit(tick.habitId),
-                              ),
-                            ],
-                            child: _HabitRow(tick: tick),
-                          );
-                        },
                       ),
-              ),
-              // Two quiet actions, stacked. No gap declared between them:
-              // SondrAction's own 12 either side meets at 24, the stacked
-              // floor (DESIGN.md).
-              Center(
-                child: SondrAction(
-                  label: 'Add habit',
-                  supporting: true,
-                  onPressed: () => _promptAddHabit(context, ref),
+                    ),
+                    // The day, and only the day. The date is a number this
+                    // screen has no use for, and a "Habits" label over a page
+                    // of habits is a word it already says.
+                    Text(
+                      DayKey.weekday(now.weekday),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: 13 * scale,
+                        color: tokens.textSecondary,
+                      ),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // The field opens where the first habit was, and
+                              // its growing height is what slides the list
+                              // down — no reflow jump.
+                              AnimatedSize(
+                                duration: const Duration(milliseconds: 180),
+                                curve: Curves.easeOut,
+                                alignment: Alignment.topCenter,
+                                child: _adding
+                                    ? SondrField(
+                                        controller: _name,
+                                        filled: false,
+                                        centered: true,
+                                        autofocus: true,
+                                        fontSize: _kNameSize,
+                                        textInputAction: TextInputAction.done,
+                                        textCapitalization:
+                                            TextCapitalization.sentences,
+                                        onSubmitted: _submit,
+                                      )
+                                    : const SizedBox(height: 0),
+                              ),
+                              for (final tick in ticks)
+                                SondrSwipeRow(
+                                  key: ValueKey(tick.habitId),
+                                  // Reveal, never dismiss: the swipe uncovers
+                                  // the word and waits for a tap.
+                                  actions: [
+                                    SondrAction(
+                                      label: 'remove',
+                                      fontSize: kRowActionSize,
+                                      onPressed: () => ref
+                                          .read(habitsProvider.notifier)
+                                          .removeHabit(tick.habitId),
+                                    ),
+                                  ],
+                                  child: _HabitName(tick: tick),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: SondrAction(
+                        label: 'add habit',
+                        onPressed: _openAdd,
+                      ),
+                    ),
+                    SizedBox(height: kSpacingSection * scale),
+                  ],
                 ),
               ),
-              Center(
-                child: SondrAction(
-                  label: 'Back',
-                  supporting: true,
-                  onPressed: () => Navigator.of(context).maybePop(),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
-
-  Future<void> _promptAddHabit(BuildContext context, WidgetRef ref) async {
-    final name = await showSondrPrompt(
-      context,
-      title: 'Add habit',
-      confirmLabel: 'Add',
-    );
-    if (name == null) return;
-    await ref.read(habitsProvider.notifier).addHabit(name);
-  }
 }
 
-/// One habit. The NAME is the control and the state: tertiary grey and regular
-/// while it is outstanding, secondary grey and bold once it is done.
+/// One habit name, carrying its own state.
 ///
-/// Completing it brightens the name by exactly one step on the ladder, which
-/// is the whole move — no white, because white is a milestone reached and a
-/// habit is not one, and no jump to the dial's fill grey, which is pitched for
-/// a thin arc rather than for a word you have to read.
+/// White when it is done, grey when it is not — no checkbox, no circle and no
+/// strike-through, because a struck-out name reads as cancelled rather than as
+/// finished. Tapping toggles it, which writes today's record and nothing else:
+/// past days are frozen.
 ///
-/// No circle, no checkbox, no strike-through. A checkbox is a second thing to
-/// read on a row that already says everything, and a struck-out name reads as
-/// cancelled rather than as finished.
-class _HabitRow extends ConsumerWidget {
-  const _HabitRow({required this.tick});
+/// The streak follows the name on the SAME line and the same baseline, at half
+/// its size and the faint tone, so it reads as a number attached to the habit
+/// rather than as a second column. Nothing is shown below one: a habit with no
+/// run behind it yet has nothing to say, and a bare 0 beside a name reads as a
+/// score.
+class _HabitName extends ConsumerWidget {
+  const _HabitName({required this.tick});
 
   final HabitTick tick;
 
@@ -182,42 +258,33 @@ class _HabitRow extends ConsumerWidget {
     final scale = figmaScale(context);
     final streak = ref.watch(habitStreakForProvider(tick.habitId));
 
+    final name = theme.textTheme.displayMedium?.copyWith(
+      fontSize: _kNameSize * scale,
+      fontWeight: FontWeight.w600,
+      color: tick.done ? tokens.textPrimary : tokens.textTertiary,
+    );
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => ref.read(habitsProvider.notifier).toggle(tick.habitId),
       child: Padding(
         padding: EdgeInsets.symmetric(vertical: kSpacingBase * scale),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                tick.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontSize: 15 * scale,
-                  fontWeight: tick.done ? FontWeight.w700 : FontWeight.w400,
-                  // One step UP the ladder on completion: tertiary while it is
-                  // outstanding, secondary once it is done. Never white —
-                  // white is a milestone reached, and never the dial's fill
-                  // grey either, which is a tone for a 3pt arc rather than for
-                  // a name you have to read.
-                  color: tick.done ? tokens.textSecondary : tokens.textTertiary,
+        child: Text.rich(
+          TextSpan(
+            children: [
+              // As typed. Nothing here lowercases a name the user chose.
+              TextSpan(text: tick.name, style: name),
+              if (streak > 0)
+                TextSpan(
+                  text: ' $streak',
+                  style: name?.copyWith(
+                    fontSize: _kNameSize * scale * 0.5,
+                    color: tokens.textTertiary,
+                  ),
                 ),
-              ),
-            ),
-            // The run of days behind this habit, as metadata. Nothing at all
-            // on a habit that has not strung two days together yet.
-            if (streak > 0)
-              Text(
-                '$streak',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontSize: 12 * scale,
-                  fontWeight: FontWeight.w700,
-                  color: tokens.textTertiary,
-                ),
-              ),
-          ],
+            ],
+          ),
+          textAlign: TextAlign.center,
         ),
       ),
     );

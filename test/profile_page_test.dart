@@ -10,13 +10,17 @@ import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/auth/account_screen.dart';
 import 'package:sondr/features/auth/models/profile.dart';
 import 'package:sondr/features/auth/profile_repository.dart';
+import 'package:sondr/features/photos/models/collage.dart';
 import 'package:sondr/features/photos/models/photo.dart';
+import 'package:sondr/features/photos/collages_repository.dart';
+import 'package:sondr/features/photos/milestones_screen.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/profile/profile_providers.dart';
 import 'package:sondr/features/profile/profile_screen.dart';
 import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/tasks/tasks_providers.dart';
 import 'package:sondr/features/tasks/tasks_repository.dart';
+import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/shared/ring/progress_ring.dart';
 import 'package:sondr/shared/ring/ring_dial.dart';
 
@@ -91,6 +95,10 @@ void expectNoOverflow(WidgetTester tester) {
   expect(thrown.where((e) => e.toString().contains('overflowed')), isEmpty);
 }
 
+/// The gap between strip tiles, mirrored from profile_screen.dart so the
+/// arithmetic here is checking the layout rather than restating it.
+const double _stripGap = 9;
+
 void main() {
   group('the nearest milestone', () {
     ProviderContainer withTasks(List<Task> tasks) {
@@ -148,6 +156,7 @@ void main() {
       List<Photo> recent = const [],
       Profile? profile,
       bool inShell = false,
+      List<Photo> milestonePhotos = const [],
     }) async {
       ignoreFirebaseAbsence();
       await tester.pumpWidget(
@@ -159,6 +168,21 @@ void main() {
             currentProfileProvider.overrideWith((ref) async => profile),
             galleryPreviewProvider.overrideWith(
               (ref) async => (recent: recent, total: recent.length),
+            ),
+            collagesListProvider.overrideWith(
+              (ref) async => milestonePhotos.isEmpty
+                  ? const <Collage>[]
+                  : [
+                      Collage(
+                        taskId: 't',
+                        milestoneHours: 20,
+                        photoIds: [for (final p in milestonePhotos) p.id],
+                        edited: false,
+                      ),
+                    ],
+            ),
+            collagePhotosProvider.overrideWith(
+              (ref, key) async => milestonePhotos,
             ),
           ],
           child: MaterialApp(
@@ -434,6 +458,74 @@ void main() {
       expect(find.text('1'), findsNWidgets(2)); // totals figure + doorway
       expect(find.text('milestone'), findsOneWidget);
       expectNoOverflow(tester);
+    });
+
+    testWidgets('the milestone strip is four full-width squares', (
+      tester,
+    ) async {
+      useReferenceViewport(tester);
+      await pumpProfile(
+        tester,
+        inShell: true,
+        // No recent capture, so the hero shows a monogram and every
+        // SondrPhoto on the page belongs to the strip.
+        milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
+      );
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+      final tiles = find.byType(SondrPhoto);
+      expect(tiles, findsNWidgets(4));
+
+      final sizes = [
+        for (var i = 0; i < 4; i++) tester.getSize(tiles.at(i)),
+      ];
+      // Square, and all four the same.
+      for (final size in sizes) {
+        expect(size.width, closeTo(size.height, 0.01));
+        expect(size.width, closeTo(sizes.first.width, 0.01));
+      }
+      // Bigger than the 34 they used to be, and they fill the content width:
+      // four tiles plus three gaps is the page less its gutters.
+      expect(sizes.first.width, greaterThan(60 * scale));
+      final content = 393 * scale - 2 * 24 * scale;
+      expect(
+        sizes.first.width * 4 + _stripGap * scale * 3,
+        closeTo(content, 0.5),
+      );
+      // Flush to the gutter, with no inset of their own.
+      expect(tester.getTopLeft(tiles.first).dx, closeTo(24 * scale, 0.5));
+      expect(
+        tester.getTopRight(tiles.at(3)).dx,
+        closeTo(393 * scale - 24 * scale, 0.5),
+      );
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('a short collage fills the first slots and leaves the rest', (
+      tester,
+    ) async {
+      useReferenceViewport(tester);
+      await pumpProfile(
+        tester,
+        inShell: true,
+        milestonePhotos: [for (var i = 0; i < 2; i++) _photo(2000 + i)],
+      );
+      final tiles = find.byType(SondrPhoto);
+      expect(tiles, findsNWidgets(2));
+      // Still slot-sized, not stretched across the page.
+      final four = (393 - 48 - _stripGap * 3) / 4;
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+      expect(tester.getSize(tiles.first).width, closeTo(four * scale, 0.5));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the strip still opens the Milestones page', (tester) async {
+      await pumpProfile(
+        tester,
+        milestonePhotos: [for (var i = 0; i < 4; i++) _photo(3000 + i)],
+      );
+      await tester.tap(find.byType(SondrPhoto).first);
+      await tester.pumpAndSettle();
+      expect(find.byType(MilestonesScreen), findsOneWidget);
     });
 
     testWidgets('nothing is carded, and nothing wears a chevron', (

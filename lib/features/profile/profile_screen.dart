@@ -29,6 +29,17 @@ import 'profile_providers.dart';
 const double _kPhotoSaturation = 0.85;
 const Color _kPhotoTint = Color(0x1A000000);
 
+/// The Milestones strip: four equal squares across the content width.
+///
+/// Four slots whatever the collage holds, so the row keeps one height and one
+/// rhythm — a newest collage of two photos fills the first two slots and
+/// leaves the rest as space rather than stretching two photos across the whole
+/// page. Each slot is a flex share, so the squares size themselves to the
+/// gutter instead of to a number: ≈79 on a 393 screen.
+const int _kStripSlots = 4;
+const double _kStripGap = 9;
+const double _kStripRadius = 13;
+
 /// The Profile tab: who you are, then what you are climbing toward.
 ///
 /// One hero emblem — a grey progress ring with your newest capture at its
@@ -464,9 +475,15 @@ class _MilestonesRow extends ConsumerWidget {
             SizedBox(height: kSpacingBase * scale),
             Row(
               children: [
-                for (final p in strip.take(4)) ...[
-                  _GalleryThumb(photo: p),
-                  SizedBox(width: kSpacingPair * scale),
+                for (var i = 0; i < _kStripSlots; i++) ...[
+                  if (i > 0) SizedBox(width: _kStripGap * scale),
+                  Expanded(
+                    // An empty slot is space, not a frame: a bordered blank
+                    // would promise a photo that is not there.
+                    child: i < strip.length
+                        ? _GalleryThumb(photo: strip[i])
+                        : const SizedBox.shrink(),
+                  ),
                 ],
               ],
             ),
@@ -609,24 +626,22 @@ class _TaskTile extends StatelessWidget {
   }
 }
 
-/// One small photo in the milestones strip — fixed size, near-raw tint, and a
-/// muted tile rather than a broken image when a URL fails.
+/// One photo in the milestones strip — square, sized by its slot, with the
+/// near-raw tint and a muted tile rather than a broken image when a URL fails.
 class _GalleryThumb extends StatelessWidget {
   const _GalleryThumb({required this.photo});
 
   final Photo photo;
 
-  static const double _size = 34;
-
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final scale = figmaScale(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8 * scale),
-      child: SizedBox(
-        width: _size * scale,
-        height: _size * scale,
+    return AspectRatio(
+      // Square, so the row's height follows the width the gutter leaves it.
+      aspectRatio: 1,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_kStripRadius * scale),
         child: SondrPhoto(
           url: photo.photoUrl,
           saturation: _kPhotoSaturation,

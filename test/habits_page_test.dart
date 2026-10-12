@@ -6,8 +6,11 @@ import 'package:sondr/core/utils/date.dart';
 import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/habits/habits_providers.dart';
 import 'package:sondr/features/habits/habits_screen.dart';
+import 'package:sondr/features/timer/timer_screen.dart';
 import 'package:sondr/shared/sondr_field.dart';
 import 'package:sondr/shared/sondr_swipe_row.dart';
+
+import 'support/app_viewport.dart';
 
 /// Today's habits, plain: a weekday, a centred list of names, "add habit".
 ///
@@ -40,11 +43,20 @@ void main() {
       tester.getCenter(find.text(plainText)).dy;
 
   group('the screen', () {
-    testWidgets('is an overlay with a handle and no Back', (tester) async {
+    testWidgets('is an overlay, with no handle and no Back', (tester) async {
       await pumpHabits(tester);
-      // Pulled down by the handle; there is no button to press.
-      expect(find.text('Back'), findsNothing);
       expect(find.byType(BackdropFilter), findsOneWidget);
+      expect(find.text('Back'), findsNothing);
+      // No sheet handle: a handle promises a drag this is not.
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              (w.decoration as BoxDecoration?)?.borderRadius != null &&
+              (w.constraints?.maxHeight ?? 99) < 8,
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets('the weekday is the whole header', (tester) async {
@@ -59,8 +71,7 @@ void main() {
       expect(find.text('Habits'), findsNothing);
     });
 
-    testWidgets('pulling the handle down dismisses it', (tester) async {
-      // Pushed, so there is something to pop back to.
+    Future<void> pumpPushed(WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -81,15 +92,77 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       expect(find.byType(HabitsScreen), findsOneWidget);
+    }
 
-      // The handle is the one thing on the overlay that answers a vertical
-      // pull — which is also the whole claim being tested.
-      final handle = find.byWidgetPredicate(
-        (w) => w is GestureDetector && w.onVerticalDragUpdate != null,
-      );
-      await tester.drag(handle, const Offset(0, 120));
+    testWidgets('a tap on the backdrop dismisses it', (tester) async {
+      await pumpPushed(tester);
+      // Just under the weekday, clear of every control.
+      await tester.tapAt(const Offset(40, 170));
       await tester.pumpAndSettle();
       expect(find.byType(HabitsScreen), findsNothing);
+    });
+
+    testWidgets('a downward swipe dismisses it', (tester) async {
+      await pumpPushed(tester);
+      await tester.dragFrom(const Offset(40, 170), const Offset(0, 140));
+      await tester.pumpAndSettle();
+      expect(find.byType(HabitsScreen), findsNothing);
+    });
+
+  });
+
+  group('it lands on Home\'s lines', () {
+    /// Pumps a screen at the reference device and reports the y of one of its
+    /// texts. Both screens position globally, so the two are comparable.
+    Future<double> yOf(
+      WidgetTester tester,
+      Widget screen,
+      String text,
+    ) async {
+      final previous = FlutterError.onError;
+      FlutterError.onError = (d) {
+        if (d.exception.toString().contains('No Firebase App')) return;
+        previous?.call(d);
+      };
+      addTearDown(() => FlutterError.onError = previous);
+      useReferenceViewport(tester);
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: Scaffold(
+              body: screen,
+              bottomNavigationBar: const SizedBox(
+                height: kTabBarHeight + kRefBottomInset,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return tester.getTopLeft(find.text(text)).dy;
+    }
+
+    testWidgets('the weekday sits where Home puts its title, at its size', (
+      tester,
+    ) async {
+      final home = await yOf(tester, const TimerScreen(), 'Task');
+      final homeSize = tester.widget<Text>(find.text('Task')).style!.fontSize;
+
+      final day = DayKey.weekday(DateTime.now().weekday);
+      final habits = await yOf(tester, const HabitsScreen(), day);
+      final habitsSize = tester.widget<Text>(find.text(day)).style!.fontSize;
+
+      expect(habits, closeTo(home, 0.01));
+      expect(habitsSize, homeSize);
+    });
+
+    testWidgets('"add habit" sits where Home puts "View your progress"', (
+      tester,
+    ) async {
+      final home = await yOf(tester, const TimerScreen(), 'View your progress');
+      final habits = await yOf(tester, const HabitsScreen(), 'add habit');
+      expect(habits, closeTo(home, 0.01));
     });
   });
 
@@ -108,6 +181,25 @@ void main() {
       expect(
         nameStyle(tester, '6AM wake').decoration,
         anyOf(isNull, TextDecoration.none),
+      );
+    });
+
+    testWidgets('is horizontally centred, like the add field', (
+      tester,
+    ) async {
+      await pumpHabits(tester);
+      final width = tester.getSize(find.byType(HabitsScreen)).width;
+
+      // Dead centre of the screen, not shoved against the trailing edge by
+      // the swipe row's own alignment.
+      expect(tester.getCenter(find.text('6AM wake 3')).dx, closeTo(width / 2, 1));
+
+      // And the same centre the field's cursor uses.
+      await tester.tap(find.text('add habit'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getCenter(find.byType(SondrField)).dx,
+        closeTo(tester.getCenter(find.text('6AM wake 3')).dx, 1),
       );
     });
 
@@ -253,6 +345,12 @@ void main() {
       expect(tray(), findsOneWidget);
       // The gesture alone destroys nothing.
       expect(container.read(habitsProvider).value!.liveList.length, before);
+
+      // Centred against the name, not pinned to the top of its row.
+      expect(
+        tester.getCenter(tray()).dy,
+        closeTo(tester.getCenter(find.text('Cold shower 3')).dy, 1),
+      );
 
       await tester.tap(tray());
       await tester.pumpAndSettle();

@@ -17,6 +17,24 @@ import 'models/daily_habits.dart';
 /// so nothing else on it needs to be big.
 const double _kNameSize = 27;
 
+/// Home's own vertical lines, measured off it and copied here.
+///
+/// Home carries these as inline literals by design, so this is a deliberate
+/// copy rather than a shared constant — the two are checked against each other
+/// in a test instead (see test/habits_page_test.dart), which catches a drift
+/// without tying the two screens' layout together.
+///
+/// [_kWeekdayTop] is where Home's task selector puts its TEXT (its Positioned
+/// is at 102 and the selector adds 4 of its own padding); [_kAddTextTop] is
+/// where "View your progress" puts its own. Both are screen-global, so this
+/// overlay positions globally too — no SafeArea in the way.
+const double _kWeekdayTop = 106;
+const double _kWeekdaySize = 20;
+const double _kAddTextTop = 732;
+
+/// The floor of the list: clear of the add action by one base tier.
+const double _kListBottom = _kAddTextTop - kSpacingBase;
+
 /// Shows today's habits as a frosted overlay over whatever is behind it.
 ///
 /// An overlay rather than a page: the habits are a glance at today, and the
@@ -100,16 +118,20 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);
+    final screen = MediaQuery.sizeOf(context).height;
     final ticks = ref.watch(todayHabitsProvider)?.ticks ?? const <HabitTick>[];
     final now = DateTime.now();
 
-    // A tap on empty canvas also closes it. The pull is the way out this
-    // screen advertises, but the overlay has no Back and no chrome, so the
-    // gesture the old overlay taught stays as the escape hatch. The names and
+    // Two ways out, and no handle: a handle promises a sheet that can be
+    // dragged, and this is not one. A tap on the blurred backdrop closes it —
+    // the gesture the overlay has always taught — and so does a downward
+    // swipe anywhere the list is not already claiming the drag. The names and
     // "add habit" are deeper, so their taps still win.
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => Navigator.of(context).maybePop(),
+      onVerticalDragUpdate: _pullUpdate,
+      onVerticalDragEnd: _pullEnd,
       child: Stack(
         children: [
           // Frosted backdrop — blurs whatever is behind.
@@ -126,106 +148,97 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
           // would paint its own background over the blur.
           Material(
             type: MaterialType.transparency,
-            child: SafeArea(
-              // Inside the safe area, so the handle is never under the notch
-              // or the Dynamic Island — an overlay you can only leave by
-              // grabbing its handle has to put that handle somewhere
-              // reachable.
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 32 * scale),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onVerticalDragUpdate: _pullUpdate,
-                      onVerticalDragEnd: _pullEnd,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: kSpacingBase * scale,
-                        ),
-                        child: Center(
-                          child: Container(
-                            width: 36 * scale,
-                            height: 4 * scale,
-                            decoration: BoxDecoration(
-                              color: tokens.ringTrack,
-                              borderRadius: BorderRadius.circular(2 * scale),
-                            ),
-                          ),
-                        ),
-                      ),
+            // Screen-global, like Home — a y here is a y there.
+            child: Stack(
+              children: [
+                // The day, on Home's title line and at its size. The date is a
+                // number this screen has no use for, and a "Habits" label over
+                // a page of habits is a word it already says.
+                Positioned(
+                  top: _kWeekdayTop * scale,
+                  left: 0,
+                  right: 0,
+                  child: Text(
+                    DayKey.weekday(now.weekday),
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      // Unscaled, because Home's title is.
+                      fontSize: _kWeekdaySize,
+                      fontWeight: FontWeight.w700,
+                      color: tokens.textPrimary,
                     ),
-                    // The day, and only the day. The date is a number this
-                    // screen has no use for, and a "Habits" label over a page
-                    // of habits is a word it already says.
-                    Text(
-                      DayKey.weekday(now.weekday),
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontSize: 13 * scale,
-                        color: tokens.textSecondary,
-                      ),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // The field opens where the first habit was, and
-                              // its growing height is what slides the list
-                              // down — no reflow jump.
-                              AnimatedSize(
-                                duration: const Duration(milliseconds: 180),
-                                curve: Curves.easeOut,
-                                alignment: Alignment.topCenter,
-                                child: _adding
-                                    ? SondrField(
-                                        controller: _name,
-                                        filled: false,
-                                        centered: true,
-                                        autofocus: true,
-                                        fontSize: _kNameSize,
-                                        textInputAction: TextInputAction.done,
-                                        textCapitalization:
-                                            TextCapitalization.sentences,
-                                        onSubmitted: _submit,
-                                      )
-                                    : const SizedBox(height: 0),
-                              ),
-                              for (final tick in ticks)
-                                SondrSwipeRow(
-                                  key: ValueKey(tick.habitId),
-                                  // Reveal, never dismiss: the swipe uncovers
-                                  // the word and waits for a tap.
-                                  actions: [
-                                    SondrAction(
-                                      label: 'remove',
-                                      fontSize: kRowActionSize,
-                                      onPressed: () => ref
-                                          .read(habitsProvider.notifier)
-                                          .removeHabit(tick.habitId),
-                                    ),
-                                  ],
-                                  child: _HabitName(tick: tick),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Center(
-                      child: SondrAction(
-                        label: 'add habit',
-                        onPressed: _openAdd,
-                      ),
-                    ),
-                    SizedBox(height: kSpacingSection * scale),
-                  ],
+                  ),
                 ),
-              ),
+                // The names, centred in what is left between the day and the
+                // add action.
+                Positioned(
+                  top: (_kWeekdayTop + 40) * scale,
+                  bottom: (screen - _kListBottom * scale).clamp(0, screen),
+                  left: 32 * scale,
+                  right: 32 * scale,
+                  child: Center(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // The field opens where the first habit was, and its
+                          // growing height is what slides the list down — no
+                          // reflow jump.
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOut,
+                            alignment: Alignment.topCenter,
+                            child: _adding
+                                ? SondrField(
+                                    controller: _name,
+                                    filled: false,
+                                    centered: true,
+                                    autofocus: true,
+                                    fontSize: _kNameSize,
+                                    textInputAction: TextInputAction.done,
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    onSubmitted: _submit,
+                                  )
+                                : const SizedBox(height: 0),
+                          ),
+                          for (final tick in ticks)
+                            SondrSwipeRow(
+                              key: ValueKey(tick.habitId),
+                              // Reveal, never dismiss: the swipe uncovers the
+                              // word and waits for a tap.
+                              actions: [
+                                SondrAction(
+                                  label: 'remove',
+                                  fontSize: kRowActionSize,
+                                  onPressed: () => ref
+                                      .read(habitsProvider.notifier)
+                                      .removeHabit(tick.habitId),
+                                ),
+                              ],
+                              child: _HabitName(tick: tick),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // On Home's "View your progress" line. The BOX goes a tier
+                // higher than the line because SondrAction's own 12 of tap
+                // padding sits above its text.
+                Positioned(
+                  top: (_kAddTextTop - kSpacingBase) * scale,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: SondrAction(
+                      label: 'add habit',
+                      onPressed: _openAdd,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -267,24 +280,32 @@ class _HabitName extends ConsumerWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => ref.read(habitsProvider.notifier).toggle(tick.habitId),
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: kSpacingBase * scale),
-        child: Text.rich(
-          TextSpan(
-            children: [
-              // As typed. Nothing here lowercases a name the user chose.
-              TextSpan(text: tick.name, style: name),
-              if (streak > 0)
-                TextSpan(
-                  text: ' $streak',
-                  style: name?.copyWith(
-                    fontSize: _kNameSize * scale * 0.5,
-                    color: tokens.textTertiary,
+      // Full width on purpose. SondrSwipeRow's Stack aligns its content to
+      // the trailing edge (that is how the tray is uncovered), so a
+      // shrink-wrapped name lands hard right and textAlign has nothing to
+      // centre inside. Filling the row puts the name back in the middle,
+      // where the add-field's cursor already is.
+      child: SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: kSpacingBase * scale),
+          child: Text.rich(
+            TextSpan(
+              children: [
+                // As typed. Nothing here lowercases a name the user chose.
+                TextSpan(text: tick.name, style: name),
+                if (streak > 0)
+                  TextSpan(
+                    text: ' $streak',
+                    style: name?.copyWith(
+                      fontSize: _kNameSize * scale * 0.5,
+                      color: tokens.textTertiary,
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
         ),
       ),
     );

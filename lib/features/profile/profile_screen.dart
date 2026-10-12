@@ -82,26 +82,43 @@ class ProfileScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // THE FIRST SCREEN. At least as tall as the viewport it is
+                  // THE FIRST SCREEN. Exactly as tall as the viewport it is
                   // sitting in, so whatever follows begins past the bottom
                   // edge of whatever device this is — a fixed spacer would
                   // have been right on one phone and wrong on every other.
                   //
-                  // The content keeps its own height and stays top-aligned,
-                  // so the slack falls at the foot of the first screen. That
-                  // space is the page saying there is more below it.
+                  // minHeight is what makes the distribution below work at
+                  // all: a Column under an unbounded main axis sizes to its
+                  // children and has no free space to give away, so the slack
+                  // pooled at the foot as dead air. Floored to the viewport,
+                  // the Column's own size exceeds what its children asked
+                  // for, and spaceBetween hands the difference out.
                   ConstrainedBox(
                     constraints: BoxConstraints(minHeight: viewport.maxHeight),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
+                      // Even gaps between the four blocks, so In progress ends
+                      // on the fold rather than halfway up it. When the
+                      // content is taller than the viewport there is nothing
+                      // to distribute and this does nothing — no overflow.
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        SizedBox(height: kSpacingBase * scale),
-                        const _HeroEmblem(),
-                        SizedBox(height: kSpacingSection * scale),
-                        _EffortSummary(
-                          lifetime: lifetime,
-                          streak: streak,
-                          milestones: milestones,
+                        // The identity cluster is ONE child on purpose: the
+                        // free space is handed out BETWEEN children, and the
+                        // emblem and its figures must not drift apart.
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(height: kSpacingBase * scale),
+                            const _HeroEmblem(),
+                            SizedBox(height: kSpacingSection * scale),
+                            _EffortSummary(
+                              lifetime: lifetime,
+                              streak: streak,
+                              milestones: milestones,
+                            ),
+                          ],
                         ),
                         const _Section(child: _FriendsRow()),
                         const _Section(child: _MilestonesRow()),

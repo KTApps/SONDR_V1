@@ -564,10 +564,14 @@ void main() {
           tester.getTopLeft(find.text('Friends')).dy -
           tester.getBottomLeft(line).dy;
 
-      // Asymmetric on purpose: the heading hugs the content it introduces.
-      expect(above, closeTo(kSpacingBase * scale, 0.01));
+      // Asymmetric on purpose: the break belongs to what FOLLOWS it, so the
+      // heading hugs the content it introduces. Below the line is the
+      // declared 24 exactly; above it is at least the declared 12, and more
+      // once the first screen hands out its free space — which only widens
+      // the same asymmetry rather than reversing it.
       expect(below, closeTo(kSpacingSection * scale, 0.01));
-      expect(above, lessThan(below));
+      expect(above, greaterThanOrEqualTo(kSpacingBase * scale - 0.01));
+      expect(above, greaterThan(below));
       expectNoOverflow(tester);
     });
 
@@ -584,6 +588,105 @@ void main() {
       expect(y('@tanaka'), lessThan(y('Friends')));
       expect(y('Friends'), lessThan(y('Milestones')));
       expect(y('Milestones'), lessThan(y('In progress')));
+      expectNoOverflow(tester);
+    });
+
+    /// The in-progress ring row is the last thing in the last section, so its
+    /// foot IS the foot of the first screen's content.
+    Finder inProgressStrip() => find.byWidgetPredicate(
+      (w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+    );
+
+    testWidgets('the first screen fills, with no void under In progress', (
+      tester,
+    ) async {
+      useReferenceViewport(tester);
+      await pumpProfile(
+        tester,
+        inShell: true,
+        tasks: [_task('Spanish', seconds: 45900)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+        milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
+      );
+
+      final fold = refBodyHeight();
+      final gap = fold - tester.getBottomLeft(inProgressStrip()).dy;
+      // Just above the tab bar, not halfway up the screen.
+      expect(gap, greaterThanOrEqualTo(0));
+      expect(gap, lessThanOrEqualTo(12));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('it fills even when the collage has no photos to show', (
+      tester,
+    ) async {
+      // The shortest the first screen gets: no strip at all, which is where
+      // the void used to be ~157 tall.
+      useReferenceViewport(tester);
+      await pumpProfile(
+        tester,
+        inShell: true,
+        tasks: [_task('Spanish', seconds: 45900)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+      );
+      final gap = refBodyHeight() - tester.getBottomLeft(inProgressStrip()).dy;
+      expect(gap, lessThanOrEqualTo(12));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the fill follows the viewport on a taller device', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(430 * 3, 932 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      await pumpProfile(
+        tester,
+        inShell: true,
+        tasks: [_task('Spanish', seconds: 45900)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+        milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
+      );
+      final body = 932 - (kTabBarHeight + kRefBottomInset);
+      final gap = body - tester.getBottomLeft(inProgressStrip()).dy;
+      expect(gap, greaterThanOrEqualTo(0));
+      expect(gap, lessThanOrEqualTo(12));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the emblem and its figures stay together at the top', (
+      tester,
+    ) async {
+      // The free space goes BETWEEN the sections, never inside the cluster.
+      useReferenceViewport(tester);
+      await pumpProfile(
+        tester,
+        inShell: true,
+        tasks: [_task('Spanish', seconds: 45900)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+      );
+      // The foot of the hero BLOCK — the ring, then the handle, then the
+      // countdown, all of which live inside _HeroEmblem.
+      final heroBottom = tester
+          .getBottomLeft(find.textContaining('to your next milestone'))
+          .dy;
+      // 45900s is 12.75 lifetime hours, so the first figure reads 13.
+      final statsTop = tester.getTopLeft(find.text('13')).dy;
+      final cluster = statsTop - heroBottom;
+
+      // The gap the page HANDS OUT, measured between two sections.
+      final handedOut =
+          tester.getTopLeft(find.text('Milestones')).dy -
+          tester.getBottomLeft(find.text('Friends')).dy;
+
+      // The cluster keeps its own small gap while the sections take the free
+      // space — that is the whole claim. (It measures 32 rather than the
+      // declared 24 because of the figures' line box, and it measures the
+      // same with the distribution turned off: structural, not drift.)
+      expect(cluster, greaterThan(0));
+      expect(cluster, lessThan(handedOut));
+      expect(cluster, lessThanOrEqualTo(40));
       expectNoOverflow(tester);
     });
 

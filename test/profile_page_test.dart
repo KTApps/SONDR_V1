@@ -564,14 +564,11 @@ void main() {
           tester.getTopLeft(find.text('Friends')).dy -
           tester.getBottomLeft(line).dy;
 
-      // Asymmetric on purpose: the break belongs to what FOLLOWS it, so the
-      // heading hugs the content it introduces. Below the line is the
-      // declared 24 exactly; above it is at least the declared 12, and more
-      // once the first screen hands out its free space — which only widens
-      // the same asymmetry rather than reversing it.
-      expect(below, closeTo(kSpacingSection * scale, 0.01));
-      expect(above, greaterThanOrEqualTo(kSpacingBase * scale - 0.01));
-      expect(above, greaterThan(below));
+      // The line HUGS the heading below it — 6 under the line — and the
+      // break sits above, taking whatever the first screen has to hand out.
+      // So the break belongs to what follows it, by a long way.
+      expect(below, closeTo(kSpacingPair * scale, 0.01));
+      expect(above, greaterThan(below * 2));
       expectNoOverflow(tester);
     });
 
@@ -597,9 +594,10 @@ void main() {
       (w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
     );
 
-    testWidgets('the first screen fills, with no void under In progress', (
-      tester,
-    ) async {
+    /// Every measurement the composition is specified in, taken off one
+    /// render at the reference device. Reported together so a failure says
+    /// which gap moved rather than only that one did.
+    Future<Map<String, double>> compose(WidgetTester tester) async {
       useReferenceViewport(tester);
       await pumpProfile(
         tester,
@@ -608,39 +606,87 @@ void main() {
         profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
         milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
       );
+      final lines = find.byWidgetPredicate(
+        (w) => w is SizedBox && w.height == 1,
+      );
+      // Three in the first screen — Friends, Milestones, In progress — then
+      // the account block's, below the fold.
+      expect(lines, findsNWidgets(4));
 
-      final fold = refBodyHeight();
-      final gap = fold - tester.getBottomLeft(inProgressStrip()).dy;
-      // Just above the tab bar, not halfway up the screen.
-      expect(gap, greaterThanOrEqualTo(0));
-      expect(gap, lessThanOrEqualTo(12));
+      final photos = find.byType(SondrPhoto);
+      return {
+        'break1':
+            tester.getTopLeft(lines.at(0)).dy -
+            tester.getBottomLeft(find.text('day streak')).dy,
+        'break2':
+            tester.getTopLeft(lines.at(2)).dy -
+            tester.getBottomLeft(photos.last).dy,
+        'friendsTrailing':
+            tester.getTopLeft(lines.at(1)).dy -
+            tester.getBottomLeft(find.text('Friends')).dy,
+        'headingToPhotos':
+            tester.getTopLeft(photos.first).dy -
+            tester.getBottomLeft(find.text('Milestones')).dy,
+        'namesToTabs':
+            refBodyHeight() -
+            tester.getBottomLeft(inProgressStrip()).dy,
+      };
+    }
+
+    testWidgets('In progress clears the tab bar without leaving a void', (
+      tester,
+    ) async {
+      final m = await compose(tester);
+      // Clear of Home/Feed/Profile, and not a dead lower third either.
+      expect(m['namesToTabs'], greaterThanOrEqualTo(20));
+      expect(m['namesToTabs'], lessThanOrEqualTo(60));
       expectNoOverflow(tester);
     });
 
-    testWidgets('it fills even when the collage has no photos to show', (
+    testWidgets('the two big breaks are equal', (tester) async {
+      final m = await compose(tester);
+      // Equal by construction: three blocks under spaceBetween.
+      expect((m['break1']! - m['break2']!).abs(), lessThanOrEqualTo(4));
+      // And they are the things absorbing the surplus, so neither is tiny.
+      expect(m['break1'], greaterThan(m['friendsTrailing']!));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the fixed gaps are the composed ones', (tester) async {
+      final m = await compose(tester);
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+      expect(m['friendsTrailing'], closeTo(12 * scale, 2));
+      expect(m['headingToPhotos'], closeTo(20 * scale, 2));
+      expect(m['namesToTabs'], closeTo(28 * scale, 2));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the section headings are 17, their counts 13', (
       tester,
     ) async {
-      // The shortest the first screen gets: no strip at all, which is where
-      // the void used to be ~157 tall.
-      useReferenceViewport(tester);
       await pumpProfile(
         tester,
-        inShell: true,
         tasks: [_task('Spanish', seconds: 45900)],
-        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+        milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
       );
-      final gap = refBodyHeight() - tester.getBottomLeft(inProgressStrip()).dy;
-      expect(gap, lessThanOrEqualTo(12));
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+      for (final heading in ['Friends', 'Milestones', 'In progress']) {
+        final style = tester.widget<Text>(find.text(heading)).style!;
+        expect(style.fontSize, closeTo(17 * scale, 0.01), reason: heading);
+        expect(style.fontWeight, FontWeight.w700, reason: heading);
+      }
+      // The in-progress count, beside its heading.
+      expect(
+        tester.widget<Text>(find.text('1')).style!.fontSize,
+        closeTo(13 * scale, 0.01),
+      );
       expectNoOverflow(tester);
     });
 
-    testWidgets('the fill follows the viewport on a taller device', (
-      tester,
-    ) async {
+    testWidgets('the composition holds on a taller device', (tester) async {
       tester.view.physicalSize = const Size(430 * 3, 932 * 3);
       tester.view.devicePixelRatio = 3.0;
       addTearDown(tester.view.reset);
-
       await pumpProfile(
         tester,
         inShell: true,
@@ -648,10 +694,11 @@ void main() {
         profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
         milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
       );
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
       final body = 932 - (kTabBarHeight + kRefBottomInset);
-      final gap = body - tester.getBottomLeft(inProgressStrip()).dy;
-      expect(gap, greaterThanOrEqualTo(0));
-      expect(gap, lessThanOrEqualTo(12));
+      final clearance =
+          body - tester.getBottomLeft(inProgressStrip()).dy;
+      expect(clearance, closeTo(28 * scale, 2));
       expectNoOverflow(tester);
     });
 
@@ -675,10 +722,15 @@ void main() {
       final statsTop = tester.getTopLeft(find.text('13')).dy;
       final cluster = statsTop - heroBottom;
 
-      // The gap the page HANDS OUT, measured between two sections.
+      // A BIG break — the one above the Friends hairline, which is where the
+      // page puts its surplus. (Friends→Milestones is a tight gap by design,
+      // so it is the wrong thing to compare against.)
+      final lines = find.byWidgetPredicate(
+        (w) => w is SizedBox && w.height == 1,
+      );
       final handedOut =
-          tester.getTopLeft(find.text('Milestones')).dy -
-          tester.getBottomLeft(find.text('Friends')).dy;
+          tester.getTopLeft(lines.first).dy -
+          tester.getBottomLeft(find.text('day streak')).dy;
 
       // The cluster keeps its own small gap while the sections take the free
       // space — that is the whole claim. (It measures 32 rather than the

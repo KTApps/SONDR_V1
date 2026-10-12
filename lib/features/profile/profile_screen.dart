@@ -36,6 +36,27 @@ const Color _kPhotoTint = Color(0x1A000000);
 /// leaves the rest as space rather than stretching two photos across the whole
 /// page. Each slot is a flex share, so the squares size themselves to the
 /// gutter instead of to a number: ≈79 on a 393 screen.
+/// The composition's own gaps, measured off the mock rather than taken from
+/// the tier table — 20, 14 and 28 are not on the 6/12/24 ladder, and they are
+/// here because the page reads right at these and not at the nearest tier.
+///
+/// A hairline HUGS the heading below it: [_kUnderHairline] separates the two,
+/// while the break above the line is whatever the page has left to give. The
+/// clearance is the one that matters most — the task names must never sit
+/// against the tab bar.
+const double _kUnderHairline = kSpacingPair;
+const double _kFriendsTrailing = kSpacingBase;
+const double _kHeadingToPhotos = 20;
+const double _kHeadingToCircles = 14;
+const double _kTabClearance = 28;
+
+/// Section headings: 17, between the body's 15 and the 20 that read as a
+/// shout on a page this dense.
+const double _kHeadingSize = 17;
+
+/// The counts beside them.
+const double _kCountSize = 13;
+
 const int _kStripSlots = 4;
 const double _kStripGap = 9;
 const double _kStripRadius = 13;
@@ -102,10 +123,14 @@ class ProfileScreen extends ConsumerWidget {
                       // content is taller than the viewport there is nothing
                       // to distribute and this does nothing — no overflow.
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      // THREE blocks, so the surplus falls into exactly two
+                      // gaps and they are equal by construction. Everything
+                      // inside a block is fixed; only the two breaks flex.
                       children: [
-                        // The identity cluster is ONE child on purpose: the
-                        // free space is handed out BETWEEN children, and the
-                        // emblem and its figures must not drift apart.
+                        // Who you are. One child on purpose — the surplus is
+                        // handed out BETWEEN children, and the emblem, the
+                        // handle, the countdown and the figures must not
+                        // drift apart.
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           mainAxisSize: MainAxisSize.min,
@@ -120,9 +145,34 @@ class ProfileScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        const _Section(child: _FriendsRow()),
-                        const _Section(child: _MilestonesRow()),
-                        _Section(child: _TasksInProgress(tasks: tasks)),
+                        // Who you know, and what you have finished. Two rows
+                        // under one break: Friends is a single line, so a
+                        // break of its own either side would have left it
+                        // marooned.
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const _Hairline(),
+                            SizedBox(height: _kUnderHairline * scale),
+                            const _FriendsRow(),
+                            SizedBox(height: _kFriendsTrailing * scale),
+                            const _Hairline(),
+                            SizedBox(height: _kUnderHairline * scale),
+                            const _MilestonesRow(),
+                          ],
+                        ),
+                        // What you are on now, held clear of the tab bar.
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const _Hairline(),
+                            SizedBox(height: _kUnderHairline * scale),
+                            _TasksInProgress(tasks: tasks),
+                            SizedBox(height: _kTabClearance * scale),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -139,6 +189,17 @@ class ProfileScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// The line itself. Unscaled: a hairline is a hairline at every screen size.
+class _Hairline extends StatelessWidget {
+  const _Hairline();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 1,
+    child: ColoredBox(color: GreyscaleTokens.of(context).ringTrack),
+  );
 }
 
 /// A section break: one hairline, closer to what came before it than to what
@@ -376,7 +437,7 @@ class _FriendsRow extends ConsumerWidget {
     final pending = ref.watch(incomingRequestsProvider).length;
 
     final metadata = theme.textTheme.bodyMedium?.copyWith(
-      fontSize: 12 * scale,
+      fontSize: _kCountSize * scale,
       fontWeight: FontWeight.w700,
     );
 
@@ -402,7 +463,7 @@ class _FriendsRow extends ConsumerWidget {
           Text(
             'Friends',
             style: theme.textTheme.bodyMedium?.copyWith(
-              fontSize: 15 * scale,
+              fontSize: _kHeadingSize * scale,
               fontWeight: FontWeight.w700,
               color: tokens.textPrimary,
             ),
@@ -471,7 +532,7 @@ class _MilestonesRow extends ConsumerWidget {
               Text(
                 'Milestones',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  fontSize: 15 * scale,
+                  fontSize: _kHeadingSize * scale,
                   fontWeight: FontWeight.w700,
                   color: tokens.textPrimary,
                 ),
@@ -481,7 +542,7 @@ class _MilestonesRow extends ConsumerWidget {
                 Text(
                   '$n',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    fontSize: 12 * scale,
+                    fontSize: _kCountSize * scale,
                     fontWeight: FontWeight.w700,
                     color: tokens.textTertiary,
                   ),
@@ -489,7 +550,7 @@ class _MilestonesRow extends ConsumerWidget {
             ],
           ),
           if (strip.isNotEmpty) ...[
-            SizedBox(height: kSpacingBase * scale),
+            SizedBox(height: _kHeadingToPhotos * scale),
             Row(
               children: [
                 for (var i = 0; i < _kStripSlots; i++) ...[
@@ -537,7 +598,7 @@ class _TasksInProgress extends StatelessWidget {
             Text(
               'In progress',
               style: theme.textTheme.titleMedium?.copyWith(
-                fontSize: 15 * scale,
+                fontSize: _kHeadingSize * scale,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -549,14 +610,14 @@ class _TasksInProgress extends StatelessWidget {
               Text(
                 '${tasks.length}',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  fontSize: 12 * scale,
+                  fontSize: _kCountSize * scale,
                   fontWeight: FontWeight.w700,
                   color: tokens.textTertiary,
                 ),
               ),
           ],
         ),
-        SizedBox(height: kSpacingBase * scale),
+        SizedBox(height: _kHeadingToCircles * scale),
         if (tasks.isEmpty)
           Text(
             'Start a task on the timer to see it climb here.',

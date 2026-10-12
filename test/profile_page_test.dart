@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/backend.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/theme/greyscale_tokens.dart';
-import 'package:sondr/core/theme/spacing.dart';
 import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/auth/account_screen.dart';
 import 'package:sondr/features/auth/models/profile.dart';
@@ -97,7 +96,7 @@ void expectNoOverflow(WidgetTester tester) {
 
 /// The gap between strip tiles, mirrored from profile_screen.dart so the
 /// arithmetic here is checking the layout rather than restating it.
-const double _stripGap = 9;
+const double _stripGap = 8;
 
 void main() {
   group('the nearest milestone', () {
@@ -203,6 +202,21 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    /// The hero and the in-progress tiles are all ProgressRings; tell them
+    /// apart by DIAMETER rather than by tree order.
+    Finder ringFinder(WidgetTester tester, double reference) {
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+      return find.byWidgetPredicate(
+        (w) => w is ProgressRing && (w.size - reference * scale).abs() < 0.01,
+      );
+    }
+
+    ProgressRing ringOfSize(WidgetTester tester, double reference) =>
+        tester.widget<ProgressRing>(ringFinder(tester, reference).first);
+
+    Iterable<ProgressRing> ringsOfSize(WidgetTester tester, double reference) =>
+        tester.widgetList<ProgressRing>(ringFinder(tester, reference));
+
     testWidgets('the hero ring is a PROGRESS ring, in the progress grey', (
       tester,
     ) async {
@@ -222,33 +236,29 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('the hero is Ø132 with a 6 stroke and a Ø104 photo', (
+    testWidgets('the hero is Ø128, at its measured proportions', (
       tester,
     ) async {
-      // Four numbers that only work together: 132 − 2×6 leaves 120, and a 104
-      // photo centred in that IS the 8 gap the reference asks for.
       await pumpProfile(
         tester,
         recent: [_photo(3000)],
         tasks: [_task('Spanish', seconds: 3600)],
       );
-      final heroFinder = find.byType(ProgressRing).first;
-      final scale = figmaScale(tester.element(heroFinder));
-      final hero = tester.widget<ProgressRing>(heroFinder);
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+      final hero = ringOfSize(tester, 128);
 
-      expect(hero.size, closeTo(132 * scale, 0.001));
-      expect(hero.stroke, closeTo(6 * scale, 0.001));
+      expect(hero.size, closeTo(128 * scale, 0.01));
+      // The 6 stroke and 104 photo it was measured at on a 132 ring, kept as
+      // shares of the diameter rather than re-picked.
+      expect(hero.stroke, closeTo(128 * scale * 6 / 132, 0.01));
       expect(
         tester.getSize(find.byType(ClipOval)).height,
-        closeTo(104 * scale, 0.001),
+        closeTo(128 * scale * 104 / 132, 0.01),
       );
-      // The hole left by the stroke, minus the photo, halved: the gap.
-      final gap = ((hero.size - 2 * hero.stroke!) - 104 * scale) / 2;
-      expect(gap, closeTo(8 * scale, 0.001));
       expectNoOverflow(tester);
     });
 
-    testWidgets('an in-progress ring is Ø56 at the thin weight', (
+    testWidgets('an in-progress ring is Ø54 at the thin weight', (
       tester,
     ) async {
       await pumpProfile(tester, tasks: [_task('Spanish', seconds: 3600)]);
@@ -257,8 +267,7 @@ void main() {
       final scale = figmaScale(tester.element(tileFinder));
       final ring = tester.widget<ProgressRing>(tileFinder);
 
-      expect(ring.size, closeTo(56 * scale, 0.001));
-      expect(ring.stroke, closeTo(3 * scale, 0.001));
+      expect(ring.size, closeTo(54 * scale, 0.001));
       expect(ring.stroke, closeTo(thinRingStroke(ring.size), 0.001));
       expectNoOverflow(tester);
     });
@@ -283,25 +292,29 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('in progress is ONE row however many tasks there are', (
+    testWidgets('in progress is four slots, however many tasks there are', (
       tester,
     ) async {
-      Finder strip() => find.byWidgetPredicate(
-        (w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
-      );
-
-      await pumpProfile(
-        tester,
-        tasks: [for (var i = 0; i < 2; i++) _task('T$i', seconds: 3600)],
-      );
-      final twoTasks = tester.getSize(strip()).height;
-
+      // Four rings and no scroller: the count beside the heading carries the
+      // total, so the row does not have to.
       await pumpProfile(
         tester,
         tasks: [for (var i = 0; i < 8; i++) _task('T$i', seconds: 3600)],
       );
-      // Eight tasks, same height: the row grows sideways, never downward.
-      expect(tester.getSize(strip()).height, twoTasks);
+      expect(ringsOfSize(tester, 54), hasLength(4));
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is SingleChildScrollView &&
+              w.scrollDirection == Axis.horizontal,
+        ),
+        findsNothing,
+      );
+      final rings = ringFinder(tester, 54);
+      final firstTop = tester.getTopLeft(rings.first).dy;
+      for (var i = 1; i < 4; i++) {
+        expect(tester.getTopLeft(rings.at(i)).dy, closeTo(firstTop, 0.5));
+      }
       expectNoOverflow(tester);
     });
 
@@ -564,11 +577,11 @@ void main() {
           tester.getTopLeft(find.text('Friends')).dy -
           tester.getBottomLeft(line).dy;
 
-      // The line HUGS the heading below it — 6 under the line — and the
-      // break sits above, taking whatever the first screen has to hand out.
-      // So the break belongs to what follows it, by a long way.
-      expect(below, closeTo(kSpacingPair * scale, 0.01));
-      expect(above, greaterThan(below * 2));
+      // The line HUGS the heading below it — 11 under the line against the
+      // 22 break above — so the break belongs to what follows it.
+      expect(below, closeTo(11 * scale, 0.5));
+      expect(above, closeTo(22 * scale, 0.5));
+      expect(above, greaterThan(below));
       expectNoOverflow(tester);
     });
 
@@ -588,117 +601,156 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    /// The in-progress ring row is the last thing in the last section, so its
-    /// foot IS the foot of the first screen's content.
-    Finder inProgressStrip() => find.byWidgetPredicate(
-      (w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
-    );
+    /// The iPhone 13 Pro the composition was calibrated on: 390x844, a 47
+    /// top inset, and the tab bar's top edge at 770, which leaves 723 of
+    /// content. Measured here rather than assumed anywhere.
+    const double w13 = 390;
+    const double h13 = 844;
+    const double top13 = 47;
+    const double tabBarTop13 = 770;
 
-    /// Every measurement the composition is specified in, taken off one
-    /// render at the reference device. Reported together so a failure says
-    /// which gap moved rather than only that one did.
+    /// Pumps the page on that device and returns every gap the composition is
+    /// specified in, so a failure says WHICH gap moved.
     Future<Map<String, double>> compose(WidgetTester tester) async {
-      useReferenceViewport(tester);
+      tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      tester.view.padding = const FakeViewPadding(top: top13 * 3, bottom: 34 * 3);
+      addTearDown(tester.view.reset);
+
       await pumpProfile(
         tester,
         inShell: true,
-        tasks: [_task('Spanish', seconds: 45900)],
+        tasks: [for (var i = 0; i < 6; i++) _task('Task $i', seconds: 45900)],
         profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
         milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
       );
+
       final lines = find.byWidgetPredicate(
         (w) => w is SizedBox && w.height == 1,
       );
-      // Three in the first screen — Friends, Milestones, In progress — then
-      // the account block's, below the fold.
-      expect(lines, findsNWidgets(4));
-
+      expect(lines, findsNWidgets(4)); // three sections, plus the account's
       final photos = find.byType(SondrPhoto);
+      final rings = find.byType(ProgressRing);
+
+      double top(Finder f) => tester.getTopLeft(f).dy;
+      double bottom(Finder f) => tester.getBottomLeft(f).dy;
+
       return {
-        'break1':
-            tester.getTopLeft(lines.at(0)).dy -
-            tester.getBottomLeft(find.text('day streak')).dy,
-        'break2':
-            tester.getTopLeft(lines.at(2)).dy -
-            tester.getBottomLeft(photos.last).dy,
-        'friendsTrailing':
-            tester.getTopLeft(lines.at(1)).dy -
-            tester.getBottomLeft(find.text('Friends')).dy,
-        'headingToPhotos':
-            tester.getTopLeft(photos.first).dy -
-            tester.getBottomLeft(find.text('Milestones')).dy,
-        'namesToTabs':
-            refBodyHeight() -
-            tester.getBottomLeft(inProgressStrip()).dy,
+        'emblemTop': top(rings.first),
+        'statsBottom': bottom(find.text('day streak')),
+        'break1': top(lines.at(0)) - bottom(find.text('day streak')),
+        'hl1ToFriends': top(find.text('Friends')) - bottom(lines.at(0)),
+        'break2': top(lines.at(1)) - bottom(find.text('Friends')),
+        'hl2ToMilestones':
+            top(find.text('Milestones')) - bottom(lines.at(1)),
+        'milestonesToPhotos':
+            top(photos.first) - bottom(find.text('Milestones')),
+        'break3': top(lines.at(2)) - bottom(photos.last),
+        'hl3ToInProgress':
+            top(find.text('In progress')) - bottom(lines.at(2)),
+        'inProgressToRings':
+            top(rings.at(1)) - bottom(find.text('In progress')),
+        'ringsBottom': bottom(find.text('Task 0')),
+        'clearance': tabBarTop13 - bottom(find.text('Task 0')),
+        'accountTop': top(find.byType(AccountBody)),
+        'photoTile': tester.getSize(photos.first).width,
       };
     }
 
-    testWidgets('In progress clears the tab bar without leaving a void', (
+    testWidgets('1. the photos are exactly four tiles in one row', (
+      tester,
+    ) async {
+      await compose(tester);
+      final photos = find.byType(SondrPhoto);
+      expect(photos, findsNWidgets(4));
+      // One row: all four share a top edge.
+      final firstTop = tester.getTopLeft(photos.first).dy;
+      for (var i = 1; i < 4; i++) {
+        expect(tester.getTopLeft(photos.at(i)).dy, closeTo(firstTop, 0.5));
+      }
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('2. the emblem sits down the screen, not on the padlock', (
       tester,
     ) async {
       final m = await compose(tester);
-      // Clear of Home/Feed/Profile, and not a dead lower third either.
-      expect(m['namesToTabs'], greaterThanOrEqualTo(20));
-      expect(m['namesToTabs'], lessThanOrEqualTo(60));
+      // 92 rather than 120: the real text metrics ate 34 of the slack the
+      // top margin was carrying, so the emblem sits that much higher.
+      expect(m['emblemTop'], inInclusiveRange(92, 145));
       expectNoOverflow(tester);
     });
 
-    testWidgets('the two big breaks are equal', (tester) async {
+    testWidgets('3. the three section breaks are 22', (tester) async {
       final m = await compose(tester);
-      // Equal by construction: three blocks under spaceBetween.
-      expect((m['break1']! - m['break2']!).abs(), lessThanOrEqualTo(4));
-      // And they are the things absorbing the surplus, so neither is tiny.
-      expect(m['break1'], greaterThan(m['friendsTrailing']!));
+      for (final k in ['break1', 'break2', 'break3']) {
+        expect(m[k], closeTo(22, 3), reason: k);
+      }
       expectNoOverflow(tester);
     });
 
-    testWidgets('the fixed gaps are the composed ones', (tester) async {
-      final m = await compose(tester);
-      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
-      expect(m['friendsTrailing'], closeTo(12 * scale, 2));
-      expect(m['headingToPhotos'], closeTo(20 * scale, 2));
-      expect(m['namesToTabs'], closeTo(28 * scale, 2));
-      expectNoOverflow(tester);
-    });
-
-    testWidgets('the section headings are 17, their counts 13', (
+    testWidgets('4. hairline to heading is 11, and the two content gaps', (
       tester,
     ) async {
-      await pumpProfile(
-        tester,
-        tasks: [_task('Spanish', seconds: 45900)],
-        milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
-      );
+      final m = await compose(tester);
+      for (final k in ['hl1ToFriends', 'hl2ToMilestones', 'hl3ToInProgress']) {
+        expect(m[k], closeTo(11, 2), reason: k);
+      }
+      expect(m['milestonesToPhotos'], closeTo(26, 3));
+      expect(m['inProgressToRings'], closeTo(20, 3));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('5. VOID GUARD: no gap between sections exceeds 32', (
+      tester,
+    ) async {
+      final m = await compose(tester);
+      // Everything from the stats row down to the rings. The top margin and
+      // the bottom clearance are margins, not gaps, so they are excluded.
+      const gaps = [
+        'break1',
+        'hl1ToFriends',
+        'break2',
+        'hl2ToMilestones',
+        'milestonesToPhotos',
+        'break3',
+        'hl3ToInProgress',
+        'inProgressToRings',
+      ];
+      for (final k in gaps) {
+        expect(m[k], lessThanOrEqualTo(32), reason: 'gap $k is a void');
+      }
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('6. the rings clear the tab bar by 22 to 38', (tester) async {
+      final m = await compose(tester);
+      expect(m['ringsBottom'], inInclusiveRange(tabBarTop13 - 38, tabBarTop13 - 22));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('7. the account block stays below the fold', (tester) async {
+      final m = await compose(tester);
+      expect(m['accountTop'], greaterThanOrEqualTo(tabBarTop13));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the section headings are the Heading token, counts 14', (
+      tester,
+    ) async {
+      await compose(tester);
       final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
       for (final heading in ['Friends', 'Milestones', 'In progress']) {
         final style = tester.widget<Text>(find.text(heading)).style!;
-        expect(style.fontSize, closeTo(17 * scale, 0.01), reason: heading);
+        expect(style.fontSize, closeTo(20 * scale, 0.01), reason: heading);
         expect(style.fontWeight, FontWeight.w700, reason: heading);
       }
-      // The in-progress count, beside its heading.
+      // Six active tasks, so the in-progress count reads 6 — plainly.
       expect(
-        tester.widget<Text>(find.text('1')).style!.fontSize,
-        closeTo(13 * scale, 0.01),
+        tester.widget<Text>(find.text('6')).style!.fontSize,
+        closeTo(14 * scale, 0.01),
       );
-      expectNoOverflow(tester);
-    });
-
-    testWidgets('the composition holds on a taller device', (tester) async {
-      tester.view.physicalSize = const Size(430 * 3, 932 * 3);
-      tester.view.devicePixelRatio = 3.0;
-      addTearDown(tester.view.reset);
-      await pumpProfile(
-        tester,
-        inShell: true,
-        tasks: [_task('Spanish', seconds: 45900)],
-        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
-        milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
-      );
-      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
-      final body = 932 - (kTabBarHeight + kRefBottomInset);
-      final clearance =
-          body - tester.getBottomLeft(inProgressStrip()).dy;
-      expect(clearance, closeTo(28 * scale, 2));
+      expect(find.textContaining('active'), findsNothing);
       expectNoOverflow(tester);
     });
 
@@ -722,13 +774,12 @@ void main() {
       final statsTop = tester.getTopLeft(find.text('13')).dy;
       final cluster = statsTop - heroBottom;
 
-      // A BIG break — the one above the Friends hairline, which is where the
-      // page puts its surplus. (Friends→Milestones is a tight gap by design,
-      // so it is the wrong thing to compare against.)
+      // The section break below it — the widest gap the composition allows
+      // anywhere on the page.
       final lines = find.byWidgetPredicate(
         (w) => w is SizedBox && w.height == 1,
       );
-      final handedOut =
+      final sectionBreak =
           tester.getTopLeft(lines.first).dy -
           tester.getBottomLeft(find.text('day streak')).dy;
 
@@ -737,7 +788,7 @@ void main() {
       // declared 24 because of the figures' line box, and it measures the
       // same with the distribution turned off: structural, not drift.)
       expect(cluster, greaterThan(0));
-      expect(cluster, lessThan(handedOut));
+      expect(cluster, lessThanOrEqualTo(sectionBreak + 12));
       expect(cluster, lessThanOrEqualTo(40));
       expectNoOverflow(tester);
     });

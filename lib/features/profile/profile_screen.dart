@@ -36,29 +36,59 @@ const Color _kPhotoTint = Color(0x1A000000);
 /// leaves the rest as space rather than stretching two photos across the whole
 /// page. Each slot is a flex share, so the squares size themselves to the
 /// gutter instead of to a number: ≈79 on a 393 screen.
-/// The composition's own gaps, measured off the mock rather than taken from
-/// the tier table — 20, 14 and 28 are not on the 6/12/24 ladder, and they are
-/// here because the page reads right at these and not at the nearest tier.
+/// The page's composition, calibrated on an iPhone 13 Pro (390x844, a 47 top
+/// inset and the tab bar at 770, leaving 723 of content).
 ///
-/// A hairline HUGS the heading below it: [_kUnderHairline] separates the two,
-/// while the break above the line is whatever the page has left to give. The
-/// clearance is the one that matters most — the task names must never sit
-/// against the tab bar.
-const double _kUnderHairline = kSpacingPair;
-const double _kFriendsTrailing = kSpacingBase;
-const double _kHeadingToPhotos = 20;
-const double _kHeadingToCircles = 14;
+/// EVERY gap here is fixed, and the column is top-anchored. There is no
+/// Spacer, no Expanded and no flexible break anywhere in it — flex is what
+/// pooled the slack into a void, whether it was spread evenly (45pt chasms
+/// between sections) or left to collect at the foot (a 160pt cavern). One row
+/// of four photos leaves slack on this device, and the slack belongs in
+/// [_kTopMargin]: above the emblem it reads as margin, which is what empty
+/// space at the top of a page is for.
+///
+/// There is LESS of it than the mock estimated. Flutter's text boxes run
+/// about 34 taller in total than the nominal sizes — `titleLarge` carries no
+/// height factor, so a 20 heading measures nearer 24 — and the margin is what
+/// pays for that, since absorbing is its whole job. Every other gap below is
+/// the mock's number untouched.
+///
+/// These are the mock's numbers, not the 6/12/24 ladder's. They are named so
+/// the next page does not inherit them by accident.
+const double _kTopMargin = 52;
+const double _kEmblemSize = 128;
+const double _kEmblemToHandle = 9;
+const double _kHandleToSubline = 3;
+const double _kSublineToStats = 16;
+const double _kStatGap = 5;
+const double _kBreak = 22;
+const double _kUnderHairline = 11;
+const double _kHeadingToPhotos = 26;
+const double _kHeadingToRings = 20;
 const double _kTabClearance = 28;
 
-/// Section headings: 17, between the body's 15 and the 20 that read as a
-/// shout on a page this dense.
-const double _kHeadingSize = 17;
+/// Section headings take the app's Heading token — the same 20/bold Home puts
+/// on "Last 10 days".
+const double _kHeadingSize = 20;
 
 /// The counts beside them.
-const double _kCountSize = 13;
+const double _kCountSize = 14;
+
+/// The stats' figures and their labels.
+const double _kStatFigureSize = 22;
+const double _kStatLabelSize = 12;
+
+/// The hairline. Darker than [GreyscaleTokens.ringTrack], which is a RING
+/// tone: a rule between sections should part them without being read as one
+/// more thing on the page.
+const Color _kHairline = Color(0xFF242424);
 
 const int _kStripSlots = 4;
-const double _kStripGap = 9;
+
+/// The in-progress rings: four slots and the gap between them.
+const int _kRingSlots = 4;
+const double _kRingGap = 14;
+const double _kStripGap = 8;
 const double _kStripRadius = 13;
 
 /// The Profile tab: who you are, then what you are climbing toward.
@@ -103,76 +133,44 @@ class ProfileScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // THE FIRST SCREEN. Exactly as tall as the viewport it is
-                  // sitting in, so whatever follows begins past the bottom
-                  // edge of whatever device this is — a fixed spacer would
-                  // have been right on one phone and wrong on every other.
+                  // THE FIRST SCREEN. Floored to the viewport's own height
+                  // so whatever follows begins past the bottom edge of
+                  // whatever device this is — a fixed spacer would have been
+                  // right on one phone and wrong on every other.
                   //
-                  // minHeight is what makes the distribution below work at
-                  // all: a Column under an unbounded main axis sizes to its
-                  // children and has no free space to give away, so the slack
-                  // pooled at the foot as dead air. Floored to the viewport,
-                  // the Column's own size exceeds what its children asked
-                  // for, and spaceBetween hands the difference out.
+                  // Top-anchored, and every gap inside it a fixed SizedBox.
+                  // There is no Spacer, no Expanded and no flexible break
+                  // here: flex is what pooled the slack into a void, spread
+                  // evenly as chasms between the sections or left to collect
+                  // at the foot as a cavern. The slack lives in the top
+                  // margin above the emblem instead, where empty space at the
+                  // top of a page reads as margin.
                   ConstrainedBox(
                     constraints: BoxConstraints(minHeight: viewport.maxHeight),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
-                      // Even gaps between the four blocks, so In progress ends
-                      // on the fold rather than halfway up it. When the
-                      // content is taller than the viewport there is nothing
-                      // to distribute and this does nothing — no overflow.
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      // THREE blocks, so the surplus falls into exactly two
-                      // gaps and they are equal by construction. Everything
-                      // inside a block is fixed; only the two breaks flex.
                       children: [
-                        // Who you are. One child on purpose — the surplus is
-                        // handed out BETWEEN children, and the emblem, the
-                        // handle, the countdown and the figures must not
-                        // drift apart.
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SizedBox(height: kSpacingBase * scale),
-                            const _HeroEmblem(),
-                            SizedBox(height: kSpacingSection * scale),
-                            _EffortSummary(
-                              lifetime: lifetime,
-                              streak: streak,
-                              milestones: milestones,
-                            ),
-                          ],
+                        SizedBox(height: _kTopMargin * scale),
+                        const _HeroEmblem(),
+                        SizedBox(height: _kSublineToStats * scale),
+                        _EffortSummary(
+                          lifetime: lifetime,
+                          streak: streak,
+                          milestones: milestones,
                         ),
-                        // Who you know, and what you have finished. Two rows
-                        // under one break: Friends is a single line, so a
-                        // break of its own either side would have left it
-                        // marooned.
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const _Hairline(),
-                            SizedBox(height: _kUnderHairline * scale),
-                            const _FriendsRow(),
-                            SizedBox(height: _kFriendsTrailing * scale),
-                            const _Hairline(),
-                            SizedBox(height: _kUnderHairline * scale),
-                            const _MilestonesRow(),
-                          ],
-                        ),
-                        // What you are on now, held clear of the tab bar.
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const _Hairline(),
-                            SizedBox(height: _kUnderHairline * scale),
-                            _TasksInProgress(tasks: tasks),
-                            SizedBox(height: _kTabClearance * scale),
-                          ],
-                        ),
+                        SizedBox(height: _kBreak * scale),
+                        const _Hairline(),
+                        SizedBox(height: _kUnderHairline * scale),
+                        const _FriendsRow(),
+                        SizedBox(height: _kBreak * scale),
+                        const _Hairline(),
+                        SizedBox(height: _kUnderHairline * scale),
+                        const _MilestonesRow(),
+                        SizedBox(height: _kBreak * scale),
+                        const _Hairline(),
+                        SizedBox(height: _kUnderHairline * scale),
+                        _TasksInProgress(tasks: tasks),
+                        SizedBox(height: _kTabClearance * scale),
                       ],
                     ),
                   ),
@@ -196,10 +194,8 @@ class _Hairline extends StatelessWidget {
   const _Hairline();
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 1,
-    child: ColoredBox(color: GreyscaleTokens.of(context).ringTrack),
-  );
+  Widget build(BuildContext context) =>
+      const SizedBox(height: 1, child: ColoredBox(color: _kHairline));
 }
 
 /// A section break: one hairline, closer to what came before it than to what
@@ -252,13 +248,13 @@ class _Section extends StatelessWidget {
 class _HeroEmblem extends ConsumerWidget {
   const _HeroEmblem();
 
-  /// Ø132 outer, a 6 stroke, then an 8 gap, then the photo at Ø104 — four
-  /// numbers that only work together: 132 − 2×6 leaves a 120 hole, and a 104
-  /// photo centred in it IS the 8 gap. The photo is ≈80% of the outer
-  /// diameter, which is what stops the ring reading as a thick frame.
-  static const double _ring = 132;
-  static const double _stroke = 6;
-  static const double _photo = 104;
+  /// Ø128, with the stroke and the photo at the shares they were measured at
+  /// on the 132 ring: a 6 stroke and a 104 photo become ≈5.8 and ≈100.8 here.
+  /// The photo stays ≈80% of the outer diameter, which is what stops the ring
+  /// reading as a thick frame.
+  static const double _ring = _kEmblemSize;
+  static const double _stroke = _ring * 6 / 132;
+  static const double _photo = _ring * 104 / 132;
 
   /// The first letter of the display name, or failing that the handle.
   /// Empty when there is neither, and then the ring simply stands alone.
@@ -285,9 +281,10 @@ class _HeroEmblem extends ConsumerWidget {
     final newest = recent.isEmpty ? null : recent.first;
 
     final handle = profile?.username ?? '';
-    final subline = next == null
-        ? 'No task in progress.'
-        : '${next.hoursRemaining}h to your next milestone';
+    final quiet = theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 13 * scale,
+      color: tokens.textSecondary,
+    );
 
     return Column(
       children: [
@@ -322,7 +319,7 @@ class _HeroEmblem extends ConsumerWidget {
                   ),
           ),
         ),
-        SizedBox(height: kSpacingBase * scale),
+        SizedBox(height: _kEmblemToHandle * scale),
         // The person, at the top of their own page at last. Omitted rather
         // than faked when there is no handle yet — the account block below
         // still offers to set one.
@@ -335,15 +332,26 @@ class _HeroEmblem extends ConsumerWidget {
               color: tokens.textPrimary,
             ),
           ),
-          SizedBox(height: kSpacingPair * scale),
+          SizedBox(height: _kHandleToSubline * scale),
         ],
-        Text(
-          subline,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontSize: 13 * scale,
-            color: tokens.textSecondary,
+        // The FIGURE is what you read; the sentence around it is the frame.
+        // One Text, so the two sit on one baseline.
+        Text.rich(
+          TextSpan(
+            children: next == null
+                ? [TextSpan(text: 'No task in progress.', style: quiet)]
+                : [
+                    TextSpan(
+                      text: '${next.hoursRemaining}h',
+                      style: quiet?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: tokens.textPrimary,
+                      ),
+                    ),
+                    TextSpan(text: ' to your next milestone', style: quiet),
+                  ],
           ),
+          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -397,21 +405,24 @@ class _Stat extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
+    final scale = figmaScale(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           value,
-          style: theme.textTheme.headlineMedium?.copyWith(
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: _kStatFigureSize * scale,
+            fontWeight: FontWeight.w700,
             color: tokens.textPrimary,
-            fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: _kStatGap * scale),
         Text(
           label,
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontSize: _kStatLabelSize * scale,
             color: tokens.textTertiary,
           ),
         ),
@@ -617,7 +628,7 @@ class _TasksInProgress extends StatelessWidget {
               ),
           ],
         ),
-        SizedBox(height: _kHeadingToCircles * scale),
+        SizedBox(height: _kHeadingToRings * scale),
         if (tasks.isEmpty)
           Text(
             'Start a task on the timer to see it climb here.',
@@ -627,23 +638,21 @@ class _TasksInProgress extends StatelessWidget {
             ),
           )
         else
-          // One tile tall whatever the task count — the row grows sideways,
-          // never downward. A scroll view around a Row rather than a ListView
-          // on purpose: a ListView needs its cross-axis extent declared, and
-          // the declared number was a hair under what a 12pt line actually
-          // measures, which clipped the task names by a fraction of a pixel.
-          // This takes its height from the tiles themselves.
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const ClampingScrollPhysics(),
-            child: Row(
-              children: [
-                for (var i = 0; i < tasks.length; i++) ...[
-                  if (i > 0) SizedBox(width: kSpacingSection * scale),
-                  _TaskTile(task: tasks[i]),
-                ],
+          // Four slots across the width, like the photo strip above — the
+          // first four tasks, and space where a fifth would be. No scroll:
+          // the section answers "what am I on", and four is an answer. The
+          // count beside the heading says how many there are in total.
+          Row(
+            children: [
+              for (var i = 0; i < _kRingSlots; i++) ...[
+                if (i > 0) SizedBox(width: _kRingGap * scale),
+                Expanded(
+                  child: i < tasks.length
+                      ? _TaskTile(task: tasks[i])
+                      : const SizedBox.shrink(),
+                ),
               ],
-            ),
+            ],
           ),
       ],
     );
@@ -654,9 +663,8 @@ class _TaskTile extends StatelessWidget {
   const _TaskTile({required this.task});
   final Task task;
 
-  static const double ringSize = 56;
+  static const double ringSize = 54;
   static const double labelGap = 8;
-  static const double width = 84;
 
   @override
   Widget build(BuildContext context) {
@@ -664,20 +672,25 @@ class _TaskTile extends StatelessWidget {
     final theme = Theme.of(context);
     final scale = figmaScale(context);
 
-    // ONE style object, used by both the in-ring figure and the name beneath
-    // it, so the two can never drift apart in size or weight.
+    // The figure inside the ring is the bright one; the name under it is
+    // supporting — the same relationship every other figure-and-label pair on
+    // this page has.
     final figureStyle = theme.textTheme.bodyMedium?.copyWith(
       fontSize: 12 * scale,
       fontWeight: FontWeight.w700,
       color: tokens.textPrimary,
     );
+    final nameStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 11 * scale,
+      fontWeight: FontWeight.w600,
+      color: tokens.textSecondary,
+    );
 
-    return SizedBox(
-      width: width * scale,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ProgressRing(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Center(
+          child: ProgressRing(
             size: ringSize * scale,
             stroke: thinRingStroke(ringSize * scale),
             // Progress through the CURRENT 20h block, so the ring keeps
@@ -690,16 +703,16 @@ class _TaskTile extends StatelessWidget {
             // hours are up in the figures at the top of the page.
             center: Text('${task.activeMilestoneHours}h', style: figureStyle),
           ),
-          SizedBox(height: labelGap * scale),
-          Text(
-            task.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: figureStyle,
-          ),
-        ],
-      ),
+        ),
+        SizedBox(height: labelGap * scale),
+        Text(
+          task.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: nameStyle,
+        ),
+      ],
     );
   }
 }

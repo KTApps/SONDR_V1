@@ -61,8 +61,8 @@ const Color _kPhotoTint = Color(0x1A000000);
 /// rides up into the status bar.
 const double _kTopMargin = 46;
 const double _kEmblemSize = 128;
-const double _kEmblemToHandle = 9;
-const double _kHandleToSubline = 3;
+const double _kEmblemToHandle = 12;
+const double _kHandleToSubline = 6;
 const double _kSublineToStats = 16;
 const double _kStatGap = 5;
 const double _kBreak = 22;
@@ -72,7 +72,9 @@ const double _kBreak = 22;
 const double _kUnderHairline = 14;
 const double _kHeadingToPhotos = 26;
 const double _kHeadingToRings = 20;
-const double _kTabClearance = 28;
+/// What is left for the clearance once the rest is paid for. The emblem is
+/// fixed and the top margin is spent, so this is the only gap that can give.
+const double _kTabClearance = 16;
 
 /// Section headings take the app's Heading token — the same 20/bold Home puts
 /// on "Last 10 days".
@@ -90,13 +92,16 @@ const double _kStatLabelSize = 12;
 /// more thing on the page.
 const Color _kHairline = Color(0xFF242424);
 
-const int _kStripSlots = 4;
-
 /// The in-progress rings: the tile's width and the gap between tiles. About
 /// four fit the content width and the fifth peeks, which is the only thing
 /// telling you the row scrolls.
 const double _kRingTileWidth = 74;
 const double _kRingGap = 14;
+
+/// The Milestones strip: fixed squares scrolling sideways, exactly as the
+/// rings do. Four fit the content width, so a collage of more than four is
+/// reached by dragging rather than by shrinking every tile to suit.
+const double _kStripTile = 80;
 const double _kStripGap = 8;
 const double _kStripRadius = 13;
 
@@ -571,19 +576,17 @@ class _MilestonesRow extends ConsumerWidget {
           ),
           if (strip.isNotEmpty) ...[
             SizedBox(height: _kHeadingToPhotos * scale),
-            Row(
-              children: [
-                for (var i = 0; i < _kStripSlots; i++) ...[
-                  if (i > 0) SizedBox(width: _kStripGap * scale),
-                  Expanded(
-                    // An empty slot is space, not a frame: a bordered blank
-                    // would promise a photo that is not there.
-                    child: i < strip.length
-                        ? _GalleryThumb(photo: strip[i])
-                        : const SizedBox.shrink(),
-                  ),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              child: Row(
+                children: [
+                  for (var i = 0; i < strip.length; i++) ...[
+                    if (i > 0) SizedBox(width: _kStripGap * scale),
+                    _GalleryThumb(photo: strip[i]),
+                  ],
                 ],
-              ],
+              ),
             ),
           ],
         ],
@@ -678,7 +681,11 @@ class _TaskTile extends StatelessWidget {
   const _TaskTile({required this.task});
   final Task task;
 
-  static const double ringSize = 54;
+  /// The Milestones page's own task ring — Ø56 at the shared thin stroke (see
+  /// _DoneRing in milestones_screen.dart), so a ring is the same size and the
+  /// same weight on both screens. The TONE is not shared: this one is
+  /// progress, so it stays grey, and white remains a milestone reached.
+  static const double ringSize = 56;
   static const double labelGap = 8;
 
   @override
@@ -738,8 +745,8 @@ class _TaskTile extends StatelessWidget {
   }
 }
 
-/// One photo in the milestones strip — square, sized by its slot, with the
-/// near-raw tint and a muted tile rather than a broken image when a URL fails.
+/// One photo in the milestones strip — a fixed square, with the near-raw tint
+/// and a muted tile rather than a broken image when a URL fails.
 class _GalleryThumb extends StatelessWidget {
   const _GalleryThumb({required this.photo});
 
@@ -749,9 +756,9 @@ class _GalleryThumb extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final scale = figmaScale(context);
-    return AspectRatio(
-      // Square, so the row's height follows the width the gutter leaves it.
-      aspectRatio: 1,
+    return SizedBox(
+      width: _kStripTile * scale,
+      height: _kStripTile * scale,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(_kStripRadius * scale),
         child: SondrPhoto(

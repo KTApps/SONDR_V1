@@ -15,7 +15,7 @@ import '../../shared/sondr_action.dart';
 import '../auth/guest_prompts.dart';
 import '../focus/focus_providers.dart';
 import '../focus/focus_view.dart';
-import '../habits/habits_overlay.dart';
+import '../habits/habits_screen.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
 import '../milestone/milestone_celebration.dart';
@@ -154,7 +154,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
                 selectedTaskIndex: highlightIndex,
                 habitStates: habitStates,
                 size: 260 * scale,
-                onInnerRingTap: () => showHabitsOverlay(context),
+                onInnerRingTap: () => showHabitsScreen(context),
                 center: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onHorizontalDragEnd: (_) =>

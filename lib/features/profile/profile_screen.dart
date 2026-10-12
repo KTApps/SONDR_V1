@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
@@ -12,7 +11,6 @@ import '../auth/account_screen.dart';
 import '../auth/guest_prompts.dart';
 import '../auth/models/profile.dart';
 import '../auth/profile_repository.dart';
-import '../debug/debug_panel.dart';
 import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
@@ -30,6 +28,17 @@ import 'profile_providers.dart';
 // photo surface.
 const double _kPhotoSaturation = 0.85;
 const Color _kPhotoTint = Color(0x1A000000);
+
+/// The Milestones strip: four equal squares across the content width.
+///
+/// Four slots whatever the collage holds, so the row keeps one height and one
+/// rhythm — a newest collage of two photos fills the first two slots and
+/// leaves the rest as space rather than stretching two photos across the whole
+/// page. Each slot is a flex share, so the squares size themselves to the
+/// gutter instead of to a number: ≈79 on a 393 screen.
+const int _kStripSlots = 4;
+const double _kStripGap = 9;
+const double _kStripRadius = 13;
 
 /// The Profile tab: who you are, then what you are climbing toward.
 ///
@@ -55,52 +64,58 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       // No AppBar — the redundant "Profile" title is removed (matches Feed).
       body: SafeArea(
-        child: SingleChildScrollView(
-          // Clamping, not bouncing. The page runs past the viewport now, so it
-          // genuinely scrolls; on a short page (a new account with no tasks)
-          // iOS's bounce made the whole thing feel loose and unanchored, which
-          // is why this page refused a scroll view at all before.
-          physics: const ClampingScrollPhysics(),
-          child: Padding(
-            // The page's own edge: 12 top and bottom, not 24. The section
-            // breaks below carry the page's rhythm, and the first and last of
-            // them were being doubled up on by a full section gap against the
-            // screen edge — which is the 24 that kept the page off one screen.
-            // The 24 gutter either side is untouched.
-            padding: EdgeInsets.symmetric(
-              horizontal: 24 * scale,
-              vertical: kSpacingBase * scale,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _HeroEmblem(),
-                SizedBox(height: kSpacingSection * scale),
-                _EffortSummary(
-                  lifetime: lifetime,
-                  streak: streak,
-                  milestones: milestones,
-                ),
-                const _Section(child: _FriendsRow()),
-                const _Section(child: _MilestonesRow()),
-                _Section(child: _TasksInProgress(tasks: tasks)),
-                // QA-only entry — const-false in release builds, so this whole
-                // branch (and DebugPanel, referenced only here) tree-shakes
-                // out. Not a section: no hairline earns it.
-                if (kDebugTools) ...[
-                  SizedBox(height: kSpacingSection * scale),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const DebugPanel()),
-                      ),
-                      child: const Text('DEBUG PANEL'),
+        // The viewport, measured. Everything about where the fold falls comes
+        // from this number rather than from a guess about the device.
+        child: LayoutBuilder(
+          builder: (context, viewport) => SingleChildScrollView(
+            // Clamping, not bouncing. The page genuinely runs past the
+            // viewport now; on iOS a bounce at the top of a page this
+            // deliberately composed reads as slack.
+            physics: const ClampingScrollPhysics(),
+            child: Padding(
+              // The page's own edge: 12 top and bottom, not 24. The section
+              // breaks below carry the page's rhythm, and the first and last
+              // of them were being doubled up on by a full section gap
+              // against the screen edge. The 24 gutter either side is
+              // untouched.
+              padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // THE FIRST SCREEN. At least as tall as the viewport it is
+                  // sitting in, so whatever follows begins past the bottom
+                  // edge of whatever device this is — a fixed spacer would
+                  // have been right on one phone and wrong on every other.
+                  //
+                  // The content keeps its own height and stays top-aligned,
+                  // so the slack falls at the foot of the first screen. That
+                  // space is the page saying there is more below it.
+                  ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: viewport.maxHeight),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(height: kSpacingBase * scale),
+                        const _HeroEmblem(),
+                        SizedBox(height: kSpacingSection * scale),
+                        _EffortSummary(
+                          lifetime: lifetime,
+                          streak: streak,
+                          milestones: milestones,
+                        ),
+                        const _Section(child: _FriendsRow()),
+                        const _Section(child: _MilestonesRow()),
+                        _Section(child: _TasksInProgress(tasks: tasks)),
+                      ],
                     ),
                   ),
+                  // BELOW THE FOLD. Signed in, the email, Sign out and the
+                  // QA word — things you go looking for, never the first
+                  // thing the page offers.
+                  const _Section(child: AccountBody()),
+                  SizedBox(height: kSpacingBase * scale),
                 ],
-                const _Section(child: AccountBody()),
-              ],
+              ),
             ),
           ),
         ),
@@ -399,6 +414,14 @@ class _FriendsRow extends ConsumerWidget {
 ///
 /// Borderless like Friends, and it opens the page on its default lens — the
 /// row is always here, so the Photos lens is one tab away once you arrive.
+///
+/// The COUNT is [milestonesReachedProvider], the same figure the totals above
+/// show. It used to be the number of saved collages, which is a different
+/// thing: a collage is written when a milestone is crossed with photos in its
+/// band, so a milestone reached with nothing captured, or crossed before the
+/// auto-compose existed, had no collage and went uncounted. The photo strip
+/// still comes from the newest collage — that is a preview, and a preview may
+/// well have less behind it than the count.
 class _MilestonesRow extends ConsumerWidget {
   const _MilestonesRow();
 
@@ -408,10 +431,10 @@ class _MilestonesRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final scale = figmaScale(context);
 
+    final n = ref.watch(milestonesReachedProvider);
     final collages = ref.watch(collagesListProvider).value ?? const <Collage>[];
-    final n = collages.length;
     final List<Photo> strip;
-    if (n > 0) {
+    if (collages.isNotEmpty) {
       final ids = collages.first.photoIds.join(',');
       strip = ref.watch(collagePhotosProvider(ids)).value ?? const <Photo>[];
     } else {
@@ -452,9 +475,15 @@ class _MilestonesRow extends ConsumerWidget {
             SizedBox(height: kSpacingBase * scale),
             Row(
               children: [
-                for (final p in strip.take(4)) ...[
-                  _GalleryThumb(photo: p),
-                  SizedBox(width: kSpacingPair * scale),
+                for (var i = 0; i < _kStripSlots; i++) ...[
+                  if (i > 0) SizedBox(width: _kStripGap * scale),
+                  Expanded(
+                    // An empty slot is space, not a frame: a bordered blank
+                    // would promise a photo that is not there.
+                    child: i < strip.length
+                        ? _GalleryThumb(photo: strip[i])
+                        : const SizedBox.shrink(),
+                  ),
                 ],
               ],
             ),
@@ -496,10 +525,12 @@ class _TasksInProgress extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            // The same set the row scrolls through: tasks not archived.
+            // A bare number, like the counts on the Friends and Milestones
+            // rows above it. The same set the row scrolls through: tasks not
+            // archived.
             if (tasks.isNotEmpty)
               Text(
-                '${tasks.length} active',
+                '${tasks.length}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontSize: 12 * scale,
                   fontWeight: FontWeight.w700,
@@ -595,24 +626,22 @@ class _TaskTile extends StatelessWidget {
   }
 }
 
-/// One small photo in the milestones strip — fixed size, near-raw tint, and a
-/// muted tile rather than a broken image when a URL fails.
+/// One photo in the milestones strip — square, sized by its slot, with the
+/// near-raw tint and a muted tile rather than a broken image when a URL fails.
 class _GalleryThumb extends StatelessWidget {
   const _GalleryThumb({required this.photo});
 
   final Photo photo;
 
-  static const double _size = 34;
-
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final scale = figmaScale(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8 * scale),
-      child: SizedBox(
-        width: _size * scale,
-        height: _size * scale,
+    return AspectRatio(
+      // Square, so the row's height follows the width the gutter leaves it.
+      aspectRatio: 1,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_kStripRadius * scale),
         child: SondrPhoto(
           url: photo.photoUrl,
           saturation: _kPhotoSaturation,

@@ -32,7 +32,8 @@ void main() {
   testWidgets('opens on the Milestones lens', (tester) async {
     await pumpScreen(tester);
     expect(find.text('Golf'), findsOneWidget);
-    expect(find.text('20 hours · no photos'), findsOneWidget);
+    // The task's OWN milestone count, not the hours the ring already states.
+    expect(find.text('1 milestone · no photos'), findsOneWidget);
     expect(find.text('No photos yet.'), findsNothing);
   });
 

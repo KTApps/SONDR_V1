@@ -7,17 +7,24 @@ import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/theme/greyscale_tokens.dart';
 import 'package:sondr/core/theme/spacing.dart';
 import 'package:sondr/core/utils/figma_scale.dart';
+import 'package:sondr/features/auth/account_screen.dart';
 import 'package:sondr/features/auth/models/profile.dart';
 import 'package:sondr/features/auth/profile_repository.dart';
+import 'package:sondr/features/photos/models/collage.dart';
 import 'package:sondr/features/photos/models/photo.dart';
+import 'package:sondr/features/photos/collages_repository.dart';
+import 'package:sondr/features/photos/milestones_screen.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/profile/profile_providers.dart';
 import 'package:sondr/features/profile/profile_screen.dart';
 import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/tasks/tasks_providers.dart';
 import 'package:sondr/features/tasks/tasks_repository.dart';
+import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/shared/ring/progress_ring.dart';
 import 'package:sondr/shared/ring/ring_dial.dart';
+
+import 'support/app_viewport.dart';
 import 'package:sondr/shared/ring/ring_metrics.dart';
 
 /// The profile page reorganised around one hero emblem.
@@ -88,6 +95,10 @@ void expectNoOverflow(WidgetTester tester) {
   expect(thrown.where((e) => e.toString().contains('overflowed')), isEmpty);
 }
 
+/// The gap between strip tiles, mirrored from profile_screen.dart so the
+/// arithmetic here is checking the layout rather than restating it.
+const double _stripGap = 9;
+
 void main() {
   group('the nearest milestone', () {
     ProviderContainer withTasks(List<Task> tasks) {
@@ -144,6 +155,8 @@ void main() {
       List<Task> tasks = const [],
       List<Photo> recent = const [],
       Profile? profile,
+      bool inShell = false,
+      List<Photo> milestonePhotos = const [],
     }) async {
       ignoreFirebaseAbsence();
       await tester.pumpWidget(
@@ -156,10 +169,34 @@ void main() {
             galleryPreviewProvider.overrideWith(
               (ref) async => (recent: recent, total: recent.length),
             ),
+            collagesListProvider.overrideWith(
+              (ref) async => milestonePhotos.isEmpty
+                  ? const <Collage>[]
+                  : [
+                      Collage(
+                        taskId: 't',
+                        milestoneHours: 20,
+                        photoIds: [for (final p in milestonePhotos) p.id],
+                        edited: false,
+                      ),
+                    ],
+            ),
+            collagePhotosProvider.overrideWith(
+              (ref, key) async => milestonePhotos,
+            ),
           ],
           child: MaterialApp(
             theme: AppTheme.dark(),
-            home: const ProfileScreen(),
+            // A tab screen's body is the screen less the tab bar and the
+            // bottom inset — forget that and the fold reads 74 too generous.
+            home: inShell
+                ? Scaffold(
+                    body: const ProfileScreen(),
+                    bottomNavigationBar: const SizedBox(
+                      height: kTabBarHeight + kRefBottomInset,
+                    ),
+                  )
+                : const ProfileScreen(),
           ),
         ),
       );
@@ -277,8 +314,9 @@ void main() {
           _task('Golf', seconds: 3600, archived: true),
         ],
       );
-      expect(find.text('2 active'), findsOneWidget);
-      expect(find.text('3 active'), findsNothing);
+      // A bare number, like the Friends and Milestones counts above it.
+      expect(find.text('2'), findsOneWidget);
+      expect(find.textContaining('active'), findsNothing);
       // And the archived one is not in the row either.
       expect(find.text('Golf'), findsNothing);
       expectNoOverflow(tester);
@@ -379,6 +417,117 @@ void main() {
       expectNoOverflow(tester);
     });
 
+    testWidgets('the milestone count is the same figure in both places', (
+      tester,
+    ) async {
+      // 21h is one milestone, 65h is three: four in total. The totals figure
+      // and the doorway count are now the same provider, so there is one
+      // number rather than a stat and a collage tally that drift apart.
+      //
+      // Four rather than three deliberately: the local habits seed makes the
+      // day streak 3, and a figure that collides with it would pass whatever
+      // the doorway said.
+      await pumpProfile(
+        tester,
+        tasks: [
+          _task('Spanish', seconds: 21 * 3600),
+          _task('Golf', seconds: 65 * 3600),
+        ],
+      );
+      expect(find.text('milestones'), findsOneWidget); // the totals' label
+      // Twice: once as the totals figure, once as the doorway's count.
+      expect(find.text('4'), findsNWidgets(2));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('a milestone with no collage behind it still counts', (
+      tester,
+    ) async {
+      // The doorway used to count saved collages, so a milestone reached with
+      // nothing captured in its band went missing from it. There is no photo
+      // store in this test at all, so every collage is absent.
+      // Two tasks so the in-progress count is 2 and cannot be mistaken for
+      // the milestone figure.
+      await pumpProfile(
+        tester,
+        tasks: [
+          _task('Spanish', seconds: 21 * 3600),
+          _task('Piano', seconds: 3600),
+        ],
+      );
+      expect(find.text('1'), findsNWidgets(2)); // totals figure + doorway
+      expect(find.text('milestone'), findsOneWidget);
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the milestone strip is four full-width squares', (
+      tester,
+    ) async {
+      useReferenceViewport(tester);
+      await pumpProfile(
+        tester,
+        inShell: true,
+        // No recent capture, so the hero shows a monogram and every
+        // SondrPhoto on the page belongs to the strip.
+        milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
+      );
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+      final tiles = find.byType(SondrPhoto);
+      expect(tiles, findsNWidgets(4));
+
+      final sizes = [
+        for (var i = 0; i < 4; i++) tester.getSize(tiles.at(i)),
+      ];
+      // Square, and all four the same.
+      for (final size in sizes) {
+        expect(size.width, closeTo(size.height, 0.01));
+        expect(size.width, closeTo(sizes.first.width, 0.01));
+      }
+      // Bigger than the 34 they used to be, and they fill the content width:
+      // four tiles plus three gaps is the page less its gutters.
+      expect(sizes.first.width, greaterThan(60 * scale));
+      final content = 393 * scale - 2 * 24 * scale;
+      expect(
+        sizes.first.width * 4 + _stripGap * scale * 3,
+        closeTo(content, 0.5),
+      );
+      // Flush to the gutter, with no inset of their own.
+      expect(tester.getTopLeft(tiles.first).dx, closeTo(24 * scale, 0.5));
+      expect(
+        tester.getTopRight(tiles.at(3)).dx,
+        closeTo(393 * scale - 24 * scale, 0.5),
+      );
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('a short collage fills the first slots and leaves the rest', (
+      tester,
+    ) async {
+      useReferenceViewport(tester);
+      await pumpProfile(
+        tester,
+        inShell: true,
+        milestonePhotos: [for (var i = 0; i < 2; i++) _photo(2000 + i)],
+      );
+      final tiles = find.byType(SondrPhoto);
+      expect(tiles, findsNWidgets(2));
+      // Still slot-sized, not stretched across the page.
+      final four = (393 - 48 - _stripGap * 3) / 4;
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+      expect(tester.getSize(tiles.first).width, closeTo(four * scale, 0.5));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the strip still opens the Milestones page', (tester) async {
+      await pumpProfile(
+        tester,
+        milestonePhotos: [for (var i = 0; i < 4; i++) _photo(3000 + i)],
+      );
+      await tester.tap(find.byType(SondrPhoto).first);
+      await tester.pumpAndSettle();
+      expect(find.byType(MilestonesScreen), findsOneWidget);
+    });
+
     testWidgets('nothing is carded, and nothing wears a chevron', (
       tester,
     ) async {
@@ -435,6 +584,74 @@ void main() {
       expect(y('@tanaka'), lessThan(y('Friends')));
       expect(y('Friends'), lessThan(y('Milestones')));
       expect(y('Milestones'), lessThan(y('In progress')));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the account block is off-screen at the top of the scroll', (
+      tester,
+    ) async {
+      useReferenceViewport(tester);
+      await pumpProfile(
+        tester,
+        tasks: [_task('Spanish', seconds: 3600)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+        inShell: true,
+      );
+
+      // A tab screen's body is the screen less the tab bar and the bottom
+      // inset. Nothing of the account block may be inside it at rest.
+      final fold = refBodyHeight();
+      expect(
+        tester.getTopLeft(find.byType(AccountBody)).dy,
+        greaterThanOrEqualTo(fold),
+      );
+      // And the content above it still ends inside the first screen.
+      expect(tester.getTopLeft(find.text('In progress')).dy, lessThan(fold));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('scrolling down brings the account block into view', (
+      tester,
+    ) async {
+      useReferenceViewport(tester);
+      await pumpProfile(
+        tester,
+        tasks: [_task('Spanish', seconds: 3600)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+        inShell: true,
+      );
+      final before = tester.getTopLeft(find.byType(AccountBody)).dy;
+
+      await tester.drag(find.byType(ProfileScreen), const Offset(0, -260));
+      await tester.pumpAndSettle();
+
+      final after = tester.getTopLeft(find.byType(AccountBody)).dy;
+      expect(after, lessThan(before));
+      // Up past the fold, so it is genuinely on screen now.
+      expect(after, lessThan(refBodyHeight()));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the fold follows the viewport, not a fixed number', (
+      tester,
+    ) async {
+      // Taller device: the account block has to move WITH the fold, which a
+      // hard-coded spacer could not do.
+      tester.view.physicalSize = const Size(430 * 3, 932 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      await pumpProfile(
+        tester,
+        tasks: [_task('Spanish', seconds: 3600)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+        inShell: true,
+      );
+      final body = 932 - (kTabBarHeight + kRefBottomInset);
+      expect(
+        tester.getTopLeft(find.byType(AccountBody)).dy,
+        greaterThanOrEqualTo(body - 1),
+      );
       expectNoOverflow(tester);
     });
   });

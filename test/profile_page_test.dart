@@ -292,29 +292,50 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('in progress is four slots, however many tasks there are', (
+    testWidgets('in progress scrolls sideways through every task', (
       tester,
     ) async {
-      // Four rings and no scroller: the count beside the heading carries the
-      // total, so the row does not have to.
       await pumpProfile(
         tester,
         tasks: [for (var i = 0; i < 8; i++) _task('T$i', seconds: 3600)],
       );
-      expect(ringsOfSize(tester, 54), hasLength(4));
+      // All eight are there, in one row that scrolls — not a fixed four.
+      expect(ringsOfSize(tester, 54), hasLength(8));
       expect(
         find.byWidgetPredicate(
           (w) =>
               w is SingleChildScrollView &&
               w.scrollDirection == Axis.horizontal,
         ),
-        findsNothing,
+        findsOneWidget,
       );
       final rings = ringFinder(tester, 54);
       final firstTop = tester.getTopLeft(rings.first).dy;
-      for (var i = 1; i < 4; i++) {
+      for (var i = 1; i < 8; i++) {
         expect(tester.getTopLeft(rings.at(i)).dy, closeTo(firstTop, 0.5));
       }
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the ring row is one tile tall whatever the count', (
+      tester,
+    ) async {
+      Finder strip() => find.byWidgetPredicate(
+        (w) =>
+            w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+      );
+
+      await pumpProfile(
+        tester,
+        tasks: [for (var i = 0; i < 2; i++) _task('T$i', seconds: 3600)],
+      );
+      final twoTasks = tester.getSize(strip()).height;
+
+      await pumpProfile(
+        tester,
+        tasks: [for (var i = 0; i < 9; i++) _task('T$i', seconds: 3600)],
+      );
+      expect(tester.getSize(strip()).height, twoTasks);
       expectNoOverflow(tester);
     });
 
@@ -577,9 +598,9 @@ void main() {
           tester.getTopLeft(find.text('Friends')).dy -
           tester.getBottomLeft(line).dy;
 
-      // The line HUGS the heading below it — 11 under the line against the
+      // The line HUGS the heading below it — 14 under the line against the
       // 22 break above — so the break belongs to what follows it.
-      expect(below, closeTo(11 * scale, 0.5));
+      expect(below, closeTo(14 * scale, 0.5));
       expect(above, closeTo(22 * scale, 0.5));
       expect(above, greaterThan(below));
       expectNoOverflow(tester);
@@ -694,7 +715,12 @@ void main() {
     ) async {
       final m = await compose(tester);
       for (final k in ['hl1ToFriends', 'hl2ToMilestones', 'hl3ToInProgress']) {
-        expect(m[k], closeTo(11, 2), reason: k);
+        expect(m[k], closeTo(14, 2), reason: k);
+      }
+      // And still tighter than every gap BELOW a heading, the tightest of
+      // which is the 20 to the rings — so a heading belongs to its content.
+      for (final k in ['hl1ToFriends', 'hl2ToMilestones', 'hl3ToInProgress']) {
+        expect(m[k], lessThan(m['inProgressToRings']!), reason: k);
       }
       expect(m['milestonesToPhotos'], closeTo(26, 3));
       expect(m['inProgressToRings'], closeTo(20, 3));

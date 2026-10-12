@@ -55,14 +55,21 @@ const Color _kPhotoTint = Color(0x1A000000);
 ///
 /// These are the mock's numbers, not the 6/12/24 ladder's. They are named so
 /// the next page does not inherit them by accident.
-const double _kTopMargin = 52;
+///
+/// The margin gave up another 9 when the gap above each heading went to 14,
+/// and 46 is the floor the composition allows — a point less and the emblem
+/// rides up into the status bar.
+const double _kTopMargin = 46;
 const double _kEmblemSize = 128;
 const double _kEmblemToHandle = 9;
 const double _kHandleToSubline = 3;
 const double _kSublineToStats = 16;
 const double _kStatGap = 5;
 const double _kBreak = 22;
-const double _kUnderHairline = 11;
+/// The gap ABOVE a heading, between the line and the words. Smaller than
+/// every gap BELOW a heading (20 at the tightest), so a heading stays bound
+/// to the content it introduces rather than to the rule above it.
+const double _kUnderHairline = 14;
 const double _kHeadingToPhotos = 26;
 const double _kHeadingToRings = 20;
 const double _kTabClearance = 28;
@@ -85,8 +92,10 @@ const Color _kHairline = Color(0xFF242424);
 
 const int _kStripSlots = 4;
 
-/// The in-progress rings: four slots and the gap between them.
-const int _kRingSlots = 4;
+/// The in-progress rings: the tile's width and the gap between tiles. About
+/// four fit the content width and the fifth peeks, which is the only thing
+/// telling you the row scrolls.
+const double _kRingTileWidth = 74;
 const double _kRingGap = 14;
 const double _kStripGap = 8;
 const double _kStripRadius = 13;
@@ -638,21 +647,27 @@ class _TasksInProgress extends StatelessWidget {
             ),
           )
         else
-          // Four slots across the width, like the photo strip above — the
-          // first four tasks, and space where a fifth would be. No scroll:
-          // the section answers "what am I on", and four is an answer. The
-          // count beside the heading says how many there are in total.
-          Row(
-            children: [
-              for (var i = 0; i < _kRingSlots; i++) ...[
-                if (i > 0) SizedBox(width: _kRingGap * scale),
-                Expanded(
-                  child: i < tasks.length
-                      ? _TaskTile(task: tasks[i])
-                      : const SizedBox.shrink(),
-                ),
+          // EVERY task, scrolling sideways. About four fit and the fifth
+          // peeks, so the row says it has more without having to grow; the
+          // count beside the heading says how many more.
+          //
+          // A scroll view around a Row rather than a ListView: a ListView
+          // needs its cross-axis extent declared, and the declared number was
+          // a fraction under what the name's line actually measures, which
+          // clipped it and reported an overflow. This takes its height from
+          // the tiles, so the row is one tile tall whatever the count —
+          // fixed, and measurable.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
+            child: Row(
+              children: [
+                for (var i = 0; i < tasks.length; i++) ...[
+                  if (i > 0) SizedBox(width: _kRingGap * scale),
+                  _TaskTile(task: tasks[i]),
+                ],
               ],
-            ],
+            ),
           ),
       ],
     );
@@ -686,33 +701,39 @@ class _TaskTile extends StatelessWidget {
       color: tokens.textSecondary,
     );
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Center(
-          child: ProgressRing(
-            size: ringSize * scale,
-            stroke: thinRingStroke(ringSize * scale),
-            // Progress through the CURRENT 20h block, so the ring keeps
-            // climbing toward the next milestone rather than pinning full —
-            // and clamped, so a first session shows and a last hour doesn't
-            // read as finished.
-            progress: shownProgress(task.milestoneProgress),
-            // The TARGET, not the total: the figure names the thing the ring
-            // is filling toward, which is what the ring is about. Lifetime
-            // hours are up in the figures at the top of the page.
-            center: Text('${task.activeMilestoneHours}h', style: figureStyle),
+    return SizedBox(
+      width: _kRingTileWidth * scale,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Center(
+            child: ProgressRing(
+              size: ringSize * scale,
+              stroke: thinRingStroke(ringSize * scale),
+              // Progress through the CURRENT 20h block, so the ring keeps
+              // climbing toward the next milestone rather than pinning full
+              // — and clamped, so a first session shows and a last hour
+              // doesn't read as finished.
+              progress: shownProgress(task.milestoneProgress),
+              // The TARGET, not the total: the figure names the thing the
+              // ring is filling toward, which is what the ring is about.
+              // Lifetime hours are up in the figures at the top of the page.
+              center: Text(
+                '${task.activeMilestoneHours}h',
+                style: figureStyle,
+              ),
+            ),
           ),
-        ),
-        SizedBox(height: labelGap * scale),
-        Text(
-          task.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: nameStyle,
-        ),
-      ],
+          SizedBox(height: labelGap * scale),
+          Text(
+            task.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: nameStyle,
+          ),
+        ],
+      ),
     );
   }
 }

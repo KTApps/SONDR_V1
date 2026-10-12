@@ -7,6 +7,7 @@ import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/theme/greyscale_tokens.dart';
 import 'package:sondr/core/theme/spacing.dart';
 import 'package:sondr/core/utils/figma_scale.dart';
+import 'package:sondr/features/auth/account_screen.dart';
 import 'package:sondr/features/auth/models/profile.dart';
 import 'package:sondr/features/auth/profile_repository.dart';
 import 'package:sondr/features/photos/models/photo.dart';
@@ -18,6 +19,8 @@ import 'package:sondr/features/tasks/tasks_providers.dart';
 import 'package:sondr/features/tasks/tasks_repository.dart';
 import 'package:sondr/shared/ring/progress_ring.dart';
 import 'package:sondr/shared/ring/ring_dial.dart';
+
+import 'support/app_viewport.dart';
 import 'package:sondr/shared/ring/ring_metrics.dart';
 
 /// The profile page reorganised around one hero emblem.
@@ -144,6 +147,7 @@ void main() {
       List<Task> tasks = const [],
       List<Photo> recent = const [],
       Profile? profile,
+      bool inShell = false,
     }) async {
       ignoreFirebaseAbsence();
       await tester.pumpWidget(
@@ -159,7 +163,16 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.dark(),
-            home: const ProfileScreen(),
+            // A tab screen's body is the screen less the tab bar and the
+            // bottom inset — forget that and the fold reads 74 too generous.
+            home: inShell
+                ? Scaffold(
+                    body: const ProfileScreen(),
+                    bottomNavigationBar: const SizedBox(
+                      height: kTabBarHeight + kRefBottomInset,
+                    ),
+                  )
+                : const ProfileScreen(),
           ),
         ),
       );
@@ -479,6 +492,74 @@ void main() {
       expect(y('@tanaka'), lessThan(y('Friends')));
       expect(y('Friends'), lessThan(y('Milestones')));
       expect(y('Milestones'), lessThan(y('In progress')));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the account block is off-screen at the top of the scroll', (
+      tester,
+    ) async {
+      useReferenceViewport(tester);
+      await pumpProfile(
+        tester,
+        tasks: [_task('Spanish', seconds: 3600)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+        inShell: true,
+      );
+
+      // A tab screen's body is the screen less the tab bar and the bottom
+      // inset. Nothing of the account block may be inside it at rest.
+      final fold = refBodyHeight();
+      expect(
+        tester.getTopLeft(find.byType(AccountBody)).dy,
+        greaterThanOrEqualTo(fold),
+      );
+      // And the content above it still ends inside the first screen.
+      expect(tester.getTopLeft(find.text('In progress')).dy, lessThan(fold));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('scrolling down brings the account block into view', (
+      tester,
+    ) async {
+      useReferenceViewport(tester);
+      await pumpProfile(
+        tester,
+        tasks: [_task('Spanish', seconds: 3600)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+        inShell: true,
+      );
+      final before = tester.getTopLeft(find.byType(AccountBody)).dy;
+
+      await tester.drag(find.byType(ProfileScreen), const Offset(0, -260));
+      await tester.pumpAndSettle();
+
+      final after = tester.getTopLeft(find.byType(AccountBody)).dy;
+      expect(after, lessThan(before));
+      // Up past the fold, so it is genuinely on screen now.
+      expect(after, lessThan(refBodyHeight()));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the fold follows the viewport, not a fixed number', (
+      tester,
+    ) async {
+      // Taller device: the account block has to move WITH the fold, which a
+      // hard-coded spacer could not do.
+      tester.view.physicalSize = const Size(430 * 3, 932 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      await pumpProfile(
+        tester,
+        tasks: [_task('Spanish', seconds: 3600)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+        inShell: true,
+      );
+      final body = 932 - (kTabBarHeight + kRefBottomInset);
+      expect(
+        tester.getTopLeft(find.byType(AccountBody)).dy,
+        greaterThanOrEqualTo(body - 1),
+      );
       expectNoOverflow(tester);
     });
   });

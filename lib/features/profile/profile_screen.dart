@@ -53,40 +53,58 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       // No AppBar — the redundant "Profile" title is removed (matches Feed).
       body: SafeArea(
-        child: SingleChildScrollView(
-          // Clamping, not bouncing. The page runs past the viewport now, so it
-          // genuinely scrolls; on a short page (a new account with no tasks)
-          // iOS's bounce made the whole thing feel loose and unanchored, which
-          // is why this page refused a scroll view at all before.
-          physics: const ClampingScrollPhysics(),
-          child: Padding(
-            // The page's own edge: 12 top and bottom, not 24. The section
-            // breaks below carry the page's rhythm, and the first and last of
-            // them were being doubled up on by a full section gap against the
-            // screen edge — which is the 24 that kept the page off one screen.
-            // The 24 gutter either side is untouched.
-            padding: EdgeInsets.symmetric(
-              horizontal: 24 * scale,
-              vertical: kSpacingBase * scale,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _HeroEmblem(),
-                SizedBox(height: kSpacingSection * scale),
-                _EffortSummary(
-                  lifetime: lifetime,
-                  streak: streak,
-                  milestones: milestones,
-                ),
-                const _Section(child: _FriendsRow()),
-                const _Section(child: _MilestonesRow()),
-                _Section(child: _TasksInProgress(tasks: tasks)),
-                // The QA entry lives in the account block now, as a plain
-                // word beside Sign out — a dev-only control has no business
-                // being the one outlined thing on the page.
-                const _Section(child: AccountBody()),
-              ],
+        // The viewport, measured. Everything about where the fold falls comes
+        // from this number rather than from a guess about the device.
+        child: LayoutBuilder(
+          builder: (context, viewport) => SingleChildScrollView(
+            // Clamping, not bouncing. The page genuinely runs past the
+            // viewport now; on iOS a bounce at the top of a page this
+            // deliberately composed reads as slack.
+            physics: const ClampingScrollPhysics(),
+            child: Padding(
+              // The page's own edge: 12 top and bottom, not 24. The section
+              // breaks below carry the page's rhythm, and the first and last
+              // of them were being doubled up on by a full section gap
+              // against the screen edge. The 24 gutter either side is
+              // untouched.
+              padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // THE FIRST SCREEN. At least as tall as the viewport it is
+                  // sitting in, so whatever follows begins past the bottom
+                  // edge of whatever device this is — a fixed spacer would
+                  // have been right on one phone and wrong on every other.
+                  //
+                  // The content keeps its own height and stays top-aligned,
+                  // so the slack falls at the foot of the first screen. That
+                  // space is the page saying there is more below it.
+                  ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: viewport.maxHeight),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(height: kSpacingBase * scale),
+                        const _HeroEmblem(),
+                        SizedBox(height: kSpacingSection * scale),
+                        _EffortSummary(
+                          lifetime: lifetime,
+                          streak: streak,
+                          milestones: milestones,
+                        ),
+                        const _Section(child: _FriendsRow()),
+                        const _Section(child: _MilestonesRow()),
+                        _Section(child: _TasksInProgress(tasks: tasks)),
+                      ],
+                    ),
+                  ),
+                  // BELOW THE FOLD. Signed in, the email, Sign out and the
+                  // QA word — things you go looking for, never the first
+                  // thing the page offers.
+                  const _Section(child: AccountBody()),
+                  SizedBox(height: kSpacingBase * scale),
+                ],
+              ),
             ),
           ),
         ),

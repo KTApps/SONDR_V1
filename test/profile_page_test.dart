@@ -23,6 +23,8 @@ import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/shared/ring/progress_ring.dart';
 import 'package:sondr/shared/ring/ring_dial.dart';
 
+import 'package:sondr/features/friends/friends_repository.dart';
+import 'package:sondr/features/friends/models/friendship.dart';
 import 'package:sondr/features/timer/home_metrics.dart';
 
 import 'support/app_viewport.dart';
@@ -155,6 +157,7 @@ void main() {
       bool inShell = false,
       List<Photo> milestonePhotos = const [],
       double textScale = 1.0,
+      List<Friendship> friendships = const [],
     }) async {
       ignoreFirebaseAbsence();
       await tester.pumpWidget(
@@ -181,6 +184,9 @@ void main() {
             ),
             collagePhotosProvider.overrideWith(
               (ref, key) async => milestonePhotos,
+            ),
+            friendshipsProvider.overrideWith(
+              (ref) => Stream.value(friendships),
             ),
           ],
           child: MaterialApp(
@@ -647,9 +653,30 @@ void main() {
 
     /// Pumps the page on that device and returns every gap the composition is
     /// specified in, so a failure says WHICH gap moved.
+    /// Two friendships, one accepted and one waiting, so the Friends row
+    /// renders its count AND its "1 new" — the states that put anything
+    /// beside that heading at all.
+    List<Friendship> friendSeed() => [
+      const Friendship(
+        id: 'me_a',
+        users: ['me', 'a'],
+        requestedBy: 'me',
+        status: FriendshipStatus.accepted,
+        profiles: {},
+      ),
+      const Friendship(
+        id: 'b_me',
+        users: ['b', 'me'],
+        requestedBy: 'b',
+        status: FriendshipStatus.pending,
+        profiles: {},
+      ),
+    ];
+
     Future<Map<String, double>> compose(
       WidgetTester tester, {
       double textScale = 1.0,
+      bool withFriends = false,
     }) async {
       tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
       tester.view.devicePixelRatio = 3.0;
@@ -660,6 +687,7 @@ void main() {
         tester,
         inShell: true,
         textScale: textScale,
+        friendships: withFriends ? friendSeed() : const [],
         tasks: [for (var i = 0; i < 6; i++) _task('Task $i', seconds: 45900)],
         profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
         milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
@@ -761,41 +789,172 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('the rings clear the tab bar at every text size iOS offers '
-        'up to 1.118', (tester) async {
-      // Not a style question: at a bigger text size the page grows downward
-      // from a fixed top margin, and the labels are the last thing above the
-      // tab bar. The ceiling is recorded rather than assumed — see the note
-      // on 1.235 below.
-      for (final ts in [0.824, 0.882, 0.941, 1.0]) {
-        final m = await compose(tester, textScale: ts);
+    /// Every iOS text size, including the ones above the default.
+    const sweep = [0.824, 0.882, 0.941, 1.0, 1.059, 1.118, 1.235];
+
+    /// Readable things, top to bottom, as (name, finder) in page order.
+    ///
+    /// Overlap between any two of them is the failure this guards. It is the
+    /// one that actually happened: the hero's box used to be a fixed height,
+    /// so once its two gaps hit their 9 floor the subtitle had nowhere to go
+    /// and painted 9.5 over the lifetime-hours figure at 1.235. Nothing was
+    /// CLIPPED — a RenderFlex overflow paints through — which is why a test
+    /// that only watched the tab-bar clearance stayed green over it.
+    List<(String, Finder)> readable(WidgetTester tester) => [
+      ('emblem', ringFinder(tester, 128)),
+      ('handle', find.text('tanaka')),
+      ('subtitle', find.textContaining('to your next milestone')),
+      ('stat figure', find.text('77')),
+      ('stat label', find.text('day streak')),
+      ('Friends', find.text('Friends')),
+      ('Milestones', find.text('Milestones')),
+      ('photo strip', find.byType(SondrPhoto).first),
+      ('In progress', find.text('In progress')),
+      ('ring', ringFinder(tester, 56).first),
+      ('ring label', find.text('Task 0')),
+    ];
+
+    /// Asserts the whole contract at one text size.
+    Future<Map<String, double>> sweepOne(
+      WidgetTester tester,
+      double ts, {
+      required bool withFriends,
+    }) async {
+      final m = await compose(tester, textScale: ts, withFriends: withFriends);
+
+      // 1. Nothing overflowed. NOT swallowed with takeException: an overflow
+      //    here is the bug, not noise to be tidied away.
+      expectNoOverflow(tester);
+
+      // 2. The gap the hero used to eat is the declared 16 at every size.
+      expect(m['sublineToStats'], closeTo(16, 1), reason: 'subtitle→stats @$ts');
+
+      // 3. Nothing readable overlaps anything else readable.
+      final items = readable(tester);
+      for (var i = 0; i < items.length - 1; i++) {
+        final (nameA, a) = items[i];
+        final (nameB, b) = items[i + 1];
         expect(
-          m['clearance'],
-          greaterThan(0),
-          reason: 'the ring labels are under the tab bar at textScale $ts',
+          tester.getRect(a).bottom,
+          lessThanOrEqualTo(tester.getRect(b).top + 0.01),
+          reason: '"$nameA" overlaps "$nameB" at textScale $ts',
         );
+      }
+
+      // 4. The emblem never moves, whatever the text does.
+      expect(m['emblemTop'], closeTo(92.6, 0.5), reason: 'emblem @$ts');
+
+      // 5. The labels stay above the tab bar — up to 1.118.
+      //
+      // At 1.235 they sit 6 BEHIND it at rest, and that is the honest
+      // outcome rather than a regression: at the largest text size iOS
+      // offers the first screen needs more room than 844 leaves above the
+      // tab bar, and something has to give. What gives now is the resting
+      // position of a line on a page that scrolls — the labels are a swipe
+      // away. What used to give was the subtitle, which painted over the
+      // lifetime-hours figure and was illegible at every scroll position.
+      //
+      // Bounded, so it cannot quietly get worse.
+      if (ts <= 1.118) {
+        expect(m['clearance'], greaterThan(0), reason: 'clearance @$ts');
+      } else {
+        expect(m['clearance'], greaterThan(-10), reason: 'clearance @$ts');
+      }
+
+      if (ts <= 1.0) {
+        // The pin holds exactly while the hero has slack to give.
         expect(
           m['labelCentre'],
           closeTo(m['homeCta']!, 0.5),
-          reason: 'the pin onto Home lets go at textScale $ts',
+          reason: 'the pin let go at textScale $ts',
         );
-        expectNoOverflow(tester);
-      }
-      // KNOWN CEILING, and it is now the hero's floor rather than the tab
-      // bar. Pinning the page to Home's line fixed the old ceiling — the
-      // labels clear the tab bar by 19 even at 1.235, where they used to
-      // pass 6 behind it — and moved the limit to 1.118, where the two hero
-      // gaps are already at their 9 and the first screen's trailing
-      // clearance no longer fits inside the pin. It overflows by 10.
-      //
-      // Nothing READABLE is clipped: the overflow is that empty trailing
-      // spacer, and the labels still clear the tab bar, which is asserted
-      // here so the day it stops being only a spacer, this fails.
-      for (final ts in [1.118, 1.235]) {
-        final m = await compose(tester, textScale: ts);
-        expect(m['clearance'], greaterThan(0), reason: 'textScale $ts');
+        expect(m['emblemToHandle'], greaterThan(9 * 0.9906 + 0.01));
+      } else {
+        // Past that the hero is at its floor and YIELDS: the page gets
+        // taller and the labels sit below Home's line, never above it.
+        expect(
+          m['labelCentre'],
+          greaterThanOrEqualTo(m['homeCta']! - 0.5),
+          reason: 'the labels rose above Home\'s line at textScale $ts',
+        );
         expect(m['emblemToHandle'], closeTo(9 * 0.9906, 0.1));
-        tester.takeException();
+      }
+      // Equal either way, and never a void.
+      expect(m['emblemToHandle'], closeTo(m['handleToSubline']!, 0.5));
+      expect(m['emblemToHandle'], lessThanOrEqualTo(32));
+      return m;
+    }
+
+    for (final ts in sweep) {
+      testWidgets('at textScale $ts the page holds together', (tester) async {
+        await sweepOne(tester, ts, withFriends: false);
+      });
+    }
+
+    for (final ts in sweep) {
+      testWidgets('at textScale $ts the page holds together WITH a friends '
+          'row', (tester) async {
+        await sweepOne(tester, ts, withFriends: true);
+      });
+    }
+
+    testWidgets('nothing in the first screen refuses to be measured', (
+      tester,
+    ) async {
+      // IntrinsicHeight asks the subtree for its intrinsic height, and a
+      // RenderViewport — ListView, CustomScrollView, a GridView — throws
+      // rather than answer. So do LayoutBuilder and anything else that can
+      // only size itself against real constraints. The two strips are
+      // SingleChildScrollView + Row precisely because that render object
+      // DELEGATES intrinsics to its child; swap either for a ListView and
+      // the page stops laying out at all.
+      for (final ts in [1.0, 1.235]) {
+        await compose(tester, textScale: ts);
+        expectNoOverflow(tester);
+        // The strips are still the shape that can answer.
+        final strips = find.byWidgetPredicate(
+          (w) =>
+              w is SingleChildScrollView &&
+              w.scrollDirection == Axis.horizontal,
+        );
+        expect(strips, findsNWidgets(2));
+        for (final element in strips.evaluate()) {
+          expect(
+            (element.widget as SingleChildScrollView).child,
+            isA<Row>(),
+            reason: 'a strip stopped being a Row',
+          );
+        }
+        // And nothing that cannot.
+        expect(
+          find.descendant(
+            of: find.byType(ProfileScreen),
+            matching: find.byType(LayoutBuilder),
+            matchRoot: false,
+          ).evaluate().where((e) {
+            // The page's own viewport LayoutBuilder sits OUTSIDE the
+            // IntrinsicHeight; anything inside it would be a problem.
+            return e
+                .findAncestorWidgetOfExactType<IntrinsicHeight>() !=
+                null;
+          }),
+          isEmpty,
+          reason: 'a LayoutBuilder is inside the IntrinsicHeight',
+        );
+        expect(
+          find.descendant(
+            of: find.byType(IntrinsicHeight),
+            matching: find.byType(ListView),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(IntrinsicHeight),
+            matching: find.byType(CustomScrollView),
+          ),
+          findsNothing,
+        );
       }
     });
 

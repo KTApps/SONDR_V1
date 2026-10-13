@@ -211,13 +211,30 @@ class ProfileScreen extends ConsumerWidget {
                   // at the foot as a cavern. The slack lives in the top
                   // margin above the emblem instead, where empty space at the
                   // top of a page reads as margin.
-                  SizedBox(
-                    // A DEFINITE height, and it is the PIN: tall enough that
-                    // the ring labels land on Home's "View your progress"
-                    // line. Flex needs a bounded column, and this is the
-                    // bound — see [_firstScreenHeight].
-                    height: _firstScreenHeight(context, topInset),
-                    child: Column(
+                  ConstrainedBox(
+                    // The PIN as a FLOOR, not a fixed height: tall enough
+                    // that the ring labels land on Home's "View your
+                    // progress" line, and taller when the content needs it.
+                    //
+                    // IntrinsicHeight is what makes that one expression.
+                    // It measures the column with its flexible gaps at zero
+                    // and tightens the result against these constraints, so
+                    // the height comes out as max(pin, what the content
+                    // needs): the pin while there is slack to share, and the
+                    // content's own height once there is not. The hero then
+                    // grows instead of overflowing, and the labels sit below
+                    // Home's line by the excess rather than the subtitle
+                    // landing on the figures.
+                    //
+                    // Measured rather than worked out in arithmetic because
+                    // the chain is not knowable here: the Friends section is
+                    // a heading alone or a heading and a row, depending on
+                    // whose page it is.
+                    constraints: BoxConstraints(
+                      minHeight: _firstScreenHeight(context, topInset),
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         SizedBox(height: _kTopMargin * scale),
@@ -246,6 +263,7 @@ class ProfileScreen extends ConsumerWidget {
                         _TasksInProgress(tasks: tasks),
                         SizedBox(height: _kTabClearance * scale),
                       ],
+                    ),
                     ),
                   ),
                   // Whatever the pin leaves over between the first screen

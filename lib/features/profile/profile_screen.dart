@@ -108,7 +108,7 @@ const Color _kHairline = Color(0xFF242424);
 /// The in-progress rings: the tile's width and the gap between tiles. About
 /// four fit the content width and the fifth peeks, which is the only thing
 /// telling you the row scrolls.
-const double _kRingTileWidth = 74;
+const double _kRingTileWidth = 72;
 const double _kRingGap = 14;
 
 /// The Milestones strip: fixed squares scrolling sideways, exactly as the

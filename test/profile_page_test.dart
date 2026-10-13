@@ -629,7 +629,7 @@ void main() {
     const double w13 = 390;
     /// The in-progress tile's width, mirrored from profile_screen.dart so the
     /// ring's own left edge can be worked back to the tile's.
-    const double ringTile = 74;
+    const double ringTile = 72;
     const double h13 = 844;
     const double top13 = 47;
     const double tabBarTop13 = 770;
@@ -813,9 +813,10 @@ void main() {
       final fifthPhotoLeft = tester.getTopLeft(photos.at(4)).dx;
       expect(w13 - fifthPhotoLeft, greaterThanOrEqualTo(14));
 
-      // The fourth ring is not clipped, and the fifth peeks.
+      // The fourth ring is not clipped, and the fifth peeks by as much as
+      // the fifth photo does — the tile width is what tunes that.
       expect(tester.getBottomRight(rings.at(3)).dx, lessThanOrEqualTo(w13));
-      expect(w13 - tester.getTopLeft(rings.at(4)).dx, greaterThanOrEqualTo(6));
+      expect(w13 - tester.getTopLeft(rings.at(4)).dx, greaterThanOrEqualTo(15));
 
       // And the fourth task's NAME is whole too — the label is the widest
       // part of a tile, so it clips before the ring does.

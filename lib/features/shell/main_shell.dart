@@ -44,7 +44,7 @@ class MainShell extends ConsumerWidget {
       // the minimal greyscale identity.
       bottomNavigationBar: focused
           ? null
-          : _TextTabBar(
+          : TextTabBar(
               currentIndex: index,
               onSelect: (i) => ref.read(selectedTabProvider.notifier).set(i),
             ),
@@ -53,10 +53,15 @@ class MainShell extends ConsumerWidget {
 }
 
 /// A minimal text-only bottom tab bar: "Home · Feed · Profile" as labels, no
-/// icons. The selected tab is brighter (white, bold) with a short underline;
+/// icons. Public only so a test can pump it without the three tab screens
+/// (and the Firebase each of them wants) coming with it. The selected tab is brighter (white, bold) with a short underline;
 /// unselected tabs are dim grey. Pure greyscale, surface-toned, and slim.
-class _TextTabBar extends StatelessWidget {
-  const _TextTabBar({required this.currentIndex, required this.onSelect});
+class TextTabBar extends StatelessWidget {
+  const TextTabBar({
+    super.key,
+    required this.currentIndex,
+    required this.onSelect,
+  });
 
   final int currentIndex;
   final ValueChanged<int> onSelect;
@@ -78,7 +83,18 @@ class _TextTabBar extends StatelessWidget {
             children: [
               for (var i = 0; i < _labels.length; i++)
                 Expanded(
-                  child: InkWell(
+                  // A GestureDetector, not an InkWell. Material ink draws a
+                  // HIGHLIGHT across the whole of its bounds as well as the
+                  // ripple, and the bounds here are the full tab cell — so a
+                  // tap flashed a grey rectangle over the tab. Switching tabs
+                  // is instant and the selected tab already says so with its
+                  // weight and underline; there is nothing for a ripple to
+                  // report.
+                  //
+                  // `opaque` keeps the tap target exactly what it was: the
+                  // whole cell, label and padding alike, not just the glyphs.
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () => onSelect(i),
                     child: _TabLabel(
                       text: _labels[i],

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Height of the shell's text-only tab bar — see `_TextTabBar` in
+/// Height of the shell's text-only tab bar — see `TextTabBar` in
 /// `lib/features/shell/main_shell.dart`.
 const double kTabBarHeight = 40;
 

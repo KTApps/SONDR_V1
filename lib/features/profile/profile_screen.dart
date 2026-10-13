@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
+import '../debug/position_readout.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../../shared/ring/ring_metrics.dart';
@@ -139,9 +140,33 @@ class ProfileScreen extends ConsumerWidget {
     final tasks = ref.watch(activeTasksProvider);
     final scale = figmaScale(context);
 
+    final handle = ref.watch(currentProfileProvider).value?.username ?? '';
+
     return Scaffold(
       // No AppBar — the redundant "Profile" title is removed (matches Feed).
-      body: SafeArea(
+      // The readout is a QA overlay and a no-op in any normal build; see
+      // PositionReadout.
+      body: PositionReadout(
+        title: 'PROFILE',
+        targets: () => [
+          ReadoutTarget('emblem   ', probeType('ProgressRing')),
+          if (handle.isNotEmpty) ReadoutTarget('handle   ', probeText(handle)),
+          ReadoutTarget('subtitle ', probeText('milestone')),
+          ReadoutTarget('figures  ', probeType('_EffortSummary')),
+          ReadoutTarget('hairline1', probeHairline()),
+          ReadoutTarget('Friends  ', probeText('Friends')),
+          ReadoutTarget('hairline2', probeHairline(), index: 1),
+          ReadoutTarget('Mstones  ', probeText('Milestones')),
+          ReadoutTarget('strip    ', probeType('_GalleryThumb')),
+          ReadoutTarget('hairline3', probeHairline(), index: 2),
+          ReadoutTarget('InProg   ', probeText('In progress')),
+          ReadoutTarget('ringRow  ', probeType('_TaskTile')),
+          // The first tile's name, which is the line this page's bottom edge
+          // is specified in.
+          if (tasks.isNotEmpty)
+            ReadoutTarget('ringLabel', probeText(tasks.first.name)),
+        ],
+        child: SafeArea(
         // The viewport, measured. Everything about where the fold falls comes
         // from this number rather than from a guess about the device.
         child: LayoutBuilder(
@@ -208,6 +233,7 @@ class ProfileScreen extends ConsumerWidget {
                 ],
               ),
           ),
+        ),
         ),
       ),
     );

@@ -8,6 +8,7 @@ import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_header.dart';
+import '../debug/position_readout.dart';
 import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
 import 'guest_prompts.dart';
@@ -116,7 +117,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final scale = figmaScale(context);
 
     return Scaffold(
-      body: SafeArea(
+      body: PositionReadout(
+        title: 'AUTH',
+        targets: () => [
+          ReadoutTarget('apple    ', probeText('Sign in with Apple')),
+          ReadoutTarget('appleBtn ', probeType('AppleSignInButton')),
+          ReadoutTarget('Back     ', probeText('Back')),
+        ],
+        child: SafeArea(
         // The keyboard needs room, so this screen scrolls — that is a
         // legitimate reason, unlike Profile's page scroll.
         child: SingleChildScrollView(
@@ -209,6 +217,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 ),
             ],
           ),
+        ),
         ),
       ),
     );

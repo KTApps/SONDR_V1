@@ -10,6 +10,7 @@ import '../../core/theme/spacing.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../core/utils/figma_scale.dart';
+import '../debug/position_readout.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../../shared/sondr_action.dart';
 import '../auth/guest_prompts.dart';
@@ -129,10 +130,17 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
       // only — ring rendering is untouched.
       // Translucent so the controls below still receive their own taps; this
       // only catches taps that land on empty canvas.
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: _closeChoice,
-        child: Stack(
+      body: PositionReadout(
+        title: 'HOME',
+        targets: () => [
+          ReadoutTarget('dial     ', probeType('SegmentedDial')),
+          ReadoutTarget('last10   ', probeText('Last 10 days')),
+          ReadoutTarget('CTA      ', probeText('View your progress')),
+        ],
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: _closeChoice,
+          child: Stack(
           children: [
           // Task selector — nudged down slightly to tighten the gap to the dial.
           Positioned(
@@ -247,6 +255,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

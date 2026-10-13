@@ -201,6 +201,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 enabled: !_busy,
                 onError: (message) => setState(() => _error = message),
               ),
+              // 12, so the gap you SEE below the Apple button matches the
+              // 24 above it: this one declares 12 and "Back" adds its own 12
+              // of tap padding, where the button above declares 12 against
+              // the action's 12 beneath it. Nothing declared at all left
+              // Back sitting 12 under a 44 capsule and 24 under everything
+              // else in the stack.
+              SizedBox(height: kSpacingBase * scale),
               // Leaving is an exit: supporting grey, last in the action
               // stack, the same "Back" Friends and Blocked use. Not pinned —
               // this screen scrolls, so there is no footer to pin it to.

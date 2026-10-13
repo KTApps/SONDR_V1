@@ -17,6 +17,7 @@ import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
+import 'position_readout.dart';
 
 /// QA-only debug panel. Reached solely from the `kDebugTools`-gated entry on the
 /// Profile screen, so this file's code tree-shakes out of any release build
@@ -290,6 +291,22 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
               'Seed populated collage (N photos + collage doc)',
               () =>
                   _run('Seeding collage', () => _seedPhotos(withCollage: true)),
+            ),
+
+            _section('Measurement'),
+            // Reads the live render tree on Profile, Home and the auth
+            // screen. A screenshot of it is the device's own numbers, which
+            // is the only way to settle a disagreement between a widget-test
+            // harness and a phone.
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Position readout overlay'),
+              subtitle: const Text(
+                'y of each element, in points, on Profile / Home / auth',
+              ),
+              value: ref.watch(positionReadoutProvider),
+              onChanged: (_) =>
+                  ref.read(positionReadoutProvider.notifier).toggle(),
             ),
 
             _section('Quick nav'),

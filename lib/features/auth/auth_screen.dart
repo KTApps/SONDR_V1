@@ -8,6 +8,7 @@ import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_header.dart';
+import '../debug/position_readout.dart';
 import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
 import 'guest_prompts.dart';
@@ -116,7 +117,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final scale = figmaScale(context);
 
     return Scaffold(
-      body: SafeArea(
+      body: PositionReadout(
+        title: 'AUTH',
+        targets: () => [
+          ReadoutTarget('apple    ', probeText('Sign in with Apple')),
+          ReadoutTarget('appleBtn ', probeType('AppleSignInButton')),
+          ReadoutTarget('Back     ', probeText('Back')),
+        ],
+        child: SafeArea(
         // The keyboard needs room, so this screen scrolls — that is a
         // legitimate reason, unlike Profile's page scroll.
         child: SingleChildScrollView(
@@ -193,6 +201,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 enabled: !_busy,
                 onError: (message) => setState(() => _error = message),
               ),
+              // 12, so the gap you SEE below the Apple button matches the
+              // 24 above it: this one declares 12 and "Back" adds its own 12
+              // of tap padding, where the button above declares 12 against
+              // the action's 12 beneath it. Nothing declared at all left
+              // Back sitting 12 under a 44 capsule and 24 under everything
+              // else in the stack.
+              SizedBox(height: kSpacingBase * scale),
               // Leaving is an exit: supporting grey, last in the action
               // stack, the same "Back" Friends and Blocked use. Not pinned —
               // this screen scrolls, so there is no footer to pin it to.
@@ -209,6 +224,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 ),
             ],
           ),
+        ),
         ),
       ),
     );

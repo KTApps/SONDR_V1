@@ -77,20 +77,29 @@ const double _kEmblemSize = 128;
 /// introduces. The pair totals the 18 it did before, so nothing beneath the
 /// subtitle moves — only the handle, back onto the line the emblem's own gap
 /// originally put it on.
-/// The FLOOR on each of the two hero gaps, not their value.
+/// The FLOOR on each of the two flexible gaps, not their value.
 ///
-/// They are equal and flexible: the first screen's height is pinned so the
-/// ring labels land on Home's "View your progress" line, and these two gaps
-/// are the only ones that give, splitting whatever that pin leaves over
-/// between them. 9 is the tightest either may become.
+/// They are equal and flexible — ABOVE the handle and BELOW the subtitle,
+/// which is to say either side of the pair, never between them. The first
+/// screen's height is pinned so the ring labels land on Home's "View your
+/// progress" line, and these two are the only gaps that give, splitting
+/// whatever the pin leaves over. 16 is the tightest either may become, which
+/// is the tier the gap under the pair was declared at before it could flex,
+/// so that gap never reads tighter than it used to.
 ///
-/// Flex is back in the hero, which the rest of this page still forbids, and
-/// the difference is the pin: an Expanded with nothing below it to stop
-/// against is what pooled the slack into a void last time. Here the bottom
-/// is fixed by a target, so there is a bounded amount to share and exactly
-/// two places for it to go.
-const double _kHeroGapMin = 9;
-const double _kSublineToStats = 16;
+/// Flex is here, which the rest of this page still forbids, and the
+/// difference is the pin: an Expanded with nothing below it to stop against
+/// is what pooled the slack into a void last time. Here the bottom is fixed
+/// by a target, so there is a bounded amount to share and exactly two places
+/// for it to go.
+const double _kHeroGapMin = 16;
+
+/// Handle to subtitle: a PAIR gap, and the tightest number on the page.
+///
+/// Below [kSpacingPair] deliberately. The two lines are one unit — a name and
+/// what the name is doing — and anything looser let the subtitle drift into
+/// being its own announcement.
+const double _kHandleToSubline = 4;
 const double _kStatGap = 5;
 const double _kBreak = 22;
 /// The gap ABOVE a heading, between the line and the words. Smaller than
@@ -238,9 +247,17 @@ class ProfileScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         SizedBox(height: _kTopMargin * scale),
-                        // The only flexible child: it absorbs the pin.
-                        const Expanded(child: _Gutter(child: _HeroEmblem())),
-                        SizedBox(height: _kSublineToStats * scale),
+                        const _Gutter(child: _HeroEmblem()),
+                        // The two flexible gaps, either side of the
+                        // handle-and-subtitle pair. Siblings in ONE column,
+                        // because flex only equalises siblings — which is
+                        // why the pair is its own widget rather than the
+                        // hero being one block with a gap inside it.
+                        SizedBox(height: _kHeroGapMin * scale),
+                        const Expanded(child: SizedBox.shrink()),
+                        const _Gutter(child: _HeroCaption()),
+                        SizedBox(height: _kHeroGapMin * scale),
+                        const Expanded(child: SizedBox.shrink()),
                         _Gutter(
                           child: _EffortSummary(
                             lifetime: lifetime,
@@ -428,12 +445,6 @@ class _HeroEmblem extends ConsumerWidget {
         ref.watch(galleryPreviewProvider).value?.recent ?? const <Photo>[];
     final newest = recent.isEmpty ? null : recent.first;
 
-    final handle = profile?.username ?? '';
-    final quiet = theme.textTheme.bodyMedium?.copyWith(
-      fontSize: 13 * scale,
-      color: tokens.textSecondary,
-    );
-
     return Column(
       children: [
         ProgressRing(
@@ -467,8 +478,36 @@ class _HeroEmblem extends ConsumerWidget {
                   ),
           ),
         ),
-        SizedBox(height: _kHeroGapMin * scale),
-        const Expanded(child: SizedBox.shrink()),
+      ],
+    );
+  }
+}
+
+/// The handle and the line under it, as ONE block.
+///
+/// They are a pair: a name and what the name is doing. The gap between them
+/// is 4 — tighter than anything else on the page, which is the whole point of
+/// a pair — and the flexible air sits OUTSIDE the pair, above the handle and
+/// below the line. Air between them is what made the subtitle read as a
+/// separate thing that happened to be nearby.
+class _HeroCaption extends ConsumerWidget {
+  const _HeroCaption();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final scale = figmaScale(context);
+
+    final next = ref.watch(nextMilestoneProvider);
+    final handle = ref.watch(currentProfileProvider).value?.username ?? '';
+    final quiet = theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 13 * scale,
+      color: tokens.textSecondary,
+    );
+
+    return Column(
+      children: [
         // The person, at the top of their own page at last. Omitted rather
         // than faked when there is no handle yet — the account block below
         // still offers to set one.
@@ -483,9 +522,8 @@ class _HeroEmblem extends ConsumerWidget {
               color: tokens.textPrimary,
             ),
           ),
-          SizedBox(height: _kHeroGapMin * scale),
+          SizedBox(height: _kHandleToSubline * scale),
         ],
-        const Expanded(child: SizedBox.shrink()),
         // The FIGURE is what you read; the sentence around it is the frame.
         // One Text, so the two sit on one baseline.
         Text.rich(

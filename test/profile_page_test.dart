@@ -727,6 +727,7 @@ void main() {
         'inProgressToRings':
             top(rings.at(1)) - bottom(find.text('In progress')),
         'ringsBottom': bottom(find.text('Task 0')),
+        'statsTop': top(find.text('77')),
         'labelCentre': tester.getRect(find.text('Task 0')).center.dy,
         'homeCta': homeCtaCentreY(tester.element(find.byType(ProfileScreen))),
         'clearance': tabBarTop13 - bottom(find.text('Task 0')),
@@ -792,6 +793,17 @@ void main() {
     /// Every iOS text size, including the ones above the default.
     const sweep = [0.824, 0.882, 0.941, 1.0, 1.059, 1.118, 1.235];
 
+    /// Where the figures started before the handle and its line became a
+    /// pair, at the sizes where the pin still holds exactly. Pairing them
+    /// moved air from between the two lines to either side of them, which is
+    /// a change to the hero and must be no change at all to the page below.
+    final statsTopBefore = <double, double>{
+      0.824: 317.20,
+      0.882: 313.70,
+      0.941: 306.70,
+      1.0: 300.70,
+    };
+
     /// Readable things, top to bottom, as (name, finder) in page order.
     ///
     /// Overlap between any two of them is the failure this guards. It is the
@@ -826,8 +838,28 @@ void main() {
       //    here is the bug, not noise to be tidied away.
       expectNoOverflow(tester);
 
-      // 2. The gap the hero used to eat is the declared 16 at every size.
-      expect(m['sublineToStats'], closeTo(16, 1), reason: 'subtitle→stats @$ts');
+      // 2. The pair is a pair: 4 between the handle and its line, at every
+      //    size, and the flexible air is OUTSIDE the pair.
+      expect(
+        m['handleToSubline'],
+        closeTo(4 * 0.9906, 0.5),
+        reason: 'handle→subtitle @$ts',
+      );
+      // The two flexible gaps are equal, and neither goes under its floor —
+      // which is the tier the gap below the pair was fixed at before it
+      // could flex, so it never reads tighter than it used to.
+      for (final k in ['emblemToHandle', 'sublineToStats']) {
+        expect(
+          m[k],
+          greaterThanOrEqualTo(16 * 0.9906 - 0.01),
+          reason: '$k is under its floor @$ts',
+        );
+      }
+      expect(
+        m['emblemToHandle'],
+        closeTo(m['sublineToStats']!, 0.5),
+        reason: 'the two flexible gaps parted company @$ts',
+      );
 
       // 3. Nothing readable overlaps anything else readable.
       final items = readable(tester);
@@ -868,7 +900,15 @@ void main() {
           closeTo(m['homeCta']!, 0.5),
           reason: 'the pin let go at textScale $ts',
         );
-        expect(m['emblemToHandle'], greaterThan(9 * 0.9906 + 0.01));
+        expect(m['emblemToHandle'], greaterThan(16 * 0.9906 + 0.01));
+        // And the figures start exactly where they did before the pair was
+        // paired: moving air from between the two lines to either side of
+        // them is a change to the hero, not to the page under it.
+        expect(
+          m['statsTop'],
+          closeTo(statsTopBefore[ts]!, 0.5),
+          reason: 'the stats row moved @$ts',
+        );
       } else {
         // Past that the hero is at its floor and YIELDS: the page gets
         // taller and the labels sit below Home's line, never above it.
@@ -877,11 +917,11 @@ void main() {
           greaterThanOrEqualTo(m['homeCta']! - 0.5),
           reason: 'the labels rose above Home\'s line at textScale $ts',
         );
-        expect(m['emblemToHandle'], closeTo(9 * 0.9906, 0.1));
+        expect(m['emblemToHandle'], closeTo(16 * 0.9906, 0.1));
       }
-      // Equal either way, and never a void.
-      expect(m['emblemToHandle'], closeTo(m['handleToSubline']!, 0.5));
+      // Never a void, either of them.
       expect(m['emblemToHandle'], lessThanOrEqualTo(32));
+      expect(m['sublineToStats'], lessThanOrEqualTo(32));
       return m;
     }
 
@@ -1007,22 +1047,23 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('the handle has air either side of it', (tester) async {
+    testWidgets('the handle and its line have air either side of the PAIR, '
+        'never between them', (tester) async {
       final m = await compose(tester);
-      // Symmetric, and no longer a fixed 9: the two gaps are what the pin
-      // onto Home's line leaves over, split evenly, with 9 as the floor.
-      expect(m['emblemToHandle'], greaterThanOrEqualTo(9 * 0.99));
-      expect(m['handleToSubline'], greaterThanOrEqualTo(9 * 0.99));
+      // 4 between the two lines — tighter than any other number on the page,
+      // which is what makes them read as one thing.
+      expect(m['handleToSubline'], closeTo(4 * 0.9906, 0.5));
+      // And the air is outside: equal above the handle and below the line,
+      // whatever the pin leaves over, floored at 16.
       expect(
-        (m['emblemToHandle']! - m['handleToSubline']!).abs(),
+        (m['emblemToHandle']! - m['sublineToStats']!).abs(),
         lessThanOrEqualTo(0.5),
       );
-      // The declared 16 to the figures, and it now MEASURES 16: with the
-      // app's own Inter loaded the two stat labels fit on one line, and the
-      // stats row stops being 8 taller and 8 lower than the page it is
-      // specified as. The old 24 was the test font's width, not a metric of
-      // ours.
-      expect(m['sublineToStats'], closeTo(16, 2));
+      for (final k in ['emblemToHandle', 'sublineToStats']) {
+        expect(m[k], greaterThanOrEqualTo(16 * 0.9906 - 0.01), reason: k);
+      }
+      // The pair gap is the tightest of the three by a long way.
+      expect(m['handleToSubline'], lessThan(m['emblemToHandle']! / 2));
       expectNoOverflow(tester);
     });
 
@@ -1152,12 +1193,12 @@ void main() {
       expect(m['homeCta'], closeTo(734.35, 1));
       // The emblem did not move to pay for it.
       expect(m['emblemTop'], closeTo(92.6, 0.5));
-      // The two hero gaps took the difference, equally, and neither is
+      // The two flexible gaps took the difference, equally, and neither is
       // anywhere near a void. If either exceeds 32 the pin is asking for
       // more than the hero should give.
-      expect(m['emblemToHandle'], closeTo(m['handleToSubline']!, 0.5));
-      for (final k in ['emblemToHandle', 'handleToSubline']) {
-        expect(m[k], greaterThanOrEqualTo(9 * 0.99), reason: k);
+      expect(m['emblemToHandle'], closeTo(m['sublineToStats']!, 0.5));
+      for (final k in ['emblemToHandle', 'sublineToStats']) {
+        expect(m[k], greaterThanOrEqualTo(16 * 0.9906 - 0.01), reason: k);
         expect(m[k], lessThanOrEqualTo(32), reason: k);
       }
       expectNoOverflow(tester);
@@ -1188,10 +1229,13 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('the emblem and its figures stay together at the top', (
+    testWidgets('the free space never lands inside the pair', (
       tester,
     ) async {
-      // The free space goes BETWEEN the sections, never inside the cluster.
+      // It used to be the whole hero that had to stay tight while the
+      // sections took the slack. Now the slack is deliberately part of the
+      // hero — above the handle and below its line — and the thing that must
+      // stay tight is the PAIR.
       useReferenceViewport(tester);
       await pumpProfile(
         tester,
@@ -1199,14 +1243,17 @@ void main() {
         tasks: [_task('Spanish', seconds: 45900)],
         profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
       );
-      // The foot of the hero BLOCK — the ring, then the handle, then the
-      // countdown, all of which live inside _HeroEmblem.
-      final heroBottom = tester
-          .getBottomLeft(find.textContaining('to your next milestone'))
-          .dy;
+      // Between the two lines of the pair.
+      final pair =
+          tester.getTopLeft(find.textContaining('to your next milestone')).dy -
+          tester.getBottomLeft(find.text('tanaka')).dy;
+      // And the flexible gap under the pair, which is where the slack goes.
       // 45900s is 12.75 lifetime hours, so the first figure reads 13.
-      final statsTop = tester.getTopLeft(find.text('13')).dy;
-      final cluster = statsTop - heroBottom;
+      final flexible =
+          tester.getTopLeft(find.text('13')).dy -
+          tester
+              .getBottomLeft(find.textContaining('to your next milestone'))
+              .dy;
 
       // The section break below it — the widest gap the composition allows
       // anywhere on the page.
@@ -1217,13 +1264,11 @@ void main() {
           tester.getTopLeft(lines.first).dy -
           tester.getBottomLeft(find.text('day streak')).dy;
 
-      // The cluster keeps its own small gap while the sections take the free
-      // space — that is the whole claim. (It measures 32 rather than the
-      // declared 24 because of the figures' line box, and it measures the
-      // same with the distribution turned off: structural, not drift.)
-      expect(cluster, greaterThan(0));
-      expect(cluster, lessThanOrEqualTo(sectionBreak + 12));
-      expect(cluster, lessThanOrEqualTo(40));
+      // The pair stays at its 4 while everything around it absorbs — tighter
+      // than the section break, and a fraction of the gap below it.
+      expect(pair, closeTo(4, 0.5));
+      expect(pair, lessThan(sectionBreak));
+      expect(pair, lessThan(flexible / 4));
       expectNoOverflow(tester);
     });
 

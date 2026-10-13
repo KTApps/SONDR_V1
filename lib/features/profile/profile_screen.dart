@@ -94,6 +94,26 @@ const double _kEmblemSize = 128;
 /// for it to go.
 const double _kHeroGapMin = 16;
 
+/// The CEILING on each flexible gap.
+///
+/// 32 is the void threshold the composition has always been checked against;
+/// past it a gap stops reading as spacing and starts reading as a page that
+/// has run out of things to say. The gaps hit it on a sparse page — a guest
+/// with no tasks and no milestones has a third less content for the same
+/// pinned height — and on the device they reached 117, which put the ring
+/// and the line under it at opposite ends of the screen.
+///
+/// The slack past the ceiling goes to the BOTTOM of the first screen, below
+/// the last section, where empty space above the tab bar reads as the end of
+/// the page rather than as a hole in the middle of it.
+const double _kHeroGapMax = 32;
+
+/// The hero gaps when there is no pin to satisfy — see [_kHeroGapMax] and
+/// [_firstScreenHeight]. Between the floor and the ceiling, and fixed,
+/// because without a ring row at the bottom there is nothing to line up
+/// with and no reason for the hero to stretch at all.
+const double _kHeroGapFixed = 18;
+
 /// Handle to subtitle: a PAIR gap, and the tightest number on the page.
 ///
 /// Below [kSpacingPair] deliberately. The two lines are one unit — a name and
@@ -197,7 +217,34 @@ class ProfileScreen extends ConsumerWidget {
         // The viewport, measured. Everything about where the fold falls comes
         // from this number rather than from a guess about the device.
         child: LayoutBuilder(
-          builder: (context, viewport) => SingleChildScrollView(
+          builder: (context, viewport) {
+            // The pin exists to put the ring labels on Home's line. With no
+            // ring row there is no label to pin, and pinning anyway is what
+            // inflated the hero on a guest's page: the same target height,
+            // a third less content, and two flexible gaps to swallow the
+            // difference.
+            final pinned = tasks.isNotEmpty;
+            final firstScreen = pinned
+                ? _firstScreenHeight(context, topInset)
+                : viewport.maxHeight;
+            // Floor, then up to the ceiling — and no further. A LOOSE
+            // Flexible takes min(its child, its share), so the gap is
+            // clamped to [_kHeroGapMin, _kHeroGapMax] by the layout rather
+            // than by arithmetic, and the share it declines stays in the
+            // column's remaining space. Start-aligned, that remainder
+            // collects after the last child: the bottom of the first screen.
+            final heroGap = pinned
+                ? [
+                    SizedBox(height: _kHeroGapMin * scale),
+                    Flexible(
+                      child: _CappedSlack(
+                        (_kHeroGapMax - _kHeroGapMin) * scale,
+                      ),
+                    ),
+                  ]
+                : [SizedBox(height: _kHeroGapFixed * scale)];
+
+            return SingleChildScrollView(
             // Clamping, not bouncing. The page genuinely runs past the
             // viewport now; on iOS a bounce at the top of a page this
             // deliberately composed reads as slack.
@@ -239,9 +286,7 @@ class ProfileScreen extends ConsumerWidget {
                     // the chain is not knowable here: the Friends section is
                     // a heading alone or a heading and a row, depending on
                     // whose page it is.
-                    constraints: BoxConstraints(
-                      minHeight: _firstScreenHeight(context, topInset),
-                    ),
+                    constraints: BoxConstraints(minHeight: firstScreen),
                     child: IntrinsicHeight(
                       child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -253,11 +298,9 @@ class ProfileScreen extends ConsumerWidget {
                         // because flex only equalises siblings — which is
                         // why the pair is its own widget rather than the
                         // hero being one block with a gap inside it.
-                        SizedBox(height: _kHeroGapMin * scale),
-                        const Expanded(child: SizedBox.shrink()),
+                        ...heroGap,
                         const _Gutter(child: _HeroCaption()),
-                        SizedBox(height: _kHeroGapMin * scale),
-                        const Expanded(child: SizedBox.shrink()),
+                        ...heroGap,
                         _Gutter(
                           child: _EffortSummary(
                             lifetime: lifetime,
@@ -287,13 +330,7 @@ class ProfileScreen extends ConsumerWidget {
                   // and the bottom edge. The slack sat here before too — it
                   // was the unused remainder of a minHeight — and it still
                   // reads as the end of the page rather than as a gap.
-                  SizedBox(
-                    height: math.max(
-                      0,
-                      viewport.maxHeight -
-                          _firstScreenHeight(context, topInset),
-                    ),
-                  ),
+                  SizedBox(height: math.max(0, viewport.maxHeight - firstScreen)),
                   // BELOW THE FOLD. Signed in, the email, Sign out and the
                   // QA word — things you go looking for, never the first
                   // thing the page offers.
@@ -301,7 +338,8 @@ class ProfileScreen extends ConsumerWidget {
                   SizedBox(height: kSpacingBase * scale),
                 ],
               ),
-          ),
+            );
+          },
         ),
         ),
       ),
@@ -336,6 +374,63 @@ double _firstScreenHeight(BuildContext context, double columnTop) {
       columnTop +
       label / 2 +
       _kTabClearance * scale;
+}
+
+/// Flexible space that takes up to [cap] of whatever it is offered, and asks
+/// for NOTHING when the column is measured.
+///
+/// Both halves matter. A `Flexible` around a `SizedBox(height: cap)` caps the
+/// gap correctly but reports the cap as its intrinsic height, and the first
+/// screen is sized by [IntrinsicHeight] — so the page grew by the two caps
+/// and the ring labels dropped 28 below Home's line. A cap is a limit on
+/// space offered, never a request for it, which is what these zero intrinsics
+/// say.
+class _CappedSlack extends LeafRenderObjectWidget {
+  const _CappedSlack(this.cap);
+
+  final double cap;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderCappedSlack(cap);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderCappedSlack renderObject,
+  ) {
+    renderObject.cap = cap;
+  }
+}
+
+class _RenderCappedSlack extends RenderBox {
+  _RenderCappedSlack(this._cap);
+
+  double _cap;
+  set cap(double value) {
+    if (value == _cap) return;
+    _cap = value;
+    markNeedsLayout();
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) => 0;
+  @override
+  double computeMaxIntrinsicWidth(double height) => 0;
+  @override
+  double computeMinIntrinsicHeight(double width) => 0;
+  @override
+  double computeMaxIntrinsicHeight(double width) => 0;
+
+  @override
+  void performLayout() {
+    // Whatever is offered, up to the cap. What it declines stays in the
+    // column's remaining space, which a start-aligned Column leaves after
+    // its last child.
+    size = constraints.constrain(
+      Size(0, math.min(_cap, constraints.maxHeight)),
+    );
+  }
 }
 
 /// The page's content margin, applied per child.

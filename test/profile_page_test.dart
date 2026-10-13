@@ -938,6 +938,176 @@ void main() {
       });
     }
 
+    /// Sparse pages: a guest, a brand-new account, a page with milestones and
+    /// nothing running.
+    ///
+    /// The composition was signed off against a full page, and the void guard
+    /// only ever ran against that fixture. On a guest's page — no handle, no
+    /// tasks, no milestones — the same pinned height had a third less content
+    /// to fill it, the two flexible gaps took the whole difference, and the
+    /// device showed 117 points of nothing between the ring and the line
+    /// under it.
+    ///
+    /// Each fixture is swept at the smallest, default and largest text sizes.
+    for (final (name, handle, taskCount, photoCount) in [
+      ('full', 'tanaka', 6, 4),
+      ('guest', '', 0, 0),
+      ('new user', 'tanaka', 2, 0),
+      ('milestones, nothing running', 'tanaka', 0, 4),
+    ]) {
+      for (final ts in [0.824, 1.0, 1.235]) {
+        testWidgets('$name at textScale $ts has no voids', (tester) async {
+          tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
+          tester.view.devicePixelRatio = 3.0;
+          tester.view.padding = const FakeViewPadding(
+            top: top13 * 3,
+            bottom: 34 * 3,
+          );
+          addTearDown(tester.view.reset);
+          await pumpProfile(
+            tester,
+            inShell: true,
+            textScale: ts,
+            tasks: [
+              for (var i = 0; i < taskCount; i++)
+                _task('Task $i', seconds: 45900),
+            ],
+            profile: handle.isEmpty
+                ? null
+                : Profile(uid: 'me', username: handle, displayName: 'T'),
+            milestonePhotos: [
+              for (var i = 0; i < photoCount; i++) _photo(1000 + i),
+            ],
+          );
+          final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+
+          // Nothing clipped, whatever the data.
+          expectNoOverflow(tester);
+
+          final hairlines = find.byWidgetPredicate(
+            (w) => w is SizedBox && w.height == 1,
+          );
+          // The figure is told from the label by its size, because WHICH
+          // figures appear depends on the data.
+          final statFigure = find.byWidgetPredicate(
+            (w) =>
+                w is Text &&
+                w.style?.fontSize != null &&
+                (w.style!.fontSize! - 22 * scale).abs() < 0.01,
+          );
+
+          // Page order, with whatever this fixture does not have left out.
+          // The hairlines count as elements: a section break and the gap
+          // under the line are two gaps, not one 37-point chasm.
+          final elements = <(String, Finder)>[
+            ('emblem', ringFinder(tester, 128)),
+            if (handle.isNotEmpty) ('handle', find.text(handle)),
+            (
+              'subtitle',
+              taskCount > 0
+                  ? find.textContaining('to your next milestone')
+                  : find.text('No task in progress.'),
+            ),
+            ('stat figure', statFigure.first),
+            ('stat label', find.text('hours')),
+            ('hairline 1', hairlines.at(0)),
+            ('Friends', find.text('Friends')),
+            ('hairline 2', hairlines.at(1)),
+            ('Milestones', find.text('Milestones')),
+            if (photoCount > 0) ('photo strip', find.byType(SondrPhoto).first),
+            ('hairline 3', hairlines.at(2)),
+            ('In progress', find.text('In progress')),
+            if (taskCount > 0) ...[
+              ('ring', ringFinder(tester, 56).first),
+              ('ring label', find.text('Task 0')),
+            ] else
+              ('empty line', find.textContaining('Start a task')),
+          ];
+
+          // THE RUNTIME VOID GUARD. Every gap the page actually renders, on
+          // this data, at this text size — not the handful the full fixture
+          // happens to produce. The bottom clearance is excluded: space
+          // above the tab bar is the end of the page, not a gap in it.
+          for (var i = 0; i < elements.length - 1; i++) {
+            final (nameA, a) = elements[i];
+            final (nameB, b) = elements[i + 1];
+            final gap =
+                tester.getRect(b).top - tester.getRect(a).bottom;
+            expect(
+              gap,
+              greaterThan(-0.01),
+              reason: '"$nameA" overlaps "$nameB" ($name, $ts)',
+            );
+            expect(
+              gap,
+              lessThanOrEqualTo(32 * scale + 0.01),
+              reason: 'a void of $gap between "$nameA" and "$nameB" '
+                  '($name, $ts)',
+            );
+          }
+
+          // The two hero gaps stay equal to each other, whatever they are.
+          final emblemBottom = tester.getRect(ringFinder(tester, 128)).bottom;
+          final capTop = handle.isNotEmpty
+              ? tester.getRect(find.text(handle)).top
+              : tester.getRect(elements[1].$2).top;
+          final capBottom = tester.getRect(elements[handle.isEmpty ? 1 : 2].$2).bottom;
+          final gapA = capTop - emblemBottom;
+          final gapB = tester.getRect(statFigure.first).top - capBottom;
+          expect(gapA, closeTo(gapB, 0.5), reason: 'hero gaps ($name, $ts)');
+          // With no ring row the gaps are FIXED, not stretched to their
+          // ceiling: nothing below asks the hero to reach, so it does not.
+          // Without this the cap alone hides the difference — a pinned
+          // guest page caps at 32 and passes every other check here.
+          if (taskCount == 0) {
+            expect(
+              gapA,
+              closeTo(18 * scale, 0.5),
+              reason: 'unpinned hero gaps ($name, $ts)',
+            );
+          } else {
+            expect(gapA, greaterThanOrEqualTo(16 * scale - 0.01));
+            expect(gapA, lessThanOrEqualTo(32 * scale + 0.01));
+          }
+
+          // The emblem never moves, on any data.
+          expect(
+            tester.getRect(ringFinder(tester, 128)).top,
+            closeTo(92.6, 0.5),
+            reason: 'emblem ($name, $ts)',
+          );
+          // And the account block is still past the bottom edge.
+          expect(
+            tester.getTopLeft(find.byType(AccountBody)).dy,
+            greaterThanOrEqualTo(tabBarTop13),
+            reason: 'account block ($name, $ts)',
+          );
+
+          // The pin is only claimed where there is a label to pin. With no
+          // ring row there is nothing to line up with, and pinning anyway is
+          // what inflated the hero in the first place.
+          if (taskCount > 0 && ts <= 1.0) {
+            final labelCentre =
+                tester.getRect(find.text('Task 0')).center.dy;
+            final cta = homeCtaCentreY(
+              tester.element(find.byType(ProfileScreen)),
+            );
+            if (gapA <= 32 * scale - 0.01) {
+              expect(
+                labelCentre,
+                closeTo(cta, 0.5),
+                reason: 'the pin let go ($name, $ts)',
+              );
+            } else {
+              // Capped: the slack past the ceiling went to the bottom, so
+              // the labels sit ABOVE Home's line rather than on it.
+              expect(labelCentre, lessThanOrEqualTo(cta + 0.5));
+            }
+          }
+        });
+      }
+    }
+
     testWidgets('nothing in the first screen refuses to be measured', (
       tester,
     ) async {

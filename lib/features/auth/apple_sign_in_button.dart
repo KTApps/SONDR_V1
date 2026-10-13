@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../core/backend.dart';
+import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../shared/sondr_error.dart';
@@ -11,6 +13,39 @@ import 'auth_repository.dart';
 import 'guest_prompts.dart';
 import 'handle_screen.dart';
 import 'profile_repository.dart';
+
+/// Sign-in itself failed: no account, nothing changed.
+const String kAppleSignInFailed =
+    'Could not sign in with Apple. Please try again.';
+
+/// Sign-in SUCCEEDED and something after it did not. A different sentence,
+/// because the two used to share one — a failed profile read reported itself
+/// as an Apple failure, which sent the first real-device diagnosis after the
+/// entitlements, the bundle id and the Firebase provider, all of which were
+/// fine.
+const String kAppleProfileFailed =
+    'Signed in, but couldn’t load your profile. Please try again.';
+
+/// The user-facing text, with the provider's own code appended for us.
+///
+/// [withCode] defaults to [kDebugTools], so a normal release build shows the
+/// sentence and nothing else. Exposed because a test cannot change a const.
+@visibleForTesting
+String appleErrorText(
+  String message,
+  String? code, {
+  bool withCode = kDebugTools,
+}) => (withCode && code != null && code.isNotEmpty)
+    ? '$message ($code)'
+    : message;
+
+/// The provider's own code, where the error carries one.
+String? _codeOf(Object error) {
+  if (error is SignInWithAppleAuthorizationException) return '${error.code}';
+  if (error is FirebaseAuthException) return error.code;
+  if (error is FirebaseException) return error.code;
+  return null;
+}
 
 /// "Continue with Apple" — one button covering both new and returning users.
 /// Drops in beneath the email form on the auth screen and on the guest view of
@@ -42,49 +77,81 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
   Future<void> _signIn() async {
     setState(() => _busy = true);
     try {
-      final auth = ref.read(authRepositoryProvider);
-      final result = await auth.signInWithApple(
-        confirmReplaceGuest: () => confirmReplaceGuestData(context, ref),
-      );
+      // TWO phases, and two different failures. Authenticating is Apple's and
+      // Firebase's; everything after it is ours, and reporting ours as theirs
+      // is how a Firestore read came to say "could not sign in with Apple".
+      final AppleSignInResult result;
+      try {
+        final auth = ref.read(authRepositoryProvider);
+        result = await auth.signInWithApple(
+          confirmReplaceGuest: () => confirmReplaceGuestData(context, ref),
+        );
+      } on SignInWithAppleAuthorizationException catch (e) {
+        // The user backing out of the Apple sheet is not an error.
+        if (e.code != AuthorizationErrorCode.canceled) {
+          debugPrint('SONDR apple error: ${e.code} :: ${e.message}');
+          _report(kAppleSignInFailed, code: '${e.code}');
+        }
+        return;
+      } catch (e, stack) {
+        debugPrint(
+          'SONDR apple error: ${e.runtimeType} :: ${_codeOf(e)} :: $e',
+        );
+        debugPrint('$stack');
+        _report(kAppleSignInFailed, code: _describe(e));
+        return;
+      }
+
       if (!mounted || result.cancelled) return;
 
-      // Deterministic routing — one-shot read, never the stream-backed future.
-      final uid = ref.read(currentUidProvider);
-      final repo = ref.read(profileRepositoryProvider);
-      final profile =
-          (uid != null && repo != null) ? await repo.fetch(uid) : null;
-      if (!mounted) return;
+      // Signed in. From here a failure is ours to name.
+      try {
+        // Deterministic routing — one-shot read, never the stream-backed
+        // future.
+        final uid = ref.read(currentUidProvider);
+        final repo = ref.read(profileRepositoryProvider);
+        final profile =
+            (uid != null && repo != null) ? await repo.fetch(uid) : null;
+        if (!mounted) return;
 
-      final needsHandle = profile == null || profile.username.isEmpty;
-      if (needsHandle) {
-        Navigator.of(context).pushReplacement(MaterialPageRoute(
-          builder: (_) => HandleScreen(
-            suggestedDisplayName: result.displayName,
-          ),
-        ));
-      } else {
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        final needsHandle = profile == null || profile.username.isEmpty;
+        if (needsHandle) {
+          Navigator.of(context).pushReplacement(MaterialPageRoute(
+            builder: (_) => HandleScreen(
+              suggestedDisplayName: result.displayName,
+            ),
+          ));
+        } else {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
+      } catch (e, stack) {
+        debugPrint(
+          'SONDR apple post-auth error: ${e.runtimeType} :: ${_codeOf(e)} '
+          ':: $e',
+        );
+        debugPrint('$stack');
+        _report(kAppleProfileFailed, code: _describe(e));
       }
-    } on SignInWithAppleAuthorizationException catch (e) {
-      // The user backing out of the Apple sheet is not an error.
-      if (e.code != AuthorizationErrorCode.canceled) {
-        _report('Could not sign in with Apple. Please try again.');
-      }
-    } catch (_) {
-      _report('Could not sign in with Apple. Please try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  void _report(String message) {
+  /// Type plus code, which together say enough to act on.
+  String _describe(Object error) {
+    final code = _codeOf(error);
+    return code == null ? '${error.runtimeType}' : '${error.runtimeType} $code';
+  }
+
+  void _report(String message, {String? code}) {
     if (!mounted) return;
+    final message_ = appleErrorText(message, code);
     if (widget.onError != null) {
-      widget.onError!(message);
+      widget.onError!(message_);
     } else {
       // No host to report to (the guest landing) — the button carries its
       // own failure directly beneath itself.
-      setState(() => _error = message);
+      setState(() => _error = message_);
     }
   }
 

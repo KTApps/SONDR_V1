@@ -738,9 +738,13 @@ void main() {
 
     testWidgets('the handle has air either side of it', (tester) async {
       final m = await compose(tester);
-      // 12 above the name and 6 below it.
-      expect(m['emblemToHandle'], closeTo(12, 2));
-      expect(m['handleToSubline'], closeTo(6, 2));
+      // Symmetric: the same 9 either side of the name.
+      expect(m['emblemToHandle'], closeTo(9, 2));
+      expect(m['handleToSubline'], closeTo(9, 2));
+      expect(
+        (m['emblemToHandle']! - m['handleToSubline']!).abs(),
+        lessThanOrEqualTo(1),
+      );
       // The declared 16 to the figures, untouched. It measures box-to-box at
       // ~24 rather than 16, because titleLarge carries no height factor and
       // the figure's box has leading above its glyphs — the same 8 that shows

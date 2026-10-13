@@ -61,8 +61,13 @@ const Color _kPhotoTint = Color(0x1A000000);
 /// rides up into the status bar.
 const double _kTopMargin = 46;
 const double _kEmblemSize = 128;
-const double _kEmblemToHandle = 12;
-const double _kHandleToSubline = 6;
+/// Symmetric around the handle: the same 9 above it and below it, so the name
+/// sits in its own space rather than closer to the ring than to the line it
+/// introduces. The pair totals the 18 it did before, so nothing beneath the
+/// subtitle moves — only the handle, back onto the line the emblem's own gap
+/// originally put it on.
+const double _kEmblemToHandle = 9;
+const double _kHandleToSubline = 9;
 const double _kSublineToStats = 16;
 const double _kStatGap = 5;
 const double _kBreak = 22;

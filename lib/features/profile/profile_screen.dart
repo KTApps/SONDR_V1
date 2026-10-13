@@ -59,6 +59,14 @@ const Color _kPhotoTint = Color(0x1A000000);
 /// The margin gave up another 9 when the gap above each heading went to 14,
 /// and 46 is the floor the composition allows — a point less and the emblem
 /// rides up into the status bar.
+/// The page's horizontal content margin. Everything sits inside it EXCEPT the
+/// two horizontal scrollers, which span the full screen and carry it as their
+/// own leading and trailing scroll padding — so a strip starts on the margin
+/// but can be dragged clear of it, and its last item can come to rest there
+/// too. A scroller that stopped at the content box looked like a list with
+/// nothing after it.
+const double _kGutter = 24;
+
 const double _kTopMargin = 46;
 const double _kEmblemSize = 128;
 /// Symmetric around the handle: the same 9 above it and below it, so the name
@@ -142,14 +150,10 @@ class ProfileScreen extends ConsumerWidget {
             // viewport now; on iOS a bounce at the top of a page this
             // deliberately composed reads as slack.
             physics: const ClampingScrollPhysics(),
-            child: Padding(
-              // The page's own edge: 12 top and bottom, not 24. The section
-              // breaks below carry the page's rhythm, and the first and last
-              // of them were being doubled up on by a full section gap
-              // against the screen edge. The 24 gutter either side is
-              // untouched.
-              padding: EdgeInsets.symmetric(horizontal: 24 * scale),
-              child: Column(
+            // NO blanket horizontal padding. The gutter is applied per child
+            // instead, so the two scrollers can span the whole screen while
+            // the headings and hairlines stay in the content box.
+            child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // THE FIRST SCREEN. Floored to the viewport's own height
@@ -170,23 +174,26 @@ class ProfileScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         SizedBox(height: _kTopMargin * scale),
-                        const _HeroEmblem(),
+                        const _Gutter(child: _HeroEmblem()),
                         SizedBox(height: _kSublineToStats * scale),
-                        _EffortSummary(
-                          lifetime: lifetime,
-                          streak: streak,
-                          milestones: milestones,
+                        _Gutter(
+                          child: _EffortSummary(
+                            lifetime: lifetime,
+                            streak: streak,
+                            milestones: milestones,
+                          ),
                         ),
                         SizedBox(height: _kBreak * scale),
-                        const _Hairline(),
+                        const _Gutter(child: _Hairline()),
                         SizedBox(height: _kUnderHairline * scale),
-                        const _FriendsRow(),
+                        const _Gutter(child: _FriendsRow()),
                         SizedBox(height: _kBreak * scale),
-                        const _Hairline(),
+                        const _Gutter(child: _Hairline()),
                         SizedBox(height: _kUnderHairline * scale),
+                        // Its heading keeps the gutter; its strip does not.
                         const _MilestonesRow(),
                         SizedBox(height: _kBreak * scale),
-                        const _Hairline(),
+                        const _Gutter(child: _Hairline()),
                         SizedBox(height: _kUnderHairline * scale),
                         _TasksInProgress(tasks: tasks),
                         SizedBox(height: _kTabClearance * scale),
@@ -196,16 +203,31 @@ class ProfileScreen extends ConsumerWidget {
                   // BELOW THE FOLD. Signed in, the email, Sign out and the
                   // QA word — things you go looking for, never the first
                   // thing the page offers.
-                  const _Section(child: AccountBody()),
+                  const _Gutter(child: _Section(child: AccountBody())),
                   SizedBox(height: kSpacingBase * scale),
                 ],
               ),
-            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// The page's content margin, applied per child.
+///
+/// It is not on the page's column, because the two horizontal scrollers have
+/// to span the whole screen; everything else is wrapped in this instead.
+class _Gutter extends StatelessWidget {
+  const _Gutter({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.symmetric(horizontal: _kGutter * figmaScale(context)),
+    child: child,
+  );
 }
 
 /// The line itself. Unscaled: a hairline is a hairline at every screen size.
@@ -557,33 +579,40 @@ class _MilestonesRow extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                'Milestones',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontSize: _kHeadingSize * scale,
-                  fontWeight: FontWeight.w700,
-                  color: tokens.textPrimary,
-                ),
-              ),
-              const Spacer(),
-              if (n > 0)
+          _Gutter(
+            child: Row(
+              children: [
                 Text(
-                  '$n',
+                  'Milestones',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    fontSize: _kCountSize * scale,
+                    fontSize: _kHeadingSize * scale,
                     fontWeight: FontWeight.w700,
-                    color: tokens.textTertiary,
+                    color: tokens.textPrimary,
                   ),
                 ),
-            ],
+                const Spacer(),
+                if (n > 0)
+                  Text(
+                    '$n',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontSize: _kCountSize * scale,
+                      fontWeight: FontWeight.w700,
+                      color: tokens.textTertiary,
+                    ),
+                  ),
+              ],
+            ),
           ),
           if (strip.isNotEmpty) ...[
             SizedBox(height: _kHeadingToPhotos * scale),
+            // Full-bleed: the viewport is the screen, and the margin is the
+            // scroller's own padding — so the first tile still starts on the
+            // margin, and the last can be dragged to it instead of stopping
+            // short of the edge.
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               physics: const ClampingScrollPhysics(),
+              padding: EdgeInsets.symmetric(horizontal: _kGutter * scale),
               child: Row(
                 children: [
                   for (var i = 0; i < strip.length; i++) ...[
@@ -621,37 +650,41 @@ class _TasksInProgress extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              'In progress',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontSize: _kHeadingSize * scale,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const Spacer(),
-            // A bare number, like the counts on the Friends and Milestones
-            // rows above it. The same set the row scrolls through: tasks not
-            // archived.
-            if (tasks.isNotEmpty)
+        _Gutter(
+          child: Row(
+            children: [
               Text(
-                '${tasks.length}',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontSize: _kCountSize * scale,
+                'In progress',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontSize: _kHeadingSize * scale,
                   fontWeight: FontWeight.w700,
-                  color: tokens.textTertiary,
                 ),
               ),
-          ],
+              const Spacer(),
+              // A bare number, like the counts on the Friends and Milestones
+              // rows above it. The same set the row scrolls through: tasks
+              // not archived.
+              if (tasks.isNotEmpty)
+                Text(
+                  '${tasks.length}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: _kCountSize * scale,
+                    fontWeight: FontWeight.w700,
+                    color: tokens.textTertiary,
+                  ),
+                ),
+            ],
+          ),
         ),
         SizedBox(height: _kHeadingToRings * scale),
         if (tasks.isEmpty)
-          Text(
-            'Start a task on the timer to see it climb here.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontSize: 13 * scale,
-              color: tokens.textSecondary,
+          _Gutter(
+            child: Text(
+              'Start a task on the timer to see it climb here.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 13 * scale,
+                color: tokens.textSecondary,
+              ),
             ),
           )
         else
@@ -668,6 +701,7 @@ class _TasksInProgress extends StatelessWidget {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             physics: const ClampingScrollPhysics(),
+            padding: EdgeInsets.symmetric(horizontal: _kGutter * scale),
             child: Row(
               children: [
                 for (var i = 0; i < tasks.length; i++) ...[

@@ -627,6 +627,9 @@ void main() {
     /// top inset, and the tab bar's top edge at 770, which leaves 723 of
     /// content. Measured here rather than assumed anywhere.
     const double w13 = 390;
+    /// The in-progress tile's width, mirrored from profile_screen.dart so the
+    /// ring's own left edge can be worked back to the tile's.
+    const double ringTile = 74;
     const double h13 = 844;
     const double top13 = 47;
     const double tabBarTop13 = 770;
@@ -684,6 +687,10 @@ void main() {
         'clearance': tabBarTop13 - bottom(find.text('Task 0')),
         'accountTop': top(find.byType(AccountBody)),
         'photoTile': tester.getSize(photos.first).width,
+        'friendsLeft': tester.getTopLeft(find.text('Friends')).dx,
+        'milestonesLeft': tester.getTopLeft(find.text('Milestones')).dx,
+        'inProgressLeft': tester.getTopLeft(find.text('In progress')).dx,
+        'hairlineLeft': tester.getTopLeft(lines.at(0)).dx,
       };
     }
 
@@ -750,6 +757,83 @@ void main() {
       // the figure's box has leading above its glyphs — the same 8 that shows
       // up wherever a 20-plus figure follows a gap on this page.
       expect(m['sublineToStats'], closeTo(24, 2));
+      expectNoOverflow(tester);
+    });
+
+    /// The two horizontal scrollers, told apart by what they contain.
+    Finder scrollerAround(Finder item) => find.ancestor(
+      of: item,
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+      ),
+    );
+
+    testWidgets('both strips bleed to the screen edge, margin as padding', (
+      tester,
+    ) async {
+      // Five of each, so there is something past the fourth to peek.
+      tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      tester.view.padding = const FakeViewPadding(
+        top: top13 * 3,
+        bottom: 34 * 3,
+      );
+      addTearDown(tester.view.reset);
+      await pumpProfile(
+        tester,
+        inShell: true,
+        tasks: [for (var i = 0; i < 5; i++) _task('Task $i', seconds: 45900)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+        milestonePhotos: [for (var i = 0; i < 5; i++) _photo(1000 + i)],
+      );
+      final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
+      final margin = 24 * scale;
+
+      final photos = find.byType(SondrPhoto);
+      final rings = ringFinder(tester, 56);
+      expect(photos, findsNWidgets(5));
+      expect(rings, findsNWidgets(5));
+
+      // Both viewports span the whole screen.
+      for (final strip in [scrollerAround(photos.first), scrollerAround(rings.first)]) {
+        expect(tester.getTopLeft(strip).dx, closeTo(0, 0.5));
+        expect(tester.getBottomRight(strip).dx, closeTo(w13, 0.5));
+      }
+
+      // The first item of each still starts on the content margin.
+      expect(tester.getTopLeft(photos.first).dx, closeTo(margin, 0.5));
+      expect(
+        tester.getTopLeft(ringFinder(tester, 56).first).dx -
+            (ringTile * scale - 56 * scale) / 2,
+        closeTo(margin, 0.5),
+      );
+
+      // The fifth photo shows past the screen edge by enough to read as more.
+      final fifthPhotoLeft = tester.getTopLeft(photos.at(4)).dx;
+      expect(w13 - fifthPhotoLeft, greaterThanOrEqualTo(14));
+
+      // The fourth ring is not clipped, and the fifth peeks.
+      expect(tester.getBottomRight(rings.at(3)).dx, lessThanOrEqualTo(w13));
+      expect(w13 - tester.getTopLeft(rings.at(4)).dx, greaterThanOrEqualTo(6));
+
+      // And the fourth task's NAME is whole too — the label is the widest
+      // part of a tile, so it clips before the ring does.
+      expect(
+        tester.getBottomRight(find.text('Task 3')).dx,
+        lessThanOrEqualTo(w13),
+      );
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the headings stay inside the content box', (tester) async {
+      // Only the strips bleed. A heading on the screen edge would read as a
+      // different page.
+      final m = await compose(tester);
+      expect(m['friendsLeft'], closeTo(24, 0.5));
+      expect(m['milestonesLeft'], closeTo(24, 0.5));
+      expect(m['inProgressLeft'], closeTo(24, 0.5));
+      expect(m['hairlineLeft'], closeTo(24, 0.5));
       expectNoOverflow(tester);
     });
 

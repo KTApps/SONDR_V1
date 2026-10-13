@@ -152,6 +152,7 @@ void main() {
       Profile? profile,
       bool inShell = false,
       List<Photo> milestonePhotos = const [],
+      double textScale = 1.0,
     }) async {
       ignoreFirebaseAbsence();
       await tester.pumpWidget(
@@ -182,6 +183,12 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.dark(),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(textScale),
+              ),
+              child: child!,
+            ),
             // A tab screen's body is the screen less the tab bar and the
             // bottom inset — forget that and the fold reads 74 too generous.
             home: inShell
@@ -638,7 +645,10 @@ void main() {
 
     /// Pumps the page on that device and returns every gap the composition is
     /// specified in, so a failure says WHICH gap moved.
-    Future<Map<String, double>> compose(WidgetTester tester) async {
+    Future<Map<String, double>> compose(
+      WidgetTester tester, {
+      double textScale = 1.0,
+    }) async {
       tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
       tester.view.devicePixelRatio = 3.0;
       tester.view.padding = const FakeViewPadding(top: top13 * 3, bottom: 34 * 3);
@@ -647,6 +657,7 @@ void main() {
       await pumpProfile(
         tester,
         inShell: true,
+        textScale: textScale,
         tasks: [for (var i = 0; i < 6; i++) _task('Task $i', seconds: 45900)],
         profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
         milestonePhotos: [for (var i = 0; i < 4; i++) _photo(1000 + i)],
@@ -695,6 +706,65 @@ void main() {
         'hairlineLeft': tester.getTopLeft(lines.at(0)).dx,
       };
     }
+
+    /// The device's own text size.
+    ///
+    /// iOS multiplies every point size by the Display > Text Size setting.
+    /// The notches below the default are 0.941 / 0.882 / 0.824 (the iOS
+    /// content-size categories, as a fraction of a 17pt body), and the ones
+    /// above run to 1.235 before the accessibility sizes begin.
+    ///
+    /// 0.824 is the smallest, and it is what the calibration screenshots were
+    /// taken at — which is why their hairlines read 14, 19 and 25 higher than
+    /// a harness rendering at 1.0. Every FIXED size matched those screenshots
+    /// to within half a point (emblem 126.3 against 126.8, strip 79.3 against
+    /// 79.2, ring 56.0 against 55.5); only the text boxes were short, and all
+    /// of them by the same factor. Type metrics cannot do that. A setting can.
+    const double deviceTextScale = 0.824;
+
+    testWidgets('at the calibration screenshots\' text size, the harness '
+        'lands on the device', (tester) async {
+      await compose(tester, textScale: deviceTextScale);
+      final lines = find.byWidgetPredicate(
+        (w) => w is SizedBox && w.height == 1,
+      );
+      double top(Finder f) => tester.getTopLeft(f).dy;
+      double centre(Finder f) => tester.getRect(f).center.dy;
+
+      // Read off the screenshots, to the nearest point.
+      expect(top(lines.at(0)), closeTo(351.0, 1.5));
+      expect(top(lines.at(1)), closeTo(410.7, 1.5));
+      expect(top(lines.at(2)), closeTo(575.3, 1.5));
+      expect(centre(find.text('tanaka')), closeTo(238.7, 1.5));
+      expect(centre(find.text('Friends')), closeTo(376.7, 1.5));
+      expect(centre(find.text('Milestones')), closeTo(436.7, 1.5));
+      expect(centre(find.text('In progress')), closeTo(600.0, 1.5));
+      expect(centre(find.text('Task 0')), closeTo(700.0, 1.5));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the rings clear the tab bar at every text size iOS offers '
+        'up to 1.118', (tester) async {
+      // Not a style question: at a bigger text size the page grows downward
+      // from a fixed top margin, and the labels are the last thing above the
+      // tab bar. The ceiling is recorded rather than assumed — see the note
+      // on 1.235 below.
+      for (final ts in [0.824, 0.882, 0.941, 1.0, 1.118]) {
+        final m = await compose(tester, textScale: ts);
+        expect(
+          m['clearance'],
+          greaterThan(0),
+          reason: 'the ring labels are under the tab bar at textScale $ts',
+        );
+        expectNoOverflow(tester);
+      }
+      // KNOWN CEILING: at 1.235 — iOS's largest non-accessibility size —
+      // clearance is -6, so the labels pass behind the tab bar. Raising it
+      // means changing the page's own spacing, which is a layout decision,
+      // not a harness one.
+      final big = await compose(tester, textScale: 1.235);
+      expect(big['clearance'], lessThan(0));
+    });
 
     testWidgets('1. the photos are exactly four tiles in one row', (
       tester,

@@ -714,8 +714,8 @@ void main() {
       tester,
     ) async {
       final m = await compose(tester);
-      // 92 rather than 120: the real text metrics ate 34 of the slack the
-      // top margin was carrying, so the emblem sits that much higher.
+      // Top inset 47 plus the 46 top margin, scaled: no text sits above the
+      // emblem, so this is the one number on the page that type cannot move.
       expect(m['emblemTop'], inInclusiveRange(92, 145));
       expectNoOverflow(tester);
     });
@@ -754,11 +754,12 @@ void main() {
         (m['emblemToHandle']! - m['handleToSubline']!).abs(),
         lessThanOrEqualTo(1),
       );
-      // The declared 16 to the figures, untouched. It measures box-to-box at
-      // ~24 rather than 16, because titleLarge carries no height factor and
-      // the figure's box has leading above its glyphs — the same 8 that shows
-      // up wherever a 20-plus figure follows a gap on this page.
-      expect(m['sublineToStats'], closeTo(24, 2));
+      // The declared 16 to the figures, and it now MEASURES 16: with the
+      // app's own Inter loaded the two stat labels fit on one line, and the
+      // stats row stops being 8 taller and 8 lower than the page it is
+      // specified as. The old 24 was the test font's width, not a metric of
+      // ours.
+      expect(m['sublineToStats'], closeTo(16, 2));
       expectNoOverflow(tester);
     });
 
@@ -864,10 +865,12 @@ void main() {
 
     testWidgets('6. the rings clear the tab bar by 22 to 38', (tester) async {
       final m = await compose(tester);
-      // The upper bound relaxed to 756 — a clearance floor of 14 — to pay
-      // for the air around the handle and the bigger ring.
-      expect(m['ringsBottom'], inInclusiveRange(tabBarTop13 - 38, 756));
-      expect(m['clearance'], greaterThanOrEqualTo(14));
+      // The upper bound was relaxed to 756 — a clearance floor of 14 — when
+      // the harness was measuring the test font's wrapped stat labels. With
+      // Inter the page is 17 shorter and lands at 736, back inside the
+      // original 22-to-38 window, so the bound is the window again.
+      expect(m['ringsBottom'], inInclusiveRange(tabBarTop13 - 38, 748));
+      expect(m['clearance'], greaterThanOrEqualTo(22));
       expectNoOverflow(tester);
     });
 

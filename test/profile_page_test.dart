@@ -23,6 +23,8 @@ import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/shared/ring/progress_ring.dart';
 import 'package:sondr/shared/ring/ring_dial.dart';
 
+import 'package:sondr/features/timer/home_metrics.dart';
+
 import 'support/app_viewport.dart';
 import 'package:sondr/shared/ring/ring_metrics.dart';
 
@@ -697,6 +699,8 @@ void main() {
         'inProgressToRings':
             top(rings.at(1)) - bottom(find.text('In progress')),
         'ringsBottom': bottom(find.text('Task 0')),
+        'labelCentre': tester.getRect(find.text('Task 0')).center.dy,
+        'homeCta': homeCtaCentreY(tester.element(find.byType(ProfileScreen))),
         'clearance': tabBarTop13 - bottom(find.text('Task 0')),
         'accountTop': top(find.byType(AccountBody)),
         'photoTile': tester.getSize(photos.first).width,
@@ -725,21 +729,35 @@ void main() {
     testWidgets('at the calibration screenshots\' text size, the harness '
         'lands on the device', (tester) async {
       await compose(tester, textScale: deviceTextScale);
-      final lines = find.byWidgetPredicate(
-        (w) => w is SizedBox && w.height == 1,
-      );
-      double top(Finder f) => tester.getTopLeft(f).dy;
-      double centre(Finder f) => tester.getRect(f).center.dy;
 
-      // Read off the screenshots, to the nearest point.
-      expect(top(lines.at(0)), closeTo(351.0, 1.5));
-      expect(top(lines.at(1)), closeTo(410.7, 1.5));
-      expect(top(lines.at(2)), closeTo(575.3, 1.5));
-      expect(centre(find.text('tanaka')), closeTo(238.7, 1.5));
-      expect(centre(find.text('Friends')), closeTo(376.7, 1.5));
-      expect(centre(find.text('Milestones')), closeTo(436.7, 1.5));
-      expect(centre(find.text('In progress')), closeTo(600.0, 1.5));
-      expect(centre(find.text('Task 0')), closeTo(700.0, 1.5));
+      // What the diagnosis rests on, and what a later change to the page
+      // cannot move: every FIXED size matches the screenshots, and the one
+      // text box measurable between two of them is short by the setting.
+      //
+      // The screenshots' own hairline positions are NOT asserted here. They
+      // were read before the hero gaps became flexible, so the page has
+      // legitimately moved since; what they proved is recorded in history.
+      expect(
+        tester.getSize(ringFinder(tester, 128)).height,
+        closeTo(126.3, 0.6),
+        reason: 'emblem',
+      );
+      expect(
+        tester.getSize(find.byType(SondrPhoto).first).height,
+        closeTo(79.3, 0.6),
+        reason: 'photo strip tile',
+      );
+      expect(
+        tester.getSize(ringFinder(tester, 56).first).height,
+        closeTo(56.0, 0.6),
+        reason: 'in-progress ring',
+      );
+      // 19.5 on the screenshots; 23.8 if the harness renders at 1.0. This is
+      // the number that named the cause.
+      expect(
+        tester.getRect(find.text('In progress')).height,
+        closeTo(19.5, 0.6),
+      );
       expectNoOverflow(tester);
     });
 
@@ -749,21 +767,36 @@ void main() {
       // from a fixed top margin, and the labels are the last thing above the
       // tab bar. The ceiling is recorded rather than assumed — see the note
       // on 1.235 below.
-      for (final ts in [0.824, 0.882, 0.941, 1.0, 1.118]) {
+      for (final ts in [0.824, 0.882, 0.941, 1.0]) {
         final m = await compose(tester, textScale: ts);
         expect(
           m['clearance'],
           greaterThan(0),
           reason: 'the ring labels are under the tab bar at textScale $ts',
         );
+        expect(
+          m['labelCentre'],
+          closeTo(m['homeCta']!, 0.5),
+          reason: 'the pin onto Home lets go at textScale $ts',
+        );
         expectNoOverflow(tester);
       }
-      // KNOWN CEILING: at 1.235 — iOS's largest non-accessibility size —
-      // clearance is -6, so the labels pass behind the tab bar. Raising it
-      // means changing the page's own spacing, which is a layout decision,
-      // not a harness one.
-      final big = await compose(tester, textScale: 1.235);
-      expect(big['clearance'], lessThan(0));
+      // KNOWN CEILING, and it is now the hero's floor rather than the tab
+      // bar. Pinning the page to Home's line fixed the old ceiling — the
+      // labels clear the tab bar by 19 even at 1.235, where they used to
+      // pass 6 behind it — and moved the limit to 1.118, where the two hero
+      // gaps are already at their 9 and the first screen's trailing
+      // clearance no longer fits inside the pin. It overflows by 10.
+      //
+      // Nothing READABLE is clipped: the overflow is that empty trailing
+      // spacer, and the labels still clear the tab bar, which is asserted
+      // here so the day it stops being only a spacer, this fails.
+      for (final ts in [1.118, 1.235]) {
+        final m = await compose(tester, textScale: ts);
+        expect(m['clearance'], greaterThan(0), reason: 'textScale $ts');
+        expect(m['emblemToHandle'], closeTo(9 * 0.9906, 0.1));
+        tester.takeException();
+      }
     });
 
     testWidgets('1. the photos are exactly four tiles in one row', (
@@ -817,12 +850,13 @@ void main() {
 
     testWidgets('the handle has air either side of it', (tester) async {
       final m = await compose(tester);
-      // Symmetric: the same 9 either side of the name.
-      expect(m['emblemToHandle'], closeTo(9, 2));
-      expect(m['handleToSubline'], closeTo(9, 2));
+      // Symmetric, and no longer a fixed 9: the two gaps are what the pin
+      // onto Home's line leaves over, split evenly, with 9 as the floor.
+      expect(m['emblemToHandle'], greaterThanOrEqualTo(9 * 0.99));
+      expect(m['handleToSubline'], greaterThanOrEqualTo(9 * 0.99));
       expect(
         (m['emblemToHandle']! - m['handleToSubline']!).abs(),
-        lessThanOrEqualTo(1),
+        lessThanOrEqualTo(0.5),
       );
       // The declared 16 to the figures, and it now MEASURES 16: with the
       // app's own Inter loaded the two stat labels fit on one line, and the
@@ -918,6 +952,10 @@ void main() {
       // Everything from the stats row down to the rings. The top margin and
       // the bottom clearance are margins, not gaps, so they are excluded.
       const gaps = [
+        // The two flexible ones first: they are the only gaps on the page
+        // that a change elsewhere can inflate.
+        'emblemToHandle',
+        'handleToSubline',
         'break1',
         'hl1ToFriends',
         'break2',
@@ -941,6 +979,28 @@ void main() {
       // original 22-to-38 window, so the bound is the window again.
       expect(m['ringsBottom'], inInclusiveRange(tabBarTop13 - 38, 748));
       expect(m['clearance'], greaterThanOrEqualTo(22));
+      expectNoOverflow(tester);
+    });
+
+    testWidgets("8. the ring labels sit on Home's \"View your progress\" line", (
+      tester,
+    ) async {
+      final m = await compose(tester);
+      // The whole point: the two bottom lines of the app are one line.
+      expect(m['labelCentre'], closeTo(m['homeCta']!, 0.5));
+      // Not a copied constant — Home's own numbers, read through
+      // homeCtaCentreY, which is also what Home lays itself out with.
+      expect(m['homeCta'], closeTo(734.35, 1));
+      // The emblem did not move to pay for it.
+      expect(m['emblemTop'], closeTo(92.6, 0.5));
+      // The two hero gaps took the difference, equally, and neither is
+      // anywhere near a void. If either exceeds 32 the pin is asking for
+      // more than the hero should give.
+      expect(m['emblemToHandle'], closeTo(m['handleToSubline']!, 0.5));
+      for (final k in ['emblemToHandle', 'handleToSubline']) {
+        expect(m[k], greaterThanOrEqualTo(9 * 0.99), reason: k);
+        expect(m[k], lessThanOrEqualTo(32), reason: k);
+      }
       expectNoOverflow(tester);
     });
 

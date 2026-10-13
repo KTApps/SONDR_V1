@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +6,7 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../debug/position_readout.dart';
+import '../timer/home_metrics.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../../shared/ring/ring_metrics.dart';
@@ -75,8 +77,19 @@ const double _kEmblemSize = 128;
 /// introduces. The pair totals the 18 it did before, so nothing beneath the
 /// subtitle moves — only the handle, back onto the line the emblem's own gap
 /// originally put it on.
-const double _kEmblemToHandle = 9;
-const double _kHandleToSubline = 9;
+/// The FLOOR on each of the two hero gaps, not their value.
+///
+/// They are equal and flexible: the first screen's height is pinned so the
+/// ring labels land on Home's "View your progress" line, and these two gaps
+/// are the only ones that give, splitting whatever that pin leaves over
+/// between them. 9 is the tightest either may become.
+///
+/// Flex is back in the hero, which the rest of this page still forbids, and
+/// the difference is the pin: an Expanded with nothing below it to stop
+/// against is what pooled the slack into a void last time. Here the bottom
+/// is fixed by a target, so there is a bounded amount to share and exactly
+/// two places for it to go.
+const double _kHeroGapMin = 9;
 const double _kSublineToStats = 16;
 const double _kStatGap = 5;
 const double _kBreak = 22;
@@ -93,6 +106,9 @@ const double _kTabClearance = 16;
 /// Section headings take the app's Heading token — the same 20/bold Home puts
 /// on "Last 10 days".
 const double _kHeadingSize = 20;
+
+/// The ring labels' own size — the line the page's bottom is pinned by.
+const double _kRingLabelSize = 11;
 
 /// The counts beside them.
 const double _kCountSize = 14;
@@ -141,6 +157,8 @@ class ProfileScreen extends ConsumerWidget {
     final scale = figmaScale(context);
 
     final handle = ref.watch(currentProfileProvider).value?.username ?? '';
+    // Read here, above the SafeArea that consumes it.
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
       // No AppBar — the redundant "Profile" title is removed (matches Feed).
@@ -193,13 +211,18 @@ class ProfileScreen extends ConsumerWidget {
                   // at the foot as a cavern. The slack lives in the top
                   // margin above the emblem instead, where empty space at the
                   // top of a page reads as margin.
-                  ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: viewport.maxHeight),
+                  SizedBox(
+                    // A DEFINITE height, and it is the PIN: tall enough that
+                    // the ring labels land on Home's "View your progress"
+                    // line. Flex needs a bounded column, and this is the
+                    // bound — see [_firstScreenHeight].
+                    height: _firstScreenHeight(context, topInset),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         SizedBox(height: _kTopMargin * scale),
-                        const _Gutter(child: _HeroEmblem()),
+                        // The only flexible child: it absorbs the pin.
+                        const Expanded(child: _Gutter(child: _HeroEmblem())),
                         SizedBox(height: _kSublineToStats * scale),
                         _Gutter(
                           child: _EffortSummary(
@@ -225,6 +248,17 @@ class ProfileScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  // Whatever the pin leaves over between the first screen
+                  // and the bottom edge. The slack sat here before too — it
+                  // was the unused remainder of a minHeight — and it still
+                  // reads as the end of the page rather than as a gap.
+                  SizedBox(
+                    height: math.max(
+                      0,
+                      viewport.maxHeight -
+                          _firstScreenHeight(context, topInset),
+                    ),
+                  ),
                   // BELOW THE FOLD. Signed in, the email, Sign out and the
                   // QA word — things you go looking for, never the first
                   // thing the page offers.
@@ -238,6 +272,35 @@ class ProfileScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// The style the ring labels are set in, shared so the pin below can measure
+/// a line of it without rendering one.
+TextStyle? nameStyleOf(BuildContext context) =>
+    Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontSize: _kRingLabelSize * figmaScale(context),
+      fontWeight: FontWeight.w600,
+      color: GreyscaleTokens.of(context).textSecondary,
+    );
+
+/// The height the first screen must be for the ring labels to sit on Home's
+/// "View your progress" line.
+///
+/// Read downward from the label's CENTRE, which is the thing being pinned:
+/// below it there is only its own lower half and the clearance to the tab bar.
+/// Everything above it is fixed except the two hero gaps, so they take the
+/// difference — see [_kHeroGapMin].
+double _firstScreenHeight(BuildContext context, double columnTop) {
+  final scale = figmaScale(context);
+  final label = lineHeightOf(context, nameStyleOf(context), _kRingLabelSize);
+  // [homeCtaCentreY] is a SCREEN y; this is a height measured from the
+  // column's own top, which is [columnTop] below the top of the screen. It
+  // has to be read ABOVE the page's SafeArea — inside it, both padding and
+  // viewPadding have already been consumed and read as zero.
+  return homeCtaCentreY(context) -
+      columnTop +
+      label / 2 +
+      _kTabClearance * scale;
 }
 
 /// The page's content margin, applied per child.
@@ -386,7 +449,8 @@ class _HeroEmblem extends ConsumerWidget {
                   ),
           ),
         ),
-        SizedBox(height: _kEmblemToHandle * scale),
+        SizedBox(height: _kHeroGapMin * scale),
+        const Expanded(child: SizedBox.shrink()),
         // The person, at the top of their own page at last. Omitted rather
         // than faked when there is no handle yet — the account block below
         // still offers to set one.
@@ -401,8 +465,9 @@ class _HeroEmblem extends ConsumerWidget {
               color: tokens.textPrimary,
             ),
           ),
-          SizedBox(height: _kHandleToSubline * scale),
+          SizedBox(height: _kHeroGapMin * scale),
         ],
+        const Expanded(child: SizedBox.shrink()),
         // The FIGURE is what you read; the sentence around it is the frame.
         // One Text, so the two sit on one baseline.
         Text.rich(
@@ -769,11 +834,7 @@ class _TaskTile extends StatelessWidget {
       fontWeight: FontWeight.w700,
       color: tokens.textPrimary,
     );
-    final nameStyle = theme.textTheme.bodyMedium?.copyWith(
-      fontSize: 11 * scale,
-      fontWeight: FontWeight.w600,
-      color: tokens.textSecondary,
-    );
+    final nameStyle = nameStyleOf(context);
 
     return SizedBox(
       width: _kRingTileWidth * scale,

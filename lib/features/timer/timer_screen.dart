@@ -11,6 +11,7 @@ import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import '../../core/utils/figma_scale.dart';
 import '../debug/position_readout.dart';
+import 'home_metrics.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../../shared/sondr_action.dart';
 import '../auth/guest_prompts.dart';
@@ -232,7 +233,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
           ),
           // "Last 10 days" block — Figma Y positions, shifted up with the stack.
           Positioned(
-            top: 511 * scale,
+            top: kHomeLastTenTop * scale,
             left: 24 * scale,
             right: 24 * scale,
             child: _LastTenDays(now: now, scale: scale),
@@ -656,7 +657,7 @@ class _LastTenDays extends ConsumerWidget {
         for (final tick in habitsState?.days[key]?.ticks ?? const []) tick.done,
       ];
       return SegmentedDial(
-        size: 57 * scale,
+        size: kHomeDayCell * scale,
         compact: true,
         taskTodaySeconds: segments,
         habitStates: habitStates,
@@ -684,19 +685,19 @@ class _LastTenDays extends ConsumerWidget {
           Text(
             'Last 10 days',
             style: theme.textTheme.titleLarge?.copyWith(
-              fontSize: 20 * scale,
+              fontSize: kHomeHeadingSize * scale,
               fontWeight: FontWeight.w700,
             ),
           ),
           // label→row1 30, row1→row2 25; the CTA gap is larger so "View your
           // progress" sits toward the midpoint between row 2 and the tab bar.
-          SizedBox(height: 30 * scale),
+          SizedBox(height: kHomeHeadingToRow * scale),
           row(const [1, 2, 3, 4, 5]),
-          SizedBox(height: 25 * scale),
+          SizedBox(height: kHomeRowGap * scale),
           row(const [6, 7, 8, 9, 10]),
           // Centres "View your progress" in the gap between row 2 and the tab
           // bar (CTA ~18px tall in a ~74px gap → ~28 above).
-          SizedBox(height: 28 * scale),
+          SizedBox(height: kHomeRowToCta * scale),
 
           // Plain-text CTA; opens the calendar/progress screen (same
           // destination the standalone button used to). The day circles
@@ -715,7 +716,7 @@ class _LastTenDays extends ConsumerWidget {
                 // label. Same tone and weight as the timer controls: actions
                 // are uniform white text (see DESIGN.md).
                 style: theme.textTheme.titleLarge?.copyWith(
-                  fontSize: 15 * scale,
+                  fontSize: kHomeCtaSize * scale,
                   fontWeight: FontWeight.w700,
                   color: tokens.textPrimary,
                 ),

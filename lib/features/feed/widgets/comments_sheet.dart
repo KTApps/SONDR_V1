@@ -285,13 +285,10 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                       _loadTimedOut ? _loadFailed() : const SondrLoading(),
                   error: (_, _) => _loadFailed(),
                   data: (list) {
-                    if (list.isEmpty) {
-                      return Center(
-                        child: Text('No comments yet. Say something kind.',
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: tokens.textSecondary)),
-                      );
-                    }
+                    // Nothing to say about nothing. An empty list is just
+                    // empty space under the composer, which is already an
+                    // invitation to type.
+                    if (list.isEmpty) return const SizedBox.shrink();
                     return ListView.builder(
                       padding: EdgeInsets.zero,
                       itemCount: list.length,

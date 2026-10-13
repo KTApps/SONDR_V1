@@ -22,6 +22,12 @@ const double top13 = 47;
 /// 0.7 of 844.
 const double expectedSheetTop = h13 - h13 * 0.7; // 253.2
 
+/// The composer's measured position, which removing the empty-state line must
+/// not disturb — it sits above the list, so an empty list below it is free to
+/// render nothing without anything moving.
+const double composerTop = 318.3;
+const double composerBottom = 336.3;
+
 /// Where the keyboard's top edge lands on this device.
 const double keyboardInset = 335;
 const double keyboardTop = h13 - keyboardInset; // 509
@@ -41,6 +47,10 @@ void main() {
         : FakeViewPadding.zero;
     addTearDown(tester.view.reset);
 
+    // Unmount anything a previous openSheet left behind. Without this the old
+    // sheet is still on the navigator, and the tap below lands on its barrier
+    // instead of the button.
+    await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -69,6 +79,15 @@ void main() {
     expect(find.byType(CommentsSheet), findsOneWidget);
   }
 
+  /// The keyboard arriving (or leaving) on a sheet that is ALREADY open —
+  /// which is the moment the bug happened, not a fresh open.
+  Future<void> setKeyboard(WidgetTester tester, {required bool up}) async {
+    tester.view.viewInsets = up
+        ? const FakeViewPadding(bottom: keyboardInset * 3)
+        : FakeViewPadding.zero;
+    await tester.pumpAndSettle();
+  }
+
   double top(Finder f, WidgetTester t) => t.getTopLeft(f).dy;
   double bottom(Finder f, WidgetTester t) => t.getBottomLeft(f).dy;
 
@@ -76,9 +95,11 @@ void main() {
   Finder handle() => find.byWidgetPredicate(
     (w) => w is Container && w.constraints?.maxWidth != null,
   );
-  Finder emptyState() => find.text('No comments yet. Say something kind.');
-  Finder listRegion() =>
-      find.ancestor(of: emptyState(), matching: find.byType(Center));
+  /// An empty list renders nothing at all, so there is no widget to anchor a
+  /// finder on — the room left for comments is measured as the gap between the
+  /// composer and whatever is cutting the sheet off from below.
+  Finder commentList() =>
+      find.descendant(of: sheet(), matching: find.byType(ListView));
 
   group('the sheet', () {
     testWidgets('top is 0.7 of the screen with the keyboard DOWN', (
@@ -91,16 +112,21 @@ void main() {
       expect(top(handle(), tester), greaterThanOrEqualTo(top13));
     });
 
-    testWidgets('top does not move when the keyboard opens', (tester) async {
+    testWidgets('top does not move when the keyboard opens, or closes again', (
+      tester,
+    ) async {
       await openSheet(tester, keyboard: false);
       final down = top(sheet(), tester);
 
-      await openSheet(tester, keyboard: true);
+      await setKeyboard(tester, up: true);
       final up = top(sheet(), tester);
-
       expect(up, closeTo(expectedSheetTop, 1));
       expect(up, closeTo(down, 0.5));
       expect(top(handle(), tester), greaterThanOrEqualTo(top13));
+
+      // And back: the sheet does not grow when the keyboard leaves either.
+      await setKeyboard(tester, up: false);
+      expect(top(sheet(), tester), closeTo(down, 0.5));
     });
 
     testWidgets('with the keyboard up the composer is above it, not under '
@@ -116,8 +142,10 @@ void main() {
         lessThanOrEqualTo(keyboardTop),
       );
       expect(bottom(postLabel, tester), lessThanOrEqualTo(keyboardTop));
-      // The comments still have room to be read.
-      expect(tester.getSize(listRegion()).height, greaterThanOrEqualTo(100));
+      // The comments still have room to be read: the space between the
+      // composer and the keyboard's top edge.
+      expect(keyboardTop - bottom(postLabel, tester),
+          greaterThanOrEqualTo(100));
     });
   });
 
@@ -141,8 +169,8 @@ void main() {
       final text = tester.widget<EditableText>(field).controller.text;
       expect(text, 'kind words');
       expect(text.contains('\n'), isFalse);
-      // Nothing was sent: the list is still empty.
-      expect(emptyState(), findsOneWidget);
+      // Nothing was sent: there is still no list to show.
+      expect(commentList(), findsNothing);
     });
 
     testWidgets('the field is still a three-line wrapper', (tester) async {
@@ -155,12 +183,20 @@ void main() {
   });
 
   group('the empty state', () {
-    testWidgets('is centred in the list region', (tester) async {
+    testWidgets('says nothing, and moves nothing', (tester) async {
       await openSheet(tester, keyboard: false);
-      final region = tester.getRect(listRegion());
-      final line = tester.getRect(emptyState());
-      expect(line.center.dy, closeTo(region.center.dy, 2));
-      expect(line.center.dx, closeTo(region.center.dx, 2));
+      for (final up in [false, true]) {
+        await setKeyboard(tester, up: up);
+        // No line, no list, no placeholder of any kind.
+        expect(find.textContaining('No comments yet'), findsNothing);
+        expect(commentList(), findsNothing);
+        // And the sheet is where it was before the line was removed.
+        expect(top(sheet(), tester), closeTo(expectedSheetTop, 1));
+        expect(top(find.byType(SondrField), tester),
+            closeTo(composerTop, 1));
+        expect(bottom(find.byType(SondrField), tester),
+            closeTo(composerBottom, 1));
+      }
     });
   });
 }

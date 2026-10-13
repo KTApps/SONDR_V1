@@ -377,7 +377,9 @@ void main() {
         tester,
         profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
       );
-      expect(find.text('@tanaka'), findsOneWidget);
+      expect(find.text('tanaka'), findsOneWidget);
+      // Bare, with no "@" in front of it: your own page is not a mention.
+      expect(find.textContaining('@'), findsNothing);
       // And is not repeated in the account block below.
       expect(find.text('Handle'), findsNothing);
       expectNoOverflow(tester);
@@ -617,7 +619,7 @@ void main() {
       );
 
       double y(String text) => tester.getTopLeft(find.text(text)).dy;
-      expect(y('@tanaka'), lessThan(y('Friends')));
+      expect(y('tanaka'), lessThan(y('Friends')));
       expect(y('Friends'), lessThan(y('Milestones')));
       expect(y('Milestones'), lessThan(y('In progress')));
       expectNoOverflow(tester);
@@ -660,7 +662,7 @@ void main() {
       double top(Finder f) => tester.getTopLeft(f).dy;
       double bottom(Finder f) => tester.getBottomLeft(f).dy;
 
-      final handle = find.text('@tanaka');
+      final handle = find.text('tanaka');
       final subline = find.textContaining('to your next milestone');
 
       return {

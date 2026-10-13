@@ -366,7 +366,9 @@ class _HeroEmblem extends ConsumerWidget {
         // still offers to set one.
         if (handle.isNotEmpty) ...[
           Text(
-            '@$handle',
+            // No "@". This is your own page — the handle is your name here,
+            // not a mention of you, the same reading the friends list takes.
+            handle,
             style: theme.textTheme.titleLarge?.copyWith(
               fontSize: 20 * scale,
               fontWeight: FontWeight.w700,

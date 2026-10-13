@@ -23,6 +23,19 @@ Future<void> showCommentsSheet(BuildContext context, String postId) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    // Never under the status bar. Without this the sheet is free to reach the
+    // very top of the screen, which is how its grab handle ended up at y=14
+    // — unreachable, on a sheet with no other way out.
+    useSafeArea: true,
+    // A CONSTRAINT, not a fixed height (the pattern day_detail_sheet uses).
+    // The sheet was a SizedBox of 0.7 screen inside a Padding carrying the
+    // keyboard inset: 0.7 + the keyboard came to more than the screen, so the
+    // box was clamped, the sheet filled the display and the whole column slid
+    // up under the status bar. Capped instead, the keyboard inset is spent
+    // INSIDE the 0.7 and the sheet's top never moves.
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * _kSheetHeightFraction,
+    ),
     // Background, not surface: the composer's field is a SURFACE capsule, and
     // on a surface-toned sheet it disappeared completely — leaving Post
     // floating beside nothing. The sheet is a page; the capsule sits on it.
@@ -33,6 +46,10 @@ Future<void> showCommentsSheet(BuildContext context, String postId) {
     builder: (_) => CommentsSheet(postId: postId),
   );
 }
+
+/// How much of the screen the sheet takes — in BOTH keyboard states, so its
+/// top edge never moves and the feed stays visible above it.
+const double _kSheetHeightFraction = 0.7;
 
 /// The comment body's size, shared with the composer so what you type and
 /// what you read are the same text.
@@ -188,9 +205,14 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                 // visible without a ScrollController of ours.
                 minLines: 1,
                 maxLines: 3,
-                // Return opens a new line now that the field wraps; Post is the
-                // way to send.
-                textInputAction: TextInputAction.newline,
+                // Return closes the keyboard, exactly as the caption screen's
+                // field does — it does NOT send, and it does not insert a
+                // line either. Post is the only way to send, and with the
+                // keyboard gone the comments you were joining are visible
+                // again. Long text still wraps to the three-line ceiling as
+                // you type.
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => FocusScope.of(context).unfocus(),
                 // What you type is the size of what you are joining.
                 fontSize: _kCommentBody,
               ),
@@ -210,13 +232,18 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
     final uid = ref.watch(currentUidProvider);
     final comments = ref.watch(postCommentsProvider(widget.postId));
 
-    return Padding(
-      // Lift above the keyboard.
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.7,
+    // Fill the capped height, so the sheet's top edge is the same with the
+    // keyboard up and down. The keyboard inset is taken from INSIDE that
+    // height — the content area shrinks rather than the sheet growing — which
+    // is the whole difference between this and the version that slid up under
+    // the status bar.
+    return SizedBox.expand(
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: SafeArea(
+          top: false,
           child: Column(
             children: [
               // One rhythm down the head of the sheet: grabber, title, list

@@ -949,11 +949,21 @@ void main() {
     /// under it.
     ///
     /// Each fixture is swept at the smallest, default and largest text sizes.
-    for (final (name, handle, taskCount, photoCount) in [
-      ('full', 'tanaka', 6, 4),
-      ('guest', '', 0, 0),
-      ('new user', 'tanaka', 2, 0),
-      ('milestones, nothing running', 'tanaka', 0, 4),
+    /// Which text sizes each fixture can actually land the pin at.
+    ///
+    /// The pin is worth having only when the gaps it asks for are still gaps.
+    /// A full page asks for 2 points each; a new account with two tasks and
+    /// no milestone strip asks for 57, and the honest answer there is not to
+    /// aim at Home's line at all. "data but no handle" is the interesting
+    /// one — it wants more than the ceiling at the smallest text size and
+    /// 31.7 at the default, so the same page pins at one size and not at the
+    /// one below it.
+    for (final (name, handle, taskCount, photoCount, pinsAt) in [
+      ('full', 'tanaka', 6, 4, [0.824, 1.0, 1.235]),
+      ('guest', '', 0, 0, <double>[]),
+      ('new user', 'tanaka', 2, 0, <double>[]),
+      ('milestones, nothing running', 'tanaka', 0, 4, <double>[]),
+      ('data but no handle', '', 6, 4, [1.0, 1.235]),
     ]) {
       for (final ts in [0.824, 1.0, 1.235]) {
         testWidgets('$name at textScale $ts has no voids', (tester) async {
@@ -1059,7 +1069,9 @@ void main() {
           // ceiling: nothing below asks the hero to reach, so it does not.
           // Without this the cap alone hides the difference — a pinned
           // guest page caps at 32 and passes every other check here.
-          if (taskCount == 0) {
+          if (!pinsAt.contains(ts)) {
+            // Unpinned: a fixed 18 either side of the pair, and the slack at
+            // the foot. Nothing below is asking the hero to reach.
             expect(
               gapA,
               closeTo(18 * scale, 0.5),
@@ -1083,25 +1095,37 @@ void main() {
             reason: 'account block ($name, $ts)',
           );
 
-          // The pin is only claimed where there is a label to pin. With no
-          // ring row there is nothing to line up with, and pinning anyway is
-          // what inflated the hero in the first place.
-          if (taskCount > 0 && ts <= 1.0) {
-            final labelCentre =
-                tester.getRect(find.text('Task 0')).center.dy;
+          // Where it pins, it pins exactly. Where it does not — no ring row,
+          // or a pin that would need more than the ceiling — the labels are
+          // simply higher up a shorter page.
+          if (taskCount > 0) {
+            final labelCentre = tester.getRect(find.text('Task 0')).center.dy;
             final cta = homeCtaCentreY(
               tester.element(find.byType(ProfileScreen)),
             );
-            if (gapA <= 32 * scale - 0.01) {
+            if (!pinsAt.contains(ts)) {
+              // Unpinned, so the labels sit ABOVE Home's line — the page is
+              // shorter. Never below it, which would mean the slack had gone
+              // somewhere between the sections.
+              expect(
+                labelCentre,
+                lessThan(cta - 0.5),
+                reason: 'unpinned but on the line anyway ($name, $ts)',
+              );
+            } else if (ts <= 1.0) {
               expect(
                 labelCentre,
                 closeTo(cta, 0.5),
                 reason: 'the pin let go ($name, $ts)',
               );
             } else {
-              // Capped: the slack past the ceiling went to the bottom, so
-              // the labels sit ABOVE Home's line rather than on it.
-              expect(labelCentre, lessThanOrEqualTo(cta + 0.5));
+              // Big text: pinned, but the content needs more room than the
+              // target, so it yields downward rather than overflowing.
+              expect(
+                labelCentre,
+                greaterThanOrEqualTo(cta - 0.5),
+                reason: 'the labels rose above the line ($name, $ts)',
+              );
             }
           }
         });
@@ -1135,35 +1159,29 @@ void main() {
             reason: 'a strip stopped being a Row',
           );
         }
-        // And nothing that cannot.
+        // And nothing that cannot. Scoped to the page rather than to the
+        // widget that does the measuring, which is private to the screen —
+        // and which is why these are stated as "nowhere on this page".
+        for (final (what, finder) in [
+          ('ListView', find.byType(ListView)),
+          ('CustomScrollView', find.byType(CustomScrollView)),
+          ('GridView', find.byType(GridView)),
+        ]) {
+          expect(
+            find.descendant(of: find.byType(ProfileScreen), matching: finder),
+            findsNothing,
+            reason: '$what cannot answer an intrinsic query',
+          );
+        }
+        // Exactly one LayoutBuilder: the page's own, which reads the scroll
+        // viewport and sits ABOVE the measured column. A second one would be
+        // inside it, and a LayoutBuilder cannot be measured either.
         expect(
           find.descendant(
             of: find.byType(ProfileScreen),
             matching: find.byType(LayoutBuilder),
-            matchRoot: false,
-          ).evaluate().where((e) {
-            // The page's own viewport LayoutBuilder sits OUTSIDE the
-            // IntrinsicHeight; anything inside it would be a problem.
-            return e
-                .findAncestorWidgetOfExactType<IntrinsicHeight>() !=
-                null;
-          }),
-          isEmpty,
-          reason: 'a LayoutBuilder is inside the IntrinsicHeight',
-        );
-        expect(
-          find.descendant(
-            of: find.byType(IntrinsicHeight),
-            matching: find.byType(ListView),
           ),
-          findsNothing,
-        );
-        expect(
-          find.descendant(
-            of: find.byType(IntrinsicHeight),
-            matching: find.byType(CustomScrollView),
-          ),
-          findsNothing,
+          findsOneWidget,
         );
       }
     });

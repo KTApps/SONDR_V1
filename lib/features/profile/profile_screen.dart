@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
@@ -223,26 +224,22 @@ class ProfileScreen extends ConsumerWidget {
             // inflated the hero on a guest's page: the same target height,
             // a third less content, and two flexible gaps to swallow the
             // difference.
-            final pinned = tasks.isNotEmpty;
-            final firstScreen = pinned
-                ? _firstScreenHeight(context, topInset)
-                : viewport.maxHeight;
+            // Whether the pin is worth having is decided at layout time,
+            // from the column's measured height — see [_FirstScreen]. All
+            // that is settled here is whether there is a label to aim at.
+            final canPin = tasks.isNotEmpty;
             // Floor, then up to the ceiling — and no further. A LOOSE
             // Flexible takes min(its child, its share), so the gap is
             // clamped to [_kHeroGapMin, _kHeroGapMax] by the layout rather
             // than by arithmetic, and the share it declines stays in the
             // column's remaining space. Start-aligned, that remainder
             // collects after the last child: the bottom of the first screen.
-            final heroGap = pinned
-                ? [
-                    SizedBox(height: _kHeroGapMin * scale),
-                    Flexible(
-                      child: _CappedSlack(
-                        (_kHeroGapMax - _kHeroGapMin) * scale,
-                      ),
-                    ),
-                  ]
-                : [SizedBox(height: _kHeroGapFixed * scale)];
+            final heroGap = [
+              SizedBox(height: _kHeroGapMin * scale),
+              Flexible(
+                child: _CappedSlack((_kHeroGapMax - _kHeroGapMin) * scale),
+              ),
+            ];
 
             return SingleChildScrollView(
             // Clamping, not bouncing. The page genuinely runs past the
@@ -267,28 +264,14 @@ class ProfileScreen extends ConsumerWidget {
                   // at the foot as a cavern. The slack lives in the top
                   // margin above the emblem instead, where empty space at the
                   // top of a page reads as margin.
-                  ConstrainedBox(
-                    // The PIN as a FLOOR, not a fixed height: tall enough
-                    // that the ring labels land on Home's "View your
-                    // progress" line, and taller when the content needs it.
-                    //
-                    // IntrinsicHeight is what makes that one expression.
-                    // It measures the column with its flexible gaps at zero
-                    // and tightens the result against these constraints, so
-                    // the height comes out as max(pin, what the content
-                    // needs): the pin while there is slack to share, and the
-                    // content's own height once there is not. The hero then
-                    // grows instead of overflowing, and the labels sit below
-                    // Home's line by the excess rather than the subtitle
-                    // landing on the figures.
-                    //
-                    // Measured rather than worked out in arithmetic because
-                    // the chain is not knowable here: the Friends section is
-                    // a heading alone or a heading and a row, depending on
-                    // whose page it is.
-                    constraints: BoxConstraints(minHeight: firstScreen),
-                    child: IntrinsicHeight(
-                      child: Column(
+                  _FirstScreen(
+                    pin: _firstScreenHeight(context, topInset),
+                    viewport: viewport.maxHeight,
+                    gapFloor: _kHeroGapMin * scale,
+                    gapCeiling: _kHeroGapMax * scale,
+                    gapUnpinned: _kHeroGapFixed * scale,
+                    canPin: canPin,
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         SizedBox(height: _kTopMargin * scale),
@@ -324,13 +307,7 @@ class ProfileScreen extends ConsumerWidget {
                         SizedBox(height: _kTabClearance * scale),
                       ],
                     ),
-                    ),
                   ),
-                  // Whatever the pin leaves over between the first screen
-                  // and the bottom edge. The slack sat here before too — it
-                  // was the unused remainder of a minHeight — and it still
-                  // reads as the end of the page rather than as a gap.
-                  SizedBox(height: math.max(0, viewport.maxHeight - firstScreen)),
                   // BELOW THE FOLD. Signed in, the email, Sign out and the
                   // QA word — things you go looking for, never the first
                   // thing the page offers.
@@ -374,6 +351,153 @@ double _firstScreenHeight(BuildContext context, double columnTop) {
       columnTop +
       label / 2 +
       _kTabClearance * scale;
+}
+
+/// The first screen, sized by whether the pin can land without opening a void.
+///
+/// The pin puts the ring labels on Home's "View your progress" line by handing
+/// the hero's two flexible gaps whatever the target height leaves over. That
+/// is a couple of points on a full page and a hundred on a sparse one, so the
+/// pin is only worth having when the gaps it asks for are gaps: at most
+/// [gapCeiling]. Past that the page is better off unpinned, with the hero at
+/// [gapUnpinned] and the slack at the foot.
+///
+/// The decision needs the column's natural height, which is not calculable in
+/// a build method — it depends on which sections this account has — so it is
+/// MEASURED here, as the child's intrinsic height. [_CappedSlack] reports zero
+/// so that number is the column with both gaps at their floor, which is
+/// exactly what the comparison needs.
+class _FirstScreen extends SingleChildRenderObjectWidget {
+  const _FirstScreen({
+    required this.pin,
+    required this.viewport,
+    required this.gapFloor,
+    required this.gapCeiling,
+    required this.gapUnpinned,
+    required this.canPin,
+    required Widget super.child,
+  });
+
+  /// The height that lands the labels on Home's line.
+  final double pin;
+
+  /// The scroll viewport, so the account block starts past the bottom edge
+  /// whichever way the decision goes.
+  final double viewport;
+
+  final double gapFloor;
+  final double gapCeiling;
+  final double gapUnpinned;
+
+  /// False when there is no ring row — no label to pin, so nothing to aim at.
+  final bool canPin;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderFirstScreen(
+    pin: pin,
+    viewport: viewport,
+    gapFloor: gapFloor,
+    gapCeiling: gapCeiling,
+    gapUnpinned: gapUnpinned,
+    canPin: canPin,
+  );
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderFirstScreen renderObject,
+  ) {
+    renderObject.configure(
+      pin: pin,
+      viewport: viewport,
+      gapFloor: gapFloor,
+      gapCeiling: gapCeiling,
+      gapUnpinned: gapUnpinned,
+      canPin: canPin,
+    );
+  }
+}
+
+class _RenderFirstScreen extends RenderShiftedBox {
+  _RenderFirstScreen({
+    required this.pin,
+    required this.viewport,
+    required this.gapFloor,
+    required this.gapCeiling,
+    required this.gapUnpinned,
+    required this.canPin,
+  }) : super(null);
+
+  double pin;
+  double viewport;
+  double gapFloor;
+  double gapCeiling;
+  double gapUnpinned;
+  bool canPin;
+
+  /// One entry point for all six, so a changed number can never be applied
+  /// without the relayout that has to follow it.
+  void configure({
+    required double pin,
+    required double viewport,
+    required double gapFloor,
+    required double gapCeiling,
+    required double gapUnpinned,
+    required bool canPin,
+  }) {
+    if (pin == this.pin &&
+        viewport == this.viewport &&
+        gapFloor == this.gapFloor &&
+        gapCeiling == this.gapCeiling &&
+        gapUnpinned == this.gapUnpinned &&
+        canPin == this.canPin) {
+      return;
+    }
+    this.pin = pin;
+    this.viewport = viewport;
+    this.gapFloor = gapFloor;
+    this.gapCeiling = gapCeiling;
+    this.gapUnpinned = gapUnpinned;
+    this.canPin = canPin;
+    markNeedsLayout();
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      child?.getMinIntrinsicHeight(width) ?? 0;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      child?.getMaxIntrinsicHeight(width) ?? 0;
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    final width = constraints.maxWidth;
+    // The column with both flexible gaps at their floor.
+    final natural = child.getMaxIntrinsicHeight(width);
+    // What each gap would have to grow to for the labels to land on the line.
+    final wanted = gapFloor + (pin - natural) / 2;
+    final pinned = canPin && wanted <= gapCeiling;
+    // Pinned, the column is the target (or its own height, when the text is
+    // big enough that the target is already too small — the yield).
+    // Unpinned, it is its natural height with both gaps opened to their
+    // fixed figure, and everything else becomes slack at the foot.
+    final height = pinned
+        ? math.max(pin, natural)
+        : natural + 2 * (gapUnpinned - gapFloor);
+    child.layout(
+      BoxConstraints.tightFor(width: width, height: height),
+      parentUsesSize: true,
+    );
+    (child.parentData! as BoxParentData).offset = Offset.zero;
+    // At least the viewport, so the account block is always past the fold.
+    size = constraints.constrain(Size(width, math.max(height, viewport)));
+  }
 }
 
 /// Flexible space that takes up to [cap] of whatever it is offered, and asks

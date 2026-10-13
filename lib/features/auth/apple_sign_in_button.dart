@@ -39,8 +39,12 @@ String appleErrorText(
     ? '$message ($code)'
     : message;
 
-/// The provider's own code, where the error carries one.
+/// The provider's own code, where the error carries one — prefixed with the
+/// step, when the error knows which step it came from.
 String? _codeOf(Object error) {
+  if (error is AppleStepException) {
+    return '${error.stepName}: ${error.code ?? error.cause.runtimeType}';
+  }
   if (error is SignInWithAppleAuthorizationException) return '${error.code}';
   if (error is FirebaseAuthException) return error.code;
   if (error is FirebaseException) return error.code;
@@ -137,9 +141,13 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
     }
   }
 
-  /// Type plus code, which together say enough to act on.
+  /// Enough to act on: the step and the code where they are known, the type
+  /// where they are not.
   String _describe(Object error) {
     final code = _codeOf(error);
+    // A step-tagged error already reads "link: <code>" — the wrapper's own
+    // type name would say nothing on top of that.
+    if (error is AppleStepException) return code!;
     return code == null ? '${error.runtimeType}' : '${error.runtimeType} $code';
   }
 

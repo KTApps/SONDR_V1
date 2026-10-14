@@ -9,6 +9,7 @@ import '../../shared/ring/progress_ring.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../../shared/sondr_action.dart';
 import 'capture_crop.dart';
+import 'open_app_settings.dart';
 
 /// Reference-point geometry. Device values are these × figmaScale, so on a
 /// 13 Pro the viewfinder is 342 x 456 and the shutter is Ø71.3.
@@ -211,9 +212,8 @@ class SondrCameraScreen extends StatefulWidget {
   /// Injected by tests; a real device session otherwise.
   final CameraSession? session;
 
-  /// Opening iOS Settings is the host app's job — see the note in
-  /// [photo_capture_flow].
-  final VoidCallback? onOpenSettings;
+  /// Injected by tests; [openAppSettings] otherwise.
+  final Future<void> Function()? onOpenSettings;
 
   @override
   State<SondrCameraScreen> createState() => _SondrCameraScreenState();
@@ -368,11 +368,11 @@ class _SondrCameraScreenState extends State<SondrCameraScreen>
                 color: tokens.textSecondary,
               ),
             ),
-            if (_trouble == CameraTrouble.denied &&
-                widget.onOpenSettings != null)
+            if (_trouble == CameraTrouble.denied)
               SondrAction(
                 label: 'Open Settings',
-                onPressed: widget.onOpenSettings,
+                onPressed: () =>
+                    (widget.onOpenSettings ?? openAppSettings)(),
               ),
           ],
         ),

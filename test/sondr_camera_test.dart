@@ -18,7 +18,7 @@ void main() {
     CameraTrouble? trouble,
     bool hasFlash = true,
     bool canFlip = true,
-    VoidCallback? onOpenSettings,
+    Future<void> Function()? onOpenSettings,
   }) async {
     tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -143,15 +143,25 @@ void main() {
     await pumpCamera(
       tester,
       trouble: CameraTrouble.denied,
-      onOpenSettings: () => opened++,
+      onOpenSettings: () async => opened++,
     );
     expect(find.text('Camera access is off.'), findsOneWidget);
     expect(find.text('Open Settings'), findsOneWidget);
     // No shutter to press when there is nothing to shoot.
     expect(find.byKey(kShutterKey), findsNothing);
     expect(find.text('skip'), findsOneWidget);
+
     await tester.tap(find.text('Open Settings'));
-    expect(opened, 1);
+    await tester.pumpAndSettle();
+    expect(opened, 1, reason: 'Open Settings did not open settings');
+  });
+
+  testWidgets('the denied state offers Settings even with no launcher given', (
+    tester,
+  ) async {
+    // The real one is wired by default; the button is never decoration.
+    await pumpCamera(tester, trouble: CameraTrouble.denied);
+    expect(find.text('Open Settings'), findsOneWidget);
   });
 
   testWidgets('the shutter pops the cropped capture, skip pops nothing', (

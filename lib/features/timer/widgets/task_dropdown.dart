@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/utils/figma_scale.dart';
-import '../../../shared/sondr_field.dart';
 import '../../../shared/ring/ring_metrics.dart';
 import '../../../shared/sondr_swipe_row.dart';
 import '../../tasks/models/task.dart';
@@ -486,10 +485,18 @@ class _PillTrayAction extends StatelessWidget {
 /// A task being named: a pill with nothing in it yet.
 ///
 /// The same capsule as [_TaskPill] at its empty state — track tone, zero
-/// progress — with the field drawn straight onto it. SondrField unfilled
-/// contributes no chrome of its own and already sets 700 weight and the
-/// primary tone, so at the pill's own 12 the typed name looks exactly like
-/// the task it is about to become.
+/// progress — with the field drawn straight onto it.
+///
+/// The field is built here rather than taken from SondrField, because this
+/// one is not a form field: it is a LABEL being typed. It has to land on the
+/// same line box the name will occupy a moment later, which means the pill's
+/// own style, a forced strut so the line cannot be taller than the label's,
+/// and a caret the height of that line rather than the field's own idea of
+/// one. SondrField's column also expands to whatever height it is given and
+/// puts its row at the top, which is what left the cursor against the pill's
+/// top edge — 6.5 above where the name would sit.
+///
+/// Cursor tone and width are SondrField's, so the caret is the app's caret.
 class _DraftPill extends StatelessWidget {
   const _DraftPill({
     required this.scale,
@@ -505,6 +512,11 @@ class _DraftPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final height = _TaskPill.height * scale;
+    // Byte for byte the style a named pill uses.
+    final labelStyle = _TaskPill.labelStyleOf(context);
+    // The line the label occupies: 1.4 of its size, forced, so the typed name
+    // and the written one share a box and a baseline.
+    final lineHeight = labelStyle.fontSize! * (labelStyle.height ?? 1);
 
     return SizedBox(
       height: height,
@@ -515,15 +527,32 @@ class _DraftPill extends StatelessWidget {
           child: Center(
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 14 * scale),
-              child: SondrField(
+              child: TextField(
                 controller: controller,
-                filled: false,
-                centered: true,
                 autofocus: true,
-                fontSize: _TaskPill.labelSize,
+                maxLines: 1,
+                style: labelStyle,
+                strutStyle: StrutStyle.fromTextStyle(
+                  labelStyle,
+                  forceStrutHeight: true,
+                ),
+                textAlign: TextAlign.center,
+                textAlignVertical: TextAlignVertical.center,
                 textInputAction: TextInputAction.done,
                 textCapitalization: TextCapitalization.sentences,
                 onSubmitted: onSubmitted,
+                cursorColor: tokens.textPrimary,
+                cursorWidth: 1.5 * scale,
+                // The label's line, not the field's default — a caret taller
+                // than the text it is typing reads as a different component.
+                cursorHeight: lineHeight,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
               ),
             ),
           ),
@@ -545,6 +574,15 @@ class _TaskPill extends StatelessWidget {
   static const double height = _height;
   static const double labelSize = 12;
 
+  /// The name's style, so a pill being typed and a pill already named are
+  /// the same text in the same place.
+  static TextStyle labelStyleOf(BuildContext context) =>
+      (Theme.of(context).textTheme.bodyMedium ?? const TextStyle()).copyWith(
+        fontSize: labelSize * figmaScale(context),
+        fontWeight: FontWeight.w700,
+        color: GreyscaleTokens.of(context).textPrimary,
+      );
+
   /// The capsule's own tone, with no progress drawn over it.
   static Color trackColour(GreyscaleTokens tokens) =>
       Color.lerp(tokens.surface, tokens.ringTrack, 0.5)!;
@@ -563,16 +601,11 @@ class _TaskPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
     final height = _height * scale;
     final shown = shownProgress(progress);
     final remainder = trackColour(tokens);
     final fill = Color.lerp(tokens.ringTrack, tokens.ringFillInner, 0.35)!;
-    final nameStyle = (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
-      fontSize: labelSize * scale,
-      fontWeight: FontWeight.w700,
-      color: tokens.textPrimary,
-    );
+    final nameStyle = labelStyleOf(context);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

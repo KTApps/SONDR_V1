@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/tasks/tasks_providers.dart';
+import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/timer/widgets/task_dropdown.dart';
-import 'package:sondr/shared/sondr_field.dart';
 import 'package:sondr/shared/sondr_swipe_row.dart';
 
 /// Naming a task happens in the list, not in a dialog over it.
@@ -28,10 +28,23 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Re-open the sheet after a task has been chosen.
+  ///
+  /// Once something is selected the selector also listens for a DOUBLE tap,
+  /// so the single tap is held in the arena until that window closes —
+  /// and pumpAndSettle returns before it, because a pending gesture timer
+  /// schedules no frames. Without the wait the sheet never opens and every
+  /// assertion after it is made against an empty screen.
+  Future<void> reopenMenu(WidgetTester tester) async {
+    await tester.tap(find.byType(TaskDropdown));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+  }
+
   ProviderContainer containerOf(WidgetTester tester) =>
       ProviderScope.containerOf(tester.element(find.byType(TaskDropdown)));
 
-  Finder draftField() => find.byType(SondrField);
+  Finder draftField() => find.byType(TextField);
 
   testWidgets('"Add Task" opens a draft pill, focused, with the sheet still '
       'open', (tester) async {
@@ -54,13 +67,24 @@ void main() {
     expect(containerOf(tester).read(tasksProvider).value!.length, before);
 
     // The draft looks like the task it is about to become: the pill's own
-    // 12, bold, and centred.
-    final field = tester.widget<SondrField>(draftField());
-    expect(field.fontSize, 12);
-    expect(field.filled, isFalse);
-    expect(field.centered, isTrue);
+    // 12 bold, centred both ways, on the label's own line box.
+    final scale = figmaScale(tester.element(find.byType(TaskDropdown)));
+    final field = tester.widget<TextField>(draftField());
+    expect(field.style!.fontSize, closeTo(12 * scale, 0.01));
+    expect(field.style!.fontWeight, FontWeight.w700);
+    expect(field.style!.color, const Color(0xFFFAFAFA));
+    expect(field.textAlign, TextAlign.center);
+    expect(field.textAlignVertical, TextAlignVertical.center);
     expect(field.autofocus, isTrue);
     expect(field.textInputAction, TextInputAction.done);
+    // The caret is the label's line, not the field's default idea of one.
+    expect(field.strutStyle!.forceStrutHeight, isTrue);
+    expect(
+      field.cursorHeight,
+      closeTo(12 * scale * 1.4, 0.01),
+      reason: 'the caret is not the height of the label it is typing',
+    );
+    expect(field.cursorWidth, closeTo(1.5 * scale, 0.01));
   });
 
   testWidgets('Return with a name creates it, selects it, and closes', (
@@ -219,6 +243,78 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Back'), findsOneWidget);
     expect(styleOf('Back').color, const Color(0xFFB0B0B0));
+  });
+
+  /// The capsule a given field or label sits on.
+  Rect pillOf(WidgetTester tester, Finder inner) => tester.getRect(
+    find.ancestor(of: inner, matching: find.byType(ClipRRect)).first,
+  );
+
+  testWidgets('the caret sits on the line the name will, not at the pill top', (
+    tester,
+  ) async {
+    await openMenu(tester);
+    await tester.tap(find.text('Add Task'));
+    await tester.pumpAndSettle();
+
+    final pill = pillOf(tester, draftField());
+    final caret = tester.getRect(find.byType(EditableText));
+
+    // It used to start at the pill's very top edge, 6.5 above centre.
+    expect(
+      caret.center.dy,
+      closeTo(pill.center.dy, 0.5),
+      reason: 'the caret is off centre in the pill',
+    );
+    // Inside, with the same air above and below.
+    expect(caret.top, greaterThan(pill.top));
+    expect(caret.bottom, lessThan(pill.bottom));
+    expect(
+      caret.top - pill.top,
+      closeTo(pill.bottom - caret.bottom, 0.5),
+      reason: 'the margins above and below the caret differ',
+    );
+  });
+
+  testWidgets('a name being typed sits exactly where it will once created', (
+    tester,
+  ) async {
+    await openMenu(tester);
+    await tester.tap(find.text('Add Task'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText), 'Test 49');
+    await tester.pumpAndSettle();
+
+    final draftPill = pillOf(tester, draftField());
+    final typed = tester.getRect(find.byType(EditableText));
+    final typedOffset = typed.center.dy - draftPill.center.dy;
+    final typedTop = typed.top - draftPill.top;
+
+    // Create it, reopen, and measure the same name as a settled label.
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    await reopenMenu(tester);
+
+    final label = find.descendant(
+      of: find.byType(SondrSwipeRow),
+      matching: find.text('Test 49'),
+    );
+    expect(label, findsOneWidget);
+    final labelPill = pillOf(tester, label);
+    final labelRect = tester.getRect(label);
+
+    expect(
+      typedOffset,
+      closeTo(labelRect.center.dy - labelPill.center.dy, 0.5),
+      reason: 'typed text is not where the label lands',
+    );
+    expect(
+      typedTop,
+      closeTo(labelRect.top - labelPill.top, 0.5),
+      reason: 'typed text and the label do not share a baseline',
+    );
+    // And the two boxes are the same height — same style, same strut.
+    expect(typed.height, closeTo(labelRect.height, 0.5));
   });
 
   test('the controller refuses a nameless task', () {

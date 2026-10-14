@@ -259,9 +259,11 @@ void main() {
       final hero = ringOfSize(tester, 128);
 
       expect(hero.size, closeTo(128 * scale, 0.01));
-      // The 6 stroke and 104 photo it was measured at on a 132 ring, kept as
-      // shares of the diameter rather than re-picked.
-      expect(hero.stroke, closeTo(128 * scale * 6 / 132, 0.01));
+      // The app's one ring weight, not the 6 this ring was measured at. It
+      // grows INWARD — the painter insets by half the stroke — so the outer
+      // diameter is untouched and so is the photo, still the 104 share of a
+      // 132 ring it was measured at.
+      expect(hero.stroke, closeTo(ringStroke(scale), 0.01));
       expect(
         tester.getSize(find.byType(ClipOval)).height,
         closeTo(128 * scale * 104 / 132, 0.01),
@@ -278,10 +280,10 @@ void main() {
       final scale = figmaScale(tester.element(tileFinder));
       final ring = tester.widget<ProgressRing>(tileFinder);
 
-      // Ø56 at the shared thin stroke — the same two numbers _DoneRing uses
-      // for a task row on the Milestones page.
+      // Ø56 at the app's one ring weight — the same two numbers _DoneRing
+      // uses for a task row on the Milestones page.
       expect(ring.size, closeTo(56 * scale, 0.001));
-      expect(ring.stroke, closeTo(thinRingStroke(ring.size), 0.001));
+      expect(ring.stroke, closeTo(ringStroke(scale), 0.001));
       expectNoOverflow(tester);
     });
 

@@ -632,12 +632,14 @@ class _Section extends StatelessWidget {
 class _HeroEmblem extends ConsumerWidget {
   const _HeroEmblem();
 
-  /// Ø128, with the stroke and the photo at the shares they were measured at
-  /// on the 132 ring: a 6 stroke and a 104 photo become ≈5.8 and ≈100.8 here.
-  /// The photo stays ≈80% of the outer diameter, which is what stops the ring
-  /// reading as a thick frame.
+  /// Ø128, with the photo at the share it was measured at on the 132 ring:
+  /// a 104 photo becomes ≈100.8 here, ≈80% of the outer diameter, which is
+  /// what stops the ring reading as a thick frame.
+  ///
+  /// The stroke is the app's one ring weight rather than this ring's own
+  /// share. It grows INWARD — the painter insets by half the stroke — so the
+  /// outer diameter and the photo are where they were.
   static const double _ring = _kEmblemSize;
-  static const double _stroke = _ring * 6 / 132;
   static const double _photo = _ring * 104 / 132;
 
   /// The first letter of the display name, or failing that the handle.
@@ -668,7 +670,7 @@ class _HeroEmblem extends ConsumerWidget {
       children: [
         ProgressRing(
           size: _ring * scale,
-          stroke: _stroke * scale,
+          stroke: ringStroke(scale),
           // An empty grey track when there is nothing to climb, and never a
           // closed one: see [shownProgress].
           progress: shownProgress(next?.progress ?? 0),
@@ -1119,7 +1121,9 @@ class _TaskTile extends StatelessWidget {
           Center(
             child: ProgressRing(
               size: ringSize * scale,
-              stroke: thinRingStroke(ringSize * scale),
+              // The app's one ring weight, not a fraction of this ring's
+              // diameter — see [kRingStroke].
+              stroke: ringStroke(scale),
               // Progress through the CURRENT 20h block, so the ring keeps
               // climbing toward the next milestone rather than pinning full
               // — and clamped, so a first session shows and a last hour

@@ -31,10 +31,20 @@ void main() {
     expect(kProgressCeiling, lessThan(1));
   });
 
-  test('the thin stroke is 3 at the standard diameter and scales', () {
-    expect(thinRingStroke(56), closeTo(3, 0.0001));
-    // ~5–6% of the diameter, held at every size the thin rings appear at.
-    expect(thinRingStroke(40), closeTo(40 * 3 / 56, 0.0001));
-    expect(kThinRingStrokeRatio, inInclusiveRange(0.05, 0.06));
+  test('there is ONE ring weight, and it does not thin with diameter', () {
+    // A fixed weight, not a share of each ring's diameter. The old ratio made
+    // a Ø40 band ring 2.1 against a day dial's 7 — the same component drawn
+    // smaller looked like a different one.
+    expect(kRingStroke, 7);
+    expect(ringStroke(1), 7);
+    // It scales with the SCREEN, like every other number in the app.
+    expect(ringStroke(0.5), 3.5);
+  });
+
+  test('the day dials and the rings cannot drift apart', () {
+    // SegmentedDial strokes its compact bands at this ratio, so a dial at its
+    // reference diameter lands on exactly the ring weight.
+    expect(kCompactDialStrokeRatio * kCompactDialSize, closeTo(kRingStroke, 1e-9));
+    expect(kCompactDialSize * kCompactDialStrokeRatio, closeTo(7, 1e-9));
   });
 }

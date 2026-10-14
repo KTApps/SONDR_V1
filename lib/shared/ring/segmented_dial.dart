@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'ring_metrics.dart';
+
 /// The home dial's data-driven dual ring (segmented, pure greyscale).
 ///
 /// Distinct from [RingDial] (now used only by the feed's photo milestone
@@ -75,7 +77,8 @@ class SegmentedDial extends StatelessWidget {
   //  * main dial — outer 290 / inner 220 / stroke 22 / slit 5 (extent 312)
   //  * compact   — outer 50 / inner 28 / stroke 7 / slit 3.5 (extent 57)
   // e.g. at size 57 the compact stroke is 7; at size 49 it is 49×7/57 ≈ 6.
-  double get _stroke => stroke ?? size * (compact ? 7 / 57 : 22 / 312);
+  double get _stroke =>
+      stroke ?? size * (compact ? kCompactDialStrokeRatio : 22 / 312);
   double get _outerRadius => size * (compact ? 25 / 57 : 145 / 312);
   double get _innerRadius => size * (compact ? 14 / 57 : 110 / 312);
   double get _slit => size * (compact ? 3.5 / 57 : 5 / 312);

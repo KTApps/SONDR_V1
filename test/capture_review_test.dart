@@ -181,6 +181,17 @@ void main() {
         ),
     ];
 
+    testWidgets('sits above the caption, not below it', (tester) async {
+      await pumpReview(tester, canShare: true, band: band);
+      await tester.drag(find.byKey(kReviewPhotoKey), const Offset(0, -320));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(kBandRowKey)).bottom,
+        lessThan(tester.getRect(find.byType(TextField)).top),
+        reason: 'the caption is above the band row',
+      );
+    });
+
     testWidgets('starts with only the new photo in, the rest dimmed', (
       tester,
     ) async {
@@ -212,8 +223,8 @@ void main() {
           return true;
         },
       );
-      // The row sits under a 456-tall photo and the caption, so it is below
-      // the fold on this device — scroll to it as a thumb would.
+      // The row sits under a 456-tall photo, so it is below the fold on
+      // this device — scroll to it as a thumb would.
       await tester.drag(find.byKey(kReviewPhotoKey), const Offset(0, -320));
       await tester.pumpAndSettle();
 

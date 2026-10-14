@@ -237,12 +237,16 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
                         ),
                       ],
                       if (widget.canShare) ...[
-                        SizedBox(height: kSpacingBase * scale),
-                        _captionField(tokens, theme, scale),
+                        // The band comes BEFORE the caption: what is going
+                        // in the post is decided first, and the caption is
+                        // written about it. Behind the field it also sat
+                        // under the keyboard the moment you started typing.
                         if (widget.bandPhotos.isNotEmpty) ...[
                           SizedBox(height: kSpacingBase * scale),
                           _bandRow(tokens, scale),
                         ],
+                        SizedBox(height: kSpacingBase * scale),
+                        _captionField(tokens, theme, scale),
                       ],
                     ],
                   ),

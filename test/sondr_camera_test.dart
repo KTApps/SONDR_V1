@@ -164,14 +164,18 @@ void main() {
     expect(find.text('Open Settings'), findsOneWidget);
   });
 
-  testWidgets('the shutter pops the cropped capture, skip pops nothing', (
+  testWidgets('the shutter captures, and the crop runs off the UI thread', (
     tester,
   ) async {
-    await pumpCamera(tester);
-    await tester.tap(find.byKey(kShutterKey));
+    final fake = await pumpCamera(tester);
+    // compute() needs real async: under the fake clock the isolate never
+    // completes, which is itself the proof that the crop left this thread.
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(kShutterKey));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
     await tester.pumpAndSettle();
-    // Popping ends the route; the harness has nothing under it, so the
-    // screen is gone either way — what matters is the capture was taken.
+    expect(fake.captures, 1);
     expect(find.byKey(kViewfinderKey), findsNothing);
   });
 

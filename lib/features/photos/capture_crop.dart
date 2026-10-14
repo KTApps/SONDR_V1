@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import 'package:image/image.dart' as img;
 
@@ -59,6 +60,21 @@ Uint8List? cropToCaptureShape(Uint8List bytes, {bool mirror = false}) {
   );
   return img.encodeJpg(resized, quality: kCaptureQuality);
 }
+
+/// [cropToCaptureShape] on a background isolate.
+///
+/// Decoding a 12-megapixel JPEG, cropping and re-encoding it is tens of
+/// milliseconds of pure Dart, and on the UI thread that is dropped frames on
+/// the one screen where the person is waiting to see their photo. compute
+/// moves it off; the bytes copy both ways, which costs less than the work.
+Future<Uint8List?> cropToCaptureShapeAsync(
+  Uint8List bytes, {
+  bool mirror = false,
+}) => compute(
+  (({Uint8List bytes, bool mirror}) a) =>
+      cropToCaptureShape(a.bytes, mirror: a.mirror),
+  (bytes: bytes, mirror: mirror),
+);
 
 /// [cropToCaptureShape] applied to a file on disk, written back in place.
 ///

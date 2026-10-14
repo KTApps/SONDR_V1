@@ -112,7 +112,12 @@ class DeviceCameraSession implements CameraSession {
       await _controller?.dispose();
       final controller = CameraController(
         wanted,
-        ResolutionPreset.high,
+        // 1920x1080 on iOS, which is the one preset that lands exactly on
+        // what is stored: a portrait frame is 1080 wide, and the 3:4 crop of
+        // it is 1080x1440 with nothing resampled. `high` would be 1280x720
+        // and upscale; `max` would decode a 12-megapixel frame to throw most
+        // of it away, on the one screen where someone is waiting.
+        ResolutionPreset.veryHigh,
         // Stills only. Asking for audio asks for the microphone permission,
         // and the app has no use for one.
         enableAudio: false,
@@ -288,7 +293,9 @@ class _SondrCameraScreenState extends State<SondrCameraScreen>
     }
     // Crop before anyone sees it, so the review screen shows exactly the
     // file that will be stored.
-    final shot = cropToCaptureShape(raw, mirror: _session.isFront);
+    // Off the UI thread: this screen is showing a live preview and must not
+    // stutter while the photo it just took is being cropped.
+    final shot = await cropToCaptureShapeAsync(raw, mirror: _session.isFront);
     if (!mounted) return;
     setState(() => _busy = false);
     Navigator.of(context).pop(shot ?? raw);

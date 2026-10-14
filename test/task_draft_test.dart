@@ -5,6 +5,7 @@ import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/tasks/tasks_providers.dart';
 import 'package:sondr/features/timer/widgets/task_dropdown.dart';
 import 'package:sondr/shared/sondr_field.dart';
+import 'package:sondr/shared/sondr_swipe_row.dart';
 
 /// Naming a task happens in the list, not in a dialog over it.
 ///
@@ -155,6 +156,32 @@ void main() {
         reason: '"$label" sits above the draft',
       );
     }
+  });
+
+  testWidgets('the selected task is not outlined in the list', (tester) async {
+    await openMenu(tester);
+    final container = containerOf(tester);
+    final tasks = container.read(tasksProvider).value!;
+    // Make sure there IS something to outline: the first version of this
+    // test reopened the sheet, found no pills at all, and passed on an empty
+    // list — it went on passing with the border put back.
+    expect(tasks, isNotEmpty, reason: 'nothing in the list to check');
+    container.read(selectedTaskIdProvider.notifier).select(tasks.first.id);
+    await tester.pumpAndSettle();
+
+    final pills = find.byType(SondrSwipeRow);
+    expect(pills, findsAtLeastNWidgets(1));
+    final bordered = find
+        .descendant(
+          of: pills,
+          matching: find.byWidgetPredicate(
+            (w) =>
+                w is DecoratedBox &&
+                (w.decoration as BoxDecoration?)?.border != null,
+          ),
+        )
+        .evaluate();
+    expect(bordered, isEmpty, reason: 'a pill is still outlined');
   });
 
   test('the controller refuses a nameless task', () {

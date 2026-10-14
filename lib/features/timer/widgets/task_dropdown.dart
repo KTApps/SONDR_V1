@@ -250,7 +250,6 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);
-    final selectedId = ref.watch(selectedTaskIdProvider);
     final tasks = _archived
         ? ref.watch(archivedTasksProvider)
         : ref.watch(activeTasksProvider);
@@ -375,7 +374,6 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                             scale: scale,
                             label: task.name,
                             progress: task.milestoneProgress,
-                            selected: task.id == selectedId,
                             // An archived pill is a record, not a choice —
                             // tapping it must not put you back on it. Bring it
                             // back with Unarchive first.
@@ -537,7 +535,6 @@ class _TaskPill extends StatelessWidget {
     required this.scale,
     required this.label,
     required this.progress,
-    required this.selected,
     required this.onTap,
   });
 
@@ -556,7 +553,6 @@ class _TaskPill extends StatelessWidget {
 
   final String label;
   final double progress;
-  final bool selected;
 
   /// Null on an archived row — a record, not a choice.
   final VoidCallback? onTap;
@@ -599,17 +595,6 @@ class _TaskPill extends StatelessWidget {
                       ),
                     );
                   },
-                ),
-              // Subtle selected outline; drawn inside the clip so it never
-              // changes the pill's exact 28px height. (Not in the measured
-              // spec — kept minimal; easy to drop.)
-              if (selected)
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(height / 2),
-                    border:
-                        Border.all(color: tokens.ringFillInner, width: 1.5),
-                  ),
                 ),
               Center(
                 child: Padding(

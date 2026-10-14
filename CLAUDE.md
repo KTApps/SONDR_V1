@@ -59,15 +59,15 @@ cd ios && pod install
 default. With it on, the 8 iOS plugins bypass CocoaPods, `pod install` installs
 only the `Flutter` pod, and `ios/Runner.xcodeproj/project.pbxproj` gets
 rewritten. Fix: `flutter config --no-enable-swift-package-manager`, then
-`flutter pub get` and `pod install` (should give 28 pods). Check
+`flutter pub get` and `pod install` (29 pods as of the camera round). Check
 `swift_package_manager_enabled` in `.flutter-plugins-dependencies` if iOS
 plugins fail to link.
 
-**Toolchain is user-local.** No Homebrew on this machine and `sudo` needs a
-password. Flutter is at `~/development/flutter`, Node at `~/development/node`,
-`gh` at `~/.local/bin`. CocoaPods runs through a Bundler shim at
-`~/.local/bin/pod` because macOS system Ruby is 2.6 — use
-`~/.cocoapods-bundle/Gemfile` + `bundle install`, never `gem install cocoapods`.
+**Toolchain.** `sudo` needs a password. CocoaPods is installed and on the
+path at `/opt/homebrew/bin/pod` — just run `pod install` from `ios/`. The
+Bundler shim this file used to describe (`~/.local/bin/pod`,
+`~/.cocoapods-bundle/Gemfile`) is **gone**; neither path exists any more.
+Check `which` before believing a path in this section.
 
 **`Prod1/` and `Prod1.xcodeproj/` are legacy.** A predecessor native SwiftUI app,
 not part of the Flutter build. Don't edit them as if they were live code.
@@ -83,15 +83,32 @@ Every `flutter pub get` / `flutter build` rewrites these. They are generated,
 not edits:
 
 ```
-analysis_options.yaml            ios/Podfile.lock
-pubspec.lock                     macos/Flutter/Flutter-{Debug,Release}.xcconfig
+analysis_options.yaml            macos/Flutter/Flutter-{Debug,Release}.xcconfig
 linux/flutter/generated_plugins.cmake     macos/Flutter/GeneratedPluginRegistrant.swift
-windows/flutter/generated_plugins.cmake
+windows/flutter/generated_plugins.cmake   ios/Runner.xcodeproj/project.pbxproj
 ```
 
 `git restore .` to clear them. Never `git add -A` in this repo — stage files by
 name. Local-only ignores live in `.git/info/exclude` (not shared with the team).
 
+**`pubspec.lock` and `ios/Podfile.lock` are the exception.** They are churn
+when a build regenerates them unchanged, and they are NOT churn when the
+dependency set actually changes — then they are the record of which versions
+this branch was tested against, and they get committed with the pubspec
+change that caused them.
+
 ## Git
 
 Never push without being asked. Never force push, rebase, or rewrite history.
+
+**Chain verification and commit with `&&`, never `;`.** `flutter test; git
+commit` commits whether or not the tests passed, and has done exactly that
+in this repo. `flutter test && git commit` cannot.
+
+**Use `git worktree` to look at another commit, not `git stash`.** A stash
+plus a checkout has twice left this repo in a state nobody asked for —
+conflict markers in a test file, and a checkout that failed silently so a
+per-commit verification measured the same tree three times and reported it
+as three passes. A worktree is a clean, separate checkout that cannot
+disturb the main one: `git worktree add ../wt <ref>`, work, `git worktree
+remove ../wt`.

@@ -4,8 +4,6 @@
 <dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Take a photo to mark a milestone you've reached.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Choose a photo to mark a milestone you've reached.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../photos/capture_crop.dart';
+
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../shared/ring/ring_dial.dart';
 import '../models/post.dart';
@@ -173,9 +175,9 @@ class MilestoneCard extends StatelessWidget {
   /// The single-photo hero — the one photo as a full-bleed backdrop with the
   /// ring and chrome overlaid. Used only at exactly one photo.
   Widget _singlePhoto(BuildContext context) {
-    return SizedBox(
-      height: 460,
-      width: double.infinity,
+    // 3:4, the shape the photo was framed and stored at.
+    return AspectRatio(
+      aspectRatio: kCaptureAspect,
       child: Stack(
         fit: StackFit.expand,
         children: [

@@ -7,10 +7,10 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../auth/guest_prompts.dart';
 import '../photos/models/photo.dart';
-import '../photos/photo_capture_flow.dart';
+import '../../core/utils/duration_format.dart';
+import '../photos/capture_flow.dart';
 import '../photos/photos_repository.dart';
 import '../photos/widgets/collage_grid.dart';
-import 'milestone_share_flow.dart';
 
 /// Presents the milestone celebration as a full-screen moment.
 Future<void> showMilestoneCelebration(
@@ -50,7 +50,7 @@ Future<void> showMilestoneCelebration(
 ///
 /// "Share this milestone" leads into: camera-only capture (or skip) → the
 /// share-post picker (this band's photos, captured pre-selected) → caption →
-/// Create → Feed. See [ShareMilestoneScreen].
+/// Create → Feed. See [runCaptureFlow].
 class MilestoneCelebrationScreen extends ConsumerStatefulWidget {
   const MilestoneCelebrationScreen({
     super.key,
@@ -97,40 +97,30 @@ class _MilestoneCelebrationScreenState
         : repo.collagePhotos(widget.taskId, widget.milestoneHours);
   }
 
-  /// Enter the share journey: capture (camera-only, or skip) → the share-post
-  /// picker with the captured photo pre-selected and this band's pool addable.
+  /// Enter the share journey: the camera, then review. The band's earlier
+  /// captures are offered alongside the new one on the review screen, so
+  /// there is no separate picker step any more.
   Future<void> _startShareFlow() async {
-    // 1. Camera-only capture — returns the kept File, or null if skipped. A kept
-    //    photo has already saved to the task's gallery series inside this call
-    //    (capture and post are independent).
-    final captured = await showPhotoCapture(
-      context,
-      taskId: widget.taskId,
-      taskName: widget.taskName,
-      sessionSeconds: widget.sessionSeconds,
-      milestoneHours: widget.milestoneHours,
-      cumulativeSeconds: widget.cumulativeSeconds,
-    );
-    if (!mounted) return;
-
-    // 2. The pool (already fetched for the hero) — this band's <=9 collage.
     final pool = await _collage;
     if (!mounted) return;
-
-    // 3. The share-post picker (reached whether or not they captured).
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ShareMilestoneScreen(
-          taskId: widget.taskId,
-          taskName: widget.taskName,
-          milestoneHours: widget.milestoneHours,
-          totalHours: widget.totalHours,
-          capturedFile: captured?.file,
-          capturedPhotoId: captured?.photoId,
-          pool: pool,
-        ),
+    await runCaptureFlow(
+      context,
+      ref,
+      taskId: widget.taskId,
+      taskName: widget.taskName,
+      sessionLabel: DurationFormat.hm(
+        Duration(seconds: widget.sessionSeconds),
       ),
+      sessionSeconds: widget.sessionSeconds,
+      cumulativeSeconds: widget.cumulativeSeconds,
+      // The band is complete, so the shutter's ring is full.
+      ringProgress: 1,
+      canShare: true,
+      milestoneHours: widget.milestoneHours,
+      totalHours: widget.totalHours,
+      bandPhotos: pool,
     );
+    if (mounted) Navigator.of(context).maybePop();
   }
 
   @override

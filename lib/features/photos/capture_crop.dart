@@ -87,3 +87,41 @@ Future<bool> cropCaptureFile(File file, {bool mirror = false}) async {
   await file.writeAsBytes(out, flush: true);
   return true;
 }
+
+/// What a finished session leads to.
+///
+/// Pulled out of the timer screen so the rules can be read and tested as
+/// rules, rather than inferred by driving a stopwatch through a widget test.
+class CaptureDecision {
+  const CaptureDecision({required this.openCamera, required this.canShare});
+
+  /// False for a session too short to be worth photographing, and for a stop
+  /// that credited no task — a photo must never exist without one.
+  final bool openCamera;
+
+  /// Sharing needs an account and 20 hours on the task. False means the
+  /// review screen is keep-only and says why.
+  final bool canShare;
+
+  static const CaptureDecision none = CaptureDecision(
+    openCamera: false,
+    canShare: false,
+  );
+}
+
+/// The rules, in one place.
+CaptureDecision decideAfterStop({
+  required int loggedSeconds,
+  required bool hasTask,
+  required bool isGuest,
+  required int taskTotalSeconds,
+  required int milestoneBandSeconds,
+}) {
+  if (!hasTask || loggedSeconds < kMinimumCaptureSeconds) {
+    return CaptureDecision.none;
+  }
+  return CaptureDecision(
+    openCamera: true,
+    canShare: !isGuest && taskTotalSeconds >= milestoneBandSeconds,
+  );
+}

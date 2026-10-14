@@ -283,7 +283,8 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
     if (!context.mounted || outcome.loggedSeconds <= 0) return;
 
     // Under a minute is not a session worth photographing. The time is
-    // logged either way; the camera is what is skipped.
+    // logged either way; the camera is what is skipped. See
+    // [decideAfterStop], which holds this and the sharing rule together.
     if (outcome.loggedSeconds < kMinimumCaptureSeconds) {
       _say('Logged ${DurationFormat.hm(
         Duration(seconds: outcome.loggedSeconds),
@@ -351,7 +352,13 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
           (outcome.totalSeconds % kMilestoneBandSeconds) /
               kMilestoneBandSeconds,
         ),
-        canShare: !isGuest && outcome.totalSeconds >= kMilestoneBandSeconds,
+          canShare: decideAfterStop(
+          loggedSeconds: outcome.loggedSeconds,
+          hasTask: true,
+          isGuest: isGuest,
+          taskTotalSeconds: outcome.totalSeconds,
+          milestoneBandSeconds: kMilestoneBandSeconds,
+        ).canShare,
       );
       if (crossedGuestNudge && context.mounted) {
         await showCreateAccountPrompt(

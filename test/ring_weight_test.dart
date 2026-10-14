@@ -49,13 +49,14 @@ void main() {
       return painter.width;
     }
 
-    // KNOWN LIMIT, recorded rather than left to be discovered: the Ø40 band
-    // ring fits two digits and not three. The heavier stroke takes 10 off its
-    // inner width, and "100h" needs 28.6 where 25.8 is left. It overlaps the
-    // stroke rather than clipping — the label is a centred child, not a
-    // clipped one — but it is a collision, and it arrives at the 100-hour
-    // band. Fixing it means a smaller figure or a bigger ring, which is a
-    // design decision and not this change's to make.
+    // KNOWN LIMIT, REVIEWED ON DEVICE AND ACCEPTED: the Ø40 band ring fits
+    // two digits and not three. The heavier stroke takes 10 off its inner
+    // width, and "100h" needs 28.6 where 25.8 is left, so from the 100-hour
+    // band the figure overlaps the stroke. It is a collision rather than a
+    // clip — the label is a centred child, not a clipped one — and it was
+    // looked at on a device and judged acceptable against having two ring
+    // weights in the app. Asserted, so that if the figure or the ring ever
+    // changes size this is a decision someone retakes rather than inherits.
     final inner40 = 40 * scale - 2 * ringStroke(scale);
     expect(widthOf('100h'), greaterThan(inner40));
 

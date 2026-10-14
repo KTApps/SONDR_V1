@@ -184,6 +184,43 @@ void main() {
     expect(bordered, isEmpty, reason: 'a pill is still outlined');
   });
 
+  testWidgets('"Archive" is supporting, "Add Task" is not', (tester) async {
+    await openMenu(tester);
+    // Every pill builds a swipe tray, and the tray's word is "Archive" too —
+    // so the footer's one is the copy that is NOT inside a row.
+    TextStyle styleOf(String label) {
+      final inRows = find
+          .descendant(
+            of: find.byType(SondrSwipeRow),
+            matching: find.text(label),
+          )
+          .evaluate()
+          .toSet();
+      final footer = find
+          .text(label)
+          .evaluate()
+          .where((e) => !inRows.contains(e))
+          .toList();
+      expect(footer, hasLength(1), reason: 'one footer "$label" expected');
+      return (footer.single.widget as Text).style!;
+    }
+
+    // The same size, so the row's measured height is unchanged.
+    expect(styleOf('Archive').fontSize, styleOf('Add Task').fontSize);
+    // Told apart by weight and tone, the way "Back" is in the view it opens.
+    expect(styleOf('Add Task').fontWeight, FontWeight.w700);
+    expect(styleOf('Archive').fontWeight, FontWeight.w400);
+    expect(styleOf('Add Task').color, const Color(0xFFFAFAFA));
+    expect(styleOf('Archive').color, const Color(0xFFB0B0B0));
+
+    // And it still opens the archived view. The trays sit behind their
+    // pills, so the footer's copy is the only one a finger can reach.
+    await tester.tap(find.text('Archive').hitTestable());
+    await tester.pumpAndSettle();
+    expect(find.text('Back'), findsOneWidget);
+    expect(styleOf('Back').color, const Color(0xFFB0B0B0));
+  });
+
   test('the controller refuses a nameless task', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);

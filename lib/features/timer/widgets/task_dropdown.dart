@@ -409,14 +409,17 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                       children: [
                         footerAction('Add Task', primaryStyle, _openDraft),
                         // Same row, same baseline, hard right — and the
-                        // same type as "Add Task" beside it. Two actions of
-                        // equal standing, told apart by position alone, which
-                        // is where hierarchy is supposed to come from.
+                        // SUPPORTING tone, the one "Back" takes in the view
+                        // this opens. Adding a task is what the sheet is for;
+                        // putting one away is the side door, and two actions
+                        // at the same weight made the reader pick between
+                        // them. Position tells them apart, tone says which
+                        // one the sheet is about.
                         Positioned(
                           right: 2 * scale,
                           child: footerAction(
                             'Archive',
-                            primaryStyle,
+                            quietStyle,
                             () => setState(() => _archived = true),
                           ),
                         ),

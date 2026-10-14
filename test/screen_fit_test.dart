@@ -168,7 +168,7 @@ void main() {
 
       // Order down the pinned group: Invite, then the two quiet ones.
       final invite = tester.getTopLeft(
-        find.text('Invite your friends to Sondr'),
+        find.text('Invite your friends to sondr'),
       );
       final blocked = tester.getTopLeft(find.text('Blocked accounts'));
       final back = tester.getTopLeft(find.text('Back'));

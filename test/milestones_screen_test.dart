@@ -105,8 +105,8 @@ void main() {
     final dial = tester.widget<RingDial>(finder);
 
     expect(dial.size, closeTo(56 * scale, 0.001));
-    expect(dial.outerStroke, closeTo(3 * scale, 0.001));
-    expect(dial.outerStroke, closeTo(thinRingStroke(dial.size), 0.001));
+    expect(dial.outerStroke, closeTo(ringStroke(scale), 0.001));
+    expect(dial.outerStroke, closeTo(7 * scale, 0.001));
   });
 
   testWidgets('a task journey has no title, and names the task per band', (

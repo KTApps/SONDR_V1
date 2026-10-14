@@ -248,7 +248,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     // to the clipboard with a confirmation instead.
     await Clipboard.setData(
       const ClipboardData(
-        text: 'Join me on Sondr — https://testflight.apple.com/join/XgqKWR4E',
+        text: 'Join me on sondr — https://testflight.apple.com/join/XgqKWR4E',
       ),
     );
     if (!mounted) return;
@@ -451,7 +451,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         SizedBox(height: _kInviteTopGap * scale),
         Center(
           child: SondrAction(
-            label: _copied ? 'Copied' : 'Invite your friends to Sondr',
+            label: _copied ? 'Copied' : 'Invite your friends to sondr',
             onPressed: _invite,
           ),
         ),

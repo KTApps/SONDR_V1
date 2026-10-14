@@ -178,17 +178,20 @@ void main() {
       expect(find.text('Back'), findsNothing);
     });
 
-    testWidgets('the Archive toggle is styled exactly like Add Task', (
-      tester,
-    ) async {
-      // Equal standing: same size, same weight, same tone. Hierarchy between
-      // them comes from position alone.
+    testWidgets('the Archive toggle is the same SIZE as Add Task, and a '
+        'quieter tone', (tester) async {
+      // They used to match outright, told apart by position alone. The sheet
+      // is for choosing and adding; putting a task away is the side door, so
+      // it steps back to the tone "Back" wears in the view it opens. The SIZE
+      // still matches, because the footer's height is a measured constant the
+      // panel's geometry depends on.
       await openMenu(tester);
       final add = tester.widget<Text>(find.text('Add Task')).style!;
       final archive = tester.widget<Text>(archiveToggle()).style!;
       expect(archive.fontSize, add.fontSize);
-      expect(archive.fontWeight, add.fontWeight);
-      expect(archive.color, add.color);
+      expect(add.fontWeight, FontWeight.w700);
+      expect(archive.fontWeight, FontWeight.w400);
+      expect(archive.color, isNot(add.color));
     });
 
     testWidgets('"Archive" swaps the sheet, "Back" swaps it straight back', (

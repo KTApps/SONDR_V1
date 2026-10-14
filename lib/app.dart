@@ -12,7 +12,7 @@ class SondrApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Sondr',
+      title: 'sondr',
       debugShowCheckedModeBanner: false,
       // Sondr is a dark greyscale app. Dark is the design; light exists only as
       // the inverted ladder for completeness, but the app runs dark.

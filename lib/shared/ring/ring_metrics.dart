@@ -6,15 +6,32 @@
 /// like would be two different promises about the same number.
 library;
 
-/// Stroke as a fraction of diameter for the thin rings — the profile's
-/// in-progress rings and the Milestones page's completed rings. Ø56 → 3.
+/// The app's ONE ring weight, in reference points.
 ///
-/// Stated as a ratio rather than a number so the weight holds at the other
-/// diameters these rings appear at (a band ring at Ø40 takes ≈2.1).
-const double kThinRingStrokeRatio = 3 / 56;
+/// Every ring in the app is drawn at this: the day dials on Home, the
+/// profile's in-progress rings, the Milestones page's completed rings. It is
+/// a fixed weight rather than a fraction of each ring's diameter, because a
+/// ratio makes a small ring a thin ring — the Ø40 band rings came out at 2.1
+/// against the day dials' 7, and they read as a different component rather
+/// than the same one drawn smaller.
+///
+/// A WEIGHT, so it does not scale with diameter. It does scale with the
+/// screen: multiply by `figmaScale` at the point of use, like every other
+/// number in this app.
+const double kRingStroke = 7;
 
-/// The thin stroke for a ring of [diameter].
-double thinRingStroke(double diameter) => diameter * kThinRingStrokeRatio;
+/// The day dial's reference diameter, which is where [kRingStroke] was set.
+///
+/// [kRingStroke] / [kCompactDialSize] is the ratio SegmentedDial draws its
+/// compact bands at, so the dials and the rings cannot drift apart: change
+/// the weight here and both move together.
+const double kCompactDialSize = 57;
+
+/// The ratio a compact day dial strokes its bands at.
+const double kCompactDialStrokeRatio = kRingStroke / kCompactDialSize;
+
+/// The app's ring stroke at this screen's [scale].
+double ringStroke(double scale) => kRingStroke * scale;
 
 /// The smallest fraction that is ever DRAWN for nonzero progress.
 ///

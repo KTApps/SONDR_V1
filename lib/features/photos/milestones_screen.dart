@@ -41,9 +41,10 @@ class _DoneRing extends StatelessWidget {
     final scale = figmaScale(context);
     return RingDial(
       size: size * scale,
-      // The app's thin weight, the same one the profile's progress rings
-      // take, so a ring means the same thickness wherever it stands in a row.
-      outerStroke: thinRingStroke(size * scale),
+      // The app's one ring weight, the same the profile's rings and Home's
+      // day dials take — so a ring is the same thickness wherever it stands,
+      // at Ø56 in the journey header or Ø40 beside a band.
+      outerStroke: ringStroke(scale),
       taskSegments: const [1.0],
       highlightedSegment: 0,
       habitProgress: 0,

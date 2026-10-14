@@ -75,7 +75,7 @@ class _BootGateState extends ConsumerState<BootGate> {
   }
 }
 
-/// Minimal launch splash: a centred "Sondr" wordmark on the app background, so
+/// Minimal launch splash: a centred "sondr" wordmark on the app background, so
 /// it cross-fades cleanly into [MainShell].
 class _SplashScreen extends StatelessWidget {
   const _SplashScreen({super.key});
@@ -88,7 +88,7 @@ class _SplashScreen extends StatelessWidget {
       color: tokens.background,
       child: Center(
         child: Text(
-          'Sondr',
+          'sondr',
           // Exact match to the home "Last 10 days" header (titleLarge → 20/w700,
           // inheriting Inter, letterSpacing -0.2, and the primary colour).
           style: theme.textTheme.titleLarge

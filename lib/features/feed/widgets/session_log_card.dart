@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../photos/capture_crop.dart';
+
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/utils/relative_time.dart';
 import '../../../core/utils/session_duration.dart';
@@ -44,9 +46,11 @@ class SessionLogCard extends StatelessWidget {
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                height: 300,
-                width: double.infinity,
+              // 3:4, the shape the photo was framed and stored at. A fixed
+              // height cropped it a third time, to a ratio nothing else in
+              // the app uses.
+              child: AspectRatio(
+                aspectRatio: kCaptureAspect,
                 child: Image(
                   image: postImageProvider(post.photos.first.url),
                   fit: BoxFit.cover,

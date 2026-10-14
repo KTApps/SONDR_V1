@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
-import '../../../shared/sondr_prompt.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/utils/figma_scale.dart';
+import '../../../shared/sondr_field.dart';
 import '../../../shared/ring/ring_metrics.dart';
 import '../../../shared/sondr_swipe_row.dart';
 import '../../tasks/models/task.dart';
 import '../../tasks/tasks_providers.dart';
 import '../timer_controller.dart';
-
-/// Sentinel returned by the dropdown when the user picks "Add Task".
-const String _addTaskValue = '__add_task__';
 
 /// Top-of-screen task switcher.
 ///
@@ -109,24 +106,10 @@ class _TaskDropdownState extends ConsumerState<TaskDropdown> {
     );
 
     if (!mounted || result == null) return;
-    if (result == _addTaskValue) {
-      await _promptAddTask();
-    } else {
-      ref.read(selectedTaskIdProvider.notifier).select(result);
-    }
+    // One kind of result now: a task id. A task created inside the sheet pops
+    // its own id, so being added and being chosen are the same path.
+    ref.read(selectedTaskIdProvider.notifier).select(result);
   }
-
-  Future<void> _promptAddTask() async {
-    final name = await showSondrPrompt(
-      context,
-      title: 'Add task',
-      confirmLabel: 'Add',
-    );
-    if (!mounted || name == null) return;
-    final task = await ref.read(tasksProvider.notifier).addTask(name);
-    ref.read(selectedTaskIdProvider.notifier).select(task.id);
-  }
-
 }
 
 /// Screen-global Y (reference space) the open panel is pinned at — just above
@@ -188,6 +171,54 @@ class _TaskMenuPanel extends ConsumerStatefulWidget {
 class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
   bool _archived = false;
 
+  /// The unnamed pill at the top of the list, if one is open.
+  bool _drafting = false;
+  final TextEditingController _draft = TextEditingController();
+  final ScrollController _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _draft.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Open the draft pill. A second tap on "Add Task" is a no-op rather than a
+  /// second pill — there is only ever one unnamed task.
+  void _openDraft() {
+    if (_drafting) return;
+    setState(() {
+      _draft.clear();
+      _drafting = true;
+    });
+    // Past six tasks the list scrolls, and a draft inserted at the top of a
+    // scrolled list is off-screen behind the keyboard.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients && _scroll.offset > 0) {
+        _scroll.animateTo(
+          0,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  /// Enter on the draft. A name creates the task and pops its id, so the sheet
+  /// closes and the new task is selected by the same path a tap takes.
+  /// Nothing typed is a cancel, not an unnamed task — the same reading the
+  /// habits screen takes.
+  Future<void> _submitDraft(String raw) async {
+    final name = raw.trim();
+    if (name.isEmpty) {
+      setState(() => _drafting = false);
+      return;
+    }
+    final task = await ref.read(tasksProvider.notifier).addTask(name);
+    if (!mounted) return;
+    Navigator.of(context).pop(task.id);
+  }
+
   /// Put [task] away, or bring it back.
   ///
   /// Clearing the selection matters: leaving the dial pointing at a task you
@@ -228,9 +259,14 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
     // first run, and "Add Task" directly beneath it is the whole answer.
     final showEmpty = _archived && tasks.isEmpty;
     final visiblePills = tasks.length.clamp(0, _maxVisiblePills);
+    // The draft takes a pill's height, and a spacing unit too once there is
+    // something below it to be separated from.
+    final draftHeight = _drafting
+        ? _pillHeight + (tasks.isEmpty ? 0 : _panelSpacing)
+        : 0.0;
     final listHeight = showEmpty
         ? _emptyLineHeight
-        : _listHeightFor(visiblePills);
+        : _listHeightFor(visiblePills) + draftHeight;
     final footerTop = _panelSpacing + listHeight + _panelSpacing;
 
     // "Add Task" is Inter Bold 15, white — the app's other headings. The
@@ -288,7 +324,34 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                         ),
                       ),
                     )
-                  : ListView.separated(
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // The draft opens where the first pill was, and its
+                        // growing height is what slides the list down — the
+                        // same move "add habit" makes, for the same reason:
+                        // no reflow jump.
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOut,
+                          alignment: Alignment.topCenter,
+                          child: _drafting
+                              ? SizedBox(
+                                  height: draftHeight * scale,
+                                  child: Align(
+                                    alignment: Alignment.topCenter,
+                                    child: _DraftPill(
+                                      scale: scale,
+                                      controller: _draft,
+                                      onSubmitted: _submitDraft,
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox(height: 0, width: double.infinity),
+                        ),
+                        Expanded(
+                          child: ListView.separated(
+                      controller: _scroll,
                       padding: EdgeInsets.zero,
                       physics: const ClampingScrollPhysics(),
                       itemCount: tasks.length,
@@ -322,6 +385,9 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                           ),
                         );
                       },
+                          ),
+                        ),
+                      ],
                     ),
             ),
             // The footer row, one spacing unit below the last pill and the
@@ -343,11 +409,7 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                   : Stack(
                       alignment: Alignment.center,
                       children: [
-                        footerAction(
-                          'Add Task',
-                          primaryStyle,
-                          () => Navigator.of(context).pop(_addTaskValue),
-                        ),
+                        footerAction('Add Task', primaryStyle, _openDraft),
                         // Same row, same baseline, hard right — and the
                         // same type as "Add Task" beside it. Two actions of
                         // equal standing, told apart by position alone, which
@@ -420,6 +482,56 @@ class _PillTrayAction extends StatelessWidget {
 /// task has not reached. The filled left end is rounded by the pill; the
 /// filled/unfilled boundary is a clean vertical edge. Name centred, Inter bold
 /// 12, white. Pure greyscale — fill and remainder are a brightness step apart.
+/// A task being named: a pill with nothing in it yet.
+///
+/// The same capsule as [_TaskPill] at its empty state — track tone, zero
+/// progress — with the field drawn straight onto it. SondrField unfilled
+/// contributes no chrome of its own and already sets 700 weight and the
+/// primary tone, so at the pill's own 12 the typed name looks exactly like
+/// the task it is about to become.
+class _DraftPill extends StatelessWidget {
+  const _DraftPill({
+    required this.scale,
+    required this.controller,
+    required this.onSubmitted,
+  });
+
+  final double scale;
+  final TextEditingController controller;
+  final ValueChanged<String> onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final height = _TaskPill.height * scale;
+
+    return SizedBox(
+      height: height,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(height / 2),
+        child: ColoredBox(
+          color: _TaskPill.trackColour(tokens),
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14 * scale),
+              child: SondrField(
+                controller: controller,
+                filled: false,
+                centered: true,
+                autofocus: true,
+                fontSize: _TaskPill.labelSize,
+                textInputAction: TextInputAction.done,
+                textCapitalization: TextCapitalization.sentences,
+                onSubmitted: onSubmitted,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TaskPill extends StatelessWidget {
   const _TaskPill({
     required this.scale,
@@ -428,6 +540,14 @@ class _TaskPill extends StatelessWidget {
     required this.selected,
     required this.onTap,
   });
+
+  /// Shared with [_DraftPill], so an empty pill and a named one cannot drift.
+  static const double height = _height;
+  static const double labelSize = 12;
+
+  /// The capsule's own tone, with no progress drawn over it.
+  static Color trackColour(GreyscaleTokens tokens) =>
+      Color.lerp(tokens.surface, tokens.ringTrack, 0.5)!;
 
   static const double _height = 28;
 
@@ -447,10 +567,10 @@ class _TaskPill extends StatelessWidget {
     final theme = Theme.of(context);
     final height = _height * scale;
     final shown = shownProgress(progress);
-    final remainder = Color.lerp(tokens.surface, tokens.ringTrack, 0.5)!;
+    final remainder = trackColour(tokens);
     final fill = Color.lerp(tokens.ringTrack, tokens.ringFillInner, 0.35)!;
     final nameStyle = (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
-      fontSize: 12 * scale,
+      fontSize: labelSize * scale,
       fontWeight: FontWeight.w700,
       color: tokens.textPrimary,
     );

@@ -30,7 +30,15 @@ class TasksController extends AsyncNotifier<List<Task>> {
   TasksRepository get _repo => ref.read(tasksRepositoryProvider);
 
   /// Creates a task and refreshes the list. Returns the new task.
+  ///
+  /// An empty name is a caller's mistake, not a task: every entry point trims
+  /// and treats nothing-typed as a cancel, so reaching here with one means a
+  /// guard upstream has gone. Better to fail loudly than to leave a nameless
+  /// pill in the list that cannot be told apart from any other.
   Future<Task> addTask(String name) async {
+    if (name.trim().isEmpty) {
+      throw ArgumentError.value(name, 'name', 'A task needs a name');
+    }
     final task = await _repo.create(name);
     state = AsyncData(await _repo.fetchAll());
     return task;

@@ -40,7 +40,7 @@ dependencies:
   firebase_auth: ^6.5.2
   sign_in_with_apple: ^8.1.0
   crypto: ^3.0.7
-  image_picker: ^1.2.2
+  camera: ^0.12.1
   # The 3:4 centre-crop and its JPEG re-encode. dart:ui can decode and
   # resize but cannot encode JPEG, and a PNG round-trip would multiply the
   # size of every capture.

@@ -16,6 +16,13 @@ const int kCaptureQuality = 80;
 /// 3:4, portrait.
 const double kCaptureAspect = 3 / 4;
 
+/// Below this, a stop does not open the camera.
+///
+/// A photo marks a session. Half a minute of a timer that was started by
+/// accident is not one, and being asked to photograph it is the app not
+/// paying attention.
+const int kMinimumCaptureSeconds = 60;
+
 /// Centre-crops [bytes] to 3:4 and re-encodes at [kCaptureWidth] × [kCaptureHeight].
 ///
 /// [mirror] un-mirrors a front-camera frame, which iOS hands back reversed —

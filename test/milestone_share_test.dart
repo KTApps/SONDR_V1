@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sondr/features/milestone/milestone_share_flow.dart';
+import 'package:sondr/features/photos/capture_review_screen.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 
 Photo _p(String taskId, int ts) => Photo(

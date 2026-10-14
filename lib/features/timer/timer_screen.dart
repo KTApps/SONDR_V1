@@ -21,10 +21,11 @@ import '../habits/habits_screen.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
 import '../milestone/milestone_celebration.dart';
-import '../milestone/session_share_flow.dart';
 import '../photos/collage_selection.dart';
 import '../photos/collages_repository.dart';
-import '../photos/photo_capture_flow.dart';
+import '../photos/capture_crop.dart';
+import '../../shared/ring/ring_metrics.dart';
+import '../photos/capture_flow.dart';
 import '../photos/photos_repository.dart';
 import '../profile/profile_providers.dart';
 import '../tasks/models/task.dart';
@@ -281,6 +282,15 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
     ref.read(focusModeProvider.notifier).disable();
     if (!context.mounted || outcome.loggedSeconds <= 0) return;
 
+    // Under a minute is not a session worth photographing. The time is
+    // logged either way; the camera is what is skipped.
+    if (outcome.loggedSeconds < kMinimumCaptureSeconds) {
+      _say('Logged ${DurationFormat.hm(
+        Duration(seconds: outcome.loggedSeconds),
+      )}');
+      return;
+    }
+
     // Offer the optional end-of-session photo only when a task was actually
     // credited — a photo must never exist without a task to attach to.
     final creditedTaskId = outcome.taskId;
@@ -315,7 +325,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
     }
 
     // A guest whose lifetime tracked time just passed 1 hour gets nudged to
-    // create an account once the stop flow below finishes.
+    // create an account once the capture flow finishes.
     final isGuest = ref.read(isGuestProvider);
     final lifetime = ref.read(lifetimeDurationProvider).inSeconds;
     final crossedGuestNudge = isGuest &&
@@ -323,34 +333,25 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
         lifetime >= kGuestNudgeSeconds &&
         lifetime - outcome.loggedSeconds < kGuestNudgeSeconds;
 
-    // No new crossing, but the task is past its first milestone (>=20h lifetime):
-    // the session share flow — camera-only capture (feeds the gallery) then an
-    // optional post to the feed. Below 20h this is skipped (ordinary stop), and
-    // so is it for guests, who can't post.
-    if (creditedTaskId != null &&
-        !isGuest &&
-        outcome.totalSeconds >= kMilestoneBandSeconds) {
-      await showSessionShareFlow(
-        context,
-        taskId: creditedTaskId,
-        taskName: outcome.taskName ?? 'task',
-        sessionSeconds: outcome.loggedSeconds,
-        cumulativeSeconds: outcome.totalSeconds,
-      );
-      return;
-    }
-
-    // Ordinary stop (<20h lifetime or a guest, no crossing): the plain gallery
-    // capture, no share surface. milestoneHours is null here (no boundary
-    // crossed).
+    // One entrance for every ordinary stop: the camera. Sharing needs 20
+    // hours on the task and an account; without them the review screen is
+    // keep-only and says so.
     if (creditedTaskId != null) {
-      await showPhotoCapture(
+      await runCaptureFlow(
         context,
+        ref,
         taskId: creditedTaskId,
         taskName: outcome.taskName ?? 'task',
+        sessionLabel: DurationFormat.hm(
+          Duration(seconds: outcome.loggedSeconds),
+        ),
         sessionSeconds: outcome.loggedSeconds,
-        milestoneHours: outcome.milestoneHours,
         cumulativeSeconds: outcome.totalSeconds,
+        ringProgress: shownProgress(
+          (outcome.totalSeconds % kMilestoneBandSeconds) /
+              kMilestoneBandSeconds,
+        ),
+        canShare: !isGuest && outcome.totalSeconds >= kMilestoneBandSeconds,
       );
       if (crossedGuestNudge && context.mounted) {
         await showCreateAccountPrompt(

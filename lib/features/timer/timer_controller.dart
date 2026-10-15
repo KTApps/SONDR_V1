@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
+import 'session_clock.dart';
+import 'session_store.dart';
 
 /// Lifecycle of the manual timer for the current session.
 enum TimerStatus { idle, running, paused }
@@ -35,44 +38,123 @@ class TimerState {
 }
 
 /// Drives the manual timer. Manual by design — no GPS or sensors; the user
-/// starts, pauses, and stops to record real effort. While running, a 1-second
-/// ticker advances [TimerState.sessionElapsed]; the screen folds that live time
-/// into the dial so the ring climbs as you work. Stopping commits the session
-/// to the currently selected task and resets to idle.
+/// starts, pauses, and stops to record real effort.
+///
+/// Elapsed time is DERIVED from wall-clock timestamps, never accumulated by
+/// the ticker. The ticker exists only to repaint once a second: it could
+/// miss every tick for an hour and the answer would still be right. That is
+/// the whole point — a ticker stops firing the moment iOS suspends the app,
+/// so the old counter treated a locked phone as time that never happened.
+///
+/// The session is written to [SessionStore] whenever it changes, so iOS
+/// reclaiming the app mid-session loses nothing: the next launch reads the
+/// start time back and carries on.
 class TimerController extends Notifier<TimerState> {
   Timer? _ticker;
+  SessionClock? _clock;
+  _Resync? _observer;
+
+  DateTime _now() => ref.read(nowProvider)();
+  SessionStore get _store => ref.read(sessionStoreProvider);
 
   @override
   TimerState build() {
-    ref.onDispose(() => _ticker?.cancel());
+    ref.onDispose(() {
+      _ticker?.cancel();
+      final observer = _observer;
+      if (observer != null) {
+        WidgetsBinding.instance.removeObserver(observer);
+        _observer = null;
+      }
+    });
+    // A session left running by a previous launch. Fire-and-forget: build
+    // cannot wait, and an idle timer is the right thing to show until the
+    // read lands.
+    unawaited(restore());
     return const TimerState();
   }
 
-  /// Start a new session or resume a paused one.
+  /// Pick up a session the last launch left behind.
+  ///
+  /// Public so the test for it does not have to fake a process death.
+  Future<void> restore() async {
+    if (_clock != null) return;
+    final found = await _store.read();
+    if (found == null || _clock != null) return;
+    _clock = found;
+    // Put the task back too. Selection is not persisted, so a restored
+    // session would otherwise be running against nothing and Stop would
+    // credit no task — the time would come back and then go nowhere.
+    final taskId = found.taskId;
+    if (taskId != null) {
+      ref.read(selectedTaskIdProvider.notifier).select(taskId);
+    }
+    if (!found.isPaused) _startTicking();
+    // Nothing has changed about the session, so do not write it back.
+    _publish(persist: false);
+  }
+
+  /// Start a new session, or resume a paused one.
   void start() {
     if (state.isRunning) return;
-    state = state.copyWith(status: TimerStatus.running);
-    _ticker?.cancel();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      state = state.copyWith(
-        sessionElapsed: state.sessionElapsed + const Duration(seconds: 1),
-      );
-    });
+    final now = _now();
+    _clock =
+        _clock?.resume(now) ??
+        SessionClock(
+          startedAt: now,
+          // The id, not the task: selectedTaskProvider resolves against the
+          // loaded list, which is still arriving on a cold start, and a
+          // session that began before it landed would record no task.
+          taskId: ref.read(selectedTaskIdProvider),
+        );
+    _startTicking();
+    _publish();
   }
 
   /// Pause without committing — the elapsed time is kept.
   void pause() {
     if (!state.isRunning) return;
     _ticker?.cancel();
-    state = state.copyWith(status: TimerStatus.paused);
+    _clock = _clock?.pause(_now());
+    _publish();
   }
 
-  /// Stop and commit the session's whole seconds to the selected task's history
-  /// for today, then reset. Reports what was logged and whether the commit
-  /// pushed the task across a 20-hour milestone, so the screen can celebrate.
+  void _startTicking() {
+    _ticker?.cancel();
+    // Repaint, not count: every tick re-reads the clock.
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _publish());
+    final observer = _observer ??= _Resync(_publish);
+    WidgetsBinding.instance.addObserver(observer);
+  }
+
+  /// Re-read the clock now, as the app coming back from the background
+  /// does. Named for the test, because simulating a lifecycle event is a
+  /// worse way to ask the same question.
+  @visibleForTesting
+  void resyncForTest() => _publish();
+
+  /// Push the clock's current answer into state, and keep the stored copy up
+  /// to date.
+  void _publish({bool persist = true}) {
+    final clock = _clock;
+    if (clock == null) {
+      state = const TimerState();
+      return;
+    }
+    state = TimerState(
+      status: clock.isPaused ? TimerStatus.paused : TimerStatus.running,
+      sessionElapsed: clock.elapsedAt(_now()),
+    );
+    if (persist) unawaited(_store.write(clock));
+  }
+
   Future<StopOutcome> stop() async {
     _ticker?.cancel();
-    final seconds = state.sessionElapsed.inSeconds;
+    // The clock, not the last tick: a session stopped straight after the
+    // phone was unlocked must count the time the screen was dark, and the
+    // ticker has not run since it went off.
+    final seconds = (_clock?.elapsedAt(_now()) ?? state.sessionElapsed)
+        .inSeconds;
     final task = ref.read(selectedTaskProvider);
 
     var milestoneHours = 0;
@@ -83,7 +165,7 @@ class TimerController extends Notifier<TimerState> {
       final before = task.milestonesReached;
       await ref
           .read(tasksProvider.notifier)
-          .logSeconds(task.id, seconds, DateTime.now());
+          .logSeconds(task.id, seconds, _now());
       final updated = ref
           .read(tasksProvider)
           .value
@@ -98,6 +180,8 @@ class TimerController extends Notifier<TimerState> {
       }
     }
 
+    _clock = null;
+    unawaited(_store.clear());
     state = const TimerState();
     return StopOutcome(
       loggedSeconds: seconds,
@@ -153,3 +237,16 @@ class StopOutcome {
 
 final timerControllerProvider =
     NotifierProvider<TimerController, TimerState>(TimerController.new);
+
+/// Re-reads the clock the instant the app comes back, so the display does
+/// not wait up to a second to admit how long the phone was locked.
+class _Resync extends WidgetsBindingObserver {
+  _Resync(this.onResumed);
+
+  final VoidCallback onResumed;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) onResumed();
+  }
+}

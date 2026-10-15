@@ -17,6 +17,7 @@ import '../tasks/tasks_providers.dart';
 import 'collages_repository.dart';
 import 'models/collage.dart';
 import 'models/photo.dart';
+import 'photo_refresh.dart';
 import 'photos_repository.dart';
 import 'widgets/collage_grid.dart';
 import 'widgets/shared_tag.dart';
@@ -450,8 +451,7 @@ class _BandEntryState extends ConsumerState<_BandEntry> {
     setState(() => _saving = true);
     try {
       await repo.saveEdited(widget.task.id, widget.bandHours, kept);
-      ref.invalidate(collagesListProvider);
-      ref.invalidate(taskBandPhotosProvider(widget.task.id));
+      invalidatePhotoViews(ref);
       if (mounted) {
         setState(() {
           _removed.clear();

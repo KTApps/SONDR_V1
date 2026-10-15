@@ -67,17 +67,17 @@ void main() {
     expect(photo.left, closeTo(kCameraSideInset * scale, 0.5));
   });
 
-  testWidgets('past 20h: caption, then Keep ABOVE Share', (tester) async {
+  testWidgets('past 20h: caption, then Share ABOVE Keep', (tester) async {
     await pumpReview(tester, canShare: true);
     expect(find.text('Add a caption (optional)'), findsOneWidget);
     expect(find.text('Keep'), findsOneWidget);
     expect(find.text('Share'), findsOneWidget);
     expect(find.text('Sharing unlocks at 20h'), findsNothing);
-    // The order is deliberate and inverts the app's usual pair.
+    // Share leads, as the primary does in every other pair in the app.
     expect(
-      tester.getRect(find.text('Keep')).bottom,
-      lessThan(tester.getRect(find.text('Share')).top),
-      reason: 'Share is above Keep',
+      tester.getRect(find.text('Share')).bottom,
+      lessThan(tester.getRect(find.text('Keep')).top),
+      reason: 'Keep is above Share',
     );
     expect(find.text('retake'), findsOneWidget);
   });

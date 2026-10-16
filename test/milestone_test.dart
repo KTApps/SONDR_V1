@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sondr/core/backend.dart';
+import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/utils/date.dart';
 import 'package:sondr/features/milestone/milestone_celebration.dart';
 import 'package:sondr/features/tasks/models/task.dart';
@@ -85,52 +87,90 @@ void main() {
     expect(outcome.milestoneHours, isNull);
   });
 
-  testWidgets('celebration offers the share entry on the first milestone', (
-    tester,
-  ) async {
+  /// The celebration, with and without an account.
+  Future<void> pumpCelebration(
+    WidgetTester tester, {
+    required bool guest,
+    bool isFirst = true,
+    int milestoneHours = 20,
+    String taskName = 'Spanish',
+  }) async {
     await tester.pumpWidget(
-      const ProviderScope(
+      ProviderScope(
+        overrides: [isGuestProvider.overrideWithValue(guest)],
         child: MaterialApp(
+          theme: AppTheme.dark(),
           home: MilestoneCelebrationScreen(
             taskId: 'spanish',
-            taskName: 'Spanish',
-            milestoneHours: 20,
-            totalHours: 21,
+            taskName: taskName,
+            milestoneHours: milestoneHours,
+            totalHours: milestoneHours + 1,
             sessionSeconds: 3600,
-            cumulativeSeconds: 72000,
-            isFirst: true,
+            cumulativeSeconds: milestoneHours * 3600,
+            isFirst: isFirst,
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
+  }
+
+  testWidgets('signed in, the celebration has one way on', (tester) async {
+    await pumpCelebration(tester, guest: false);
     expect(find.text('Congratulations!'), findsOneWidget);
     expect(find.text('20 hrs'), findsOneWidget);
-    expect(find.text('Share this milestone'), findsOneWidget);
-    expect(find.text('Not now'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
+    // "Not now" is gone: the camera's own Skip is the way past, and two
+    // refusals before the thing has been seen was one too many.
+    expect(find.text('Not now'), findsNothing);
+    expect(find.text('Share this milestone'), findsNothing);
+    expect(find.text('Create account'), findsNothing);
   });
 
-  testWidgets('celebration offers the share entry on later milestones too', (
+  testWidgets('later milestones celebrate the same way', (tester) async {
+    await pumpCelebration(
+      tester,
+      guest: false,
+      isFirst: false,
+      milestoneHours: 40,
+      taskName: 'Piano',
+    );
+    expect(find.textContaining('another milestone'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
+  });
+
+  testWidgets('a guest is offered the account as well as the camera', (
     tester,
   ) async {
-    // The first-milestone gate is gone — every crossing can share.
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(
-          home: MilestoneCelebrationScreen(
-            taskId: 'piano',
-            taskName: 'Piano',
-            milestoneHours: 40,
-            totalHours: 41,
-            sessionSeconds: 3600,
-            cumulativeSeconds: 144000,
-            isFirst: false,
-          ),
-        ),
-      ),
+    await pumpCelebration(tester, guest: true);
+    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Create account'), findsOneWidget);
+    expect(find.textContaining('Create an account to keep'), findsOneWidget);
+    // Continue leads first; the account is the quiet one under it.
+    expect(
+      tester.getRect(find.text('Continue')).bottom,
+      lessThan(tester.getRect(find.text('Create account')).top),
     );
+    final account = tester.widget<Text>(find.text('Create account'));
+    expect(account.style!.fontWeight, FontWeight.w400);
+  });
+
+  testWidgets('a guest\'s "Create account" opens the prompt', (tester) async {
+    await pumpCelebration(tester, guest: true);
+    await tester.tap(find.text('Create account'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('another milestone'), findsOneWidget);
-    expect(find.text('Share this milestone'), findsOneWidget);
+    expect(find.text('Keep your progress safe'), findsOneWidget);
+    expect(find.textContaining('share milestones with friends'), findsOneWidget);
+  });
+
+  testWidgets('no Material TextButton survives in the flow', (tester) async {
+    for (final guest in [false, true]) {
+      await pumpCelebration(tester, guest: guest);
+      expect(
+        find.byType(TextButton),
+        findsNothing,
+        reason: 'a TextButton came back (guest: $guest)',
+      );
+    }
   });
 }

@@ -86,12 +86,12 @@ void main() {
     expect(shutter.center.dx, closeTo(w13 / 2, 0.5));
   });
 
-  testWidgets('flash and flip are 44 tall and centred on the shutter', (
+  testWidgets('Flash and Flip are 44 tall and centred on the shutter', (
     tester,
   ) async {
     await pumpCamera(tester);
     final shutter = tester.getRect(find.byKey(kShutterKey));
-    for (final label in ['flash off', 'flip']) {
+    for (final label in ['Flash off', 'Flip']) {
       final word = find.text(label);
       expect(word, findsOneWidget, reason: label);
       final box = tester.getRect(
@@ -112,8 +112,8 @@ void main() {
 
     // The WORD's near edge is a gap from the ring — not its tap target's,
     // which grows the other way.
-    final flash = tester.getRect(find.textContaining('flash'));
-    final flip = tester.getRect(find.text('flip'));
+    final flash = tester.getRect(find.textContaining('Flash'));
+    final flip = tester.getRect(find.text('Flip'));
     expect(shutter.left - flash.right, closeTo(gap, 0.5));
     expect(flip.left - shutter.right, closeTo(gap, 0.5));
 
@@ -127,8 +127,8 @@ void main() {
     Rect targetFor(Finder word) => tester.getRect(
       find.ancestor(of: word, matching: find.byType(ConstrainedBox)).first,
     );
-    final flashTarget = targetFor(find.textContaining('flash'));
-    final flipTarget = targetFor(find.text('flip'));
+    final flashTarget = targetFor(find.textContaining('Flash'));
+    final flipTarget = targetFor(find.text('Flip'));
     expect(flashTarget.right, closeTo(flash.right, 0.5));
     expect(flashTarget.left, lessThanOrEqualTo(flash.left + 0.01));
     expect(flipTarget.left, closeTo(flip.left, 0.5));
@@ -142,10 +142,10 @@ void main() {
     final shutter = tester.getRect(find.byKey(kShutterKey));
     final gap = 32 * scale;
     final viewfinder = tester.getRect(find.byKey(kViewfinderKey));
-    final skip = tester.getRect(find.text('skip'));
+    final skip = tester.getRect(find.text('Skip'));
 
-    for (final expected in ['flash on', 'flash auto', 'flash off']) {
-      await tester.tap(find.textContaining('flash'));
+    for (final expected in ['Flash on', 'Flash auto', 'Flash off']) {
+      await tester.tap(find.textContaining('Flash'));
       await tester.pumpAndSettle();
       expect(find.text(expected), findsOneWidget);
 
@@ -159,14 +159,14 @@ void main() {
       );
       expect(tester.getRect(find.byKey(kShutterKey)), shutter);
       expect(tester.getRect(find.byKey(kViewfinderKey)), viewfinder);
-      expect(tester.getRect(find.text('skip')), skip);
+      expect(tester.getRect(find.text('Skip')), skip);
     }
   });
 
   testWidgets('flash cycles off → on → auto → off', (tester) async {
     final fake = await pumpCamera(tester);
-    for (final expected in ['flash on', 'flash auto', 'flash off']) {
-      await tester.tap(find.textContaining('flash'));
+    for (final expected in ['Flash on', 'Flash auto', 'Flash off']) {
+      await tester.tap(find.textContaining('Flash'));
       await tester.pumpAndSettle();
       expect(find.text(expected), findsOneWidget);
     }
@@ -182,18 +182,18 @@ void main() {
 
   testWidgets('a camera with no flash shows no flash control', (tester) async {
     await pumpCamera(tester, hasFlash: false);
-    expect(find.textContaining('flash'), findsNothing);
-    expect(find.text('flip'), findsOneWidget);
+    expect(find.textContaining('Flash'), findsNothing);
+    expect(find.text('Flip'), findsOneWidget);
   });
 
   testWidgets('one lens means no flip', (tester) async {
     await pumpCamera(tester, canFlip: false);
-    expect(find.text('flip'), findsNothing);
+    expect(find.text('Flip'), findsNothing);
   });
 
   testWidgets('flip restarts on the other lens', (tester) async {
     final fake = await pumpCamera(tester);
-    await tester.tap(find.text('flip'));
+    await tester.tap(find.text('Flip'));
     await tester.pumpAndSettle();
     expect(fake.starts, [false, true]);
   });
@@ -209,7 +209,7 @@ void main() {
     expect(find.text('Open Settings'), findsOneWidget);
     // No shutter to press when there is nothing to shoot.
     expect(find.byKey(kShutterKey), findsNothing);
-    expect(find.text('skip'), findsOneWidget);
+    expect(find.text('Skip'), findsOneWidget);
 
     await tester.tap(find.text('Open Settings'));
     await tester.pumpAndSettle();
@@ -244,7 +244,7 @@ void main() {
       tester,
     ) async {
       await pumpCamera(tester, textScale: ts);
-      final skip = tester.getRect(find.text('skip'));
+      final skip = tester.getRect(find.text('Skip'));
       expect(
         skip.bottom,
         lessThanOrEqualTo(h13 - bottom13 + 0.5),

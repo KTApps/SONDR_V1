@@ -26,6 +26,7 @@ import '../photos/collages_repository.dart';
 import '../photos/capture_crop.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../photos/capture_flow.dart';
+import '../photos/capture_review_screen.dart';
 import '../photos/photos_repository.dart';
 import '../profile/profile_providers.dart';
 import '../tasks/models/task.dart';
@@ -352,13 +353,17 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
           (outcome.totalSeconds % kMilestoneBandSeconds) /
               kMilestoneBandSeconds,
         ),
-          canShare: decideAfterStop(
+          share: decideAfterStop(
           loggedSeconds: outcome.loggedSeconds,
           hasTask: true,
           isGuest: isGuest,
           taskTotalSeconds: outcome.totalSeconds,
           milestoneBandSeconds: kMilestoneBandSeconds,
-        ).canShare,
+        ).canShare
+            ? ShareState.allowed
+            // Two reasons sharing can be shut, and the review screen says
+            // which: an account is a different ask from twenty hours.
+            : (isGuest ? ShareState.guest : ShareState.underTwentyHours),
       );
       if (crossedGuestNudge && context.mounted) {
         await showCreateAccountPrompt(

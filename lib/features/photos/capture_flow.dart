@@ -32,7 +32,7 @@ Future<void> runCaptureFlow(
   required int sessionSeconds,
   required int cumulativeSeconds,
   required double ringProgress,
-  required bool canShare,
+  required ShareState share,
   int? milestoneHours,
   int? totalHours,
   List<Photo> bandPhotos = const [],
@@ -56,7 +56,7 @@ Future<void> runCaptureFlow(
           shot: shot,
           taskName: taskName,
           sessionLabel: sessionLabel,
-          canShare: canShare,
+          share: share,
           bandPhotos: bandPhotos,
           onKeep: (ref) => _savePrivately(
             ref,

@@ -154,7 +154,7 @@ void main() {
       ),
     );
     expect(find.text('Tom Hardy · Spanish · 2h 15m'), findsOneWidget);
-    expect(find.textContaining('logged'), findsNothing);
+    expect(find.textContaining('Logged'), findsNothing);
     expect(find.text('Like'), findsNothing); // no interactions
   });
 
@@ -222,6 +222,6 @@ void main() {
     expect(find.byType(Image), findsWidgets); // the session photo renders
     expect(find.text('Like'), findsOneWidget); // like/comment are text now
     expect(find.text('Spanish · 1h'), findsOneWidget);
-    expect(find.textContaining('logged'), findsNothing);
+    expect(find.textContaining('Logged'), findsNothing);
   });
 }

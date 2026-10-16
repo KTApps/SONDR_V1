@@ -9,6 +9,7 @@ import '../auth/guest_prompts.dart';
 import '../photos/models/photo.dart';
 import '../../core/utils/duration_format.dart';
 import '../photos/capture_flow.dart';
+import '../photos/capture_review_screen.dart';
 import '../photos/photos_repository.dart';
 import '../photos/widgets/collage_grid.dart';
 
@@ -48,9 +49,10 @@ Future<void> showMilestoneCelebration(
 /// bows out to home — a deliberate opt-out, since users have a right not to
 /// broadcast a given task.
 ///
-/// "Share this milestone" leads into: camera-only capture (or skip) → the
-/// share-post picker (this band's photos, captured pre-selected) → caption →
-/// Create → Feed. See [runCaptureFlow].
+/// "Continue" leads into the camera, then the review screen, where the
+/// photo is kept or posted. There is no "Not now": the camera's own Skip is
+/// the way past, and offering two refusals before the thing had even been
+/// seen was one too many.
 class MilestoneCelebrationScreen extends ConsumerStatefulWidget {
   const MilestoneCelebrationScreen({
     super.key,
@@ -115,7 +117,11 @@ class _MilestoneCelebrationScreenState
       cumulativeSeconds: widget.cumulativeSeconds,
       // The band is complete, so the shutter's ring is full.
       ringProgress: 1,
-      canShare: true,
+      // A milestone belongs to a task that has just crossed 20 hours, so
+      // the only thing that can lock sharing here is not having an account.
+      share: ref.read(isGuestProvider)
+          ? ShareState.guest
+          : ShareState.allowed,
       milestoneHours: widget.milestoneHours,
       totalHours: widget.totalHours,
       bandPhotos: pool,
@@ -177,27 +183,27 @@ class _MilestoneCelebrationScreenState
                 const SizedBox(height: 16),
               ],
               _Primary(
-                label: 'Share this milestone',
-                onPressed: isGuest
-                    ? () => showCreateAccountPrompt(
-                        context,
-                        title: 'Keep your progress safe',
-                        message:
-                            'Create an account to share milestones with '
-                            'friends. Your progress stays safe if you delete '
-                            'the app or change phones.',
-                      )
-                    : _startShareFlow,
+                label: 'Continue',
+                onPressed: _startShareFlow,
               ),
-              const SizedBox(height: 4),
-              TextButton(
-                onPressed: () => Navigator.of(context).maybePop(),
-                style: TextButton.styleFrom(
-                  foregroundColor: tokens.textSecondary,
-                  textStyle: theme.textTheme.labelLarge,
+              // A guest can keep the photo but not post it, so the account
+              // is offered here rather than behind a button that says
+              // "Share" and then does not share.
+              if (isGuest)
+                Center(
+                  child: SondrAction(
+                    label: 'Create account',
+                    supporting: true,
+                    onPressed: () => showCreateAccountPrompt(
+                      context,
+                      title: 'Keep your progress safe',
+                      message:
+                          'Create an account to share milestones with '
+                          'friends. Your progress stays safe if you delete '
+                          'the app or change phones.',
+                    ),
+                  ),
                 ),
-                child: const Text('Not now'),
-              ),
             ],
           ),
         ),

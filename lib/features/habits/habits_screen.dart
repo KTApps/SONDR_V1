@@ -210,7 +210,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
                               // word and waits for a tap.
                               actions: [
                                 SondrAction(
-                                  label: 'remove',
+                                  label: 'Remove',
                                   fontSize: kRowActionSize,
                                   onPressed: () => ref
                                       .read(habitsProvider.notifier)
@@ -233,7 +233,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
                   right: 0,
                   child: Center(
                     child: SondrAction(
-                      label: 'add habit',
+                      label: 'Add habit',
                       onPressed: _openAdd,
                     ),
                   ),

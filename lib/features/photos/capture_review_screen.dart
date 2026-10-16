@@ -182,7 +182,7 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
                 child: Padding(
                   padding: EdgeInsets.only(right: kSpacingPair * scale),
                   child: SondrAction(
-                    label: 'retake',
+                    label: 'Retake',
                     supporting: true,
                     onPressed: _busy
                         ? null
@@ -269,7 +269,7 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
                 ),
               Center(
                 child: SondrAction(
-                  label: _busy && !widget.canShare ? 'saving…' : 'Keep',
+                  label: _busy && !widget.canShare ? 'Saving…' : 'Keep',
                   supporting: widget.canShare,
                   onPressed: _busy ? null : _keep,
                 ),

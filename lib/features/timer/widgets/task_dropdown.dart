@@ -406,7 +406,7 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                   : Stack(
                       alignment: Alignment.center,
                       children: [
-                        footerAction('Add Task', primaryStyle, _openDraft),
+                        footerAction('Add task', primaryStyle, _openDraft),
                         // Same row, same baseline, hard right — and the
                         // SUPPORTING tone, the one "Back" takes in the view
                         // this opens. Adding a task is what the sheet is for;

@@ -173,12 +173,12 @@ void main() {
       await openMenu(tester);
       expect(find.text('Golf'), findsOneWidget);
       expect(find.text('Spanish'), findsOneWidget);
-      expect(find.text('Add Task'), findsOneWidget);
+      expect(find.text('Add task'), findsOneWidget);
       expect(archiveToggle(), findsOneWidget);
       expect(find.text('Back'), findsNothing);
     });
 
-    testWidgets('the Archive toggle is the same SIZE as Add Task, and a '
+    testWidgets('the Archive toggle is the same SIZE as Add task, and a '
         'quieter tone', (tester) async {
       // They used to match outright, told apart by position alone. The sheet
       // is for choosing and adding; putting a task away is the side door, so
@@ -186,7 +186,7 @@ void main() {
       // still matches, because the footer's height is a measured constant the
       // panel's geometry depends on.
       await openMenu(tester);
-      final add = tester.widget<Text>(find.text('Add Task')).style!;
+      final add = tester.widget<Text>(find.text('Add task')).style!;
       final archive = tester.widget<Text>(archiveToggle()).style!;
       expect(archive.fontSize, add.fontSize);
       expect(add.fontWeight, FontWeight.w700);
@@ -205,14 +205,14 @@ void main() {
       expect(find.text('Back'), findsOneWidget);
       // The archived view carries neither the add nor a second toggle, and
       // with no rows there is no tray to borrow the word either.
-      expect(find.text('Add Task'), findsNothing);
+      expect(find.text('Add task'), findsNothing);
       expect(find.text('Archive'), findsNothing);
       expect(find.text('Golf'), findsNothing);
 
       await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
       expect(find.text('Golf'), findsOneWidget);
-      expect(find.text('Add Task'), findsOneWidget);
+      expect(find.text('Add task'), findsOneWidget);
       expect(find.text('No archived tasks.'), findsNothing);
     });
 
@@ -255,7 +255,7 @@ void main() {
       await tester.tap(find.text('Spanish'));
       await tester.pumpAndSettle();
       // The sheet closed and the selector now names it.
-      expect(find.text('Add Task'), findsNothing);
+      expect(find.text('Add task'), findsNothing);
       final c = containerOf(tester);
       expect(c.read(selectedTaskProvider)?.name, 'Spanish');
     });
@@ -305,7 +305,7 @@ void main() {
       expect(c.read(timerControllerProvider).isActive, isTrue);
 
       await tapSelector(tester);
-      expect(find.text('Add Task'), findsNothing);
+      expect(find.text('Add task'), findsNothing);
       expect(find.text('Archive'), findsNothing);
     });
   });

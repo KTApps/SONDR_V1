@@ -277,7 +277,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
             children: [
               SizedBox(height: _kTopRhythm * scale),
               Text(
-                'Add Friends',
+                'Add friends',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontSize: 15 * scale,

@@ -157,11 +157,11 @@ void main() {
       expect(habitsSize, homeSize);
     });
 
-    testWidgets('"add habit" sits where Home puts "View your progress"', (
+    testWidgets('"Add habit" sits where Home puts "View your progress"', (
       tester,
     ) async {
       final home = await yOf(tester, const TimerScreen(), 'View your progress');
-      final habits = await yOf(tester, const HabitsScreen(), 'add habit');
+      final habits = await yOf(tester, const HabitsScreen(), 'Add habit');
       expect(habits, closeTo(home, 0.01));
     });
   });
@@ -195,7 +195,7 @@ void main() {
       expect(tester.getCenter(find.text('6AM wake 3')).dx, closeTo(width / 2, 1));
 
       // And the same centre the field's cursor uses.
-      await tester.tap(find.text('add habit'));
+      await tester.tap(find.text('Add habit'));
       await tester.pumpAndSettle();
       expect(
         tester.getCenter(find.byType(SondrField)).dx,
@@ -275,7 +275,7 @@ void main() {
       expect(find.byType(SondrField), findsNothing);
       final firstBefore = y(tester, '6AM wake 3');
 
-      await tester.tap(find.text('add habit'));
+      await tester.tap(find.text('Add habit'));
       await tester.pumpAndSettle();
 
       final field = tester.widget<SondrField>(find.byType(SondrField));
@@ -290,7 +290,7 @@ void main() {
       tester,
     ) async {
       await pumpHabits(tester);
-      await tester.tap(find.text('add habit'));
+      await tester.tap(find.text('Add habit'));
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(SondrField), 'Read');
@@ -310,7 +310,7 @@ void main() {
       );
       final before = container.read(habitsProvider).value!.liveList.length;
 
-      await tester.tap(find.text('add habit'));
+      await tester.tap(find.text('Add habit'));
       await tester.pumpAndSettle();
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
@@ -333,7 +333,7 @@ void main() {
       Finder tray() => find
           .descendant(
             of: find.byType(SondrSwipeRow),
-            matching: find.text('remove'),
+            matching: find.text('Remove'),
           )
           .hitTestable();
 

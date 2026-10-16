@@ -79,7 +79,7 @@ void main() {
       lessThan(tester.getRect(find.text('Keep')).top),
       reason: 'Keep is above Share',
     );
-    expect(find.text('retake'), findsOneWidget);
+    expect(find.text('Retake'), findsOneWidget);
   });
 
   testWidgets('under 20h: no caption, no Share, and it says why', (
@@ -117,7 +117,7 @@ void main() {
         return true;
       },
     );
-    await tester.tap(find.text('retake'));
+    await tester.tap(find.text('Retake'));
     await tester.pumpAndSettle();
     expect(kept, 0);
     expect(shared, 0);

@@ -46,13 +46,13 @@ void main() {
 
   Finder draftField() => find.byType(TextField);
 
-  testWidgets('"Add Task" opens a draft pill, focused, with the sheet still '
+  testWidgets('"Add task" opens a draft pill, focused, with the sheet still '
       'open', (tester) async {
     await openMenu(tester);
     expect(draftField(), findsNothing);
     final before = containerOf(tester).read(tasksProvider).value!.length;
 
-    await tester.tap(find.text('Add Task'));
+    await tester.tap(find.text('Add task'));
     await tester.pumpAndSettle();
 
     // The field is there and has the keyboard.
@@ -62,7 +62,7 @@ void main() {
       isTrue,
     );
     // The sheet stayed open — the existing tasks are still on screen.
-    expect(find.text('Add Task'), findsOneWidget);
+    expect(find.text('Add task'), findsOneWidget);
     // And nothing has been created yet.
     expect(containerOf(tester).read(tasksProvider).value!.length, before);
 
@@ -93,7 +93,7 @@ void main() {
     await openMenu(tester);
     final before = containerOf(tester).read(tasksProvider).value!.length;
 
-    await tester.tap(find.text('Add Task'));
+    await tester.tap(find.text('Add task'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(EditableText), 'Pottery');
     await tester.testTextInput.receiveAction(TextInputAction.done);
@@ -108,7 +108,7 @@ void main() {
     expect(created.totalSeconds, 0);
     expect(created.milestoneProgress, 0);
     // The sheet closed.
-    expect(find.text('Add Task'), findsNothing);
+    expect(find.text('Add task'), findsNothing);
   });
 
   testWidgets('Return with nothing typed creates nothing and keeps the sheet', (
@@ -117,7 +117,7 @@ void main() {
     await openMenu(tester);
     final before = containerOf(tester).read(tasksProvider).value!.length;
 
-    await tester.tap(find.text('Add Task'));
+    await tester.tap(find.text('Add task'));
     await tester.pumpAndSettle();
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
@@ -125,32 +125,32 @@ void main() {
     expect(containerOf(tester).read(tasksProvider).value!.length, before);
     // The draft is gone, the sheet is not.
     expect(draftField(), findsNothing);
-    expect(find.text('Add Task'), findsOneWidget);
+    expect(find.text('Add task'), findsOneWidget);
   });
 
   testWidgets('whitespace alone is nothing typed', (tester) async {
     await openMenu(tester);
     final before = containerOf(tester).read(tasksProvider).value!.length;
 
-    await tester.tap(find.text('Add Task'));
+    await tester.tap(find.text('Add task'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(EditableText), '   ');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
     expect(containerOf(tester).read(tasksProvider).value!.length, before);
-    expect(find.text('Add Task'), findsOneWidget);
+    expect(find.text('Add task'), findsOneWidget);
   });
 
-  testWidgets('tapping "Add Task" twice gives ONE draft, and does not wipe '
+  testWidgets('tapping "Add task" twice gives ONE draft, and does not wipe '
       'what you have typed', (tester) async {
     await openMenu(tester);
-    await tester.tap(find.text('Add Task'));
+    await tester.tap(find.text('Add task'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(EditableText), 'Half typed');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Add Task'));
+    await tester.tap(find.text('Add task'));
     await tester.pumpAndSettle();
 
     expect(draftField(), findsOneWidget);
@@ -164,7 +164,7 @@ void main() {
 
   testWidgets('the draft sits ABOVE the tasks already there', (tester) async {
     await openMenu(tester);
-    await tester.tap(find.text('Add Task'));
+    await tester.tap(find.text('Add task'));
     await tester.pumpAndSettle();
 
     // Nothing in the list starts higher up than the draft.
@@ -208,7 +208,7 @@ void main() {
     expect(bordered, isEmpty, reason: 'a pill is still outlined');
   });
 
-  testWidgets('"Archive" is supporting, "Add Task" is not', (tester) async {
+  testWidgets('"Archive" is supporting, "Add task" is not', (tester) async {
     await openMenu(tester);
     // Every pill builds a swipe tray, and the tray's word is "Archive" too —
     // so the footer's one is the copy that is NOT inside a row.
@@ -230,11 +230,11 @@ void main() {
     }
 
     // The same size, so the row's measured height is unchanged.
-    expect(styleOf('Archive').fontSize, styleOf('Add Task').fontSize);
+    expect(styleOf('Archive').fontSize, styleOf('Add task').fontSize);
     // Told apart by weight and tone, the way "Back" is in the view it opens.
-    expect(styleOf('Add Task').fontWeight, FontWeight.w700);
+    expect(styleOf('Add task').fontWeight, FontWeight.w700);
     expect(styleOf('Archive').fontWeight, FontWeight.w400);
-    expect(styleOf('Add Task').color, const Color(0xFFFAFAFA));
+    expect(styleOf('Add task').color, const Color(0xFFFAFAFA));
     expect(styleOf('Archive').color, const Color(0xFFB0B0B0));
 
     // And it still opens the archived view. The trays sit behind their
@@ -254,7 +254,7 @@ void main() {
     tester,
   ) async {
     await openMenu(tester);
-    await tester.tap(find.text('Add Task'));
+    await tester.tap(find.text('Add task'));
     await tester.pumpAndSettle();
 
     final pill = pillOf(tester, draftField());
@@ -280,7 +280,7 @@ void main() {
     tester,
   ) async {
     await openMenu(tester);
-    await tester.tap(find.text('Add Task'));
+    await tester.tap(find.text('Add task'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(EditableText), 'Test 49');
     await tester.pumpAndSettle();

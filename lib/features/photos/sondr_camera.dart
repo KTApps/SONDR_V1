@@ -39,9 +39,9 @@ enum CaptureFlash { off, on, auto }
 
 extension on CaptureFlash {
   String get label => switch (this) {
-    CaptureFlash.off => 'flash off',
-    CaptureFlash.on => 'flash on',
-    CaptureFlash.auto => 'flash auto',
+    CaptureFlash.off => 'Flash off',
+    CaptureFlash.on => 'Flash on',
+    CaptureFlash.auto => 'Flash auto',
   };
 
   CaptureFlash get next => switch (this) {
@@ -354,7 +354,7 @@ class _SondrCameraScreenState extends State<SondrCameraScreen>
               if (_trouble == null) _controls(tokens, theme, scale),
               const Spacer(),
               SondrAction(
-                label: 'skip',
+                label: 'Skip',
                 supporting: true,
                 onPressed: _busy ? null : () => Navigator.of(context).pop(),
               ),
@@ -470,7 +470,7 @@ class _SondrCameraScreenState extends State<SondrCameraScreen>
             Alignment.centerLeft,
             EdgeInsets.only(left: gap),
             _session.canFlip
-                ? word('flip', Alignment.centerLeft, _busy ? null : _flip)
+                ? word('Flip', Alignment.centerLeft, _busy ? null : _flip)
                 : null,
           ),
         ],

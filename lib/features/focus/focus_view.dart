@@ -93,7 +93,7 @@ class FocusView extends ConsumerWidget {
                 // Supporting text, so it is grey — it says what the clock is
                 // doing, it is not something to tap.
                 Text(
-                  isRunning ? 'in session' : 'paused',
+                  isRunning ? 'In session' : 'Paused',
                   style: labelStyle,
                 ),
                 gap,

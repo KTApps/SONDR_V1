@@ -10,6 +10,7 @@ import '../feed/posts_repository.dart';
 import '../shell/main_shell.dart';
 import 'capture_review_screen.dart';
 import 'models/photo.dart';
+import 'photo_refresh.dart';
 import 'photos_repository.dart';
 import 'sondr_camera.dart';
 
@@ -137,6 +138,9 @@ Future<String?> _savePrivately(
         cumulativeSeconds: cumulativeSeconds,
       ),
     );
+    // Every surface that shows a photo is reading a cached one until it is
+    // told otherwise — see [invalidatePhotoViews].
+    invalidatePhotoViews(ref);
     return photoId;
   } catch (e) {
     debugPrint('SONDR photo save error: ${e.runtimeType} :: $e');

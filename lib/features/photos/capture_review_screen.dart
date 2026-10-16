@@ -256,15 +256,10 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
                 SondrError(_error!, textAlign: TextAlign.center),
                 SizedBox(height: kSpacingPair * scale),
               ],
-              // Keep ABOVE Share, deliberately: the quiet way out is the one
-              // you reach first, and sharing is the step that leaves.
-              Center(
-                child: SondrAction(
-                  label: _busy && !widget.canShare ? 'saving…' : 'Keep',
-                  supporting: widget.canShare,
-                  onPressed: _busy ? null : _keep,
-                ),
-              ),
+              // Share ABOVE Keep: the primary leads, as it does in every
+              // other pair in the app. The order was the other way round
+              // for one round on the argument that the quiet way out should
+              // come first; on the device it just read as the odd one out.
               if (widget.canShare)
                 Center(
                   child: SondrAction(
@@ -272,6 +267,13 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
                     onPressed: _busy ? null : _share,
                   ),
                 ),
+              Center(
+                child: SondrAction(
+                  label: _busy && !widget.canShare ? 'saving…' : 'Keep',
+                  supporting: widget.canShare,
+                  onPressed: _busy ? null : _keep,
+                ),
+              ),
             ],
           ),
         ),

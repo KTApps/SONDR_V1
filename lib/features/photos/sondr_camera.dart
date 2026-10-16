@@ -24,6 +24,14 @@ const double kCameraControlSize = 12;
 /// The smallest a control may be and still be reliably hit.
 const double kCameraTapTarget = 44;
 
+/// Between the shutter's edge and the nearest edge of a control's word.
+///
+/// Measured from the SHUTTER, not from the screen. Anchored to the screen
+/// the two words sat 105 from the ring and a thumb had to leave the control
+/// it was using to reach the next one; they belong to the shutter, so they
+/// are placed against it.
+const double kCameraControlGap = 32;
+
 /// What the flash is set to. The app's own, so the screen does not have to
 /// speak the camera package's language — and `torch` is deliberately absent:
 /// three states to cycle, not four.
@@ -387,53 +395,83 @@ class _SondrCameraScreenState extends State<SondrCameraScreen>
     );
   }
 
-  /// flash · shutter · flip, the two words vertically centred on the ring.
+  /// flash · shutter · flip, the two words anchored to the ring.
+  ///
+  /// Two equal Expanded slots either side of the shutter, so the ring is
+  /// dead centre however wide the words get — "flash auto" is half again as
+  /// wide as "flash on", and a centred Row of three real widths would have
+  /// shunted the shutter sideways every time the flash was cycled.
+  ///
+  /// Not a Stack with the words hung outside it: that renders them and then
+  /// refuses to hit-test them, because a Stack does not pass a pointer to a
+  /// child beyond its own bounds.
   Widget _controls(GreyscaleTokens tokens, ThemeData theme, double scale) {
+    final shutter = kShutterSize * scale;
+    final gap = kCameraControlGap * scale;
     final wordStyle = theme.textTheme.bodyMedium?.copyWith(
       fontSize: kCameraControlSize * scale,
       color: tokens.textSecondary,
     );
 
-    Widget word(String label, VoidCallback? onTap) => GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: ConstrainedBox(
-        // A word is not a tap target; this is.
-        constraints: BoxConstraints(
-          minWidth: kCameraTapTarget * scale,
-          minHeight: kCameraTapTarget * scale,
-        ),
-        child: Center(child: Text(label, style: wordStyle)),
-      ),
+    /// The word, in a tap target that grows AWAY from the shutter: the edge
+    /// facing the ring is the word's own, so the gap is measured to the text
+    /// and the 44 is found outward, where there is nothing to crowd.
+    Widget word(String label, Alignment edge, VoidCallback? onTap) =>
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: kCameraTapTarget * scale,
+              minHeight: kCameraTapTarget * scale,
+            ),
+            child: Align(alignment: edge, child: Text(label, style: wordStyle)),
+          ),
+        );
+
+    /// One side of the ring: the word pinned against the gap, the rest of
+    /// the slot empty.
+    Widget side(Alignment edge, EdgeInsets inset, Widget? child) => Expanded(
+      child: child == null
+          ? const SizedBox.shrink()
+          : Align(
+              alignment: edge,
+              child: Padding(padding: inset, child: child),
+            ),
     );
 
     return SizedBox(
-      height: kShutterSize * scale,
+      height: shutter,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          SizedBox(
-            width: kShutterSize * scale,
-            child: _session.hasFlash
-                ? word(_flash.label, _busy ? null : _cycleFlash)
-                : const SizedBox.shrink(),
+          side(
+            Alignment.centerRight,
+            EdgeInsets.only(right: gap),
+            _session.hasFlash
+                ? word(
+                    _flash.label,
+                    Alignment.centerRight,
+                    _busy ? null : _cycleFlash,
+                  )
+                : null,
           ),
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _busy ? null : _shoot,
             child: ProgressRing(
               key: kShutterKey,
-              size: kShutterSize * scale,
+              size: shutter,
               stroke: ringStroke(scale),
               progress: widget.ringProgress,
             ),
           ),
-          SizedBox(
-            width: kShutterSize * scale,
-            child: _session.canFlip
-                ? word('flip', _busy ? null : _flip)
-                : const SizedBox.shrink(),
+          side(
+            Alignment.centerLeft,
+            EdgeInsets.only(left: gap),
+            _session.canFlip
+                ? word('flip', Alignment.centerLeft, _busy ? null : _flip)
+                : null,
           ),
         ],
       ),

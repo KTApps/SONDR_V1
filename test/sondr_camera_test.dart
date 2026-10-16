@@ -103,6 +103,66 @@ void main() {
     }
   });
 
+  testWidgets('the words are anchored to the shutter, 32 either side', (
+    tester,
+  ) async {
+    await pumpCamera(tester);
+    final shutter = tester.getRect(find.byKey(kShutterKey));
+    final gap = 32 * scale;
+
+    // The WORD's near edge is a gap from the ring — not its tap target's,
+    // which grows the other way.
+    final flash = tester.getRect(find.textContaining('flash'));
+    final flip = tester.getRect(find.text('flip'));
+    expect(shutter.left - flash.right, closeTo(gap, 0.5));
+    expect(flip.left - shutter.right, closeTo(gap, 0.5));
+
+    // They used to sit against the screen instead: 16.7 from the left edge
+    // and 105 from the ring.
+    expect(flash.left, greaterThan(60));
+    expect(390 - flip.right, greaterThan(60));
+
+    // The tap targets reach 44 OUTWARD, away from the ring, so the near
+    // edge of each is still the word's.
+    Rect targetFor(Finder word) => tester.getRect(
+      find.ancestor(of: word, matching: find.byType(ConstrainedBox)).first,
+    );
+    final flashTarget = targetFor(find.textContaining('flash'));
+    final flipTarget = targetFor(find.text('flip'));
+    expect(flashTarget.right, closeTo(flash.right, 0.5));
+    expect(flashTarget.left, lessThanOrEqualTo(flash.left + 0.01));
+    expect(flipTarget.left, closeTo(flip.left, 0.5));
+    expect(flipTarget.right, greaterThanOrEqualTo(flip.right - 0.01));
+  });
+
+  testWidgets('cycling the flash moves neither the ring nor the word\'s end', (
+    tester,
+  ) async {
+    await pumpCamera(tester);
+    final shutter = tester.getRect(find.byKey(kShutterKey));
+    final gap = 32 * scale;
+    final viewfinder = tester.getRect(find.byKey(kViewfinderKey));
+    final skip = tester.getRect(find.text('skip'));
+
+    for (final expected in ['flash on', 'flash auto', 'flash off']) {
+      await tester.tap(find.textContaining('flash'));
+      await tester.pumpAndSettle();
+      expect(find.text(expected), findsOneWidget);
+
+      // "flash auto" is half again as wide as "flash on"; the end of the
+      // word and the ring both stay put, and so does everything else.
+      final word = tester.getRect(find.text(expected));
+      expect(
+        shutter.left - word.right,
+        closeTo(gap, 0.5),
+        reason: 'the gap moved on "$expected"',
+      );
+      expect(tester.getRect(find.byKey(kShutterKey)), shutter);
+      expect(tester.getRect(find.byKey(kViewfinderKey)), viewfinder);
+      expect(tester.getRect(find.text('skip')), skip);
+    }
+  });
+
   testWidgets('flash cycles off → on → auto → off', (tester) async {
     final fake = await pumpCamera(tester);
     for (final expected in ['flash on', 'flash auto', 'flash off']) {

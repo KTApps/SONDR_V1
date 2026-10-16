@@ -23,6 +23,30 @@ List<Photo> selectedBandInOrder(List<Photo> pool, Set<String> selectedIds) => [
     if (selectedIds.contains(p.id)) p,
 ];
 
+/// Whether this capture can be posted, and if not, why not.
+///
+/// A bool said only that Share was absent; the screen has to say what would
+/// make it appear, and the two answers are different sentences.
+enum ShareState {
+  /// Signed in and past 20 hours on this task.
+  allowed,
+
+  /// A guest. An account is what is missing, not hours.
+  guest,
+
+  /// Signed in, but the task has not reached its first milestone.
+  underTwentyHours;
+
+  bool get canShare => this == ShareState.allowed;
+
+  /// What the review screen says in place of Share.
+  String get lockedCopy => switch (this) {
+    ShareState.allowed => '',
+    ShareState.guest => 'Create an account to share',
+    ShareState.underTwentyHours => 'Sharing unlocks at 20h',
+  };
+}
+
 /// What the person did with the capture.
 enum ReviewOutcome {
   /// Back to the camera; the shot is discarded.
@@ -57,7 +81,7 @@ class CaptureReviewScreen extends ConsumerStatefulWidget {
     required this.shot,
     required this.taskName,
     required this.sessionLabel,
-    required this.canShare,
+    required this.share,
     this.bandPhotos = const [],
     this.onKeep,
     this.onShare,
@@ -69,8 +93,8 @@ class CaptureReviewScreen extends ConsumerStatefulWidget {
   final String taskName;
   final String sessionLabel;
 
-  /// Past 20h on this task AND signed in. False means keep-only.
-  final bool canShare;
+  /// Whether Share is offered, and what to say when it is not.
+  final ShareState share;
 
   /// This milestone band's earlier captures, offered alongside the new one.
   /// Empty on an ordinary session.
@@ -225,10 +249,10 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
                           color: tokens.textPrimary,
                         ),
                       ),
-                      if (!widget.canShare) ...[
+                      if (!widget.share.canShare) ...[
                         SizedBox(height: kSpacingPair * scale),
                         Text(
-                          'Sharing unlocks at 20h',
+                          widget.share.lockedCopy,
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontSize: 12 * scale,
@@ -236,7 +260,7 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
                           ),
                         ),
                       ],
-                      if (widget.canShare) ...[
+                      if (widget.share.canShare) ...[
                         // The band comes BEFORE the caption: what is going
                         // in the post is decided first, and the caption is
                         // written about it. Behind the field it also sat
@@ -260,7 +284,7 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
               // other pair in the app. The order was the other way round
               // for one round on the argument that the quiet way out should
               // come first; on the device it just read as the odd one out.
-              if (widget.canShare)
+              if (widget.share.canShare)
                 Center(
                   child: SondrAction(
                     label: _busy ? 'Sharing…' : 'Share',
@@ -269,8 +293,8 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
                 ),
               Center(
                 child: SondrAction(
-                  label: _busy && !widget.canShare ? 'Saving…' : 'Keep',
-                  supporting: widget.canShare,
+                  label: _busy && !widget.share.canShare ? 'Saving…' : 'Keep',
+                  supporting: widget.share.canShare,
                   onPressed: _busy ? null : _keep,
                 ),
               ),

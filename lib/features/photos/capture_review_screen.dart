@@ -1,6 +1,6 @@
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
@@ -22,6 +22,12 @@ List<Photo> selectedBandInOrder(List<Photo> pool, Set<String> selectedIds) => [
   for (final p in pool)
     if (selectedIds.contains(p.id)) p,
 ];
+
+/// The longest a caption may be.
+///
+/// Enforced by a formatter rather than by maxLength, which comes with a
+/// counter this app did not draw.
+const int kCaptionMaxLength = 200;
 
 /// Whether this capture can be posted, and if not, why not.
 ///
@@ -313,7 +319,12 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
         focusNode: _captionFocus,
         maxLines: 3,
         minLines: 1,
-        maxLength: 200,
+        // Enforced, but not announced. maxLength draws Material's own
+        // "0/200" beneath the field — unstyled by this app, and reserving
+        // its line whether or not anyone is typing. A formatter stops the
+        // 201st character and truncates a longer paste just the same, and
+        // says nothing while the field is empty.
+        inputFormatters: [LengthLimitingTextInputFormatter(kCaptionMaxLength)],
         textCapitalization: TextCapitalization.sentences,
         textInputAction: TextInputAction.done,
         onSubmitted: (_) => FocusScope.of(context).unfocus(),

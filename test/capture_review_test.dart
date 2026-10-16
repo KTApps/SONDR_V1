@@ -185,6 +185,57 @@ void main() {
     expect(caption, 'Finally fluent');
   });
 
+  group('the caption', () {
+    testWidgets('has no counter, and reserves no room for one', (
+      tester,
+    ) async {
+      await pumpReview(tester, share: ShareState.allowed);
+      // Material's own "0/200", which this app never styled.
+      expect(find.text('0/200'), findsNothing);
+      expect(find.textContaining('/200'), findsNothing);
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.maxLength, isNull, reason: 'maxLength draws the counter');
+      expect(field.decoration!.counterText, isNull);
+
+      // Nothing below the field but the actions: with maxLength set, an
+      // empty field still kept a line for a counter nobody asked for.
+      final caption = tester.getRect(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'a');
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.byType(TextField)), caption);
+      expect(find.textContaining('/200'), findsNothing);
+    });
+
+    testWidgets('stops at 200, typed or pasted', (tester) async {
+      String? sent;
+      await pumpReview(
+        tester,
+        share: ShareState.allowed,
+        onShare: (_, caption, _) async {
+          sent = caption;
+          return true;
+        },
+      );
+      // A paste of 250 is truncated, not rejected.
+      await tester.enterText(find.byType(TextField), 'x' * 250);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text.length,
+        kCaptionMaxLength,
+      );
+      // And one character over the line is dropped, not refused: clear
+      // first, because a field already AT the limit rejects a longer value
+      // outright rather than truncating it.
+      await tester.enterText(find.byType(TextField), '');
+      await tester.enterText(find.byType(TextField), '${'y' * 200}z');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share'));
+      await tester.pumpAndSettle();
+      expect(sent!.length, kCaptionMaxLength);
+      expect(sent, 'y' * 200);
+    });
+  });
+
   testWidgets('a failed save keeps the screen up and says so', (tester) async {
     await pumpReview(tester, share: ShareState.allowed, onKeep: (_) async => false);
     await tester.tap(find.text('Keep'));

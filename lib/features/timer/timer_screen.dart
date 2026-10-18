@@ -26,6 +26,8 @@ import '../photos/collages_repository.dart';
 import '../photos/capture_crop.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../photos/capture_flow.dart';
+import 'session_store.dart';
+import 'still_going_sheet.dart';
 import '../photos/capture_review_screen.dart';
 import '../photos/photos_repository.dart';
 import '../profile/profile_providers.dart';
@@ -50,7 +52,107 @@ class TimerScreen extends ConsumerStatefulWidget {
   ConsumerState<TimerScreen> createState() => _TimerScreenState();
 }
 
-class _TimerScreenState extends ConsumerState<TimerScreen> {
+class _TimerScreenState extends ConsumerState<TimerScreen>
+    with WidgetsBindingObserver {
+  /// One "Still going?" at a time, and never a second behind the first.
+  bool _asking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // A cold launch that restored a running session: the restore is async,
+    // so this catches the case where it had already landed by first build,
+    // and the listener in build() catches the case where it had not.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAskStillGoing());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Coming back to the app is the moment to ask. A session crossing three
+  /// hours while someone is watching it is not a forgotten one.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _maybeAskStillGoing();
+  }
+
+  /// Ask whether a long-running session is real, and act on the answer.
+  Future<void> _maybeAskStillGoing() async {
+    if (_asking || !mounted) return;
+    final timer = ref.read(timerControllerProvider.notifier);
+    if (!timer.shouldAskStillGoing) return;
+    final clock = timer.clock;
+    if (clock == null) return;
+    final now = ref.read(nowProvider)();
+    final task = ref.read(selectedTaskProvider);
+
+    _asking = true;
+    try {
+      final answer = await showStillGoingSheet(
+        context,
+        taskName: task?.name ?? 'Your session',
+        elapsed: clock.elapsedAt(now),
+        startedAt: clock.startedAt,
+        now: now,
+      );
+      if (!mounted) return;
+      switch (answer) {
+        // Dismissal is impossible from the sheet, but a route can still be
+        // popped from under it; treat anything that is not an answer as
+        // "leave the session alone", and ask again next time.
+        case null:
+        case StillGoingAnswer(choice: StillGoing.keepGoing):
+          timer.confirmStillGoing();
+        case StillGoingAnswer(endedAt: final DateTime endedAt):
+          await _onStopAt(context, ref, endedAt);
+        case StillGoingAnswer():
+          await _onStop(context, ref, task);
+      }
+    } finally {
+      _asking = false;
+    }
+  }
+
+  /// Stop a session that ran past its work, logging only up to [endedAt].
+  ///
+  /// No camera: nobody is standing at the end of this session with
+  /// something to photograph — they are remembering one that finished
+  /// hours ago. A milestone the CORRECTED time earns is still celebrated.
+  Future<void> _onStopAt(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime endedAt,
+  ) async {
+    final outcome = await ref
+        .read(timerControllerProvider.notifier)
+        .stop(endedAt: endedAt);
+    ref.read(focusModeProvider.notifier).disable();
+    if (!context.mounted) return;
+    if (outcome.reachedMilestone && outcome.taskId != null) {
+      unawaited(
+        _autoComposeCollage(ref, outcome.taskId!, outcome.milestoneHours!),
+      );
+      await showMilestoneCelebration(
+        context,
+        taskId: outcome.taskId!,
+        taskName: outcome.taskName ?? 'task',
+        milestoneHours: outcome.milestoneHours!,
+        totalHours: outcome.totalHours,
+        sessionSeconds: outcome.loggedSeconds,
+        cumulativeSeconds: outcome.totalSeconds,
+        isFirst: outcome.isFirstMilestone,
+      );
+      return;
+    }
+    _say(
+      'Logged ${DurationFormat.hm(Duration(seconds: outcome.loggedSeconds))}',
+    );
+  }
+
   /// True once "Start" has been tapped and the control has split into the
   /// "Focus / Start" choice. Lives here rather than in the control itself so a
   /// tap anywhere else on Home can close it again.
@@ -97,6 +199,14 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
       for (final t in todayHabits?.ticks ?? const []) t.done,
     ];
     final period = ref.watch(centrePeriodProvider);
+
+    // A restored session arrives after the first frame, so the question has
+    // to follow it rather than wait for the next resume.
+    ref.listen(timerControllerProvider, (previous, next) {
+      if (previous?.isRunning != true && next.isRunning) {
+        _maybeAskStillGoing();
+      }
+    });
 
     // Focus Mode replaces the whole home with the quietened focused view.
     if (ref.watch(focusModeProvider)) {

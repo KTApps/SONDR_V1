@@ -298,12 +298,21 @@ void main() {
           _task('Piano', seconds: 20 * 3600 - 60),
         ],
       );
-      final rings = tester
-          .widgetList<ProgressRing>(find.byType(ProgressRing))
-          .toList();
-      // Hero first, then the two tiles in order.
-      expect(rings[1].progress, kProgressFloor);
-      expect(rings[2].progress, kProgressCeiling);
+      // By name, not by position: the tiles are alphabetical now, and this
+      // test is about the clamp rather than the order.
+      double ringFor(String task) => tester
+          .widget<ProgressRing>(
+            find.descendant(
+              of: find.ancestor(
+                of: find.text(task),
+                matching: find.byType(Column),
+              ).first,
+              matching: find.byType(ProgressRing),
+            ),
+          )
+          .progress;
+      expect(ringFor('Spanish'), kProgressFloor);
+      expect(ringFor('Piano'), kProgressCeiling);
       expectNoOverflow(tester);
     });
 

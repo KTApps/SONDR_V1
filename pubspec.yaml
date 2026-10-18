@@ -49,6 +49,10 @@ dependencies:
   cached_network_image: ^3.4.1
   url_launcher: ^6.3.3
   shared_preferences: ^2.5.6
+  # Named directly only for SharedPreferencesAsyncFoundationOptions, which
+  # carries the App Group suite name. shared_preferences already depends on
+  # it on every platform; it just doesn't re-export the Apple-only options.
+  shared_preferences_foundation: ^2.5.7
   screen_brightness: ^2.1.11
 
 dev_dependencies:

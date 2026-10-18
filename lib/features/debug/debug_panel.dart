@@ -17,6 +17,7 @@ import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
+import '../timer/timer_controller.dart';
 import 'position_readout.dart';
 
 /// QA-only debug panel. Reached solely from the `kDebugTools`-gated entry on the
@@ -69,6 +70,17 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
   }
 
   // ── Task / time (through the real logSeconds path stop() uses) ────────────
+
+  /// Start (or rewind) a session so it looks four hours old — past the
+  /// three-hour mark, so the next foreground asks about it.
+  Future<String> _backdateSession() async {
+    if (_taskId == null) return 'Pick a task first.';
+    ref.read(selectedTaskIdProvider.notifier).select(_taskId!);
+    ref
+        .read(timerControllerProvider.notifier)
+        .backdateForDebug(const Duration(hours: 4));
+    return 'Session now reads 4h. Background the app and come back.';
+  }
 
   Future<String> _createTask() async {
     final t = await ref
@@ -291,6 +303,14 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
               'Seed populated collage (N photos + collage doc)',
               () =>
                   _run('Seeding collage', () => _seedPhotos(withCollage: true)),
+            ),
+
+            _section('Session'),
+            // The "Still going?" prompt needs a session three hours old.
+            // Waiting three hours to see it is not a test.
+            _btn(
+              'Start a session that began 4h ago',
+              () => _run('Backdating', _backdateSession),
             ),
 
             _section('Measurement'),

@@ -142,6 +142,34 @@ class TimerController extends Notifier<TimerState> {
     _publish();
   }
 
+  /// Move the running session's start back by [by], for testing the
+  /// "Still going?" prompt without sitting through three hours.
+  ///
+  /// DEBUG_TOOLS only — the one caller is behind that gate, so this is
+  /// unreachable in a release build.
+  void backdateForDebug(Duration by) {
+    final clock = _clock;
+    final now = _now();
+    _clock = clock == null
+        ? SessionClock(
+            startedAt: now.subtract(by),
+            taskId: ref.read(selectedTaskIdProvider),
+          )
+        : SessionClock(
+            startedAt: clock.startedAt.subtract(by),
+            pausedTotal: clock.pausedTotal,
+            pausedAt: clock.pausedAt,
+            taskId: clock.taskId,
+            confirmedAt: clock.confirmedAt,
+          );
+    if (_clock!.isPaused) {
+      _publish();
+    } else {
+      _startTicking();
+      _publish();
+    }
+  }
+
   /// Re-read the clock now, as the app coming back from the background
   /// does. Named for the test, because simulating a lifecycle event is a
   /// worse way to ask the same question.

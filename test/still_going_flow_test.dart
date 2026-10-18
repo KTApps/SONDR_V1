@@ -94,6 +94,38 @@ void main() {
     });
   });
 
+  test('the debug backdate makes a session old enough to ask about', () {
+    final c = container();
+    c.read(selectedTaskIdProvider.notifier).select('t1');
+    final timer = c.read(timerControllerProvider.notifier);
+    expect(timer.shouldAskStillGoing, isFalse);
+
+    timer.backdateForDebug(const Duration(hours: 4));
+    expect(timer.shouldAskStillGoing, isTrue);
+    expect(timer.clock!.taskId, 't1');
+    expect(c.read(timerControllerProvider).isRunning, isTrue);
+    expect(timer.clock!.elapsedAt(now), const Duration(hours: 4));
+  });
+
+  test('backdating a session already running rewinds it, keeping its pause',
+      () {
+    final c = container();
+    final timer = c.read(timerControllerProvider.notifier);
+    timer.start();
+    now = t0.add(const Duration(minutes: 30));
+    timer.pause();
+    now = t0.add(const Duration(minutes: 40));
+    timer.start();
+
+    timer.backdateForDebug(const Duration(hours: 4));
+    // 40 minutes of clock plus four hours, less the ten-minute pause.
+    expect(
+      timer.clock!.elapsedAt(now),
+      const Duration(hours: 4, minutes: 30),
+    );
+    expect(timer.clock!.pausedTotal, const Duration(minutes: 10));
+  });
+
   group('stopping at a corrected end time', () {
     test('logs only up to that time, paused time included', () async {
       final c = container();

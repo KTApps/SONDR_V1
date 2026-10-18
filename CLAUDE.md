@@ -97,6 +97,12 @@ dependency set actually changes — then they are the record of which versions
 this branch was tested against, and they get committed with the pubspec
 change that caused them.
 
+**`ios/Runner.xcodeproj/project.pbxproj` is the same kind of exception.** A
+build rewrites it with nothing in it — restore that. But a change that adds a
+capability, a target, a file reference or a build setting is a real change, and
+it is committed with the work that needed it. Read the diff before deciding:
+if it only moves generated plugin lines around, it is churn.
+
 ## Git
 
 Never push without being asked. Never force push, rebase, or rewrite history.

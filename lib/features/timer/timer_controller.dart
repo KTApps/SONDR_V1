@@ -127,6 +127,21 @@ class TimerController extends Notifier<TimerState> {
     WidgetsBinding.instance.addObserver(observer);
   }
 
+  /// The running session, for anything that needs more than its elapsed
+  /// time — when it started, what it is for, whether to ask about it.
+  SessionClock? get clock => _clock;
+
+  /// Whether to ask "Still going?" right now.
+  bool get shouldAskStillGoing => _clock?.shouldAsk(_now()) ?? false;
+
+  /// Record that someone has said the session is real.
+  void confirmStillGoing() {
+    final clock = _clock;
+    if (clock == null) return;
+    _clock = clock.confirmedNow(_now());
+    _publish();
+  }
+
   /// Re-read the clock now, as the app coming back from the background
   /// does. Named for the test, because simulating a lifecycle event is a
   /// worse way to ask the same question.
@@ -148,13 +163,24 @@ class TimerController extends Notifier<TimerState> {
     if (persist) unawaited(_store.write(clock));
   }
 
-  Future<StopOutcome> stop() async {
+  /// Stop and commit.
+  ///
+  /// [endedAt] corrects a session that ran past its work — the timer left
+  /// on at lunch. Everything downstream, the milestone check included, uses
+  /// the LOGGED amount, so a crossing the forgotten hours would have caused
+  /// does not happen and one the real work caused still does.
+  Future<StopOutcome> stop({DateTime? endedAt}) async {
     _ticker?.cancel();
+    final clock = _clock;
     // The clock, not the last tick: a session stopped straight after the
     // phone was unlocked must count the time the screen was dark, and the
     // ticker has not run since it went off.
-    final seconds = (_clock?.elapsedAt(_now()) ?? state.sessionElapsed)
-        .inSeconds;
+    final elapsed = clock == null
+        ? state.sessionElapsed
+        : (endedAt == null
+              ? clock.elapsedAt(_now())
+              : clock.loggedUntil(endedAt));
+    final seconds = elapsed.inSeconds;
     final task = ref.read(selectedTaskProvider);
 
     var milestoneHours = 0;

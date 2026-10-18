@@ -9,6 +9,7 @@ import '../../shared/sondr_action.dart';
 import '../../shared/sondr_loading.dart';
 import '../../core/utils/figma_scale.dart';
 import '../debug/debug_panel.dart';
+import '../timer/live_activity.dart';
 import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
 import 'auth_screen.dart';
@@ -165,7 +166,14 @@ class _SignedInView extends ConsumerWidget {
                 // nothing to pop now that this lives inside the Profile tab.
                 label: 'Sign out',
                 supporting: true,
-                onPressed: () => ref.read(authRepositoryProvider).signOut(),
+                onPressed: () async {
+                  // The card names a task belonging to whoever is signing
+                  // out. It has to go even though the session itself does
+                  // not — nothing here is allowed to throw away logged
+                  // time.
+                  await ref.read(liveActivityProvider).clear();
+                  await ref.read(authRepositoryProvider).signOut();
+                },
               ),
               // QA-only, and a plain word rather than the outlined pill it
               // used to be up the page: a border around a dev entry made it

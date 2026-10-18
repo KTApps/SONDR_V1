@@ -26,11 +26,13 @@ import '../photos/collages_repository.dart';
 import '../photos/capture_crop.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../photos/capture_flow.dart';
+import 'live_activity.dart';
 import 'session_store.dart';
 import 'still_going_sheet.dart';
 import '../photos/capture_review_screen.dart';
 import '../photos/photos_repository.dart';
 import '../profile/profile_providers.dart';
+import '../shell/main_shell.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'centre_period.dart';
@@ -57,6 +59,8 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
   /// One "Still going?" at a time, and never a second behind the first.
   bool _asking = false;
 
+  StreamSubscription<String>? _taps;
+
   @override
   void initState() {
     super.initState();
@@ -65,12 +69,43 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     // so this catches the case where it had already landed by first build,
     // and the listener in build() catches the case where it had not.
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAskStillGoing());
+    unawaited(_armCard());
   }
 
   @override
   void dispose() {
+    unawaited(_taps?.cancel());
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Listen for taps on the Lock Screen card, then say we are ready for
+  /// them.
+  ///
+  /// This screen rather than the app's root because the stop flow — the
+  /// celebration, the camera, the review — lives here, and the shell keeps
+  /// it mounted behind whichever tab is showing.
+  Future<void> _armCard() async {
+    final card = ref.read(liveActivityProvider);
+    _taps = card.links.listen(_onCardTap);
+    // Ready means restored. A tap held from before the app was running is
+    // delivered the moment this lands, and not a moment earlier.
+    await ref.read(timerControllerProvider.notifier).restored;
+    await card.ready();
+  }
+
+  /// Act on a tap, whether the app was already running or is only now
+  /// finishing its launch because of it.
+  Future<void> _onCardTap(String action) {
+    final timer = ref.read(timerControllerProvider.notifier);
+    return CardTapRouter(
+      restored: timer.restored,
+      alive: () => mounted,
+      onHome: () => ref.read(selectedTabProvider.notifier).set(0),
+      onPause: timer.pause,
+      onResume: timer.start,
+      onStop: () => _onStop(context, ref, ref.read(selectedTaskProvider)),
+    ).handle(action);
   }
 
   /// Coming back to the app is the moment to ask. A session crossing three

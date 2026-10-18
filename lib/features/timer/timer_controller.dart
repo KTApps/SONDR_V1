@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
+import 'live_activity.dart';
 import 'session_clock.dart';
 import 'session_store.dart';
 
@@ -58,8 +59,19 @@ class TimerController extends Notifier<TimerState> {
   /// written again.
   String? _written;
 
+  final Completer<void> _restored = Completer<void>();
+
+  /// Completes when the first read of the stored session has landed, found
+  /// one or not.
+  ///
+  /// A tap on the Lock Screen card can arrive before this — the card
+  /// outlives the process — and acting on it any earlier would be acting on
+  /// a session the app has not read yet.
+  Future<void> get restored => _restored.future;
+
   DateTime _now() => ref.read(nowProvider)();
   SessionStore get _store => ref.read(sessionStoreProvider);
+  LiveActivity get _card => ref.read(liveActivityProvider);
 
   @override
   TimerState build() {
@@ -82,21 +94,39 @@ class TimerController extends Notifier<TimerState> {
   ///
   /// Public so the test for it does not have to fake a process death.
   Future<void> restore() async {
-    if (_clock != null) return;
-    final found = await _store.read();
-    if (found == null || _clock != null) return;
-    _clock = found;
-    _written = found.encode();
-    // Put the task back too. Selection is not persisted, so a restored
-    // session would otherwise be running against nothing and Stop would
-    // credit no task — the time would come back and then go nowhere.
-    final taskId = found.taskId;
-    if (taskId != null) {
-      ref.read(selectedTaskIdProvider.notifier).select(taskId);
+    try {
+      if (_clock != null) return;
+      final found = await _store.read();
+      // Start can be pressed while the read is in flight — the restore is
+      // fired from build() and nothing waits for it. Whatever was stored is
+      // then stale, and clearing the card would take down the one Start had
+      // just put up.
+      if (_clock != null) return;
+      if (found == null) {
+        // No session, so no card. One can still be on the Lock Screen from
+        // a launch that was killed mid-session: the app is the only thing
+        // that can take it away.
+        unawaited(_card.clear());
+        return;
+      }
+      _clock = found;
+      _written = found.encode();
+      // Put the task back too. Selection is not persisted, so a restored
+      // session would otherwise be running against nothing and Stop would
+      // credit no task — the time would come back and then go nowhere.
+      final taskId = found.taskId;
+      if (taskId != null) {
+        ref.read(selectedTaskIdProvider.notifier).select(taskId);
+      }
+      if (!found.isPaused) _startTicking();
+      // Nothing has changed about the session, so do not write it back.
+      _publish(persist: false);
+      // A session that outlived its process has no card; one that was only
+      // backgrounded has a stale one. Both want the same call.
+      unawaited(_card.show(_clock!));
+    } finally {
+      if (!_restored.isCompleted) _restored.complete();
     }
-    if (!found.isPaused) _startTicking();
-    // Nothing has changed about the session, so do not write it back.
-    _publish(persist: false);
   }
 
   /// Start a new session, or resume a paused one.
@@ -114,6 +144,7 @@ class TimerController extends Notifier<TimerState> {
         );
     _startTicking();
     _publish();
+    unawaited(_card.show(_clock!));
   }
 
   /// Pause without committing — the elapsed time is kept.
@@ -122,6 +153,8 @@ class TimerController extends Notifier<TimerState> {
     _ticker?.cancel();
     _clock = _clock?.pause(_now());
     _publish();
+    final clock = _clock;
+    if (clock != null) unawaited(_card.show(clock));
   }
 
   void _startTicking() {
@@ -271,6 +304,10 @@ class TimerController extends Notifier<TimerState> {
     _clock = null;
     _written = null;
     unawaited(_store.clear());
+    // Every way out of a session lands here — Stop, Stop now, Set end time,
+    // a session too short to photograph — so this is the only place the
+    // card has to be taken away.
+    unawaited(_card.clear());
     state = const TimerState();
     return StopOutcome(
       loggedSeconds: seconds,

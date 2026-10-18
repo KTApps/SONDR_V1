@@ -1,5 +1,13 @@
 import 'dart:convert';
 
+/// How long a session may run before the app asks whether it is real, and
+/// how much further it must run before it asks again.
+///
+/// Three hours is longer than any session anyone sits through by accident
+/// and short enough that a timer forgotten at lunch is caught the same
+/// afternoon.
+const Duration kStillGoingInterval = Duration(hours: 3);
+
 /// A session, as the wall clock sees it.
 ///
 /// The timer used to be a counter that a one-second ticker incremented. A
@@ -16,6 +24,7 @@ class SessionClock {
     this.pausedTotal = Duration.zero,
     this.pausedAt,
     this.taskId,
+    this.confirmedAt = Duration.zero,
   });
 
   /// When Start was first pressed.
@@ -31,7 +40,34 @@ class SessionClock {
   /// was for.
   final String? taskId;
 
+  /// The elapsed reading at which someone last said the session was real.
+  ///
+  /// A timer left running overnight counts the night, because the clock is
+  /// the wall's. Asking "Still going?" is the guard — and this is what
+  /// stops it asking again on every glance, without stopping it asking
+  /// again later.
+  final Duration confirmedAt;
+
   bool get isPaused => pausedAt != null;
+
+  /// Someone has just said the session is real; do not ask again until it
+  /// has run [kStillGoingInterval] further.
+  SessionClock confirmedNow(DateTime now) => SessionClock(
+    startedAt: startedAt,
+    pausedTotal: pausedTotal,
+    pausedAt: pausedAt,
+    taskId: taskId,
+    confirmedAt: elapsedAt(now),
+  );
+
+  /// Whether to ask whether this session is still going.
+  ///
+  /// A paused session never asks: it is accruing nothing, so there is
+  /// nothing to protect against.
+  bool shouldAsk(DateTime now) {
+    if (isPaused) return false;
+    return elapsedAt(now) - confirmedAt >= kStillGoingInterval;
+  }
 
   /// How long this session has run, at [now].
   ///
@@ -69,11 +105,29 @@ class SessionClock {
     taskId: taskId,
   );
 
+  /// The time logged if the session ended at [end].
+  ///
+  /// The same arithmetic as [elapsedAt] — paused time comes off either way
+  /// — so a corrected end time cannot smuggle in a different definition of
+  /// how long the work took.
+  Duration loggedUntil(DateTime end) {
+    final raw = end.difference(startedAt) - pausedTotal - _pauseSoFar(end);
+    return raw.isNegative ? Duration.zero : raw;
+  }
+
+  /// The current pause, counted only up to [end].
+  Duration _pauseSoFar(DateTime end) {
+    final since = pausedAt;
+    if (since == null || !end.isAfter(since)) return Duration.zero;
+    return end.difference(since);
+  }
+
   Map<String, dynamic> toMap() => {
     'startedAt': startedAt.millisecondsSinceEpoch,
     'pausedMs': pausedTotal.inMilliseconds,
     if (pausedAt != null) 'pausedAt': pausedAt!.millisecondsSinceEpoch,
     if (taskId != null) 'taskId': taskId,
+    if (confirmedAt > Duration.zero) 'confirmedMs': confirmedAt.inMilliseconds,
   };
 
   static SessionClock? fromMap(Map<String, dynamic>? map) {
@@ -90,6 +144,11 @@ class SessionClock {
           ? DateTime.fromMillisecondsSinceEpoch(pausedAt)
           : null,
       taskId: map['taskId'] is String ? map['taskId'] as String : null,
+      confirmedAt: Duration(
+        milliseconds: map['confirmedMs'] is int
+            ? map['confirmedMs'] as int
+            : 0,
+      ),
     );
   }
 

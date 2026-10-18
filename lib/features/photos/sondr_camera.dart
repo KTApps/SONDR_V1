@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
@@ -9,6 +10,7 @@ import '../../shared/ring/progress_ring.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../../shared/sondr_action.dart';
 import 'capture_crop.dart';
+import 'screen_flash.dart';
 import 'open_app_settings.dart';
 
 /// Reference-point geometry. Device values are these × figmaScale, so on a
@@ -37,18 +39,31 @@ const double kCameraControlGap = 32;
 /// three states to cycle, not four.
 enum CaptureFlash { off, on, auto }
 
-extension on CaptureFlash {
+extension CaptureFlashX on CaptureFlash {
   String get label => switch (this) {
     CaptureFlash.off => 'Flash off',
     CaptureFlash.on => 'Flash on',
     CaptureFlash.auto => 'Flash auto',
   };
 
-  CaptureFlash get next => switch (this) {
+  /// The next setting on this lens.
+  ///
+  /// The front camera has no lamp — its flash is the screen — and a screen
+  /// cannot read the room, so there is no "auto" to offer. Two states
+  /// there, three at the back.
+  CaptureFlash nextOn({required bool front}) => switch (this) {
     CaptureFlash.off => CaptureFlash.on,
-    CaptureFlash.on => CaptureFlash.auto,
+    CaptureFlash.on => front ? CaptureFlash.off : CaptureFlash.auto,
     CaptureFlash.auto => CaptureFlash.off,
   };
+
+  /// What this setting becomes on the other lens.
+  ///
+  /// "On" means the same thing either way — light this shot — so it
+  /// survives the flip. "Auto" has no front equivalent and becomes off
+  /// rather than silently turning into an always-on screen flash.
+  CaptureFlash forLens({required bool front}) =>
+      front && this == CaptureFlash.auto ? CaptureFlash.off : this;
 
   FlashMode get mode => switch (this) {
     CaptureFlash.off => FlashMode.off,
@@ -77,8 +92,8 @@ abstract class CameraSession {
 
   Future<void> setFlash(CaptureFlash flash);
 
-  /// False on a device (or a lens) with no flash — the control is hidden
-  /// rather than shown doing nothing.
+  /// False on a device with no camera at all. The FRONT lens has no lamp,
+  /// but it has the screen, so the control is offered there too.
   bool get hasFlash;
 
   /// False when there is only one lens, which hides "flip".
@@ -103,7 +118,7 @@ class DeviceCameraSession implements CameraSession {
   bool get canFlip => _cameras.length > 1;
 
   @override
-  bool get hasFlash => !_front && _cameras.isNotEmpty;
+  bool get hasFlash => _cameras.isNotEmpty;
 
   @override
   Future<CameraTrouble?> start({bool front = false}) async {
@@ -196,6 +211,7 @@ class DeviceCameraSession implements CameraSession {
 /// Finders for the test harness, which measures this screen's geometry.
 const Key kViewfinderKey = Key('sondr-viewfinder');
 const Key kShutterKey = Key('sondr-shutter');
+const Key kScreenFlashKey = Key('sondr-screen-flash');
 
 /// The sondr camera: a 3:4 viewfinder and a shutter that doubles as the
 /// task's progress ring.
@@ -211,6 +227,7 @@ class SondrCameraScreen extends StatefulWidget {
     required this.ringProgress,
     this.session,
     this.onOpenSettings,
+    this.screenFlash,
   });
 
   final String taskName;
@@ -225,6 +242,10 @@ class SondrCameraScreen extends StatefulWidget {
   /// Injected by tests; a real device session otherwise.
   final CameraSession? session;
 
+  /// The front camera's flash. Injected by tests, which have no screen to
+  /// brighten.
+  final ScreenFlash? screenFlash;
+
   /// Injected by tests; [openAppSettings] otherwise.
   final Future<void> Function()? onOpenSettings;
 
@@ -235,6 +256,11 @@ class SondrCameraScreen extends StatefulWidget {
 class _SondrCameraScreenState extends State<SondrCameraScreen>
     with WidgetsBindingObserver {
   late final CameraSession _session = widget.session ?? DeviceCameraSession();
+  late final ScreenFlash _screenFlash =
+      widget.screenFlash ?? DeviceScreenFlash();
+
+  /// True while the white sheet is over the screen for a front-flash shot.
+  bool _screenLit = false;
   CameraTrouble? _trouble;
   CaptureFlash _flash = CaptureFlash.off;
   bool _front = false;
@@ -252,6 +278,9 @@ class _SondrCameraScreenState extends State<SondrCameraScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _session.stop();
+    // Leaving mid-flash — a pop, an error, a route swapped out — must not
+    // leave the screen at full brightness.
+    unawaited(_screenFlash.restore());
     super.dispose();
   }
 
@@ -263,7 +292,13 @@ class _SondrCameraScreenState extends State<SondrCameraScreen>
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
       _session.stop();
-      if (mounted) setState(() => _ready = false);
+      unawaited(_screenFlash.restore());
+      if (mounted) {
+        setState(() {
+          _ready = false;
+          _screenLit = false;
+        });
+      }
     } else if (state == AppLifecycleState.resumed && !_ready) {
       _start();
     }
@@ -280,12 +315,16 @@ class _SondrCameraScreenState extends State<SondrCameraScreen>
   }
 
   Future<void> _flip() async {
-    setState(() => _front = !_front);
+    final front = !_front;
+    setState(() {
+      _front = front;
+      _flash = _flash.forLens(front: front);
+    });
     await _start();
   }
 
   Future<void> _cycleFlash() async {
-    final next = _flash.next;
+    final next = _flash.nextOn(front: _front);
     setState(() => _flash = next);
     await _session.setFlash(next);
   }
@@ -293,7 +332,30 @@ class _SondrCameraScreenState extends State<SondrCameraScreen>
   Future<void> _shoot() async {
     if (_busy || !_ready) return;
     setState(() => _busy = true);
-    final raw = await _session.capture();
+
+    // The front camera's flash is the screen. Put the white sheet up and
+    // the brightness to full BEFORE the shutter, and take both down after
+    // it whatever happened — an early return that left the screen white
+    // would hand back a phone that looks broken.
+    final lighting = _front && _flash == CaptureFlash.on;
+    if (lighting) {
+      setState(() => _screenLit = true);
+      await _screenFlash.raise();
+      // Long enough for the sheet to be on the glass before the sensor is
+      // asked for anything. A delay rather than endOfFrame: the frame hook
+      // never resolves in a widget test, which pumps only when told to,
+      // and a capture that cannot complete under test is not testable.
+      await Future<void>.delayed(const Duration(milliseconds: 32));
+    }
+    Uint8List? raw;
+    try {
+      raw = await _session.capture();
+    } finally {
+      if (lighting) {
+        await _screenFlash.restore();
+        if (mounted) setState(() => _screenLit = false);
+      }
+    }
     if (!mounted) return;
     if (raw == null) {
       setState(() => _busy = false);
@@ -316,6 +378,17 @@ class _SondrCameraScreenState extends State<SondrCameraScreen>
     final scale = figmaScale(context);
     final media = MediaQuery.of(context);
     final viewfinderWidth = media.size.width - 2 * kCameraSideInset * scale;
+
+    if (_screenLit) {
+      // Nothing but light. The viewfinder underneath would be the brightest
+      // thing a front flash could point at the subject, which is a photo of
+      // the room they are in rather than of them.
+      return const ColoredBox(
+        key: kScreenFlashKey,
+        color: Color(0xFFFFFFFF),
+        child: SizedBox.expand(),
+      );
+    }
 
     return Scaffold(
       backgroundColor: tokens.background,

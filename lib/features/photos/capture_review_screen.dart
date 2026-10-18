@@ -127,8 +127,15 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
   final ScrollController _scroll = ScrollController();
   final FocusNode _captionFocus = FocusNode();
   final Set<String> _chosen = {};
-  bool _busy = false;
+
+  /// Which action is working, so only that one says so. Both are disabled
+  /// while either runs — the other has not been chosen, and saying
+  /// "Sharing…" on a Keep would be the screen reporting the wrong thing
+  /// about itself.
+  _Working? _working;
   String? _error;
+
+  bool get _busy => _working != null;
 
   @override
   void initState() {
@@ -157,12 +164,12 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
 
   Future<void> _keep() async {
     if (_busy) return;
-    setState(() => _busy = true);
+    setState(() => _working = _Working.keeping);
     final ok = await widget.onKeep?.call(ref) ?? true;
     if (!mounted) return;
     if (!ok) {
       setState(() {
-        _busy = false;
+        _working = null;
         _error = 'Couldn’t save the photo. Please try again.';
       });
       return;
@@ -172,7 +179,7 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
 
   Future<void> _share() async {
     if (_busy) return;
-    setState(() => _busy = true);
+    setState(() => _working = _Working.sharing);
     final text = _caption.text.trim();
     final also = selectedBandInOrder(widget.bandPhotos, _chosen);
     final ok =
@@ -181,7 +188,7 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
     if (!mounted) return;
     if (!ok) {
       setState(() {
-        _busy = false;
+        _working = null;
         _error = 'Couldn’t create the post. Please try again.';
       });
       return;
@@ -293,13 +300,13 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
               if (widget.share.canShare)
                 Center(
                   child: SondrAction(
-                    label: _busy ? 'Sharing…' : 'Share',
+                    label: _working == _Working.sharing ? 'Sharing…' : 'Share',
                     onPressed: _busy ? null : _share,
                   ),
                 ),
               Center(
                 child: SondrAction(
-                  label: _busy && !widget.share.canShare ? 'Saving…' : 'Keep',
+                  label: _working == _Working.keeping ? 'Keeping…' : 'Keep',
                   supporting: widget.share.canShare,
                   onPressed: _busy ? null : _keep,
                 ),
@@ -405,3 +412,6 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
     );
   }
 }
+
+/// Which action is in flight.
+enum _Working { keeping, sharing }

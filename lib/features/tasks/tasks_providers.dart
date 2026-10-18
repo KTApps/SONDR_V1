@@ -5,6 +5,7 @@ import '../../core/backend.dart';
 import 'firestore_tasks_repository.dart';
 import 'local_tasks_repository.dart';
 import 'models/task.dart';
+import 'task_order.dart';
 import 'tasks_repository.dart';
 
 /// The active [TasksRepository]. Firestore when Firebase is ready and selected,
@@ -79,18 +80,24 @@ final tasksProvider =
 /// calendar, the day detail and the Milestones page stay on [tasksProvider],
 /// because archiving a task does not un-log its hours.
 final activeTasksProvider = Provider<List<Task>>((ref) {
-  return [
+  return _byName([
     for (final t in ref.watch(tasksProvider).value ?? const <Task>[])
       if (!t.archived) t,
-  ];
+  ]);
 });
+
+/// Alphabetical, so a list someone scans for a name is where the name
+/// would be. Creation order only ever matched that by accident, and the
+/// accident ran out at the fourth task.
+List<Task> _byName(List<Task> tasks) =>
+    tasks..sort((a, b) => compareTaskNames(a.name, b.name));
 
 /// The put-away tasks, for the archived view behind the dropdown's "Archived".
 final archivedTasksProvider = Provider<List<Task>>((ref) {
-  return [
+  return _byName([
     for (final t in ref.watch(tasksProvider).value ?? const <Task>[])
       if (t.archived) t,
-  ];
+  ]);
 });
 
 /// The id of the explicitly selected task. **Null is the default "Task"

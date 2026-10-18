@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
+import 'package:sondr/features/photos/screen_flash.dart';
 import 'package:sondr/features/photos/sondr_camera.dart';
 import 'package:sondr/shared/ring/progress_ring.dart';
 import 'package:sondr/shared/ring/ring_metrics.dart';
@@ -18,7 +19,9 @@ void main() {
     CameraTrouble? trouble,
     bool hasFlash = true,
     bool canFlip = true,
+    bool captureFails = false,
     Future<void> Function()? onOpenSettings,
+    _FakeFlash? screenFlash,
   }) async {
     tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -28,7 +31,12 @@ void main() {
     );
     addTearDown(tester.view.reset);
 
-    final fake = _Fake(trouble: trouble, flash: hasFlash, flip: canFlip);
+    final fake = _Fake(
+      trouble: trouble,
+      flash: hasFlash,
+      flip: canFlip,
+      captureFails: captureFails,
+    );
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.dark(),
@@ -44,6 +52,7 @@ void main() {
           ringProgress: 0.4,
           session: fake,
           onOpenSettings: onOpenSettings,
+          screenFlash: screenFlash ?? _FakeFlash(),
         ),
       ),
     );
@@ -180,6 +189,152 @@ void main() {
     ]);
   });
 
+  group('the front camera', () {
+    testWidgets('offers two flash settings, not three', (tester) async {
+      await pumpCamera(tester);
+      await tester.tap(find.text('Flip'));
+      await tester.pumpAndSettle();
+
+      // off → on → off. "Auto" is a lamp reading the room, and the front
+      // flash is the screen, which cannot.
+      expect(find.text('Flash off'), findsOneWidget);
+      await tester.tap(find.textContaining('Flash'));
+      await tester.pumpAndSettle();
+      expect(find.text('Flash on'), findsOneWidget);
+      await tester.tap(find.textContaining('Flash'));
+      await tester.pumpAndSettle();
+      expect(find.text('Flash off'), findsOneWidget);
+      expect(find.text('Flash auto'), findsNothing);
+    });
+
+    testWidgets('the rear keeps all three', (tester) async {
+      await pumpCamera(tester);
+      for (final expected in ['Flash on', 'Flash auto', 'Flash off']) {
+        await tester.tap(find.textContaining('Flash'));
+        await tester.pumpAndSettle();
+        expect(find.text(expected), findsOneWidget);
+      }
+    });
+
+    testWidgets('"on" survives a flip; "auto" becomes off', (tester) async {
+      await pumpCamera(tester);
+      // Rear, on → flip → still on.
+      await tester.tap(find.textContaining('Flash'));
+      await tester.pumpAndSettle();
+      expect(find.text('Flash on'), findsOneWidget);
+      await tester.tap(find.text('Flip'));
+      await tester.pumpAndSettle();
+      expect(find.text('Flash on'), findsOneWidget);
+
+      // Back, on → auto → flip → off, rather than a silent always-on
+      // screen flash.
+      await tester.tap(find.text('Flip'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Flash'));
+      await tester.pumpAndSettle();
+      expect(find.text('Flash auto'), findsOneWidget);
+      await tester.tap(find.text('Flip'));
+      await tester.pumpAndSettle();
+      expect(find.text('Flash off'), findsOneWidget);
+    });
+
+    testWidgets('a lit capture whitens the screen and puts it back', (
+      tester,
+    ) async {
+      final flash = _FakeFlash();
+      await pumpCamera(tester, screenFlash: flash);
+      await tester.tap(find.text('Flip'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Flash'));
+      await tester.pumpAndSettle();
+      expect(find.text('Flash on'), findsOneWidget);
+      expect(find.byKey(kScreenFlashKey), findsNothing);
+
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(kShutterKey));
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+      });
+      await tester.pumpAndSettle();
+
+      // Raised before the shutter and put back after, in that order.
+      expect(flash.calls.take(2).toList(), ['raise', 'restore']);
+      expect(flash.lit, isFalse, reason: 'the screen was left at full');
+      // And the white sheet is gone before the review screen.
+      expect(find.byKey(kScreenFlashKey), findsNothing);
+    });
+
+    testWidgets('a capture that fails still puts the screen back', (
+      tester,
+    ) async {
+      // The screen stays mounted here, so dispose cannot be the thing that
+      // restores it — this is the only test that proves the capture itself
+      // does, and it is why the restore sits in a finally.
+      final flash = _FakeFlash();
+      await pumpCamera(tester, screenFlash: flash, captureFails: true);
+      await tester.tap(find.text('Flip'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Flash'));
+      await tester.pumpAndSettle();
+
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(kShutterKey));
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+      });
+      await tester.pumpAndSettle();
+
+      // Still on the camera, and no longer white.
+      expect(find.byKey(kViewfinderKey), findsOneWidget);
+      expect(find.byKey(kScreenFlashKey), findsNothing);
+      expect(flash.calls, ['raise', 'restore']);
+      expect(flash.lit, isFalse, reason: 'the screen was left at full');
+      // And the shutter works again.
+      expect(find.byKey(kShutterKey), findsOneWidget);
+    });
+
+    testWidgets('an unlit capture leaves the screen alone', (tester) async {
+      final flash = _FakeFlash();
+      await pumpCamera(tester, screenFlash: flash);
+      await tester.tap(find.text('Flip'));
+      await tester.pumpAndSettle();
+      // Front, flash OFF.
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(kShutterKey));
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+      });
+      await tester.pumpAndSettle();
+      // Nothing was raised. A restore may arrive from dispose when the
+      // route pops, which is the safety net and not this test's business.
+      expect(flash.calls, isNot(contains('raise')));
+      expect(find.byKey(kScreenFlashKey), findsNothing);
+    });
+
+    testWidgets('the REAR camera never whitens the screen', (tester) async {
+      final flash = _FakeFlash();
+      await pumpCamera(tester, screenFlash: flash);
+      await tester.tap(find.textContaining('Flash'));
+      await tester.pumpAndSettle();
+      expect(find.text('Flash on'), findsOneWidget);
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(kShutterKey));
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+      });
+      await tester.pumpAndSettle();
+      expect(
+        flash.calls,
+        isNot(contains('raise')),
+        reason: 'the rear lamp used the screen',
+      );
+    });
+
+    testWidgets('leaving the screen restores the brightness', (tester) async {
+      final flash = _FakeFlash();
+      await pumpCamera(tester, screenFlash: flash);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      expect(flash.calls, contains('restore'));
+    });
+  });
+
   testWidgets('a camera with no flash shows no flash control', (tester) async {
     await pumpCamera(tester, hasFlash: false);
     expect(find.textContaining('Flash'), findsNothing);
@@ -259,9 +414,16 @@ void main() {
 
 /// A camera that is not a camera.
 class _Fake implements CameraSession {
-  _Fake({this.trouble, bool flash = true, bool flip = true})
-    : hasFlash = flash,
-      canFlip = flip;
+  _Fake({
+    this.trouble,
+    bool flash = true,
+    bool flip = true,
+    this.captureFails = false,
+  }) : hasFlash = flash,
+       canFlip = flip;
+
+  /// A camera that cannot take the shot — the screen stays put afterwards.
+  final bool captureFails;
 
   final CameraTrouble? trouble;
   @override
@@ -284,12 +446,17 @@ class _Fake implements CameraSession {
     return trouble;
   }
 
+  /// What the screen would have done.
+  int raises = 0;
+  int restores = 0;
+
   @override
   Widget preview(BuildContext context) => const SizedBox.expand();
 
   @override
   Future<Uint8List?> capture() async {
     captures++;
+    if (captureFails) return null;
     // Not a decodable image: the screen must still pop something.
     return Uint8List.fromList(List.filled(32, 7));
   }
@@ -299,4 +466,23 @@ class _Fake implements CameraSession {
 
   @override
   Future<void> stop() async {}
+}
+
+
+/// The screen flash, without a screen.
+class _FakeFlash implements ScreenFlash {
+  final List<String> calls = [];
+  bool lit = false;
+
+  @override
+  Future<void> raise() async {
+    calls.add('raise');
+    lit = true;
+  }
+
+  @override
+  Future<void> restore() async {
+    calls.add('restore');
+    lit = false;
+  }
 }

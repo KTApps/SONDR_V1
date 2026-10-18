@@ -317,6 +317,119 @@ void main() {
     expect(typed.height, closeTo(labelRect.height, 0.5));
   });
 
+  group('the list is alphabetical', () {
+    /// The pill labels, top to bottom.
+    List<String> pillOrder(WidgetTester tester) => tester
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byType(SondrSwipeRow),
+            matching: find.byType(Text),
+          ),
+        )
+        .map((t) => t.data)
+        .whereType<String>()
+        .where((t) => t != 'Archive' && t != 'Unarchive')
+        .toList();
+
+    testWidgets('the pills read as a person would expect', (tester) async {
+      await openMenu(tester);
+      final container = containerOf(tester);
+      // Two more, created in the unhelpful order, on top of the seeded
+      // Spanish / Piano / Golf. Five fits: the list builds lazily, so a
+      // longer one would leave later names unbuilt and unfindable.
+      await container.read(tasksProvider.notifier).addTask('Test 10');
+      await container.read(tasksProvider.notifier).addTask('Test 9');
+      await tester.pumpAndSettle();
+
+      expect(pillOrder(tester), [
+        'Golf',
+        'Piano',
+        'Spanish',
+        'Test 9',
+        'Test 10',
+      ]);
+    });
+
+    testWidgets('the provider sorts the whole list, however long', (
+      tester,
+    ) async {
+      await openMenu(tester);
+      final container = containerOf(tester);
+      for (final name in ['piano', 'Test 10', 'drawing', 'Test 9', 'zeta']) {
+        await container.read(tasksProvider.notifier).addTask(name);
+      }
+      await tester.pumpAndSettle();
+      expect(container.read(activeTasksProvider).map((t) => t.name).toList(), [
+        'drawing',
+        'Golf',
+        // The same word twice: they sit together, uppercase first, which
+        // is arbitrary but fixed — what matters is that it never varies.
+        'Piano',
+        'piano',
+        'Spanish',
+        'Test 9',
+        'Test 10',
+        'zeta',
+      ]);
+    });
+
+    testWidgets('a new task lands in its place, not at the end', (
+      tester,
+    ) async {
+      await openMenu(tester);
+      await tester.tap(find.text('Add task'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(EditableText), 'Aardvark');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      await reopenMenu(tester);
+      expect(pillOrder(tester).first, 'Aardvark');
+      // And it is the selected one, as it has always been.
+      expect(
+        containerOf(tester).read(selectedTaskProvider)?.name,
+        'Aardvark',
+      );
+    });
+
+    testWidgets('the draft stays at the top while it is being typed', (
+      tester,
+    ) async {
+      await openMenu(tester);
+      await tester.tap(find.text('Add task'));
+      await tester.pumpAndSettle();
+      // A name that would sort last once it exists.
+      await tester.enterText(find.byType(EditableText), 'Zebra');
+      await tester.pumpAndSettle();
+
+      final draft = tester.getRect(find.byType(TextField));
+      for (final pill in find.byType(SondrSwipeRow).evaluate()) {
+        expect(
+          tester.getRect(find.byWidget(pill.widget)).top,
+          greaterThan(draft.top),
+          reason: 'the draft was sorted into the list while being typed',
+        );
+      }
+    });
+
+    testWidgets('the archived list is sorted too', (tester) async {
+      await openMenu(tester);
+      final container = containerOf(tester);
+      for (final name in ['zeta', 'Alpha', 'Test 10', 'Test 2']) {
+        final task = await container.read(tasksProvider.notifier).addTask(name);
+        await container.read(tasksProvider.notifier).setArchived(task.id, true);
+      }
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Archive').hitTestable());
+      await tester.pumpAndSettle();
+
+      final order = pillOrder(tester);
+      expect(order.indexOf('Alpha'), lessThan(order.indexOf('Test 2')));
+      expect(order.indexOf('Test 2'), lessThan(order.indexOf('Test 10')));
+      expect(order.indexOf('Test 10'), lessThan(order.indexOf('zeta')));
+    });
+  });
+
   test('the controller refuses a nameless task', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);

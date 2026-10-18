@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'dial_geometry.dart';
+
 import 'ring_metrics.dart';
 
 /// The home dial's data-driven dual ring (segmented, pure greyscale).
@@ -19,7 +21,7 @@ import 'ring_metrics.dart';
 ///
 /// Dimensions follow the Figma proportionally (outer 290 / inner 220 / stroke
 /// 20 / slit 5, scaled to [size]).
-class SegmentedDial extends StatelessWidget {
+class SegmentedDial extends StatefulWidget {
   const SegmentedDial({
     super.key,
     required this.taskTodaySeconds,
@@ -110,13 +112,36 @@ class SegmentedDial extends StatelessWidget {
 
     if (entries.length == 1) {
       // Single task with time → full solid ring, no slit.
-      return _RingData([_Seg(1, colourFor(entries.first.key))], slits: false);
+      return _RingData(
+        [
+          _Seg(1, colourFor(entries.first.key), taskIndex: entries.first.key),
+        ],
+        slits: false,
+      );
     }
 
     return _RingData(
-      [for (final e in entries) _Seg(e.value, colourFor(e.key))],
+      [
+        for (final e in entries) _Seg(e.value, colourFor(e.key), taskIndex: e.key),
+      ],
       slits: true,
     );
+  }
+
+  /// The turn that puts the selected slice at 12, from the live data.
+  double _targetRotation() {
+    final data = _outer();
+    final selected = selectedTaskIndex;
+    if (selected == null) return 0;
+    final index = data.segments.indexWhere((s) => s.taskIndex == selected);
+    if (index < 0) return 0;
+    final slitAngle = (data.slits && data.segments.length > 1)
+        ? (_slit / _outerRadius)
+        : 0.0;
+    return outerSegmentStarts(
+      weights: [for (final s in data.segments) s.weight],
+      slitAngle: slitAngle,
+    )[index];
   }
 
   _RingData _inner() {
@@ -132,42 +157,104 @@ class SegmentedDial extends StatelessWidget {
   }
 
   @override
+  State<SegmentedDial> createState() => _SegmentedDialState();
+}
+
+class _SegmentedDialState extends State<SegmentedDial>
+    with SingleTickerProviderStateMixin {
+  /// The turn currently on screen. Follows the data except while a new
+  /// selection is being turned to.
+  late double _rotation = widget._targetRotation();
+
+  /// Where the turn started, and how far it has to go. Held rather than
+  /// recomputed so the animation is a straight interpolation of angle
+  /// while the slices underneath stay live.
+  ///
+  /// Built in initState, not lazily: a dial that never turns — every Last
+  /// 10 days cell, every calendar day — would otherwise reach dispose
+  /// having never touched this, and CREATE the controller on the way out,
+  /// which looks up an ancestor of a widget that is already deactivated.
+  late final AnimationController _turn;
+  double _turnFrom = 0;
+  double _turnDelta = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _turn = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    )..addListener(_onTurn);
+  }
+
+  void _onTurn() {
+    setState(() {
+      _rotation = _turnFrom + _turnDelta * Curves.easeOut.transform(_turn.value);
+    });
+  }
+
+  @override
+  void didUpdateWidget(SegmentedDial old) {
+    super.didUpdateWidget(old);
+    final target = widget._targetRotation();
+    if (old.selectedTaskIndex != widget.selectedTaskIndex) {
+      // A different task: turn to it, the short way round.
+      _turnFrom = _rotation;
+      _turnDelta = shortestTurn(_rotation, target);
+      _turn.forward(from: 0);
+      return;
+    }
+    if (_turn.isAnimating) return;
+    // Same task, new proportions — the selected slice growing, or another
+    // task's time landing. Follow the data: the selected slice stays
+    // pinned at 12 by construction, so there is nothing to animate.
+    if (target != _rotation) setState(() => _rotation = target);
+  }
+
+  @override
+  void dispose() {
+    _turn.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: size,
-      height: size,
+      width: widget.size,
+      height: widget.size,
       child: Stack(
         alignment: Alignment.center,
         children: [
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapUp: onInnerRingTap == null
+            onTapUp: widget.onInnerRingTap == null
                 ? null
                 : (details) {
-                    if (_hitsInnerRing(details.localPosition)) {
-                      onInnerRingTap!();
+                    if (widget._hitsInnerRing(details.localPosition)) {
+                      widget.onInnerRingTap!();
                     }
                   },
             child: CustomPaint(
-              size: Size.square(size),
+              size: Size.square(widget.size),
               painter: _SegmentedDialPainter(
-                outerRadius: _outerRadius,
-                innerRadius: _innerRadius,
-                stroke: _stroke,
-                slit: _slit,
-                outer: _outer(),
-                inner: _inner(),
+                outerRadius: widget._outerRadius,
+                innerRadius: widget._innerRadius,
+                stroke: widget._stroke,
+                slit: widget._slit,
+                outer: widget._outer(),
+                inner: widget._inner(),
+                outerRotation: _rotation,
               ),
             ),
           ),
           // Circular fill sized to sit just inside the outer ring's inner edge.
-          if (fill != null)
+          if (widget.fill != null)
             SizedBox(
-              width: _outerRadius * 2 - _stroke,
-              height: _outerRadius * 2 - _stroke,
-              child: ClipOval(child: fill),
+              width: widget._outerRadius * 2 - widget._stroke,
+              height: widget._outerRadius * 2 - widget._stroke,
+              child: ClipOval(child: widget.fill),
             ),
-          ?center,
+          ?widget.center,
         ],
       ),
     );
@@ -176,9 +263,13 @@ class SegmentedDial extends StatelessWidget {
 
 /// One ring segment: a relative [weight] (arc share) and its [color].
 class _Seg {
-  const _Seg(this.weight, this.color);
+  const _Seg(this.weight, this.color, {this.taskIndex});
   final double weight;
   final Color color;
+
+  /// Which task this slice is, so the ring can be turned to put a chosen
+  /// one at 12. Null on the inner band and on the empty placeholder.
+  final int? taskIndex;
 }
 
 /// A ring's segments plus whether slits separate them.
@@ -196,6 +287,7 @@ class _SegmentedDialPainter extends CustomPainter {
     required this.slit,
     required this.outer,
     required this.inner,
+    required this.outerRotation,
   });
 
   final double outerRadius;
@@ -204,6 +296,9 @@ class _SegmentedDialPainter extends CustomPainter {
   final double slit;
   final _RingData outer;
   final _RingData inner;
+
+  /// How far the outer band is turned, so the selected slice opens at 12.
+  final double outerRotation;
 
   static const double _startAngle = -math.pi / 2; // 12 o'clock
 
@@ -230,7 +325,10 @@ class _SegmentedDialPainter extends CustomPainter {
     final slitAngle =
         (data.slits && segments.length > 1) ? (slit / radius) : 0.0;
     final available = (2 * math.pi) - (slitAngle * segments.length);
-    var start = _startAngle + slitAngle / 2;
+    // The turn that puts the chosen slice at 12. Zero on the inner band
+    // and whenever nothing is selected.
+    final turn = identical(data, outer) ? outerRotation : 0.0;
+    var start = _startAngle + slitAngle / 2 - turn;
 
     for (final seg in segments) {
       final sweep = (seg.weight / total) * available;
@@ -242,7 +340,8 @@ class _SegmentedDialPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SegmentedDialPainter old) {
-    return old.outerRadius != outerRadius ||
+    return old.outerRotation != outerRotation ||
+        old.outerRadius != outerRadius ||
         old.innerRadius != innerRadius ||
         old.stroke != stroke ||
         old.slit != slit ||

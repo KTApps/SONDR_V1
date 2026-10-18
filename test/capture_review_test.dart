@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:sondr/features/photos/capture_crop.dart';
 import 'package:sondr/features/photos/capture_review_screen.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/sondr_camera.dart';
+import 'package:sondr/shared/sondr_action.dart';
 
 /// The review screen: the shot at the size it was framed at, and the two
 /// things that can be done with it.
@@ -233,6 +235,92 @@ void main() {
       await tester.pumpAndSettle();
       expect(sent!.length, kCaptionMaxLength);
       expect(sent, 'y' * 200);
+    });
+  });
+
+  group('while it is working', () {
+    /// An action that does not finish until released, so the busy state can
+    /// be looked at.
+    (Future<bool> Function(WidgetRef), void Function()) held() {
+      final completer = Completer<bool>();
+      return ((_) => completer.future, () => completer.complete(true));
+    }
+
+    testWidgets('Keep says "Keeping…" and Share keeps its own name', (
+      tester,
+    ) async {
+      final (onKeep, release) = held();
+      await pumpReview(
+        tester,
+        share: ShareState.allowed,
+        onKeep: onKeep,
+      );
+      await tester.tap(find.text('Keep'));
+      await tester.pump();
+
+      expect(find.text('Keeping…'), findsOneWidget);
+      expect(find.text('Keep'), findsNothing);
+      // The action nobody chose does not narrate.
+      expect(find.text('Share'), findsOneWidget);
+      expect(
+        find.text('Sharing…'),
+        findsNothing,
+        reason: 'Keep made Share claim to be working',
+      );
+      // And it cannot be tapped while the other runs.
+      expect(
+        tester.widget<SondrAction>(find.byType(SondrAction).last).onPressed,
+        isNull,
+      );
+      release();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('Share says "Sharing…" and Keep keeps its own name', (
+      tester,
+    ) async {
+      final completer = Completer<bool>();
+      await pumpReview(
+        tester,
+        share: ShareState.allowed,
+        onShare: (_, _, _) => completer.future,
+      );
+      await tester.tap(find.text('Share'));
+      await tester.pump();
+
+      expect(find.text('Sharing…'), findsOneWidget);
+      expect(find.text('Share'), findsNothing);
+      expect(find.text('Keep'), findsOneWidget);
+      expect(find.text('Keeping…'), findsNothing);
+      completer.complete(true);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('the keep-only variant says "Keeping…" too', (tester) async {
+      final (onKeep, release) = held();
+      await pumpReview(
+        tester,
+        share: ShareState.underTwentyHours,
+        onKeep: onKeep,
+      );
+      await tester.tap(find.text('Keep'));
+      await tester.pump();
+      expect(find.text('Keeping…'), findsOneWidget);
+      // The old copy, which said what the code was doing rather than what
+      // the person had asked for.
+      expect(find.text('Saving…'), findsNothing);
+      release();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a guest keeping says the same', (tester) async {
+      final (onKeep, release) = held();
+      await pumpReview(tester, share: ShareState.guest, onKeep: onKeep);
+      await tester.tap(find.text('Keep'));
+      await tester.pump();
+      expect(find.text('Keeping…'), findsOneWidget);
+      release();
+      await tester.pumpAndSettle();
     });
   });
 

@@ -54,6 +54,10 @@ class TimerController extends Notifier<TimerState> {
   SessionClock? _clock;
   _Resync? _observer;
 
+  /// The last thing written to the store, so an unchanged clock is not
+  /// written again.
+  String? _written;
+
   DateTime _now() => ref.read(nowProvider)();
   SessionStore get _store => ref.read(sessionStoreProvider);
 
@@ -82,6 +86,7 @@ class TimerController extends Notifier<TimerState> {
     final found = await _store.read();
     if (found == null || _clock != null) return;
     _clock = found;
+    _written = found.encode();
     // Put the task back too. Selection is not persisted, so a restored
     // session would otherwise be running against nothing and Stop would
     // credit no task — the time would come back and then go nowhere.
@@ -160,6 +165,8 @@ class TimerController extends Notifier<TimerState> {
             pausedTotal: clock.pausedTotal,
             pausedAt: clock.pausedAt,
             taskId: clock.taskId,
+            taskName: clock.taskName,
+            taskSecondsBefore: clock.taskSecondsBefore,
             confirmedAt: clock.confirmedAt,
           );
     if (_clock!.isPaused) {
@@ -176,19 +183,46 @@ class TimerController extends Notifier<TimerState> {
   @visibleForTesting
   void resyncForTest() => _publish();
 
+  /// Fill in what the Live Activity needs and the app does not.
+  ///
+  /// A session can start on a cold launch before the task list has arrived,
+  /// so the name and the task's prior seconds are picked up the first time
+  /// they are there. Prior seconds do not move while a session runs —
+  /// nothing is credited to the task until it stops — so reading them late
+  /// gives the same answer as reading them at the start.
+  SessionClock _withTask(SessionClock clock) {
+    if (clock.taskName != null) return clock;
+    final task = ref.read(selectedTaskProvider);
+    if (task == null || task.id != clock.taskId) return clock;
+    return clock.copyWith(
+      taskName: task.name,
+      taskSecondsBefore: task.totalSeconds,
+    );
+  }
+
   /// Push the clock's current answer into state, and keep the stored copy up
   /// to date.
   void _publish({bool persist = true}) {
     final clock = _clock;
     if (clock == null) {
       state = const TimerState();
+      _written = null;
       return;
     }
+    _clock = _withTask(clock);
     state = TimerState(
-      status: clock.isPaused ? TimerStatus.paused : TimerStatus.running,
-      sessionElapsed: clock.elapsedAt(_now()),
+      status: _clock!.isPaused ? TimerStatus.paused : TimerStatus.running,
+      sessionElapsed: _clock!.elapsedAt(_now()),
     );
-    if (persist) unawaited(_store.write(clock));
+    if (!persist) return;
+    // The ticker publishes once a second and the clock does not change on a
+    // tick — elapsed is derived from it, not written into it. Writing the
+    // same bytes sixty times a minute would be a platform call a second for
+    // nothing.
+    final encoded = _clock!.encode();
+    if (encoded == _written) return;
+    _written = encoded;
+    unawaited(_store.write(_clock!));
   }
 
   /// Stop and commit.
@@ -235,6 +269,7 @@ class TimerController extends Notifier<TimerState> {
     }
 
     _clock = null;
+    _written = null;
     unawaited(_store.clear());
     state = const TimerState();
     return StopOutcome(

@@ -174,12 +174,10 @@ blocking is enforced only in the app.
 
     firebase deploy --only firestore:rules --project sondr-cd439
 
-**Never deploy from here without `--project`.** `.firebaserc` says
-`prodapp-b90ac` while `firebase.json` points every app target at
-`sondr-cd439` — so a bare `firebase deploy` publishes Sondr's rules to the
-wrong project, silently, and overwrites whatever that project is running. The
-app's own rules would never arrive, and the block would look deployed while
-being unenforced.
+**Pass `--project` anyway.** `.firebaserc` now says `sondr-cd439` (fixed
+20 October 2026; it used to say `prodapp-b90ac`, the legacy Prod1 project,
+so a bare deploy published Sondr's rules there). Both projects are on the
+same account and a default is one `firebase use` from drifting again.
 
 **What was built.** A directional `blocks/{blocker}__{blocked}` document,
 readable by the blocker alone and carrying the blocked person's denormalised
@@ -202,9 +200,9 @@ Friends' swipe Block now blocks, retiring the alias-to-Remove liability.
   filter against the blocked set or an audience rewrite on unfriend.
 - **Comments by a blocked person on a mutual friend's post are still shown.**
   Deferred deliberately.
-- **`.firebaserc` should probably be corrected to `sondr-cd439`**, but it was
-  left alone: nobody has confirmed whether `prodapp-b90ac` is still wanted for
-  something. Until that is answered, always pass `--project`.
+- **`.firebaserc` is corrected.** `prodapp-b90ac` was the Firebase project
+  behind `Prod1/`, the predecessor SwiftUI app — nothing in this repo wanted
+  it. The default is `sondr-cd439` as of 20 October 2026.
 
 ### The original note, kept for history
 
@@ -428,15 +426,53 @@ four still ink:
       (`ring_painter`'s two `.45` halo values are the sanctioned on-photo case.)
       Wants a small scrim scale — three or four named steps.
 
-### 7. Backend gap — reciprocal blocks
+### 7. Backend gap — reciprocal blocks — INVESTIGATED, DEFERRED
 
-- [ ] `bbc3198` hides content by people **you** blocked. The reciprocal case —
-      someone who blocked **you** — cannot be filtered client-side: their block
-      document is readable by its author alone, and that is deliberate, since
-      being able to read it would let you detect you had been blocked.
-      **Needs a cloud function** that drops the blocker from the other party's
-      post audiences on block creation. No client half-measure: any attempt
-      either leaks the block or silently fails.
+Investigated 20 October 2026. Deferred by decision; no code written.
+
+**The asymmetry today.** A blocks B. A stops seeing B: `feedProvider` and
+`postCommentsProvider` filter by `blockedUidsProvider`, and both fail open.
+B keeps seeing A — B has blocked nobody, so B's client filters nothing, and
+`audience` is frozen at post time so the unfriend cannot retroactively
+remove B from A's existing posts. Concretely, B still sees **A's existing
+feed posts** and **A's comments on mutual friends' posts**. The friendship
+itself does go both ways (one shared document, deleted in the same batch),
+requests and accepts are refused across a block in either direction by the
+rules, and nothing tells B they were blocked.
+
+**Firestore rules are not filters.** This is the constraint that rules out
+the obvious fix. A query succeeds only if the rules can prove EVERY matching
+document is readable without evaluating them one by one; a read rule that
+calls `exists()` per document makes the whole query fail with
+`permission-denied` rather than quietly omitting the rows. So "deny posts
+whose author blocked the reader" would not hide A's posts from B — it would
+take B's entire feed down. **Do not build that without first proving the
+opposite in the emulator.**
+
+**Candidate fixes.**
+
+- **(c2) Rewrite the blocker's post audiences on block — Spark-compatible.**
+  On block, A removes B from the `audience` array of A's own posts. Uses the
+  mechanism that already exists, needs no new infrastructure and no plan
+  change, and is the only half of this that can be done today. Costs N writes
+  bounded by A's post count, and only reaches the posts it rewrites.
+- **Comments need a server-side approach — Cloud Function, Blaze.** A cannot
+  write to a mutual friend's post or its comments, so there is no
+  client-authored way to remove A's comments from B's view of someone else's
+  thread. That half waits for a function.
+
+**Mirroring the block from the client is not an option.** Rules evaluate each
+document in a batch independently, so "allow this `blockedBy` write only if
+the matching `blocks` write is in the same batch" cannot be expressed. The
+nearest expressible rule lets anyone write a `blockedBy` naming anyone, and
+worse, an `exists()` the blocked user can trigger is a probe that tells them
+they have been blocked.
+
+**The plan.** Cloud Functions has never been enabled on `sondr-cd439` —
+`functions:list` returns `SERVICE_DISABLED`, and there is no `functions/`
+folder or `functions` key in `firebase.json`. Whether the project is on Spark
+or Blaze could not be read from the CLI (no `gcloud`); check the console
+before planning anything that needs a function.
 
 ### 8. Device-verification backlog — 7 screens
 

@@ -108,10 +108,21 @@ Check `which` before believing a path in this section.
 **`Prod1/` and `Prod1.xcodeproj/` are legacy.** A predecessor native SwiftUI app,
 not part of the Flutter build. Don't edit them as if they were live code.
 
-**`.firebaserc` points at `prodapp-b90ac`**, but the app uses `sondr-cd439`
-(see `lib/firebase_options.dart` and `ios/Runner/GoogleService-Info.plist`).
-Anything deployed via the Firebase CLI from this repo would hit the wrong
-project. Unresolved — ask before acting on it.
+**The Firebase default is now correct.** `.firebaserc` says `sondr-cd439`,
+which is what `firebase.json`, `lib/firebase_options.dart` and
+`ios/Runner/GoogleService-Info.plist` have always said. It used to say
+`prodapp-b90ac` — the predecessor app's project, see `Prod1/` above — so a
+bare `firebase deploy` published Sondr's rules to ProdApp.
+
+Still pass `--project sondr-cd439` on deploys. The two projects are both on
+this machine's account and a default is one `firebase use` away from being
+something else:
+
+```bash
+firebase deploy --only firestore:rules --project sondr-cd439
+```
+
+`firebase deploy --dry-run` validates and resolves without publishing.
 
 ## Build churn — do not commit
 

@@ -13,6 +13,7 @@
 		13B8269FE7CB8918D01C8A3A /* SessionMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		25C4774EFED1E1CC7EC7284D /* SondrPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A0A7E50A96250EB714B0106 /* SondrPalette.swift */; };
+		311DEA9F38484E0253310527 /* SondrIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A53A9F23C61867C485DF16F /* SondrIntents.swift */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		391A3EEB5B96994C2A68ECB7 /* MilestoneWordingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
@@ -23,10 +24,12 @@
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
 		8C3B8237BF708F2A8DD0A29B /* SondrActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF5E69E53654FF93F62DDD9 /* SondrActivityAttributes.swift */; };
+		92EA64FF843CD7FD61B008F0 /* SondrActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF5E69E53654FF93F62DDD9 /* SondrActivityAttributes.swift */; };
 		957906BAEB05DDB67FD6FAFA /* SondrActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF5E69E53654FF93F62DDD9 /* SondrActivityAttributes.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		9A5AD02011EE67BB11B787FC /* SondrIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A53A9F23C61867C485DF16F /* SondrIntents.swift */; };
 		A0FC935FF946C24E4B44B175 /* MilestoneWording.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424F466EE18E9FFF553E32AF /* MilestoneWording.swift */; };
 		A34F8A028D8E6C8F9556D7D6 /* SessionActivityChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 186BA34378E8A1DAB72E3ABB /* SessionActivityChannel.swift */; };
 		AC4A11188DB2DE3C24567553 /* MilestoneWording.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424F466EE18E9FFF553E32AF /* MilestoneWording.swift */; };
@@ -35,9 +38,11 @@
 		D905D7DF88CF3927CC99C997 /* SessionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 321192FF6E879C02EC1E5F1E /* SessionMutation.swift */; };
 		DF0C0822EE59AA0258AA50A1 /* SessionSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD09A5DE43A3AEE27C89A57E /* SessionSnapshot.swift */; };
 		DFF2D490B3AF8CEAC78FED9C /* Inter-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9E2624A08FF2E130A4A72BC4 /* Inter-Variable.ttf */; };
+		E0DAA23CC78FC179DD2D39A4 /* SondrIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A53A9F23C61867C485DF16F /* SondrIntents.swift */; };
 		EEF0B2E32A3532829EEFBA69 /* SessionSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD09A5DE43A3AEE27C89A57E /* SessionSnapshot.swift */; };
 		EEFA24E3F2859DE2D4C552E4 /* SondrSessionActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF38F66481C9144BD51A067 /* SondrSessionActivity.swift */; };
 		F1C9AED4C8A28708F4E40600 /* SondrWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 678AEAC8B66358CA9DD273D0 /* SondrWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F4570C3FC8374E21368CDA89 /* SessionControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */; };
 		F67260029DD4B86A833692E6 /* SondrRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07F985F35E6610D3F20811A /* SondrRing.swift */; };
 /* End PBXBuildFile section */
 
@@ -83,6 +88,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionControlTests.swift; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		186BA34378E8A1DAB72E3ABB /* SessionActivityChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionActivityChannel.swift; sourceTree = "<group>"; };
@@ -94,6 +100,7 @@
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		424F466EE18E9FFF553E32AF /* MilestoneWording.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MilestoneWording.swift; sourceTree = "<group>"; };
 		4430ADE4653C351BAAEB430F /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
+		4A53A9F23C61867C485DF16F /* SondrIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrIntents.swift; sourceTree = "<group>"; };
 		678AEAC8B66358CA9DD273D0 /* SondrWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SondrWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		67FC1EB3886F336D9235DF24 /* SessionSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionSnapshotTests.swift; sourceTree = "<group>"; };
 		72A1E9AF34E92D362053FC0B /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
@@ -164,6 +171,7 @@
 				67FC1EB3886F336D9235DF24 /* SessionSnapshotTests.swift */,
 				7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */,
 				8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */,
+				09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -250,6 +258,7 @@
 				9E2624A08FF2E130A4A72BC4 /* Inter-Variable.ttf */,
 				424F466EE18E9FFF553E32AF /* MilestoneWording.swift */,
 				321192FF6E879C02EC1E5F1E /* SessionMutation.swift */,
+				4A53A9F23C61867C485DF16F /* SondrIntents.swift */,
 			);
 			name = SondrWidgets;
 			path = SondrWidgets;
@@ -513,6 +522,9 @@
 				391A3EEB5B96994C2A68ECB7 /* MilestoneWordingTests.swift in Sources */,
 				D905D7DF88CF3927CC99C997 /* SessionMutation.swift in Sources */,
 				13B8269FE7CB8918D01C8A3A /* SessionMutationTests.swift in Sources */,
+				E0DAA23CC78FC179DD2D39A4 /* SondrIntents.swift in Sources */,
+				F4570C3FC8374E21368CDA89 /* SessionControlTests.swift in Sources */,
+				92EA64FF843CD7FD61B008F0 /* SondrActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -528,6 +540,7 @@
 				C64A9F10059A2EDD831A575E /* SondrWidgetsBundle.swift in Sources */,
 				A0FC935FF946C24E4B44B175 /* MilestoneWording.swift in Sources */,
 				0B8DFF424E8FD8DDEB311B98 /* SessionMutation.swift in Sources */,
+				311DEA9F38484E0253310527 /* SondrIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -542,6 +555,7 @@
 				957906BAEB05DDB67FD6FAFA /* SondrActivityAttributes.swift in Sources */,
 				A34F8A028D8E6C8F9556D7D6 /* SessionActivityChannel.swift in Sources */,
 				3DCA1D35ADA88ABCD140861F /* SessionMutation.swift in Sources */,
+				9A5AD02011EE67BB11B787FC /* SondrIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -717,6 +731,8 @@
 					"$(inherited)",
 					"-weak_framework",
 					ActivityKit,
+					"-weak_framework",
+					AppIntents,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tanakabere.sondr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -939,6 +955,8 @@
 					"$(inherited)",
 					"-weak_framework",
 					ActivityKit,
+					"-weak_framework",
+					AppIntents,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tanakabere.sondr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -968,6 +986,8 @@
 					"$(inherited)",
 					"-weak_framework",
 					ActivityKit,
+					"-weak_framework",
+					AppIntents,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tanakabere.sondr;
 				PRODUCT_NAME = "$(TARGET_NAME)";

@@ -38,4 +38,17 @@ extension SondrActivityAttributes.ContentState {
       taskSecondsBefore: Double(taskSecondsBefore)
     )
   }
+
+  /// The other direction: a session on its way to the card.
+  ///
+  /// Shared, because three places now push one — the app when the timer
+  /// changes, and each of the two buttons on the card itself.
+  init(_ session: SessionSnapshot) {
+    self.init(
+      startedAt: session.startedAt,
+      pausedMs: Int((session.pausedTotal * 1000).rounded()),
+      pausedAt: session.pausedAt,
+      taskSecondsBefore: Int(session.taskSecondsBefore.rounded())
+    )
+  }
 }

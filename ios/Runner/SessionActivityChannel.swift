@@ -94,15 +94,7 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
   private static func content(
     of session: SessionSnapshot
   ) -> ActivityContent<SondrActivityAttributes.ContentState> {
-    ActivityContent(
-      state: SondrActivityAttributes.ContentState(
-        startedAt: session.startedAt,
-        pausedMs: Int((session.pausedTotal * 1000).rounded()),
-        pausedAt: session.pausedAt,
-        taskSecondsBefore: Int(session.taskSecondsBefore.rounded())
-      ),
-      staleDate: nil
-    )
+    ActivityContent(state: .init(session), staleDate: nil)
   }
 
   /// Put the session on the Lock Screen, starting a card if there is none.

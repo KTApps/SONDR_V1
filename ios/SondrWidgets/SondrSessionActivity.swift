@@ -1,4 +1,5 @@
 import ActivityKit
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -8,9 +9,13 @@ import WidgetKit
 /// into it. The app registers `sondr` as a URL scheme and routes these.
 enum SondrLink {
   static let home = URL(string: "sondr://home")!
+  static let stop = URL(string: "sondr://stop")!
+
+  /// Pause and Resume are buttons now, handled in place by an intent.
+  /// These stay registered and handled by the app as the fallback route —
+  /// nothing on the card uses them.
   static let pause = URL(string: "sondr://pause")!
   static let resume = URL(string: "sondr://resume")!
-  static let stop = URL(string: "sondr://stop")!
 }
 
 /// The running session, on the Lock Screen and in the Dynamic Island.
@@ -106,20 +111,37 @@ private struct LockScreenCard: View {
 
 /// Pause or Resume, and Stop. The same two words and weights wherever the
 /// card appears.
+///
+/// The first is a button, not a link: it runs an intent in place and the
+/// card redraws without the app being opened. Stop stays a link, because
+/// stopping is the start of the celebration, the camera and the review —
+/// all of which need the app.
 private struct Actions: View {
   let isPaused: Bool
 
   var body: some View {
-    Link(destination: isPaused ? SondrLink.resume : SondrLink.pause) {
-      Text(isPaused ? "Resume" : "Pause")
-        .font(.inter(14, .bold))
-        .foregroundStyle(Ink.primary)
+    if isPaused {
+      Button(intent: ResumeSessionIntent()) { Primary(word: "Resume") }
+        .buttonStyle(.plain)
+    } else {
+      Button(intent: PauseSessionIntent()) { Primary(word: "Pause") }
+        .buttonStyle(.plain)
     }
     Link(destination: SondrLink.stop) {
       Text("Stop")
         .font(.inter(14, .regular))
         .foregroundStyle(Ink.secondary)
     }
+  }
+}
+
+private struct Primary: View {
+  let word: String
+
+  var body: some View {
+    Text(word)
+      .font(.inter(14, .bold))
+      .foregroundStyle(Ink.primary)
   }
 }
 

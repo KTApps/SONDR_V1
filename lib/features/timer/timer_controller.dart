@@ -336,7 +336,15 @@ class TimerController extends Notifier<TimerState> {
       final before = task.milestonesReached;
       await ref
           .read(tasksProvider.notifier)
-          .logSeconds(task.id, seconds, _now());
+          .logSeconds(
+            task.id,
+            seconds,
+            _now(),
+            // Keyed, so a credit that was queued offline and retried
+            // after the app re-read the list is written again rather
+            // than added again.
+            session: clock == null ? null : Task.sessionKey(clock.startedAt),
+          );
       final updated = ref
           .read(tasksProvider)
           .value

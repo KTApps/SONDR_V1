@@ -60,12 +60,28 @@ class TasksController extends AsyncNotifier<List<Task>> {
 
   /// Logs [seconds] of effort against [taskId] on the day [when]. This is how a
   /// finished/paused timer session lands in a task's history.
-  Future<void> logSeconds(String taskId, int seconds, DateTime when) async {
+  /// Credit [seconds] to [taskId] on [when]'s day.
+  ///
+  /// Pass the [session] a real stop is crediting — `Task.sessionKey` of
+  /// its start — and crediting it twice becomes an overwrite instead of
+  /// an addition. The write still happens either way, because the caller
+  /// may be waiting for the server to acknowledge it. Without a session
+  /// this adds every time, which is what the debug time injectors want.
+  Future<void> logSeconds(
+    String taskId,
+    int seconds,
+    DateTime when, {
+    String? session,
+  }) async {
     if (seconds <= 0) return;
     final current = state.value ?? await _repo.fetchAll();
     final task = current.where((t) => t.id == taskId).firstOrNull;
     if (task == null) return;
-    await _repo.save(task.addingSeconds(seconds, when));
+    await _repo.save(
+      session == null
+          ? task.addingSeconds(seconds, when)
+          : task.crediting(session, seconds, when),
+    );
     state = AsyncData(await _repo.fetchAll());
   }
 }

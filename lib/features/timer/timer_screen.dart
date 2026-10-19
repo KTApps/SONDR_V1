@@ -119,6 +119,11 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
   Future<void> _maybeAskStillGoing() async {
     if (_asking || !mounted) return;
     final timer = ref.read(timerControllerProvider.notifier);
+    // Before asking anything: the session may have been paused from the
+    // Lock Screen while the app was away, and a paused session is never
+    // asked about.
+    await timer.sync();
+    if (!mounted) return;
     if (!timer.shouldAskStillGoing) return;
     final clock = timer.clock;
     if (clock == null) return;
@@ -141,7 +146,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
         // "leave the session alone", and ask again next time.
         case null:
         case StillGoingAnswer(choice: StillGoing.keepGoing):
-          timer.confirmStillGoing();
+          await timer.confirmStillGoing();
         case StillGoingAnswer(endedAt: final DateTime endedAt):
           await _onStopAt(context, ref, endedAt);
         case StillGoingAnswer():
@@ -416,7 +421,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
   /// Begin a session. Focus Mode is chosen inline on the control itself
   /// ("Focus | Start"), so there is no prompt to answer here.
   void _startSession(WidgetRef ref, {required bool focus}) {
-    ref.read(timerControllerProvider.notifier).start();
+    unawaited(ref.read(timerControllerProvider.notifier).start());
     if (focus) {
       ref.read(focusModeProvider.notifier).enable();
     }

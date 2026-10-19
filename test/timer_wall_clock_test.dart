@@ -13,7 +13,7 @@ import 'package:sondr/features/timer/timer_controller.dart';
 /// memory. A ticker stops the moment iOS suspends the app, so a locked phone
 /// froze the session; and nothing was written down, so the app being
 /// reclaimed mid-session lost it outright.
-void main() {
+void main() async {
   // The controller registers a lifecycle observer, which needs a binding.
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -41,9 +41,9 @@ void main() {
     tasks = _FakeTasks([const Task(id: 't1', name: 'Spanish')]);
   });
 
-  test('time passes while the app is asleep', () {
+  test('time passes while the app is asleep', () async {
     final c = makeContainer();
-    c.read(timerControllerProvider.notifier).start();
+    await c.read(timerControllerProvider.notifier).start();
     expect(c.read(timerControllerProvider).sessionElapsed, Duration.zero);
 
     // The phone locks. No ticks fire at all — that is the point.
@@ -57,12 +57,12 @@ void main() {
     );
   });
 
-  test('a paused gap is not counted, a running one is', () {
+  test('a paused gap is not counted, a running one is', () async {
     final c = makeContainer();
     final timer = c.read(timerControllerProvider.notifier);
-    timer.start();
+    await timer.start();
     now = t0.add(const Duration(minutes: 10));
-    timer.pause();
+    await timer.pause();
 
     // An hour asleep while paused.
     now = t0.add(const Duration(minutes: 70));
@@ -73,7 +73,7 @@ void main() {
     );
     expect(c.read(timerControllerProvider).status, TimerStatus.paused);
 
-    timer.start();
+    await timer.start();
     now = t0.add(const Duration(minutes: 80));
     timer.resyncForTest();
     expect(
@@ -85,7 +85,7 @@ void main() {
   test('a session killed mid-run comes back on the next launch', () async {
     final first = makeContainer();
     first.read(selectedTaskIdProvider.notifier).select('t1');
-    first.read(timerControllerProvider.notifier).start();
+    await first.read(timerControllerProvider.notifier).start();
     expect(store.saved, isNotNull);
 
     // iOS reclaims the app. A whole new container, as a relaunch is.
@@ -107,9 +107,9 @@ void main() {
   test('a session paused before the kill comes back paused', () async {
     final first = makeContainer();
     final timer = first.read(timerControllerProvider.notifier);
-    timer.start();
+    await timer.start();
     now = t0.add(const Duration(minutes: 5));
-    timer.pause();
+    await timer.pause();
     first.dispose();
 
     now = t0.add(const Duration(hours: 3));
@@ -124,7 +124,7 @@ void main() {
       () async {
     final c = makeContainer();
     c.read(selectedTaskIdProvider.notifier).select('t1');
-    c.read(timerControllerProvider.notifier).start();
+    await c.read(timerControllerProvider.notifier).start();
 
     // Backgrounded for half an hour, stopped the moment it comes back —
     // before any tick could have run.
@@ -149,7 +149,7 @@ void main() {
     final c = makeContainer();
     c.read(selectedTaskIdProvider.notifier).select('t1');
     await c.read(tasksProvider.future);
-    c.read(timerControllerProvider.notifier).start();
+    await c.read(timerControllerProvider.notifier).start();
 
     // The phone locks for ten minutes and crosses the band while asleep.
     now = t0.add(const Duration(minutes: 10));

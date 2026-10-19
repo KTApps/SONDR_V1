@@ -129,8 +129,36 @@ class TimerController extends Notifier<TimerState> {
     }
   }
 
+  /// Take whatever is written down now.
+  ///
+  /// The Lock Screen's buttons pause and resume the session with the app
+  /// suspended or not running at all, so the in-memory clock is only ever
+  /// a cache of the stored one. Anything that reads or writes the session
+  /// calls this first: otherwise the app would show a session that is no
+  /// longer running, or write its own stale copy back over a change it
+  /// never saw.
+  ///
+  /// An empty store is not taken as "no session": a session started a
+  /// moment ago has not been written yet, and the read that missed it must
+  /// not delete it.
+  Future<void> sync() async {
+    final found = await _store.read();
+    if (found == null) return;
+    final current = _clock;
+    if (current != null && found.encode() == current.encode()) return;
+    _clock = found;
+    _written = found.encode();
+    if (found.isPaused) {
+      _ticker?.cancel();
+    } else {
+      _startTicking();
+    }
+    _publish(persist: false);
+  }
+
   /// Start a new session, or resume a paused one.
-  void start() {
+  Future<void> start() async {
+    await sync();
     if (state.isRunning) return;
     final now = _now();
     _clock =
@@ -148,7 +176,8 @@ class TimerController extends Notifier<TimerState> {
   }
 
   /// Pause without committing — the elapsed time is kept.
-  void pause() {
+  Future<void> pause() async {
+    await sync();
     if (!state.isRunning) return;
     _ticker?.cancel();
     _clock = _clock?.pause(_now());
@@ -161,7 +190,7 @@ class TimerController extends Notifier<TimerState> {
     _ticker?.cancel();
     // Repaint, not count: every tick re-reads the clock.
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _publish());
-    final observer = _observer ??= _Resync(_publish);
+    final observer = _observer ??= _Resync(() => unawaited(sync()));
     WidgetsBinding.instance.addObserver(observer);
   }
 
@@ -173,7 +202,8 @@ class TimerController extends Notifier<TimerState> {
   bool get shouldAskStillGoing => _clock?.shouldAsk(_now()) ?? false;
 
   /// Record that someone has said the session is real.
-  void confirmStillGoing() {
+  Future<void> confirmStillGoing() async {
+    await sync();
     final clock = _clock;
     if (clock == null) return;
     _clock = clock.confirmedNow(_now());
@@ -185,7 +215,8 @@ class TimerController extends Notifier<TimerState> {
   ///
   /// DEBUG_TOOLS only — the one caller is behind that gate, so this is
   /// unreachable in a release build.
-  void backdateForDebug(Duration by) {
+  Future<void> backdateForDebug(Duration by) async {
+    await sync();
     final clock = _clock;
     final now = _now();
     _clock = clock == null
@@ -265,6 +296,9 @@ class TimerController extends Notifier<TimerState> {
   /// the LOGGED amount, so a crossing the forgotten hours would have caused
   /// does not happen and one the real work caused still does.
   Future<StopOutcome> stop({DateTime? endedAt}) async {
+    // A session paused from the Lock Screen must be logged as paused, not
+    // as the running one this process last saw.
+    await sync();
     _ticker?.cancel();
     final clock = _clock;
     // The clock, not the last tick: a session stopped straight after the
@@ -364,8 +398,12 @@ class StopOutcome {
 final timerControllerProvider =
     NotifierProvider<TimerController, TimerState>(TimerController.new);
 
-/// Re-reads the clock the instant the app comes back, so the display does
-/// not wait up to a second to admit how long the phone was locked.
+/// Re-reads the session the instant the app comes back.
+///
+/// Not just to stop the display waiting a second to admit how long the
+/// phone was locked — the session may have been paused or resumed from the
+/// Lock Screen while the app was away, and the stored copy is the only
+/// place that happened.
 class _Resync extends WidgetsBindingObserver {
   _Resync(this.onResumed);
 

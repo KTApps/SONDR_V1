@@ -76,7 +76,7 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
   Future<String> _backdateSession() async {
     if (_taskId == null) return 'Pick a task first.';
     ref.read(selectedTaskIdProvider.notifier).select(_taskId!);
-    ref
+    await ref
         .read(timerControllerProvider.notifier)
         .backdateForDebug(const Duration(hours: 4));
     return 'Session now reads 4h. Background the app and come back.';

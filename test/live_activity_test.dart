@@ -16,7 +16,7 @@ import 'package:sondr/features/timer/timer_controller.dart';
 /// It can say a session is running when it is over — a card left behind by a
 /// stop, a sign-out, or a launch that was killed — or it can be tapped before
 /// the app has read the session it claims to be about, and stop nothing.
-void main() {
+void main() async {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final t0 = DateTime(2026, 10, 18, 9);
@@ -52,7 +52,7 @@ void main() {
       await timer.restored;
       card.calls.clear();
 
-      timer.start();
+      await timer.start();
 
       expect(card.calls, ['show']);
       expect(card.shown.single.startedAt, t0);
@@ -62,10 +62,10 @@ void main() {
       final timer = container().read(timerControllerProvider.notifier);
       await timer.restored;
       card.calls.clear();
-      timer.start();
+      await timer.start();
       now = t0.add(const Duration(minutes: 30));
 
-      timer.pause();
+      await timer.pause();
 
       expect(card.calls, ['show', 'show']);
       expect(card.shown.last.isPaused, isTrue);
@@ -76,12 +76,12 @@ void main() {
       final timer = container().read(timerControllerProvider.notifier);
       await timer.restored;
       card.calls.clear();
-      timer.start();
+      await timer.start();
       now = t0.add(const Duration(minutes: 30));
-      timer.pause();
+      await timer.pause();
       now = t0.add(const Duration(minutes: 40));
 
-      timer.start();
+      await timer.start();
 
       expect(card.calls, ['show', 'show', 'show']);
       expect(card.shown.last.isPaused, isFalse);
@@ -98,7 +98,7 @@ void main() {
       await c.read(tasksProvider.future);
       expect(c.read(selectedTaskProvider)?.name, 'Spanish');
 
-      c.read(timerControllerProvider.notifier).start();
+      await c.read(timerControllerProvider.notifier).start();
 
       expect(card.shown.single.taskName, 'Spanish');
       expect(card.shown.single.taskSecondsBefore, 7200);
@@ -117,7 +117,7 @@ void main() {
       // the stop and nothing else.
       await timer.restored;
       card.calls.clear();
-      timer.start();
+      await timer.start();
       now = t0.add(ran);
       card.calls.clear();
       await how(timer);
@@ -149,7 +149,7 @@ void main() {
       final timer = container().read(timerControllerProvider.notifier);
       await timer.restored;
       card.calls.clear();
-      timer.start();
+      await timer.start();
       now = t0.add(const Duration(hours: 1));
       card.calls.clear();
 
@@ -198,11 +198,12 @@ void main() {
       // build() fires the restore and nothing waits for it. Pressing Start
       // in that window used to end with the stale read clearing the card
       // Start had just put up.
-      store.gate = Completer<void>();
+      final gate = Completer<void>();
+      store.gate = gate;
       final timer = container().read(timerControllerProvider.notifier);
 
-      timer.start();
-      store.gate!.complete();
+      await timer.start();
+      gate.complete();
       await timer.restored;
       await Future<void>.delayed(Duration.zero);
 
@@ -387,13 +388,18 @@ class _RecordingCard implements LiveActivity {
 class _MemoryStore implements SessionStore {
   SessionClock? saved;
 
-  /// Holds the read open, the way a cold launch does.
+  /// Holds the FIRST read open, the way a cold launch's does. Only the
+  /// first: the reads anything else makes in that window are the point of
+  /// the test, and must not queue behind it.
   Completer<void>? gate;
 
   @override
   Future<SessionClock?> read() async {
-    final gate = this.gate;
-    if (gate != null) await gate.future;
+    final held = gate;
+    if (held != null) {
+      gate = null;
+      await held.future;
+    }
     return saved;
   }
 

@@ -21,6 +21,7 @@ import '../habits/habits_screen.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
 import '../milestone/milestone_celebration.dart';
+import '../photos/auto_collage.dart';
 import '../photos/collage_selection.dart';
 import '../photos/collages_repository.dart';
 import '../photos/capture_crop.dart';
@@ -30,7 +31,6 @@ import 'live_activity.dart';
 import 'session_store.dart';
 import 'still_going_sheet.dart';
 import '../photos/capture_review_screen.dart';
-import '../photos/photos_repository.dart';
 import '../profile/profile_providers.dart';
 import '../shell/main_shell.dart';
 import '../tasks/models/task.dart';
@@ -174,7 +174,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     if (!context.mounted) return;
     if (outcome.reachedMilestone && outcome.taskId != null) {
       unawaited(
-        _autoComposeCollage(ref, outcome.taskId!, outcome.milestoneHours!),
+        autoComposeCollage(ref, outcome.taskId!, outcome.milestoneHours!),
       );
       await showMilestoneCelebration(
         context,
@@ -456,7 +456,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
       // clobbering a user-edited collage.
       if (creditedTaskId != null) {
         unawaited(
-          _autoComposeCollage(ref, creditedTaskId, outcome.milestoneHours!),
+          autoComposeCollage(ref, creditedTaskId, outcome.milestoneHours!),
         );
       }
       // Share fires on EVERY 20h crossing now (flat bands, no ladder). The
@@ -538,26 +538,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
   /// band of photos (locked window). Photo-id refs only, so it's cheap. The
   /// repo's [CollagesRepository.saveAuto] guard leaves a user-edited collage
   /// untouched, so re-crossing/re-opening never clobbers curation.
-  Future<void> _autoComposeCollage(
-    WidgetRef ref,
-    String taskId,
-    int milestoneHours,
-  ) async {
-    final photos = ref.read(photosRepositoryProvider);
-    final collages = ref.read(collagesRepositoryProvider);
-    if (photos == null || collages == null) return;
-    try {
-      // Store the FULL band (uncapped mosaic); the ≤9 even-spread is only the
-      // celebration preview.
-      final band = await photos.photosForBand(taskId, milestoneHours);
-      await collages.saveAuto(taskId, milestoneHours, [
-        for (final p in band) p.id,
-      ]);
-    } catch (e) {
-      debugPrint('SONDR collage auto-compose error: $e');
-    }
-  }
-
   /// DEBUG_TOOLS only: log enough time to leave [task] ~90s below its first 20h
   /// milestone, so a short live session crosses it and exercises the real
   /// milestone → post → feed loop.

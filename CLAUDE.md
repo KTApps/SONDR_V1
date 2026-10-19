@@ -53,6 +53,42 @@ cd ios && pod install
 - Tell the user what to tap / navigate to in order to verify the change.
 - Wait for user feedback before proceeding.
 
+## Live Activity
+
+The running timer appears on the Lock Screen and in the Dynamic Island.
+
+- **`ios/SondrWidgets/`** is the widget extension — bundle
+  `com.tanakabere.sondr.widgets`, **iOS 17** (the app stays on 15, and
+  ActivityKit and AppIntents are weak-linked so an iOS 15 phone still
+  launches). It is a real Xcode target, so changes to `project.pbxproj`
+  that add files or capabilities are committed.
+- **`sondr.session` in App Group `group.com.tanakabere.sondr`** is the only
+  thing the two processes share. One JSON object: `startedAt`, `pausedMs`,
+  optional `pausedAt`, `taskId`, `taskName`, `taskSecondsBefore`,
+  `confirmedMs`. Elapsed is always derived, never stored. Dart writes it in
+  [session_store.dart](lib/features/timer/session_store.dart); Swift reads
+  and writes the same bytes in `SessionSnapshot.swift` and
+  `SessionMutation.swift`. **Both sides are checked against the same
+  fixtures** in [test/fixtures/sessions.json](test/fixtures/sessions.json);
+  change one number there and both suites fail.
+- **Pause and Resume are App Intents**, not links. They run in whatever
+  process the system picks, with no Flutter engine and possibly no app, and
+  they change the session where it stands. Anything that transforms the
+  session must preserve every other field, including ones it does not read.
+  Stop is a link — `sondr://stop` — because the stop flow needs the app.
+- **The stored session is the truth, the in-memory clock is a cache.**
+  `TimerController` re-reads before every read and every write — start,
+  pause, stop, the "Still going?" confirmation, and every foreground.
+  Never act on `_clock` without `sync()` first.
+- **A widget test that starts the timer must override
+  `sessionStoreProvider`.** The real store is a platform channel with
+  nothing on the other end in a test, and the read now happens before the
+  session starts, so such a test **hangs** rather than failing. See
+  `_NoStore` in [test/archive_test.dart](test/archive_test.dart).
+- **Known edge:** the app and an intent can both write the session. Each
+  writes a complete state in one atomic key update, so neither corrupts the
+  other, but a simultaneous write is last-one-wins.
+
 ## Gotchas
 
 **Swift Package Manager must stay disabled.** Flutter 3.47+ enables SPM by

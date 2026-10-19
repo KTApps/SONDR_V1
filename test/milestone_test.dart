@@ -46,7 +46,7 @@ ProviderContainer _containerWith(Task seed) {
   return c;
 }
 
-void main() {
+void main() async {
   final today = DayKey.of(DateTime.now());
 
   test('stopping across 20h reports the first milestone', () async {
@@ -61,7 +61,7 @@ void main() {
     c.read(selectedTaskIdProvider.notifier).select('t');
 
     final controller = c.read(timerControllerProvider.notifier);
-    controller.start();
+    await controller.start();
     await Future<void>.delayed(const Duration(milliseconds: 1500));
     final outcome = await controller.stop();
 
@@ -78,7 +78,7 @@ void main() {
     c.read(selectedTaskIdProvider.notifier).select('t');
 
     final controller = c.read(timerControllerProvider.notifier);
-    controller.start();
+    await controller.start();
     await Future<void>.delayed(const Duration(milliseconds: 1200));
     final outcome = await controller.stop();
 

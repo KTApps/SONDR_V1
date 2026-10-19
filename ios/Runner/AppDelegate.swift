@@ -12,5 +12,10 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    // Registered like a plugin, and for the same reason: it needs a
+    // messenger and it needs the scene's URLs.
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "SondrLiveActivity") {
+      SessionActivityChannel.shared.register(with: registrar)
+    }
   }
 }

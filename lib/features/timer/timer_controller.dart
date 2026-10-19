@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
+import 'live_activity.dart';
 import 'session_clock.dart';
 import 'session_store.dart';
 
@@ -54,8 +55,23 @@ class TimerController extends Notifier<TimerState> {
   SessionClock? _clock;
   _Resync? _observer;
 
+  /// The last thing written to the store, so an unchanged clock is not
+  /// written again.
+  String? _written;
+
+  final Completer<void> _restored = Completer<void>();
+
+  /// Completes when the first read of the stored session has landed, found
+  /// one or not.
+  ///
+  /// A tap on the Lock Screen card can arrive before this — the card
+  /// outlives the process — and acting on it any earlier would be acting on
+  /// a session the app has not read yet.
+  Future<void> get restored => _restored.future;
+
   DateTime _now() => ref.read(nowProvider)();
   SessionStore get _store => ref.read(sessionStoreProvider);
+  LiveActivity get _card => ref.read(liveActivityProvider);
 
   @override
   TimerState build() {
@@ -78,24 +94,71 @@ class TimerController extends Notifier<TimerState> {
   ///
   /// Public so the test for it does not have to fake a process death.
   Future<void> restore() async {
-    if (_clock != null) return;
-    final found = await _store.read();
-    if (found == null || _clock != null) return;
-    _clock = found;
-    // Put the task back too. Selection is not persisted, so a restored
-    // session would otherwise be running against nothing and Stop would
-    // credit no task — the time would come back and then go nowhere.
-    final taskId = found.taskId;
-    if (taskId != null) {
-      ref.read(selectedTaskIdProvider.notifier).select(taskId);
+    try {
+      if (_clock != null) return;
+      final found = await _store.read();
+      // Start can be pressed while the read is in flight — the restore is
+      // fired from build() and nothing waits for it. Whatever was stored is
+      // then stale, and clearing the card would take down the one Start had
+      // just put up.
+      if (_clock != null) return;
+      if (found == null) {
+        // No session, so no card. One can still be on the Lock Screen from
+        // a launch that was killed mid-session: the app is the only thing
+        // that can take it away.
+        unawaited(_card.clear());
+        return;
+      }
+      _clock = found;
+      _written = found.encode();
+      // Put the task back too. Selection is not persisted, so a restored
+      // session would otherwise be running against nothing and Stop would
+      // credit no task — the time would come back and then go nowhere.
+      final taskId = found.taskId;
+      if (taskId != null) {
+        ref.read(selectedTaskIdProvider.notifier).select(taskId);
+      }
+      if (!found.isPaused) _startTicking();
+      // Nothing has changed about the session, so do not write it back.
+      _publish(persist: false);
+      // A session that outlived its process has no card; one that was only
+      // backgrounded has a stale one. Both want the same call.
+      unawaited(_card.show(_clock!));
+    } finally {
+      if (!_restored.isCompleted) _restored.complete();
     }
-    if (!found.isPaused) _startTicking();
-    // Nothing has changed about the session, so do not write it back.
+  }
+
+  /// Take whatever is written down now.
+  ///
+  /// The Lock Screen's buttons pause and resume the session with the app
+  /// suspended or not running at all, so the in-memory clock is only ever
+  /// a cache of the stored one. Anything that reads or writes the session
+  /// calls this first: otherwise the app would show a session that is no
+  /// longer running, or write its own stale copy back over a change it
+  /// never saw.
+  ///
+  /// An empty store is not taken as "no session": a session started a
+  /// moment ago has not been written yet, and the read that missed it must
+  /// not delete it.
+  Future<void> sync() async {
+    final found = await _store.read();
+    if (found == null) return;
+    final current = _clock;
+    if (current != null && found.encode() == current.encode()) return;
+    _clock = found;
+    _written = found.encode();
+    if (found.isPaused) {
+      _ticker?.cancel();
+    } else {
+      _startTicking();
+    }
     _publish(persist: false);
   }
 
   /// Start a new session, or resume a paused one.
-  void start() {
+  Future<void> start() async {
+    await sync();
     if (state.isRunning) return;
     final now = _now();
     _clock =
@@ -109,21 +172,25 @@ class TimerController extends Notifier<TimerState> {
         );
     _startTicking();
     _publish();
+    unawaited(_card.show(_clock!));
   }
 
   /// Pause without committing — the elapsed time is kept.
-  void pause() {
+  Future<void> pause() async {
+    await sync();
     if (!state.isRunning) return;
     _ticker?.cancel();
     _clock = _clock?.pause(_now());
     _publish();
+    final clock = _clock;
+    if (clock != null) unawaited(_card.show(clock));
   }
 
   void _startTicking() {
     _ticker?.cancel();
     // Repaint, not count: every tick re-reads the clock.
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _publish());
-    final observer = _observer ??= _Resync(_publish);
+    final observer = _observer ??= _Resync(() => unawaited(sync()));
     WidgetsBinding.instance.addObserver(observer);
   }
 
@@ -135,7 +202,8 @@ class TimerController extends Notifier<TimerState> {
   bool get shouldAskStillGoing => _clock?.shouldAsk(_now()) ?? false;
 
   /// Record that someone has said the session is real.
-  void confirmStillGoing() {
+  Future<void> confirmStillGoing() async {
+    await sync();
     final clock = _clock;
     if (clock == null) return;
     _clock = clock.confirmedNow(_now());
@@ -147,7 +215,8 @@ class TimerController extends Notifier<TimerState> {
   ///
   /// DEBUG_TOOLS only — the one caller is behind that gate, so this is
   /// unreachable in a release build.
-  void backdateForDebug(Duration by) {
+  Future<void> backdateForDebug(Duration by) async {
+    await sync();
     final clock = _clock;
     final now = _now();
     _clock = clock == null
@@ -160,6 +229,8 @@ class TimerController extends Notifier<TimerState> {
             pausedTotal: clock.pausedTotal,
             pausedAt: clock.pausedAt,
             taskId: clock.taskId,
+            taskName: clock.taskName,
+            taskSecondsBefore: clock.taskSecondsBefore,
             confirmedAt: clock.confirmedAt,
           );
     if (_clock!.isPaused) {
@@ -176,19 +247,46 @@ class TimerController extends Notifier<TimerState> {
   @visibleForTesting
   void resyncForTest() => _publish();
 
+  /// Fill in what the Live Activity needs and the app does not.
+  ///
+  /// A session can start on a cold launch before the task list has arrived,
+  /// so the name and the task's prior seconds are picked up the first time
+  /// they are there. Prior seconds do not move while a session runs —
+  /// nothing is credited to the task until it stops — so reading them late
+  /// gives the same answer as reading them at the start.
+  SessionClock _withTask(SessionClock clock) {
+    if (clock.taskName != null) return clock;
+    final task = ref.read(selectedTaskProvider);
+    if (task == null || task.id != clock.taskId) return clock;
+    return clock.copyWith(
+      taskName: task.name,
+      taskSecondsBefore: task.totalSeconds,
+    );
+  }
+
   /// Push the clock's current answer into state, and keep the stored copy up
   /// to date.
   void _publish({bool persist = true}) {
     final clock = _clock;
     if (clock == null) {
       state = const TimerState();
+      _written = null;
       return;
     }
+    _clock = _withTask(clock);
     state = TimerState(
-      status: clock.isPaused ? TimerStatus.paused : TimerStatus.running,
-      sessionElapsed: clock.elapsedAt(_now()),
+      status: _clock!.isPaused ? TimerStatus.paused : TimerStatus.running,
+      sessionElapsed: _clock!.elapsedAt(_now()),
     );
-    if (persist) unawaited(_store.write(clock));
+    if (!persist) return;
+    // The ticker publishes once a second and the clock does not change on a
+    // tick — elapsed is derived from it, not written into it. Writing the
+    // same bytes sixty times a minute would be a platform call a second for
+    // nothing.
+    final encoded = _clock!.encode();
+    if (encoded == _written) return;
+    _written = encoded;
+    unawaited(_store.write(_clock!));
   }
 
   /// Stop and commit.
@@ -198,6 +296,9 @@ class TimerController extends Notifier<TimerState> {
   /// the LOGGED amount, so a crossing the forgotten hours would have caused
   /// does not happen and one the real work caused still does.
   Future<StopOutcome> stop({DateTime? endedAt}) async {
+    // A session paused from the Lock Screen must be logged as paused, not
+    // as the running one this process last saw.
+    await sync();
     _ticker?.cancel();
     final clock = _clock;
     // The clock, not the last tick: a session stopped straight after the
@@ -235,7 +336,12 @@ class TimerController extends Notifier<TimerState> {
     }
 
     _clock = null;
+    _written = null;
     unawaited(_store.clear());
+    // Every way out of a session lands here — Stop, Stop now, Set end time,
+    // a session too short to photograph — so this is the only place the
+    // card has to be taken away.
+    unawaited(_card.clear());
     state = const TimerState();
     return StopOutcome(
       loggedSeconds: seconds,
@@ -292,8 +398,12 @@ class StopOutcome {
 final timerControllerProvider =
     NotifierProvider<TimerController, TimerState>(TimerController.new);
 
-/// Re-reads the clock the instant the app comes back, so the display does
-/// not wait up to a second to admit how long the phone was locked.
+/// Re-reads the session the instant the app comes back.
+///
+/// Not just to stop the display waiting a second to admit how long the
+/// phone was locked — the session may have been paused or resumed from the
+/// Lock Screen while the app was away, and the stored copy is the only
+/// place that happened.
 class _Resync extends WidgetsBindingObserver {
   _Resync(this.onResumed);
 

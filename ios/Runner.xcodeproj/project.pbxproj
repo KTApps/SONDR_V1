@@ -7,17 +7,45 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00C30BE0D69EE64C1C40FC49 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C471229C71FF8F9E75B0B8DB /* Foundation.framework */; };
+		0B8DFF424E8FD8DDEB311B98 /* SessionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 321192FF6E879C02EC1E5F1E /* SessionMutation.swift */; };
 		0F5E21229387555D7B6CDF02 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F4289A4D59B0660757AE4EAD /* Pods_Runner.framework */; };
+		0F760EACAE9781AE5B60FEDF /* SharedFixtureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11142AB3CDD95AD4D37334DA /* SharedFixtureTests.swift */; };
+		13B8269FE7CB8918D01C8A3A /* SessionMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
+		25C4774EFED1E1CC7EC7284D /* SondrPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A0A7E50A96250EB714B0106 /* SondrPalette.swift */; };
+		2D665679E61A6F9BECCF891C /* sessions.json in Resources */ = {isa = PBXBuildFile; fileRef = B5C21D663B62D7BE11632980 /* sessions.json */; };
+		311DEA9F38484E0253310527 /* SondrIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A53A9F23C61867C485DF16F /* SondrIntents.swift */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
+		391A3EEB5B96994C2A68ECB7 /* MilestoneWordingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		3DCA1D35ADA88ABCD140861F /* SessionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 321192FF6E879C02EC1E5F1E /* SessionMutation.swift */; };
 		65D65BDFCBB1F68F1B8D7C94 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F003505FA35B3C38C0A396BF /* Pods_RunnerTests.framework */; };
+		6787E99BE94F20B050BF60AA /* SessionSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD09A5DE43A3AEE27C89A57E /* SessionSnapshot.swift */; };
 		6C0CD66A7D166690EB5401E4 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4430ADE4653C351BAAEB430F /* GoogleService-Info.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
+		8C3B8237BF708F2A8DD0A29B /* SondrActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF5E69E53654FF93F62DDD9 /* SondrActivityAttributes.swift */; };
+		92EA64FF843CD7FD61B008F0 /* SondrActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF5E69E53654FF93F62DDD9 /* SondrActivityAttributes.swift */; };
+		957906BAEB05DDB67FD6FAFA /* SondrActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF5E69E53654FF93F62DDD9 /* SondrActivityAttributes.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		9A5AD02011EE67BB11B787FC /* SondrIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A53A9F23C61867C485DF16F /* SondrIntents.swift */; };
+		A0FC935FF946C24E4B44B175 /* MilestoneWording.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424F466EE18E9FFF553E32AF /* MilestoneWording.swift */; };
+		A34F8A028D8E6C8F9556D7D6 /* SessionActivityChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 186BA34378E8A1DAB72E3ABB /* SessionActivityChannel.swift */; };
+		AC4A11188DB2DE3C24567553 /* MilestoneWording.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424F466EE18E9FFF553E32AF /* MilestoneWording.swift */; };
+		C64A9F10059A2EDD831A575E /* SondrWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A4496509DF0B0EECCCFCCF6 /* SondrWidgetsBundle.swift */; };
+		D63CABD6E01CE9A02672E890 /* SessionSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67FC1EB3886F336D9235DF24 /* SessionSnapshotTests.swift */; };
+		D905D7DF88CF3927CC99C997 /* SessionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 321192FF6E879C02EC1E5F1E /* SessionMutation.swift */; };
+		DF0C0822EE59AA0258AA50A1 /* SessionSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD09A5DE43A3AEE27C89A57E /* SessionSnapshot.swift */; };
+		DFF2D490B3AF8CEAC78FED9C /* Inter-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9E2624A08FF2E130A4A72BC4 /* Inter-Variable.ttf */; };
+		E0DAA23CC78FC179DD2D39A4 /* SondrIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A53A9F23C61867C485DF16F /* SondrIntents.swift */; };
+		EEF0B2E32A3532829EEFBA69 /* SessionSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD09A5DE43A3AEE27C89A57E /* SessionSnapshot.swift */; };
+		EEFA24E3F2859DE2D4C552E4 /* SondrSessionActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF38F66481C9144BD51A067 /* SondrSessionActivity.swift */; };
+		F1C9AED4C8A28708F4E40600 /* SondrWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 678AEAC8B66358CA9DD273D0 /* SondrWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F4570C3FC8374E21368CDA89 /* SessionControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */; };
+		F67260029DD4B86A833692E6 /* SondrRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07F985F35E6610D3F20811A /* SondrRing.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,6 +55,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 97C146ED1CF9000F007C117D;
 			remoteInfo = Runner;
+		};
+		CE6E5DBF7DEF794DCAB2A2B2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 48924AFF06124E945DF32619;
+			remoteInfo = SondrWidgets;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -41,15 +76,36 @@
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C4E20377726D7C8E00FB5D0B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				F1C9AED4C8A28708F4E40600 /* SondrWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionControlTests.swift; sourceTree = "<group>"; };
+		11142AB3CDD95AD4D37334DA /* SharedFixtureTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedFixtureTests.swift; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		186BA34378E8A1DAB72E3ABB /* SessionActivityChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionActivityChannel.swift; sourceTree = "<group>"; };
+		294D3AF3A1E5732BEBAB7D28 /* SondrWidgets.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = SondrWidgets.xcconfig; sourceTree = "<group>"; };
+		2A0A7E50A96250EB714B0106 /* SondrPalette.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrPalette.swift; sourceTree = "<group>"; };
+		321192FF6E879C02EC1E5F1E /* SessionMutation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionMutation.swift; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		424F466EE18E9FFF553E32AF /* MilestoneWording.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MilestoneWording.swift; sourceTree = "<group>"; };
 		4430ADE4653C351BAAEB430F /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
+		4A53A9F23C61867C485DF16F /* SondrIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrIntents.swift; sourceTree = "<group>"; };
+		678AEAC8B66358CA9DD273D0 /* SondrWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SondrWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		67FC1EB3886F336D9235DF24 /* SessionSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionSnapshotTests.swift; sourceTree = "<group>"; };
 		72A1E9AF34E92D362053FC0B /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -57,6 +113,10 @@
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		7DA34570B3B020FFCA222461 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
+		7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MilestoneWordingTests.swift; sourceTree = "<group>"; };
+		872C22E0D8D0FB74AACBEC64 /* SondrWidgets.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = SondrWidgets.entitlements; sourceTree = "<group>"; };
+		8BF38F66481C9144BD51A067 /* SondrSessionActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrSessionActivity.swift; sourceTree = "<group>"; };
+		8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionMutationTests.swift; sourceTree = "<group>"; };
 		95121650A288D85FCDBF4D7C /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
@@ -66,8 +126,16 @@
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		98EC9A54C3E03EC76813EC59 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
+		9A4496509DF0B0EECCCFCCF6 /* SondrWidgetsBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrWidgetsBundle.swift; sourceTree = "<group>"; };
+		9E2624A08FF2E130A4A72BC4 /* Inter-Variable.ttf */ = {isa = PBXFileReference; includeInIndex = 1; name = "Inter-Variable.ttf"; path = "../../assets/fonts/Inter-Variable.ttf"; sourceTree = "<group>"; };
+		AAF5E69E53654FF93F62DDD9 /* SondrActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrActivityAttributes.swift; sourceTree = "<group>"; };
+		B07F985F35E6610D3F20811A /* SondrRing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrRing.swift; sourceTree = "<group>"; };
+		B5C21D663B62D7BE11632980 /* sessions.json */ = {isa = PBXFileReference; includeInIndex = 1; name = sessions.json; path = ../../test/fixtures/sessions.json; sourceTree = "<group>"; };
 		BDBB2308979982E5A07D55AC /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		C459D82C21CA87B74EE8B144 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
+		C471229C71FF8F9E75B0B8DB /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		CD09A5DE43A3AEE27C89A57E /* SessionSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionSnapshot.swift; sourceTree = "<group>"; };
+		DD48CB76E2CF104BD8998E2C /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F003505FA35B3C38C0A396BF /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F4289A4D59B0660757AE4EAD /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -78,6 +146,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				65D65BDFCBB1F68F1B8D7C94 /* Pods_RunnerTests.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		791F42AB83582B1BF50652A3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				00C30BE0D69EE64C1C40FC49 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -96,6 +172,12 @@
 			isa = PBXGroup;
 			children = (
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
+				67FC1EB3886F336D9235DF24 /* SessionSnapshotTests.swift */,
+				7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */,
+				8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */,
+				09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */,
+				11142AB3CDD95AD4D37334DA /* SharedFixtureTests.swift */,
+				B5C21D663B62D7BE11632980 /* sessions.json */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -135,6 +217,7 @@
 				4430ADE4653C351BAAEB430F /* GoogleService-Info.plist */,
 				625EFD7D9AA4975479349EEF /* Pods */,
 				A693031DB4261CB853DBE487 /* Frameworks */,
+				9F6FC05E64BFEF3D7877926C /* SondrWidgets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -143,6 +226,7 @@
 			children = (
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
+				678AEAC8B66358CA9DD273D0 /* SondrWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -160,8 +244,30 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
+				186BA34378E8A1DAB72E3ABB /* SessionActivityChannel.swift */,
 			);
 			path = Runner;
+			sourceTree = "<group>";
+		};
+		9F6FC05E64BFEF3D7877926C /* SondrWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				294D3AF3A1E5732BEBAB7D28 /* SondrWidgets.xcconfig */,
+				CD09A5DE43A3AEE27C89A57E /* SessionSnapshot.swift */,
+				AAF5E69E53654FF93F62DDD9 /* SondrActivityAttributes.swift */,
+				2A0A7E50A96250EB714B0106 /* SondrPalette.swift */,
+				B07F985F35E6610D3F20811A /* SondrRing.swift */,
+				8BF38F66481C9144BD51A067 /* SondrSessionActivity.swift */,
+				9A4496509DF0B0EECCCFCCF6 /* SondrWidgetsBundle.swift */,
+				DD48CB76E2CF104BD8998E2C /* Info.plist */,
+				872C22E0D8D0FB74AACBEC64 /* SondrWidgets.entitlements */,
+				9E2624A08FF2E130A4A72BC4 /* Inter-Variable.ttf */,
+				424F466EE18E9FFF553E32AF /* MilestoneWording.swift */,
+				321192FF6E879C02EC1E5F1E /* SessionMutation.swift */,
+				4A53A9F23C61867C485DF16F /* SondrIntents.swift */,
+			);
+			name = SondrWidgets;
+			path = SondrWidgets;
 			sourceTree = "<group>";
 		};
 		A693031DB4261CB853DBE487 /* Frameworks */ = {
@@ -169,8 +275,17 @@
 			children = (
 				F4289A4D59B0660757AE4EAD /* Pods_Runner.framework */,
 				F003505FA35B3C38C0A396BF /* Pods_RunnerTests.framework */,
+				CC53AA265F5A9E7989AACC58 /* iOS */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		CC53AA265F5A9E7989AACC58 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				C471229C71FF8F9E75B0B8DB /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -195,6 +310,23 @@
 			productReference = 331C8081294A63A400263BE5 /* RunnerTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		48924AFF06124E945DF32619 /* SondrWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C7D9217DB0E12C84F96C8331 /* Build configuration list for PBXNativeTarget "SondrWidgets" */;
+			buildPhases = (
+				4656DF01EFEB415732280657 /* Sources */,
+				791F42AB83582B1BF50652A3 /* Frameworks */,
+				AC7A570255CBC802FDA066CE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SondrWidgets;
+			productName = SondrWidgets;
+			productReference = 678AEAC8B66358CA9DD273D0 /* SondrWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		97C146ED1CF9000F007C117D /* Runner */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */;
@@ -204,6 +336,7 @@
 				97C146EA1CF9000F007C117D /* Sources */,
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
+				C4E20377726D7C8E00FB5D0B /* Embed Foundation Extensions */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				FC2B3F10B21C4144C65165D9 /* [CP] Embed Pods Frameworks */,
@@ -211,6 +344,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				2D9C1D977DD0008A7B5766B2 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
@@ -252,6 +386,7 @@
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
+				48924AFF06124E945DF32619 /* SondrWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -261,6 +396,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2D665679E61A6F9BECCF891C /* sessions.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -273,6 +409,14 @@
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 				6C0CD66A7D166690EB5401E4 /* GoogleService-Info.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC7A570255CBC802FDA066CE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DFF2D490B3AF8CEAC78FED9C /* Inter-Variable.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -379,6 +523,32 @@
 			buildActionMask = 2147483647;
 			files = (
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
+				6787E99BE94F20B050BF60AA /* SessionSnapshot.swift in Sources */,
+				D63CABD6E01CE9A02672E890 /* SessionSnapshotTests.swift in Sources */,
+				AC4A11188DB2DE3C24567553 /* MilestoneWording.swift in Sources */,
+				391A3EEB5B96994C2A68ECB7 /* MilestoneWordingTests.swift in Sources */,
+				D905D7DF88CF3927CC99C997 /* SessionMutation.swift in Sources */,
+				13B8269FE7CB8918D01C8A3A /* SessionMutationTests.swift in Sources */,
+				E0DAA23CC78FC179DD2D39A4 /* SondrIntents.swift in Sources */,
+				F4570C3FC8374E21368CDA89 /* SessionControlTests.swift in Sources */,
+				92EA64FF843CD7FD61B008F0 /* SondrActivityAttributes.swift in Sources */,
+				0F760EACAE9781AE5B60FEDF /* SharedFixtureTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4656DF01EFEB415732280657 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EEF0B2E32A3532829EEFBA69 /* SessionSnapshot.swift in Sources */,
+				8C3B8237BF708F2A8DD0A29B /* SondrActivityAttributes.swift in Sources */,
+				25C4774EFED1E1CC7EC7284D /* SondrPalette.swift in Sources */,
+				F67260029DD4B86A833692E6 /* SondrRing.swift in Sources */,
+				EEFA24E3F2859DE2D4C552E4 /* SondrSessionActivity.swift in Sources */,
+				C64A9F10059A2EDD831A575E /* SondrWidgetsBundle.swift in Sources */,
+				A0FC935FF946C24E4B44B175 /* MilestoneWording.swift in Sources */,
+				0B8DFF424E8FD8DDEB311B98 /* SessionMutation.swift in Sources */,
+				311DEA9F38484E0253310527 /* SondrIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -389,12 +559,23 @@
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
+				DF0C0822EE59AA0258AA50A1 /* SessionSnapshot.swift in Sources */,
+				957906BAEB05DDB67FD6FAFA /* SondrActivityAttributes.swift in Sources */,
+				A34F8A028D8E6C8F9556D7D6 /* SessionActivityChannel.swift in Sources */,
+				3DCA1D35ADA88ABCD140861F /* SessionMutation.swift in Sources */,
+				9A5AD02011EE67BB11B787FC /* SondrIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		2D9C1D977DD0008A7B5766B2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = SondrWidgets;
+			target = 48924AFF06124E945DF32619 /* SondrWidgets */;
+			targetProxy = CE6E5DBF7DEF794DCAB2A2B2 /* PBXContainerItemProxy */;
+		};
 		331C8086294A63A400263BE5 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 97C146ED1CF9000F007C117D /* Runner */;
@@ -422,6 +603,71 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		0928E5BCB5F71BED70E3C19E /* Profile */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 294D3AF3A1E5732BEBAB7D28 /* SondrWidgets.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = SondrWidgets/SondrWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = X378ZZ9NQ8;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SondrWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				ONLY_ACTIVE_ARCH = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanakabere.sondr.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Profile;
+		};
+		0AB33B1620D2BFD11E8AB031 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 294D3AF3A1E5732BEBAB7D28 /* SondrWidgets.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = SondrWidgets/SondrWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = X378ZZ9NQ8;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SondrWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanakabere.sondr.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 		249021D3217E4FDB00AE95B9 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -489,6 +735,13 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					ActivityKit,
+					"-weak_framework",
+					AppIntents,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tanakabere.sondr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -546,6 +799,39 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Runner";
 			};
 			name = Profile;
+		};
+		46022C9B76B13661C391FFF0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 294D3AF3A1E5732BEBAB7D28 /* SondrWidgets.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = SondrWidgets/SondrWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = X378ZZ9NQ8;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SondrWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				ONLY_ACTIVE_ARCH = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanakabere.sondr.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
 		};
 		97C147031CF9000F007C117D /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -673,6 +959,13 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					ActivityKit,
+					"-weak_framework",
+					AppIntents,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tanakabere.sondr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -696,6 +989,13 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					ActivityKit,
+					"-weak_framework",
+					AppIntents,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tanakabere.sondr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -738,8 +1038,17 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		C7D9217DB0E12C84F96C8331 /* Build configuration list for PBXNativeTarget "SondrWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				46022C9B76B13661C391FFF0 /* Release */,
+				0AB33B1620D2BFD11E8AB031 /* Debug */,
+				0928E5BCB5F71BED70E3C19E /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = 97C146E61CF9000F007C117D /* Project object */;
 }

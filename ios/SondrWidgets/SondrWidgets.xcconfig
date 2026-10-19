@@ -1,0 +1,5 @@
+// The extension needs the app's version and build number so the two bundles
+// agree — App Store validation rejects an extension whose CFBundleVersion
+// differs from its host. Flutter writes both into Generated.xcconfig on every
+// build, so that is where they come from.
+#include "../Flutter/Generated.xcconfig"

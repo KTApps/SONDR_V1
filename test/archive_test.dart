@@ -6,6 +6,8 @@ import 'package:sondr/features/photos/milestones_screen.dart';
 import 'package:sondr/features/profile/profile_providers.dart';
 import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/tasks/tasks_providers.dart';
+import 'package:sondr/features/timer/session_clock.dart';
+import 'package:sondr/features/timer/session_store.dart';
 import 'package:sondr/features/timer/timer_controller.dart';
 import 'package:sondr/features/timer/widgets/task_dropdown.dart';
 import 'package:sondr/shared/sondr_swipe_row.dart';
@@ -13,7 +15,7 @@ import 'package:sondr/shared/sondr_swipe_row.dart';
 /// Archiving is a statement about what you are working on NOW. The whole point
 /// of these tests is the line it must not cross: the choosing surfaces lose the
 /// task, every record of its hours keeps it.
-void main() {
+void main() async {
   group('the model', () {
     test('a task is active by default', () {
       expect(const Task(id: 't', name: 'Golf').archived, isFalse);
@@ -288,6 +290,10 @@ void main() {
       // archive is through a sheet that a live session locks shut.
       await tester.pumpWidget(
         ProviderScope(
+          // The controller reads the stored session before it starts one,
+          // and the real store is a platform channel that never answers in
+          // a widget test.
+          overrides: [sessionStoreProvider.overrideWithValue(_NoStore())],
           child: MaterialApp(
             theme: AppTheme.dark(),
             home: const Scaffold(body: Center(child: TaskDropdown())),
@@ -297,10 +303,10 @@ void main() {
       await tester.pumpAndSettle();
 
       final c = containerOf(tester);
-      c.read(timerControllerProvider.notifier).start();
+      await c.read(timerControllerProvider.notifier).start();
       // Paused still counts as active, and cancels the ticker so the test
       // leaves no pending timer behind.
-      c.read(timerControllerProvider.notifier).pause();
+      await c.read(timerControllerProvider.notifier).pause();
       await tester.pumpAndSettle();
       expect(c.read(timerControllerProvider).isActive, isTrue);
 
@@ -334,4 +340,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Golf'), findsOneWidget);
   });
+}
+
+/// Keeps a session in memory. The real store is a platform channel, and a
+/// widget test has nothing on the other end of it.
+class _NoStore implements SessionStore {
+  SessionClock? saved;
+
+  @override
+  Future<SessionClock?> read() async => saved;
+
+  @override
+  Future<void> write(SessionClock clock) async => saved = clock;
+
+  @override
+  Future<void> clear() async => saved = null;
 }

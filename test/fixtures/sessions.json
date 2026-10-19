@@ -1,0 +1,72 @@
+{
+  "note": "Shared by test/session_contract_test.dart and ios/RunnerTests/SharedFixtureTests.swift. The two languages compute elapsed from the same bytes; if they ever disagree, the Lock Screen is lying about how long someone has worked.",
+  "cases": [
+    {
+      "name": "a fresh session, an hour in",
+      "session": { "startedAt": 1760000000000, "pausedMs": 0 },
+      "nowMs": 1760003600000,
+      "elapsedMs": 3600000
+    },
+    {
+      "name": "ten minutes of it spent paused",
+      "session": { "startedAt": 1760000000000, "pausedMs": 600000 },
+      "nowMs": 1760003600000,
+      "elapsedMs": 3000000
+    },
+    {
+      "name": "paused half an hour in, read five hours later",
+      "session": {
+        "startedAt": 1760000000000,
+        "pausedMs": 0,
+        "pausedAt": 1760001800000
+      },
+      "nowMs": 1760018000000,
+      "elapsedMs": 1800000
+    },
+    {
+      "name": "paused after an earlier pause",
+      "session": {
+        "startedAt": 1760000000000,
+        "pausedMs": 300000,
+        "pausedAt": 1760003600000
+      },
+      "nowMs": 1760018000000,
+      "elapsedMs": 3300000
+    },
+    {
+      "name": "a clock moved backwards is never a negative session",
+      "session": { "startedAt": 1760000000000, "pausedMs": 0 },
+      "nowMs": 1759996400000,
+      "elapsedMs": 0
+    },
+    {
+      "name": "paused time longer than the session itself",
+      "session": { "startedAt": 1760000000000, "pausedMs": 7200000 },
+      "nowMs": 1760003600000,
+      "elapsedMs": 0
+    },
+    {
+      "name": "every field present, mid-session",
+      "session": {
+        "startedAt": 1760000000000,
+        "pausedMs": 120000,
+        "taskId": "task-7",
+        "taskName": "Learn piano",
+        "taskSecondsBefore": 57600,
+        "confirmedMs": 10800000
+      },
+      "nowMs": 1760010800000,
+      "elapsedMs": 10680000
+    },
+    {
+      "name": "a session from the build before taskName existed",
+      "session": {
+        "startedAt": 1760000000000,
+        "pausedMs": 0,
+        "taskId": "task-7"
+      },
+      "nowMs": 1760002700000,
+      "elapsedMs": 2700000
+    }
+  ]
+}

@@ -296,10 +296,26 @@ class TimerController extends Notifier<TimerState> {
   /// the LOGGED amount, so a crossing the forgotten hours would have caused
   /// does not happen and one the real work caused still does.
   Future<StopOutcome> stop({DateTime? endedAt}) async {
+    final outcome = await commitKeepingSession(endedAt: endedAt);
+    await discard();
+    return outcome;
+  }
+
+  /// Credit the session's time and leave the session exactly where it is.
+  ///
+  /// The other half of [stop], split out for signing out. That has to know
+  /// the time reached the server before it throws the session away,
+  /// because the account that earned it is about to stop being the one it
+  /// would be retried under. Anything that throws in here — a refused
+  /// write, a connection that never answers — leaves the session, the
+  /// card and the clock untouched, so the owner can try again.
+  ///
+  /// The ticker is left running for the same reason: until [discard], the
+  /// session is still a session.
+  Future<StopOutcome> commitKeepingSession({DateTime? endedAt}) async {
     // A session paused from the Lock Screen must be logged as paused, not
     // as the running one this process last saw.
     await sync();
-    _ticker?.cancel();
     final clock = _clock;
     // The clock, not the last tick: a session stopped straight after the
     // phone was unlocked must count the time the screen was dark, and the
@@ -335,14 +351,6 @@ class TimerController extends Notifier<TimerState> {
       }
     }
 
-    _clock = null;
-    _written = null;
-    unawaited(_store.clear());
-    // Every way out of a session lands here — Stop, Stop now, Set end time,
-    // a session too short to photograph — so this is the only place the
-    // card has to be taken away.
-    unawaited(_card.clear());
-    state = const TimerState();
     return StopOutcome(
       loggedSeconds: seconds,
       taskId: task?.id,
@@ -352,6 +360,21 @@ class TimerController extends Notifier<TimerState> {
       totalHours: totalHours,
       totalSeconds: totalSeconds,
     );
+  }
+
+  /// Take the session away.
+  ///
+  /// The card first, then the stored copy, then this process's memory of
+  /// it — in that order, because the card is the one a stranger can see.
+  /// Every way out of a session reaches here: Stop, Stop now, Set end
+  /// time, a session too short to photograph, and signing out.
+  Future<void> discard() async {
+    _ticker?.cancel();
+    _clock = null;
+    _written = null;
+    await _card.clear();
+    await _store.clear();
+    state = const TimerState();
   }
 }
 

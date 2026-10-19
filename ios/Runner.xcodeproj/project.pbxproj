@@ -8,12 +8,15 @@
 
 /* Begin PBXBuildFile section */
 		00C30BE0D69EE64C1C40FC49 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C471229C71FF8F9E75B0B8DB /* Foundation.framework */; };
+		0B8DFF424E8FD8DDEB311B98 /* SessionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 321192FF6E879C02EC1E5F1E /* SessionMutation.swift */; };
 		0F5E21229387555D7B6CDF02 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F4289A4D59B0660757AE4EAD /* Pods_Runner.framework */; };
+		13B8269FE7CB8918D01C8A3A /* SessionMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		25C4774EFED1E1CC7EC7284D /* SondrPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A0A7E50A96250EB714B0106 /* SondrPalette.swift */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		391A3EEB5B96994C2A68ECB7 /* MilestoneWordingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		3DCA1D35ADA88ABCD140861F /* SessionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 321192FF6E879C02EC1E5F1E /* SessionMutation.swift */; };
 		65D65BDFCBB1F68F1B8D7C94 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F003505FA35B3C38C0A396BF /* Pods_RunnerTests.framework */; };
 		6787E99BE94F20B050BF60AA /* SessionSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD09A5DE43A3AEE27C89A57E /* SessionSnapshot.swift */; };
 		6C0CD66A7D166690EB5401E4 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4430ADE4653C351BAAEB430F /* GoogleService-Info.plist */; };
@@ -29,6 +32,7 @@
 		AC4A11188DB2DE3C24567553 /* MilestoneWording.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424F466EE18E9FFF553E32AF /* MilestoneWording.swift */; };
 		C64A9F10059A2EDD831A575E /* SondrWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A4496509DF0B0EECCCFCCF6 /* SondrWidgetsBundle.swift */; };
 		D63CABD6E01CE9A02672E890 /* SessionSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67FC1EB3886F336D9235DF24 /* SessionSnapshotTests.swift */; };
+		D905D7DF88CF3927CC99C997 /* SessionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 321192FF6E879C02EC1E5F1E /* SessionMutation.swift */; };
 		DF0C0822EE59AA0258AA50A1 /* SessionSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD09A5DE43A3AEE27C89A57E /* SessionSnapshot.swift */; };
 		DFF2D490B3AF8CEAC78FED9C /* Inter-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9E2624A08FF2E130A4A72BC4 /* Inter-Variable.ttf */; };
 		EEF0B2E32A3532829EEFBA69 /* SessionSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD09A5DE43A3AEE27C89A57E /* SessionSnapshot.swift */; };
@@ -84,6 +88,7 @@
 		186BA34378E8A1DAB72E3ABB /* SessionActivityChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionActivityChannel.swift; sourceTree = "<group>"; };
 		294D3AF3A1E5732BEBAB7D28 /* SondrWidgets.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = SondrWidgets.xcconfig; sourceTree = "<group>"; };
 		2A0A7E50A96250EB714B0106 /* SondrPalette.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrPalette.swift; sourceTree = "<group>"; };
+		321192FF6E879C02EC1E5F1E /* SessionMutation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionMutation.swift; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
@@ -101,6 +106,7 @@
 		7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MilestoneWordingTests.swift; sourceTree = "<group>"; };
 		872C22E0D8D0FB74AACBEC64 /* SondrWidgets.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = SondrWidgets.entitlements; sourceTree = "<group>"; };
 		8BF38F66481C9144BD51A067 /* SondrSessionActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrSessionActivity.swift; sourceTree = "<group>"; };
+		8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionMutationTests.swift; sourceTree = "<group>"; };
 		95121650A288D85FCDBF4D7C /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
@@ -157,6 +163,7 @@
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 				67FC1EB3886F336D9235DF24 /* SessionSnapshotTests.swift */,
 				7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */,
+				8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -242,6 +249,7 @@
 				872C22E0D8D0FB74AACBEC64 /* SondrWidgets.entitlements */,
 				9E2624A08FF2E130A4A72BC4 /* Inter-Variable.ttf */,
 				424F466EE18E9FFF553E32AF /* MilestoneWording.swift */,
+				321192FF6E879C02EC1E5F1E /* SessionMutation.swift */,
 			);
 			name = SondrWidgets;
 			path = SondrWidgets;
@@ -503,6 +511,8 @@
 				D63CABD6E01CE9A02672E890 /* SessionSnapshotTests.swift in Sources */,
 				AC4A11188DB2DE3C24567553 /* MilestoneWording.swift in Sources */,
 				391A3EEB5B96994C2A68ECB7 /* MilestoneWordingTests.swift in Sources */,
+				D905D7DF88CF3927CC99C997 /* SessionMutation.swift in Sources */,
+				13B8269FE7CB8918D01C8A3A /* SessionMutationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -517,6 +527,7 @@
 				EEFA24E3F2859DE2D4C552E4 /* SondrSessionActivity.swift in Sources */,
 				C64A9F10059A2EDD831A575E /* SondrWidgetsBundle.swift in Sources */,
 				A0FC935FF946C24E4B44B175 /* MilestoneWording.swift in Sources */,
+				0B8DFF424E8FD8DDEB311B98 /* SessionMutation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -530,6 +541,7 @@
 				DF0C0822EE59AA0258AA50A1 /* SessionSnapshot.swift in Sources */,
 				957906BAEB05DDB67FD6FAFA /* SondrActivityAttributes.swift in Sources */,
 				A34F8A028D8E6C8F9556D7D6 /* SessionActivityChannel.swift in Sources */,
+				3DCA1D35ADA88ABCD140861F /* SessionMutation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

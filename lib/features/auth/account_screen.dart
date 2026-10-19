@@ -9,12 +9,12 @@ import '../../shared/sondr_action.dart';
 import '../../shared/sondr_loading.dart';
 import '../../core/utils/figma_scale.dart';
 import '../debug/debug_panel.dart';
-import '../timer/live_activity.dart';
 import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
 import 'auth_screen.dart';
 import 'handle_screen.dart';
 import 'profile_repository.dart';
+import 'sign_out_action.dart';
 
 /// Account management — sign-in/out, the email, and the handle. For a guest it
 /// offers creating an account or signing in; for a permanent account it shows
@@ -160,21 +160,12 @@ class _SignedInView extends ConsumerWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SondrAction(
-                // Sign-out starts a fresh guest session; AccountBody watches
-                // the auth stream and rebuilds itself into the guest view —
-                // nothing to pop now that this lives inside the Profile tab.
-                label: 'Sign out',
-                supporting: true,
-                onPressed: () async {
-                  // The card names a task belonging to whoever is signing
-                  // out. It has to go even though the session itself does
-                  // not — nothing here is allowed to throw away logged
-                  // time.
-                  await ref.read(liveActivityProvider).clear();
-                  await ref.read(authRepositoryProvider).signOut();
-                },
-              ),
+              // Starts a fresh guest session; AccountBody watches the auth
+              // stream and rebuilds itself into the guest view — nothing to
+              // pop now that this lives inside the Profile tab. Stops and
+              // credits a running session first, which is why it is its own
+              // widget: it has a busy state and an error to show.
+              const SignOutAction(),
               // QA-only, and a plain word rather than the outlined pill it
               // used to be up the page: a border around a dev entry made it
               // the loudest control on the screen. kDebugTools is const-false

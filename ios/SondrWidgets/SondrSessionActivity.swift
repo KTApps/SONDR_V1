@@ -31,32 +31,41 @@ struct SondrSessionActivity: Widget {
       let now = Date()
       let name = taskLine(context.attributes.taskName, session.isPaused)
       return DynamicIsland {
+        // The ring on its own. Sharing the leading region with the task
+        // name left the name about forty points wide, so "Learn piano"
+        // arrived as "Learn…".
         DynamicIslandExpandedRegion(.leading) {
-          HStack(spacing: 12) {
-            SondrRing(session: session, now: now, diameter: 36, stroke: 4)
-            Text(name)
-              .font(.inter(13, .semibold))
-              .foregroundStyle(Ink.secondary)
-              .lineLimit(1)
-          }
+          SondrRing(session: session, now: now, diameter: 36)
         }
         DynamicIslandExpandedRegion(.trailing) {
           Elapsed(session: session, size: 24)
             .foregroundStyle(session.isPaused ? Ink.tertiary : Ink.primary)
         }
+        // The name goes in the bottom region, not the centre one. The
+        // centre sits between the ring and the clock, which left it about
+        // forty points wide — and filling it made the system drop every
+        // region but the leading one. Here it gets the full width of the
+        // island, which is what "its own line" has to mean.
         DynamicIslandExpandedRegion(.bottom) {
-          HStack(spacing: 48) {
-            Actions(isPaused: session.isPaused)
+          VStack(spacing: 10) {
+            Text(name)
+              .font(.inter(13, .semibold))
+              .foregroundStyle(Ink.secondary)
+              .lineLimit(1)
+              .truncationMode(.tail)
+            HStack(spacing: 48) {
+              Actions(isPaused: session.isPaused)
+            }
           }
           .frame(maxWidth: .infinity)
         }
       } compactLeading: {
-        SondrRing(session: session, now: now, diameter: 20, stroke: 2.5)
+        SondrRing(session: session, now: now, diameter: 20)
       } compactTrailing: {
         Elapsed(session: session, size: 13)
           .foregroundStyle(session.isPaused ? Ink.tertiary : Ink.primary)
       } minimal: {
-        SondrRing(session: session, now: now, diameter: 20, stroke: 2.5)
+        SondrRing(session: session, now: now, diameter: 20)
       }
     }
   }
@@ -77,7 +86,7 @@ private struct LockScreenCard: View {
     let session = state.session
     let now = Date()
     HStack(spacing: 12) {
-      SondrRing(session: session, now: now, diameter: 48, stroke: 5)
+      SondrRing(session: session, now: now, diameter: 48)
       VStack(alignment: .leading, spacing: 6) {
         Text(taskLine(taskName, session.isPaused))
           .font(.inter(13, .semibold))
@@ -134,6 +143,10 @@ private struct Elapsed: View {
     return Text(timerInterval: window, pauseTime: session.pausedAt, countsDown: false)
       .font(.inter(size, .bold))
       .monospacedDigit()
+      // The clock must never wrap: in the expanded island it shares a row
+      // with the task name, and without this it folded into "52" / ":0" /
+      // "0".
+      .lineLimit(1)
   }
 }
 
@@ -141,9 +154,11 @@ private struct Elapsed: View {
 ///
 /// While the session runs the remaining time is handed to the system as a
 /// date, because that is the only countdown that keeps moving without the
-/// app being woken to retype it. The system picks the wording — "3 hr, 12
-/// min" — so a running card reads its way and a paused one, which is not
-/// going anywhere and can be written out properly, reads "3h 12m".
+/// app being woken to retype it. The system picks the wording.
+///
+/// A paused card has to write the line itself, and has to write it the
+/// system's way: pausing must stop the clock, not reword the sentence
+/// under it.
 private struct MilestoneLine: View {
   let session: SessionSnapshot
   let now: Date
@@ -151,7 +166,7 @@ private struct MilestoneLine: View {
   var body: some View {
     Group {
       if session.isPaused {
-        Text("\(Self.spelled(session.remaining(at: now))) to your next milestone")
+        Text("\(MilestoneWording.remaining(session.remaining(at: now))) to your next milestone")
       } else {
         Text(
           "\(Text(session.milestoneDate(at: now), style: .relative)) to your next milestone"
@@ -161,12 +176,5 @@ private struct MilestoneLine: View {
     .font(.inter(11, .regular))
     .foregroundStyle(Ink.tertiary)
     .lineLimit(1)
-  }
-
-  static func spelled(_ remaining: TimeInterval) -> String {
-    let total = Int(remaining.rounded())
-    let hours = total / 3600
-    let minutes = (total % 3600) / 60
-    return hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
   }
 }

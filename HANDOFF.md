@@ -54,7 +54,7 @@
 - Guest gating is switched off in tests and offline mode (no Firebase = not a guest)
 - Simulator showed an empty task list after relaunch — probably a fresh guest session; not investigated
 - Firebase console: the right project ID is `sondr-cd439` (not "ProdApp")
-- `.firebaserc` still points at `prodapp-b90ac` — don't deploy from the CLI
+- `.firebaserc` now points at `sondr-cd439` (was `prodapp-b90ac`, the legacy Prod1 project); still pass `--project sondr-cd439` on deploys
 - Firebase stops publishing CocoaPods releases after Oct 2026 — a move will be needed eventually
 - "Last 10 days" on Home starts at yesterday — confirm that's intended
 - No new dependencies; 81 tests passing, analyze clean

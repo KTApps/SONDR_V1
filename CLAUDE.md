@@ -124,8 +124,22 @@ linux/flutter/generated_plugins.cmake     macos/Flutter/GeneratedPluginRegistran
 windows/flutter/generated_plugins.cmake   ios/Runner.xcodeproj/project.pbxproj
 ```
 
-`git restore .` to clear them. Never `git add -A` in this repo — stage files by
-name. Local-only ignores live in `.git/info/exclude` (not shared with the team).
+**Never `git restore .`.** Run `git status` first, check that every tracked
+file it lists really is churn, then restore those paths BY NAME:
+
+```bash
+git status --short
+git restore linux macos windows ios/Runner.xcodeproj/project.pbxproj
+```
+
+`git restore .` reverts everything tracked, churn and work alike. It has
+already silently thrown away three source files mid-round — the commit went
+out with only its test in it, and nothing but a standalone worktree check
+caught it. The churn is always in the same handful of generated directories;
+naming them costs one line and cannot take anything else with it.
+
+Never `git add -A` either — stage files by name. Local-only ignores live in
+`.git/info/exclude` (not shared with the team).
 
 **`pubspec.lock` and `ios/Podfile.lock` are the exception.** They are churn
 when a build regenerates them unchanged, and they are NOT churn when the

@@ -25,8 +25,6 @@ Future<String?> showSondrPrompt(
     final typed = await showDialog<String>(
       context: context,
       builder: (context) {
-        final tokens = GreyscaleTokens.of(context);
-        final theme = Theme.of(context);
         final scale = figmaScale(context);
 
         void submit() => Navigator.of(context).pop(controller.text);
@@ -51,78 +49,35 @@ Future<String?> showSondrPrompt(
               padding: EdgeInsets.symmetric(
                 horizontal: kSpacingSection * scale,
               ),
-              // Material only for the ink/text-selection machinery a TextField
-              // needs — elevation 0 and our own surface, so it casts nothing
-              // and tints nothing.
-              child: Material(
-                color: tokens.surface,
-                elevation: 0,
-                borderRadius: BorderRadius.circular(20 * scale),
-                child: Padding(
-                  // Section inset on three sides; the BOTTOM is a base unit
-                  // because the action row already contributes 12 of its own
-                  // tap padding inside this box. 12 + 12 = the 24 at the top,
-                  // so the visible inset is square. EdgeInsets.all(24) read
-                  // as 36 underneath.
-                  padding: EdgeInsets.fromLTRB(
-                    kSpacingSection * scale,
-                    kSpacingSection * scale,
-                    kSpacingSection * scale,
-                    kSpacingBase * scale,
+              child: _PromptCard(
+                children: [
+                  _PromptTitle(title),
+                  // The air above the field. Its partner below is ZERO,
+                  // because the action row brings 12 of its own tap
+                  // padding — so what you SEE is kSpacingBase either side.
+                  // Declaring 12 on both made the lower gap 24.
+                  SizedBox(height: kSpacingBase * scale),
+                  // Invisible until typed in: no capsule, no hint. The
+                  // heading above already says what it takes, exactly as
+                  // on Add Friends and the comments composer.
+                  SondrField(
+                    controller: controller,
+                    filled: false,
+                    centered: true,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.sentences,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => submit(),
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // The action size, not Material's dialog title — the
-                      // same 15/bold as "View your progress" and every other
-                      // heading of this weight.
-                      Text(
-                        title,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontSize: 15 * scale,
-                          fontWeight: FontWeight.w700,
-                          color: tokens.textPrimary,
-                        ),
-                      ),
-                      // The air above the field. Its partner below is ZERO,
-                      // because the action row brings 12 of its own tap
-                      // padding — so what you SEE is kSpacingBase either side.
-                      // Declaring 12 on both made the lower gap 24.
-                      SizedBox(height: kSpacingBase * scale),
-                      // Invisible until typed in: no capsule, no hint. The
-                      // heading above already says what it takes, exactly as
-                      // on Add Friends and the comments composer.
-                      SondrField(
-                        controller: controller,
-                        filled: false,
-                        centered: true,
-                        autofocus: true,
-                        textCapitalization: TextCapitalization.sentences,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => submit(),
-                      ),
-                      // Deliberately no SizedBox: SondrAction's own 12 of
-                      // padding is the matching half of the gap above.
-                      // Primary first, exit second — the order Delete/Close and
-                      // keep/retake use. Not SondrActionPair: these two are not
-                      // equals, so Cancel takes the supporting tone.
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SondrAction(label: confirmLabel, onPressed: submit),
-                          SizedBox(width: SondrActionPair.gap * scale),
-                          SondrAction(
-                            label: cancelLabel,
-                            supporting: true,
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                        ],
-                      ),
-                    ],
+                  // Deliberately no SizedBox: SondrAction's own 12 of
+                  // padding is the matching half of the gap above.
+                  _PromptActions(
+                    confirmLabel: confirmLabel,
+                    cancelLabel: cancelLabel,
+                    onConfirm: submit,
+                    onCancel: () => Navigator.of(context).pop(),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -133,5 +88,150 @@ Future<String?> showSondrPrompt(
     return trimmed.isEmpty ? null : trimmed;
   } finally {
     controller.dispose();
+  }
+}
+
+/// Asks a yes/no question, in the app's own language.
+///
+/// Shares a surface with the prompt above — the same card, the same
+/// heading, the same pair of actions. What differs is what sits between
+/// them: a field there, a sentence here. And this one is centred, because
+/// there is no keyboard for it to sit above.
+///
+/// Returns true only when the primary action is tapped. Cancelling, or
+/// dismissing it by tapping outside, is a no.
+Future<bool> showSondrConfirm(
+  BuildContext context, {
+  required String title,
+  required String body,
+  required String confirmLabel,
+  String cancelLabel = 'Cancel',
+}) async {
+  final said = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      final tokens = GreyscaleTokens.of(context);
+      final theme = Theme.of(context);
+      final scale = figmaScale(context);
+
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: kSpacingSection * scale),
+          child: _PromptCard(
+            children: [
+              _PromptTitle(title),
+              SizedBox(height: kSpacingBase * scale),
+              Text(
+                body,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontSize: 13 * scale,
+                  color: tokens.textSecondary,
+                ),
+              ),
+              // No SizedBox: the action row's own 12 of tap padding is the
+              // other half of the gap above it.
+              _PromptActions(
+                confirmLabel: confirmLabel,
+                cancelLabel: cancelLabel,
+                onConfirm: () => Navigator.of(context).pop(true),
+                onCancel: () => Navigator.of(context).pop(false),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+  return said ?? false;
+}
+
+/// The card both prompts are drawn on.
+///
+/// Material only for the ink and text-selection machinery a TextField
+/// needs — elevation 0 and our own surface, so it casts nothing and tints
+/// nothing.
+class _PromptCard extends StatelessWidget {
+  const _PromptCard({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final scale = figmaScale(context);
+    return Material(
+      color: tokens.surface,
+      elevation: 0,
+      borderRadius: BorderRadius.circular(20 * scale),
+      child: Padding(
+        // Section inset on three sides; the BOTTOM is a base unit because
+        // the action row already contributes 12 of its own tap padding
+        // inside this box. 12 + 12 = the 24 at the top, so the visible
+        // inset is square. EdgeInsets.all(24) read as 36 underneath.
+        padding: EdgeInsets.fromLTRB(
+          kSpacingSection * scale,
+          kSpacingSection * scale,
+          kSpacingSection * scale,
+          kSpacingBase * scale,
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: children),
+      ),
+    );
+  }
+}
+
+/// The action size, not Material's dialog title — the same 15/bold as
+/// "View your progress" and every other heading of this weight.
+class _PromptTitle extends StatelessWidget {
+  const _PromptTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final scale = figmaScale(context);
+    return Text(
+      text,
+      textAlign: TextAlign.center,
+      style: theme.textTheme.titleLarge?.copyWith(
+        fontSize: 15 * scale,
+        fontWeight: FontWeight.w700,
+        color: tokens.textPrimary,
+      ),
+    );
+  }
+}
+
+/// Primary first, exit second — the order Delete/Close and keep/retake
+/// use. Not SondrActionPair: these two are not equals, so the second takes
+/// the supporting tone.
+class _PromptActions extends StatelessWidget {
+  const _PromptActions({
+    required this.confirmLabel,
+    required this.cancelLabel,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  final String confirmLabel;
+  final String cancelLabel;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = figmaScale(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        SondrAction(label: confirmLabel, onPressed: onConfirm),
+        SizedBox(width: SondrActionPair.gap * scale),
+        SondrAction(label: cancelLabel, supporting: true, onPressed: onCancel),
+      ],
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/features/timer/session_clock.dart';
@@ -130,5 +131,34 @@ void main() {
       expect(back.taskName, 'Learn piano');
       expect(back.taskSecondsBefore, 68400);
     });
+  });
+
+  group('the fixtures both languages read', () {
+    // test/fixtures/sessions.json is loaded by this file and by
+    // ios/RunnerTests/SharedFixtureTests.swift. Same bytes, same answer —
+    // or the Lock Screen is lying about how long someone has worked.
+    final fixtures =
+        jsonDecode(File('test/fixtures/sessions.json').readAsStringSync())
+            as Map<String, dynamic>;
+    final cases = (fixtures['cases'] as List).cast<Map<String, dynamic>>();
+
+    test('there are cases to check', () {
+      expect(cases, isNotEmpty);
+    });
+
+    for (final c in cases) {
+      test('elapsed: ${c['name']}', () {
+        final clock = SessionClock.fromMap(
+          Map<String, dynamic>.from(c['session'] as Map),
+        )!;
+        final now = DateTime.fromMillisecondsSinceEpoch(c['nowMs'] as int);
+
+        expect(
+          clock.elapsedAt(now).inMilliseconds,
+          c['elapsedMs'],
+          reason: 'Dart and Swift disagree about this session',
+        );
+      });
+    }
   });
 }

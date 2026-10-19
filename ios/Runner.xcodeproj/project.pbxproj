@@ -10,9 +10,11 @@
 		00C30BE0D69EE64C1C40FC49 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C471229C71FF8F9E75B0B8DB /* Foundation.framework */; };
 		0B8DFF424E8FD8DDEB311B98 /* SessionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 321192FF6E879C02EC1E5F1E /* SessionMutation.swift */; };
 		0F5E21229387555D7B6CDF02 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F4289A4D59B0660757AE4EAD /* Pods_Runner.framework */; };
+		0F760EACAE9781AE5B60FEDF /* SharedFixtureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11142AB3CDD95AD4D37334DA /* SharedFixtureTests.swift */; };
 		13B8269FE7CB8918D01C8A3A /* SessionMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		25C4774EFED1E1CC7EC7284D /* SondrPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A0A7E50A96250EB714B0106 /* SondrPalette.swift */; };
+		2D665679E61A6F9BECCF891C /* sessions.json in Resources */ = {isa = PBXBuildFile; fileRef = B5C21D663B62D7BE11632980 /* sessions.json */; };
 		311DEA9F38484E0253310527 /* SondrIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A53A9F23C61867C485DF16F /* SondrIntents.swift */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		391A3EEB5B96994C2A68ECB7 /* MilestoneWordingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */; };
@@ -89,6 +91,7 @@
 
 /* Begin PBXFileReference section */
 		09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionControlTests.swift; sourceTree = "<group>"; };
+		11142AB3CDD95AD4D37334DA /* SharedFixtureTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedFixtureTests.swift; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		186BA34378E8A1DAB72E3ABB /* SessionActivityChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionActivityChannel.swift; sourceTree = "<group>"; };
@@ -127,6 +130,7 @@
 		9E2624A08FF2E130A4A72BC4 /* Inter-Variable.ttf */ = {isa = PBXFileReference; includeInIndex = 1; name = "Inter-Variable.ttf"; path = "../../assets/fonts/Inter-Variable.ttf"; sourceTree = "<group>"; };
 		AAF5E69E53654FF93F62DDD9 /* SondrActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrActivityAttributes.swift; sourceTree = "<group>"; };
 		B07F985F35E6610D3F20811A /* SondrRing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrRing.swift; sourceTree = "<group>"; };
+		B5C21D663B62D7BE11632980 /* sessions.json */ = {isa = PBXFileReference; includeInIndex = 1; name = sessions.json; path = ../../test/fixtures/sessions.json; sourceTree = "<group>"; };
 		BDBB2308979982E5A07D55AC /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		C459D82C21CA87B74EE8B144 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		C471229C71FF8F9E75B0B8DB /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
@@ -172,6 +176,8 @@
 				7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */,
 				8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */,
 				09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */,
+				11142AB3CDD95AD4D37334DA /* SharedFixtureTests.swift */,
+				B5C21D663B62D7BE11632980 /* sessions.json */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -390,6 +396,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2D665679E61A6F9BECCF891C /* sessions.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -525,6 +532,7 @@
 				E0DAA23CC78FC179DD2D39A4 /* SondrIntents.swift in Sources */,
 				F4570C3FC8374E21368CDA89 /* SessionControlTests.swift in Sources */,
 				92EA64FF843CD7FD61B008F0 /* SondrActivityAttributes.swift in Sources */,
+				0F760EACAE9781AE5B60FEDF /* SharedFixtureTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

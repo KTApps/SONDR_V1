@@ -1,46 +1,42 @@
 import SwiftUI
 
-/// Whether the card is still counting toward a milestone, or has reached one.
+/// Whether the card is still counting toward a milestone, is inside the last
+/// minute of it, or has reached it.
 ///
-/// This is one decision made in one place because the bug it fixes came from
-/// the views each assuming the milestone was still ahead. A running card
-/// hands its countdown to the system as a date and is then left alone for
-/// hours; when that date passes, `Text(_, style: .relative)` does not stop at
-/// zero, it turns round and counts back **up** — "1 sec, 2 sec, 3 sec".
+/// One decision made in one place, because the bug it fixes came from the
+/// views each assuming the milestone was still ahead. A running card hands
+/// its countdown to the system as a date and is then left alone for hours;
+/// `Text(_, style: .relative)` does not stop at zero, it turns round and
+/// counts back **up** — "1 sec, 2 sec, 3 sec".
+///
+/// There is no staleDate and no timeline anywhere in this: a stale card
+/// loses the seconds off its elapsed clock, and `TimelineView` schedules
+/// are not honoured in a Live Activity (both measured on device). The card
+/// changes only when the app pushes it, so the states below are decided at
+/// push time and hold until the next push.
 ///
 /// Four views need the answer — the Lock Screen line, the Lock Screen ring,
-/// and the ring in each island presentation — and all four must agree, or the
-/// card says one thing and draws another.
+/// and the ring in each island presentation — and all four must agree.
 enum MilestoneDisplay: Equatable {
-  /// Still filling. How long is left, always positive.
+  /// More than a minute to go: a live countdown.
   case counting(remaining: TimeInterval)
+
+  /// Inside the last minute: a fixed line, so the countdown cannot run
+  /// past zero before the next push. The ring is unchanged.
+  case lastMinute
 
   /// Reached. The ring is complete and the line says so.
   case crossed
 
-  /// The line under the clock when the milestone has been reached.
+  static let lastMinuteMessage = "<1 min to your next milestone"
   static let reachedMessage = "You've reached a milestone"
 
-  /// Two different questions, because neither answers on its own.
-  ///
-  /// `isStale` is the system's answer and the only one available when the
-  /// app has not run since the crossing: the activity's `staleDate` is set
-  /// to the projected crossing, and once it passes the system redraws with
-  /// this set. Nothing has to wake up for it.
-  ///
-  /// The arithmetic is the other two answers, and the reason the staleDate
-  /// alone is not enough. A session **paused** after crossing is pushed with
-  /// no staleDate at all, so it can never go stale; a session **resumed**
-  /// after crossing is pushed with a fresh one that is already in the past.
-  /// In both the projected remaining has gone negative, and that is what
-  /// catches them.
-  static func state(
-    for session: SessionSnapshot,
-    at now: Date,
-    isStale: Bool
-  ) -> MilestoneDisplay {
+  /// Decided from the session alone, at `now` — which, with no staleness
+  /// and no timeline, is the moment of the push that drew this card.
+  static func state(for session: SessionSnapshot, at now: Date) -> MilestoneDisplay {
     let remaining = session.projectedRemaining(at: now)
-    if isStale || remaining <= 0 { return .crossed }
+    if remaining <= 0 { return .crossed }
+    if remaining <= SessionSnapshot.lastMinuteSeconds { return .lastMinute }
     return .counting(remaining: remaining)
   }
 

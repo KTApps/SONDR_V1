@@ -144,20 +144,24 @@ struct SessionSnapshot: Equatable {
     now.addingTimeInterval(projectedRemaining(at: now))
   }
 
-  /// When the card stops being able to speak for itself — nil while paused.
+  /// Inside this much of the crossing, the card stops counting.
   ///
-  /// This is the activity's `staleDate`. A running card hands its countdown
-  /// to the system as a date and is then left alone for hours; when that
-  /// date passes with nothing pushed, `Text(_, style: .relative)` sails
-  /// through zero and counts back **up** — "1 sec, 2 sec". The staleDate is
-  /// how the card says when it will stop being true, so the system redraws
-  /// it at the crossing instead of letting it lie.
-  ///
-  /// Nil while paused because a paused session is not approaching anything.
-  /// Its crossing, if it already happened, is caught by the arithmetic
-  /// instead — see `MilestoneDisplay`.
-  func staleDate(at now: Date) -> Date? {
-    isPaused ? nil : projectedMilestoneDate(at: now)
+  /// The running card's countdown is `Text(_, style: .relative)`, handed
+  /// to the system as a date so it keeps moving without the app awake.
+  /// Nothing stops it at zero: left alone past the crossing it turns round
+  /// and counts back up. So the last minute is drawn as a fixed string
+  /// instead — nothing in it can move, so nothing can move the wrong way.
+  static let lastMinuteSeconds: TimeInterval = 60
+
+  /// When a running card should be redrawn so that the last minute lands
+  /// without anyone touching the phone: one minute before the crossing.
+  /// Nil while paused, nil once inside the last minute (already static),
+  /// nil once crossed (nothing left to wait for).
+  func staticLineFireDate(at now: Date) -> Date? {
+    guard !isPaused else { return nil }
+    let remaining = projectedRemaining(at: now)
+    guard remaining > Self.lastMinuteSeconds else { return nil }
+    return now.addingTimeInterval(remaining - Self.lastMinuteSeconds)
   }
 
   /// The current milestone as a span of time: empty at the lower bound,

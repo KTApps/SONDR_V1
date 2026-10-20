@@ -1,119 +1,100 @@
 import SwiftUI
 import XCTest
 
-/// The card has to know it has crossed a milestone without anything waking
-/// up to tell it. Three different routes say so and all three are here,
-/// because missing any one of them puts the old bug back: a relative
-/// countdown that runs past zero and starts counting up.
+/// The card is redrawn only when the app pushes it, so what it says is
+/// decided at push time and has to be right for as long as the push lasts.
+/// Three states, and the boundaries between them are the whole point.
 final class MilestoneDisplayTests: XCTestCase {
   private let t0 = Date(timeIntervalSince1970: 1_760_000_000)
   private let hour: TimeInterval = 3600
 
-  // MARK: - Still counting
+  // MARK: - Counting
 
-  func testCountingWhileTheMilestoneIsStillAhead() {
+  func testCountingWhileMoreThanAMinuteRemains() {
     let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 16 * hour)
     let now = t0.addingTimeInterval(48 * 60)
 
     XCTAssertEqual(
-      MilestoneDisplay.state(for: session, at: now, isStale: false),
+      MilestoneDisplay.state(for: session, at: now),
       .counting(remaining: 3 * hour + 12 * 60)
     )
   }
 
   func testTheOrdinaryRingKeepsTheOrdinaryFill() {
-    let display = MilestoneDisplay.counting(remaining: hour)
-
-    XCTAssertEqual(display.ringFill, Ink.ringFill)
-    XCTAssertNotEqual(display.ringFill, Ink.ringComplete)
+    XCTAssertEqual(MilestoneDisplay.counting(remaining: hour).ringFill, Ink.ringFill)
+    XCTAssertEqual(MilestoneDisplay.lastMinute.ringFill, Ink.ringFill)
   }
 
   func testAPausedSessionShortOfTheMilestoneIsStillCounting() {
     let pausedAt = t0.addingTimeInterval(30 * 60)
-    let session = SessionSnapshot(
-      startedAt: t0,
-      pausedAt: pausedAt,
-      taskSecondsBefore: 16 * hour
-    )
+    let session = SessionSnapshot(startedAt: t0, pausedAt: pausedAt, taskSecondsBefore: 16 * hour)
 
     XCTAssertEqual(
-      MilestoneDisplay.state(
-        for: session,
-        at: pausedAt.addingTimeInterval(4 * hour),
-        isStale: false
-      ),
+      MilestoneDisplay.state(for: session, at: pausedAt.addingTimeInterval(4 * hour)),
       .counting(remaining: 3.5 * hour),
       "a pause freezes the countdown; it does not advance it"
     )
   }
 
-  // MARK: - Crossed, by each of the three routes
+  // MARK: - The last minute
 
-  func testStaleMeansCrossedEvenWhileTheArithmeticStillSaysAhead() {
-    // The system redrew with isStale set. Whatever the frozen state says,
-    // the staleDate it was given has passed.
-    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 16 * hour)
-    let now = t0.addingTimeInterval(48 * 60)
+  func testPushedWithSixtySecondsLeftIsTheLastMinute() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
 
     XCTAssertEqual(
-      MilestoneDisplay.state(for: session, at: now, isStale: true),
-      .crossed
+      MilestoneDisplay.state(for: session, at: t0.addingTimeInterval(hour - 60)),
+      .lastMinute
     )
+  }
+
+  func testPushedWithSixtyOneSecondsLeftIsStillCounting() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
+
+    XCTAssertEqual(
+      MilestoneDisplay.state(for: session, at: t0.addingTimeInterval(hour - 61)),
+      .counting(remaining: 61)
+    )
+  }
+
+  func testPushedWithOneSecondLeftIsTheLastMinute() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
+
+    XCTAssertEqual(
+      MilestoneDisplay.state(for: session, at: t0.addingTimeInterval(hour - 1)),
+      .lastMinute
+    )
+  }
+
+  func testTheLastMinuteLine() {
+    XCTAssertEqual(MilestoneDisplay.lastMinuteMessage, "<1 min to your next milestone")
+  }
+
+  // MARK: - Crossed
+
+  func testTheInstantOfTheCrossingIsCrossed() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
+
+    XCTAssertEqual(MilestoneDisplay.state(for: session, at: t0.addingTimeInterval(hour)), .crossed)
   }
 
   func testPausedAfterCrossingIsCrossed() {
-    // Paused at 20h30m on a task that stood at 19h. No staleDate was ever
-    // set for this push, so isStale can never become true — the arithmetic
-    // is the only thing that can catch it.
     let pausedAt = t0.addingTimeInterval(90 * 60)
-    let session = SessionSnapshot(
-      startedAt: t0,
-      pausedAt: pausedAt,
-      taskSecondsBefore: 19 * hour
-    )
+    let session = SessionSnapshot(startedAt: t0, pausedAt: pausedAt, taskSecondsBefore: 19 * hour)
 
-    XCTAssertNil(session.staleDate(at: pausedAt))
-    XCTAssertEqual(
-      MilestoneDisplay.state(for: session, at: pausedAt, isStale: false),
-      .crossed
-    )
+    XCTAssertEqual(MilestoneDisplay.state(for: session, at: pausedAt), .crossed)
   }
 
   func testResumedAfterCrossingIsCrossed() {
-    // Resumed past the crossing: the fresh staleDate is already in the
-    // past, and the system has not yet redrawn, so isStale is still false.
     let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
-    let now = t0.addingTimeInterval(90 * 60)
 
-    XCTAssertLessThan(session.staleDate(at: now)!, now)
-    XCTAssertEqual(
-      MilestoneDisplay.state(for: session, at: now, isStale: false),
-      .crossed
-    )
-  }
-
-  func testTheInstantOfTheCrossingCountsAsCrossed() {
-    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
-    let exactly = t0.addingTimeInterval(hour) // 20h on the nose
-
-    XCTAssertEqual(session.projectedRemaining(at: exactly), 0, accuracy: 0.001)
-    XCTAssertEqual(
-      MilestoneDisplay.state(for: session, at: exactly, isStale: false),
-      .crossed
-    )
+    XCTAssertEqual(MilestoneDisplay.state(for: session, at: t0.addingTimeInterval(90 * 60)), .crossed)
   }
 
   func testASecondCrossingInOneSessionLooksTheSame() {
     let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
-    let past = t0.addingTimeInterval(21.5 * hour) // 40h30m on the task
 
-    XCTAssertEqual(
-      MilestoneDisplay.state(for: session, at: past, isStale: false),
-      .crossed
-    )
+    XCTAssertEqual(MilestoneDisplay.state(for: session, at: t0.addingTimeInterval(21.5 * hour)), .crossed)
   }
-
-  // MARK: - What crossed looks like
 
   func testTheCrossedRingIsTheCompletedColour() {
     XCTAssertEqual(MilestoneDisplay.crossed.ringFill, Ink.ringComplete)
@@ -131,18 +112,12 @@ final class MilestoneDisplayTests: XCTestCase {
   // MARK: - And out the other side
 
   func testAFreshSessionAfterAStopIsCountingAgain() {
-    // The crossed session was stopped; its time, the crossed hours
-    // included, is now part of the task.
     let next = SessionSnapshot(startedAt: t0, taskSecondsBefore: 20.5 * hour)
 
     XCTAssertEqual(
-      MilestoneDisplay.state(for: next, at: t0, isStale: false),
+      MilestoneDisplay.state(for: next, at: t0),
       .counting(remaining: 19.5 * hour),
       "a new session counts toward the next milestone, not the one already passed"
-    )
-    XCTAssertEqual(
-      MilestoneDisplay.state(for: next, at: t0, isStale: false).ringFill,
-      Ink.ringFill
     )
   }
 }

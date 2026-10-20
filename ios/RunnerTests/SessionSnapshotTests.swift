@@ -210,7 +210,7 @@ final class SessionSnapshotTests: XCTestCase {
     )
   }
 
-  // MARK: - The projected crossing, and the staleDate built on it
+  // MARK: - The projected crossing
 
   func testTheTargetIsTheFirstMilestoneAboveWhereTheTaskStood() {
     XCTAssertEqual(
@@ -267,36 +267,47 @@ final class SessionSnapshotTests: XCTestCase {
     )
   }
 
-  func testStaleDateIsTheProjectedCrossingWhileRunning() {
+  // MARK: - The one push nobody makes: a minute before the crossing
+
+  func testTheLastMinuteFiresOneMinuteBeforeTheCrossing() {
     let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 16 * hour)
-    let now = t0.addingTimeInterval(48 * 60)
+    let now = t0.addingTimeInterval(48 * 60) // 3h12m to go
 
     XCTAssertEqual(
-      session.staleDate(at: now),
-      now.addingTimeInterval(3 * hour + 12 * 60)
+      session.staticLineFireDate(at: now),
+      now.addingTimeInterval(3 * hour + 12 * 60 - 60)
     )
   }
 
-  func testStaleDateDoesNotDriftBetweenRenders() {
+  func testTheLastMinuteFireDateDoesNotDriftBetweenPushes() {
     let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 16 * hour)
 
     XCTAssertEqual(
-      session.staleDate(at: t0.addingTimeInterval(hour)),
-      session.staleDate(at: t0.addingTimeInterval(hour + 30)),
-      "the crossing is a fixed instant; re-rendering must not push it later"
+      session.staticLineFireDate(at: t0.addingTimeInterval(hour)),
+      session.staticLineFireDate(at: t0.addingTimeInterval(hour + 30)),
+      "the crossing is a fixed instant; re-pushing must not move the booking"
     )
   }
 
-  func testAPausedSessionHasNoStaleDate() {
+  func testNothingToBookInsideTheLastMinute() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
+    let now = t0.addingTimeInterval(hour - 45) // 45s to go
+
+    XCTAssertNil(session.staticLineFireDate(at: now), "the line is already static")
+  }
+
+  func testNothingToBookOnceCrossed() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
+
+    XCTAssertNil(session.staticLineFireDate(at: t0.addingTimeInterval(90 * 60)))
+  }
+
+  func testNothingToBookWhilePaused() {
     let pausedAt = t0.addingTimeInterval(30 * 60)
-    let session = SessionSnapshot(
-      startedAt: t0,
-      pausedAt: pausedAt,
-      taskSecondsBefore: 16 * hour
-    )
+    let session = SessionSnapshot(startedAt: t0, pausedAt: pausedAt, taskSecondsBefore: 16 * hour)
 
     XCTAssertNil(
-      session.staleDate(at: pausedAt.addingTimeInterval(600)),
+      session.staticLineFireDate(at: pausedAt.addingTimeInterval(600)),
       "a paused session is not approaching anything"
     )
   }
@@ -311,7 +322,7 @@ final class SessionSnapshotTests: XCTestCase {
 
     XCTAssertEqual(next.targetSeconds, 40 * hour)
     XCTAssertEqual(next.projectedRemaining(at: t0), 19.5 * hour, accuracy: 0.001)
-    XCTAssertEqual(next.staleDate(at: t0), t0.addingTimeInterval(19.5 * hour))
+    XCTAssertEqual(next.staticLineFireDate(at: t0), t0.addingTimeInterval(19.5 * hour - 60))
   }
 
   // MARK: - Reading it out of the App Group

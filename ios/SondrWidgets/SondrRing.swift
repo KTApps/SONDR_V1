@@ -27,9 +27,8 @@ struct SondrRing: View {
   let diameter: CGFloat
 
   /// Whether the milestone is still ahead, and what colour that makes the
-  /// ring. Passed in rather than worked out here: the line under the clock
-  /// has to reach the same answer, and only the view that owns the
-  /// activity context can see `isStale`.
+  /// ring. Passed in rather than worked out here, so the line under the
+  /// clock and the ring cannot reach different answers.
   let display: MilestoneDisplay
 
   private var stroke: CGFloat { diameter / 10 }

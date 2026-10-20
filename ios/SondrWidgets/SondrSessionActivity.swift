@@ -24,8 +24,7 @@ struct SondrSessionActivity: Widget {
     ActivityConfiguration(for: SondrActivityAttributes.self) { context in
       LockScreenCard(
         taskName: context.attributes.taskName,
-        state: context.state,
-        isStale: context.isStale
+        state: context.state
       )
       .padding(.vertical, 14)
       .padding(.horizontal, 16)
@@ -35,11 +34,7 @@ struct SondrSessionActivity: Widget {
     } dynamicIsland: { context in
       let session = context.state.session
       let now = Date()
-      let display = MilestoneDisplay.state(
-        for: session,
-        at: now,
-        isStale: context.isStale
-      )
+      let display = MilestoneDisplay.state(for: session, at: now)
       let name = taskLine(context.attributes.taskName, session.isPaused)
       return DynamicIsland {
         // The ring on its own. Sharing the leading region with the task
@@ -93,14 +88,10 @@ private struct LockScreenCard: View {
   let taskName: String
   let state: SondrActivityAttributes.ContentState
 
-  /// The system's own answer to "has the staleDate passed?". The only
-  /// signal available when nothing has woken up since the crossing.
-  let isStale: Bool
-
   var body: some View {
     let session = state.session
     let now = Date()
-    let display = MilestoneDisplay.state(for: session, at: now, isStale: isStale)
+    let display = MilestoneDisplay.state(for: session, at: now)
     HStack(spacing: 12) {
       SondrRing(session: session, now: now, diameter: 48, display: display)
       VStack(alignment: .leading, spacing: 6) {
@@ -193,9 +184,10 @@ private struct Elapsed: View {
 /// system's way: pausing must stop the clock, not reword the sentence
 /// under it.
 ///
-/// Once the milestone is reached the sentence changes, and the same 11pt
-/// tertiary line says so. Without that, the relative countdown passes zero
-/// and counts back up.
+/// Inside the last minute the line is a fixed string, so nothing in it can
+/// count — and so nothing can count back up past the crossing before the
+/// next push. Once the milestone is reached the sentence changes again. The
+/// same 11pt tertiary line throughout.
 private struct MilestoneLine: View {
   let session: SessionSnapshot
   let now: Date
@@ -206,14 +198,16 @@ private struct MilestoneLine: View {
       switch display {
       case .crossed:
         Text(MilestoneDisplay.reachedMessage)
+      case .lastMinute:
+        Text(MilestoneDisplay.lastMinuteMessage)
       case .counting(let remaining):
         if session.isPaused {
           Text("\(MilestoneWording.remaining(remaining)) to your next milestone")
         } else {
           // Handed over as a date, not a string, because that is the only
           // countdown that keeps moving without the app being woken to
-          // retype it. It can no longer run past zero: the activity's
-          // staleDate is this same instant, so the system redraws here.
+          // retype it. It never reaches zero on this card: a minute out,
+          // the app pushes again and the line above takes over.
           Text(
             "\(Text(session.projectedMilestoneDate(at: now), style: .relative)) to your next milestone"
           )

@@ -112,6 +112,54 @@ struct SessionSnapshot: Equatable {
     now.addingTimeInterval(remaining(at: now))
   }
 
+  /// The milestone this session set out to reach: the first one strictly
+  /// above where the task already stood when Start was pressed.
+  ///
+  /// Anchored to the session rather than to `now`, and that is the whole
+  /// point. `bandSeconds` resets at every crossing, so `remaining` springs
+  /// back to a full twenty hours the instant a milestone passes — right for
+  /// a ring that begins filling again, useless for a card that has to say
+  /// the milestone was reached. This target does not move while the session
+  /// runs, so the time to it keeps falling and goes negative once crossed.
+  ///
+  /// A task sitting on an exact multiple counts as having reached that one
+  /// already and aims at the next, which is the same reading `bandSeconds`
+  /// gives: twenty hours exactly is an empty ring, not a full one.
+  var targetSeconds: TimeInterval {
+    (taskSecondsBefore / Self.milestoneSeconds).rounded(.down) * Self.milestoneSeconds
+      + Self.milestoneSeconds
+  }
+
+  /// How long until this session reaches `targetSeconds`; negative once it
+  /// has.
+  ///
+  /// Identical to `remaining(at:)` right up to the crossing. The two part
+  /// company only afterwards, which is the one moment that matters here.
+  func projectedRemaining(at now: Date) -> TimeInterval {
+    targetSeconds - taskSeconds(at: now)
+  }
+
+  /// The instant this session crosses, projected from `now`.
+  func projectedMilestoneDate(at now: Date) -> Date {
+    now.addingTimeInterval(projectedRemaining(at: now))
+  }
+
+  /// When the card stops being able to speak for itself — nil while paused.
+  ///
+  /// This is the activity's `staleDate`. A running card hands its countdown
+  /// to the system as a date and is then left alone for hours; when that
+  /// date passes with nothing pushed, `Text(_, style: .relative)` sails
+  /// through zero and counts back **up** — "1 sec, 2 sec". The staleDate is
+  /// how the card says when it will stop being true, so the system redraws
+  /// it at the crossing instead of letting it lie.
+  ///
+  /// Nil while paused because a paused session is not approaching anything.
+  /// Its crossing, if it already happened, is caught by the arithmetic
+  /// instead — see `MilestoneDisplay`.
+  func staleDate(at now: Date) -> Date? {
+    isPaused ? nil : projectedMilestoneDate(at: now)
+  }
+
   /// The current milestone as a span of time: empty at the lower bound,
   /// full at the upper.
   ///

@@ -22,3 +22,9 @@ build/
 
 # Local design-review renders — never committed.
 design-review/
+
+# Rules tests pull their own node_modules
+test/rules/node_modules/
+test/rules/package-lock.json
+firestore-debug.log
+firebase-debug.log

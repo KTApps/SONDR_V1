@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 60;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -33,6 +33,9 @@
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		9A5AD02011EE67BB11B787FC /* SondrIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A53A9F23C61867C485DF16F /* SondrIntents.swift */; };
 		A0FC935FF946C24E4B44B175 /* MilestoneWording.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424F466EE18E9FFF553E32AF /* MilestoneWording.swift */; };
+		93C687036C0A5B7294D731A0 /* ScheduledUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAD029FDFBAE3297AC9E49EE /* ScheduledUpdate.swift */; };
+		C20D3DEBC02453C2B357FD00 /* ScheduledUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAD029FDFBAE3297AC9E49EE /* ScheduledUpdate.swift */; };
+		CCB5245DF27F86855671AF6C /* ScheduledUpdateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21536AD63B018EDD48C01BBC /* ScheduledUpdateTests.swift */; };
 		87F24DD4D72A02C554332605 /* MilestoneDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3BE2D0EBB795259646427 /* MilestoneDisplay.swift */; };
 		8BB1A4ED72845522AC53EFBF /* MilestoneDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3BE2D0EBB795259646427 /* MilestoneDisplay.swift */; };
 		B263DEC7A3903341ECEA79CC /* MilestoneDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 062646C4869BCA816B77E62E /* MilestoneDisplayTests.swift */; };
@@ -106,6 +109,8 @@
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		424F466EE18E9FFF553E32AF /* MilestoneWording.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MilestoneWording.swift; sourceTree = "<group>"; };
+		EAD029FDFBAE3297AC9E49EE /* ScheduledUpdate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduledUpdate.swift; sourceTree = "<group>"; };
+		21536AD63B018EDD48C01BBC /* ScheduledUpdateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduledUpdateTests.swift; sourceTree = "<group>"; };
 		19D3BE2D0EBB795259646427 /* MilestoneDisplay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MilestoneDisplay.swift; sourceTree = "<group>"; };
 		062646C4869BCA816B77E62E /* MilestoneDisplayTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MilestoneDisplayTests.swift; sourceTree = "<group>"; };
 		4430ADE4653C351BAAEB430F /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
@@ -181,6 +186,7 @@
 				67FC1EB3886F336D9235DF24 /* SessionSnapshotTests.swift */,
 				7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */,
 				062646C4869BCA816B77E62E /* MilestoneDisplayTests.swift */,
+				21536AD63B018EDD48C01BBC /* ScheduledUpdateTests.swift */,
 				8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */,
 				09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */,
 				11142AB3CDD95AD4D37334DA /* SharedFixtureTests.swift */,
@@ -252,6 +258,7 @@
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				186BA34378E8A1DAB72E3ABB /* SessionActivityChannel.swift */,
+				EAD029FDFBAE3297AC9E49EE /* ScheduledUpdate.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -537,6 +544,8 @@
 				97231A8D3FEFAC882DB3A466 /* SondrPalette.swift in Sources */,
 				8BB1A4ED72845522AC53EFBF /* MilestoneDisplay.swift in Sources */,
 				B263DEC7A3903341ECEA79CC /* MilestoneDisplayTests.swift in Sources */,
+				C20D3DEBC02453C2B357FD00 /* ScheduledUpdate.swift in Sources */,
+				CCB5245DF27F86855671AF6C /* ScheduledUpdateTests.swift in Sources */,
 				391A3EEB5B96994C2A68ECB7 /* MilestoneWordingTests.swift in Sources */,
 				D905D7DF88CF3927CC99C997 /* SessionMutation.swift in Sources */,
 				13B8269FE7CB8918D01C8A3A /* SessionMutationTests.swift in Sources */,
@@ -574,6 +583,7 @@
 				DF0C0822EE59AA0258AA50A1 /* SessionSnapshot.swift in Sources */,
 				957906BAEB05DDB67FD6FAFA /* SondrActivityAttributes.swift in Sources */,
 				A34F8A028D8E6C8F9556D7D6 /* SessionActivityChannel.swift in Sources */,
+				93C687036C0A5B7294D731A0 /* ScheduledUpdate.swift in Sources */,
 				3DCA1D35ADA88ABCD140861F /* SessionMutation.swift in Sources */,
 				9A5AD02011EE67BB11B787FC /* SondrIntents.swift in Sources */,
 			);

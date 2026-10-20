@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import 'content_prune.dart';
 import 'models/block.dart';
 import 'models/friendship.dart';
 
@@ -36,10 +37,20 @@ List<String> handlesNotBlocked(
 /// reads are scoped by `array-contains uid`, matching the security rule that a
 /// user can only see friendships they're part of.
 class FriendsRepository {
-  FriendsRepository({required this.db, required this.uid});
+  FriendsRepository({required this.db, required this.uid, ContentPruner? pruner})
+    : pruner =
+          pruner ??
+          ContentPruner(
+            uid: uid,
+            audiences: FirestoreAudiences(db: db, uid: uid),
+            pending: PrefsPendingPrunes(),
+          );
 
   final FirebaseFirestore db;
   final String uid;
+
+  /// Takes the other person out of audiences this user already wrote.
+  final ContentPruner pruner;
 
   CollectionReference<Map<String, dynamic>> get _friendships =>
       db.collection('friendships');
@@ -132,10 +143,15 @@ class FriendsRepository {
       'createdAt': FieldValue.serverTimestamp(),
     });
     await batch.commit();
+    // Not awaited: the block itself is the thing that must land, and the
+    // prune is retried at launch until the server confirms it. Making the
+    // button wait on every post and comment would be a network round trip
+    // per batch for no benefit the owner can see.
+    unawaited(pruner.pruneMyContentFor(targetUid));
   }
 
   /// Lift a block this user placed. The friendship is not restored — they
-  /// would have to ask again.
+  /// would have to ask again, and nothing pruned is put back.
   Future<void> unblockUser(String blockedUid) =>
       _blocks.doc(Block.idFor(uid, blockedUid)).delete();
 
@@ -282,7 +298,21 @@ class FriendsRepository {
 
   /// Decline an incoming request, cancel an outgoing one, or unfriend — all the
   /// same delete from a participant's side.
-  Future<void> remove(String pairId) => _friendships.doc(pairId).delete();
+  ///
+  /// Prunes the other party out of this user's existing posts and comments,
+  /// the same as blocking. Not because unfriending needs to hide anything,
+  /// but because blocking does: if only a block pruned, the posts going
+  /// quiet would be the tell.
+  ///
+  /// A pair id is the two uids sorted and joined, so the other one is
+  /// whichever half is not this user. A declined or cancelled REQUEST
+  /// prunes too; the audiences simply contain nobody to remove, because a
+  /// pending request was never in one.
+  Future<void> remove(String pairId) async {
+    await _friendships.doc(pairId).delete();
+    final other = Friendship.otherIn(pairId, uid);
+    if (other != null) unawaited(pruner.pruneMyContentFor(other));
+  }
 }
 
 /// Null on the local/offline backend or before a uid exists; friends require a
@@ -345,4 +375,15 @@ final blockedAccountsProvider = StreamProvider<List<Block>>((ref) {
   final repo = ref.watch(friendsRepositoryProvider);
   if (repo == null) return Stream.value(const <Block>[]);
   return repo.watchBlocked();
+});
+
+/// Finish any prune a previous launch could not confirm.
+///
+/// A function rather than a value so the caller decides when it runs, and so
+/// a test can override it without a Firestore instance. Does nothing when
+/// there is no backend — there is nothing to prune on the local one.
+final pendingPruneRunnerProvider = Provider<Future<void> Function()>((ref) {
+  final repo = ref.watch(friendsRepositoryProvider);
+  if (repo == null) return () async {};
+  return repo.pruner.runPending;
 });

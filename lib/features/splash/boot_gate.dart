@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
+import '../friends/friends_repository.dart';
 import '../habits/habits_providers.dart';
 import '../shell/main_shell.dart';
 import '../tasks/tasks_providers.dart';
@@ -36,6 +37,13 @@ class _BootGateState extends ConsumerState<BootGate> {
     super.initState();
     // Failsafe: never strand the user on the splash if a fetch hangs.
     _failsafe = Timer(_maxWait, _lift);
+    // A prune whose writes never reached the server — the app was killed,
+    // or it was offline — is finished here. Fire and forget: it must never
+    // hold the splash up, and it is retried on every launch until the
+    // server confirms it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(ref.read(pendingPruneRunnerProvider)());
+    });
   }
 
   @override

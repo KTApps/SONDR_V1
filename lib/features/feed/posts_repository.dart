@@ -127,11 +127,18 @@ class PostsRepository {
 
   // --- Comments ----------------------------------------------------------
 
-  /// A post's comments, oldest first.
+  /// A post's comments, oldest first — the ones this reader is still in.
+  ///
+  /// The `array-contains` is not a nicety: the read rule requires the reader
+  /// to be in the comment's audience, and a query whose rule leans on
+  /// per-document data it does not constrain fails WHOLESALE rather than
+  /// omitting rows. Without this filter the thread does not shorten, it
+  /// errors. See test/rules/rules.test.mjs.
   Stream<List<Comment>> watchComments(String postId) {
     return _posts
         .doc(postId)
         .collection('comments')
+        .where('audience', arrayContains: uid)
         .orderBy('createdAt')
         .snapshots()
         .map(
@@ -145,12 +152,21 @@ class PostsRepository {
     final t = text.trim();
     if (t.isEmpty) return;
     final author = await _author();
+    // The comment's audience is the post's, exactly — the rules check it
+    // against the post and refuse anything else. A copy rather than a
+    // reference because the commenter does not own the post and so could
+    // never prune its audience; they can prune their own comment's.
+    final post = await _posts.doc(postId).get();
+    final audience = [
+      for (final u in (post.data()?['audience'] as List? ?? const [])) '$u',
+    ];
     final commentRef = _posts.doc(postId).collection('comments').doc();
     final batch = db.batch();
     batch.set(commentRef, {
       'authorUid': uid,
       'author': author.toMap(),
       'text': t,
+      'audience': audience,
       'createdAt': FieldValue.serverTimestamp(),
     });
     batch.update(_posts.doc(postId), {'commentCount': FieldValue.increment(1)});

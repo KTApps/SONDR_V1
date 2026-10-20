@@ -66,6 +66,10 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # An in-memory Firestore, so the prune — which is nothing but queries and
+  # batched writes — can be tested without a network or an emulator.
+  fake_cloud_firestore: ^4.1.1
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

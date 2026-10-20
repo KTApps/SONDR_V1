@@ -68,6 +68,17 @@ class Friendship {
     return pair.join('__');
   }
 
+  /// The other half of a [pairId], or null if [myUid] is not one of them.
+  ///
+  /// Lets a caller holding only the id — deleting a friendship, say — name
+  /// the person on the other side without reading the document it has just
+  /// removed.
+  static String? otherIn(String pairId, String myUid) {
+    final halves = pairId.split('__');
+    if (halves.length != 2 || !halves.contains(myUid)) return null;
+    return halves.firstWhere((u) => u != myUid, orElse: () => '');
+  }
+
   factory Friendship.fromMap(String id, Map<String, dynamic> map) {
     final rawProfiles = (map['profiles'] as Map?) ?? const {};
     final profiles = <String, FriendIdentity>{};

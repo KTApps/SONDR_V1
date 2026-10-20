@@ -163,12 +163,11 @@ removing, blocking and withdrawing are summoned.
 mechanism and adding one means a new dependency, so the TestFlight link goes to
 the clipboard with a "Copied" confirmation. Worth revisiting with `share_plus`.
 
-### Block — CODE COMPLETE, DEPLOYMENT PENDING
+### Block — DONE, RULES LIVE
 
-**Not done until the rules are live on `sondr-cd439`.** The client code and the
-rules are written and committed; the rules have NOT been deployed, so a
-modified client can still create a friendship across a block. Until then,
-blocking is enforced only in the app.
+**The rules are live on `sondr-cd439`** as of 20 October 2026. A modified
+client can no longer create a friendship across a block; blocking is enforced
+in the backend, not only in the app.
 
 **Deploy with the project named explicitly:**
 
@@ -192,14 +191,10 @@ Friends' swipe Block now blocks, retiring the alias-to-Remove liability.
 
 ### Follow-ups from the block work
 
-- **A blocked person's existing posts stay in the feed.** The feed is
-  friends-only via an `audience` array **written at post-creation time**, not a
-  live join against the friends list — so unfriending does not retroactively
-  remove the reader from posts that already exist. The assumption that blocked
-  posts drop out via the unfriend is wrong. Fixing it needs either a client
-  filter against the blocked set or an audience rewrite on unfriend.
-- **Comments by a blocked person on a mutual friend's post are still shown.**
-  Deferred deliberately.
+- [x] **A blocked person's existing posts stay in the feed.** Fixed by the
+  audience rewrite — see *Reciprocal block* under item 7.
+- [x] **Comments by a blocked person on a mutual friend's post are still
+  shown.** Fixed by the same work; comments now carry their own audience.
 - **`.firebaserc` is corrected.** `prodapp-b90ac` was the Firebase project
   behind `Prod1/`, the predecessor SwiftUI app — nothing in this repo wanted
   it. The default is `sondr-cd439` as of 20 October 2026.
@@ -242,6 +237,49 @@ Files: [`friends_screen.dart`](lib/features/friends/friends_screen.dart).
 **One thing the tests caught:** the delete overlay had a slim-card layout that
 put Delete and Close side by side. Stacking them overflowed a session card by
 16, so the overlay's padding is tighter rather than the layout branching.
+
+### Reciprocal block — DONE, posts and comments
+
+Blocking and unfriending now take you out of what you have already written,
+not just out of what you write next.
+
+**Posts and comments both.** A post has carried an `audience` array since the
+feed was built; a comment now carries one too, copied from its post when it is
+created. Blocking or unfriending removes that person from the audience of
+**every** post and comment you have written, with `arrayRemove`, batched. The
+feed and the thread are both `array-contains` queries, so they simply return
+less. The reader sees a shorter list — no error, no gap, no marker.
+
+**Owner decisions, all deliberate:**
+
+- **Prune on block AND unfriend**, identically — so the other person cannot
+  tell which one happened. A block that pruned and an unfriend that did not
+  would itself be the signal.
+- **Prune everything** you have written, not just what is visible to them now.
+- **No restore on unblock.** An audience only ever narrows. Unblocking gives
+  back the ability to be friends again, not the old posts.
+- **Per-comment audience**, decided pre-launch while there were four comments
+  in production to backfill. It is the only workable shape: see *Rules are not
+  filters* in CLAUDE.md.
+- **No Cloud Functions.** The client does the pruning, and a prune that is
+  interrupted is recorded first and retried at next launch.
+
+**Accepted behaviour, reviewed and signed off:** unfriending someone hides
+your comments from them **even on their own posts**. Your comment on their
+post disappears from their thread. This follows from pruning everything you
+have written and from refusing to distinguish a block from an unfriend; it was
+verified with three accounts and accepted as the right trade.
+
+**Comment counts must never be shown without revisiting this.** `commentCount`
+is stored on the post and kept up to date, but it is a single number for
+everyone and is **not** audience-aware. Render it and a pruned reader sees a
+count that does not match the thread they can actually read — which is exactly
+the signal the whole design exists to withhold. It is currently stored and
+never rendered. Keep it that way, or make it per-reader first.
+
+**Older builds cannot load or post comments.** The read rule now requires the
+reader to be in the comment's audience, and a build that predates this writes
+comments without one. Anyone still on an older build needs to update.
 
 ### Follow-ups from item 7 — neither blocking
 

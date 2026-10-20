@@ -85,6 +85,19 @@ service cloud.firestore {
                     && !blockedEitherWay(resource.data.users);
     }
 
+    // An author can find their own comments wherever they are, which is what
+    // pruning needs: a collection-group query over `comments` filtered by
+    // authorUid. Read only, and only your own — the filter is provable from
+    // the query, so the query returns your comments rather than failing.
+    //
+    // This sits alongside the per-post rule below; a match that allows is
+    // enough, so it also means you can always see your own comment even
+    // after you have pruned yourself out of nothing.
+    match /{path=**}/comments/{commentId} {
+      allow read: if request.auth != null
+                  && resource.data.authorUid == request.auth.uid;
+    }
+
     // Feed posts. Friends-only: each post carries an `audience` array (the
     // author's accepted friends at post time + self), so the feed is a single
     // `audience array-contains uid` query and the read rule needs no per-post
@@ -118,16 +131,43 @@ service cloud.firestore {
         )
       );
 
-      // Comments: visible to the post's audience, written by their own author
-      // (who must be in the audience), deletable only by that author.
+      // Comments carry their OWN audience, copied from the post at creation.
+      //
+      // The post's audience is frozen at post time and the author can prune
+      // it (blocking, unfriending); a comment needs the same, and it cannot
+      // borrow the post's, because the commenter does not own the post and
+      // could not prune it. So the comment has a copy, and the reader must
+      // be in BOTH: the comment's, which the query proves, and the post's,
+      // which is one lookup shared by every row.
+      //
+      // The audience clause has to be provable from the query, or the whole
+      // comments query fails rather than omitting rows — rules are not
+      // filters. watchComments carries the matching array-contains.
       match /comments/{commentId} {
         allow read: if request.auth != null
+                    && request.auth.uid in resource.data.audience
                     && request.auth.uid in
                        get(/databases/$(database)/documents/posts/$(postId)).data.audience;
+
+        // The audience must be the post's, exactly. A commenter cannot
+        // invent an audience to reach people the post never reached.
         allow create: if request.auth != null
                       && request.resource.data.authorUid == request.auth.uid
                       && request.auth.uid in
+                         get(/databases/$(database)/documents/posts/$(postId)).data.audience
+                      && request.resource.data.audience ==
                          get(/databases/$(database)/documents/posts/$(postId)).data.audience;
+
+        // Pruning only. The author may narrow their comment's audience and
+        // change nothing else — never widen it, never rewrite the text
+        // after people have read it.
+        allow update: if request.auth != null
+                      && resource.data.authorUid == request.auth.uid
+                      && request.resource.data.diff(resource.data)
+                           .affectedKeys().hasOnly(['audience'])
+                      && resource.data.audience
+                           .hasAll(request.resource.data.audience);
+
         allow delete: if request.auth != null
                       && resource.data.authorUid == request.auth.uid;
       }

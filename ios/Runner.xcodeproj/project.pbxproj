@@ -33,6 +33,10 @@
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		9A5AD02011EE67BB11B787FC /* SondrIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A53A9F23C61867C485DF16F /* SondrIntents.swift */; };
 		A0FC935FF946C24E4B44B175 /* MilestoneWording.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424F466EE18E9FFF553E32AF /* MilestoneWording.swift */; };
+		87F24DD4D72A02C554332605 /* MilestoneDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3BE2D0EBB795259646427 /* MilestoneDisplay.swift */; };
+		8BB1A4ED72845522AC53EFBF /* MilestoneDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3BE2D0EBB795259646427 /* MilestoneDisplay.swift */; };
+		B263DEC7A3903341ECEA79CC /* MilestoneDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 062646C4869BCA816B77E62E /* MilestoneDisplayTests.swift */; };
+		97231A8D3FEFAC882DB3A466 /* SondrPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A0A7E50A96250EB714B0106 /* SondrPalette.swift */; };
 		A34F8A028D8E6C8F9556D7D6 /* SessionActivityChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 186BA34378E8A1DAB72E3ABB /* SessionActivityChannel.swift */; };
 		AC4A11188DB2DE3C24567553 /* MilestoneWording.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424F466EE18E9FFF553E32AF /* MilestoneWording.swift */; };
 		C64A9F10059A2EDD831A575E /* SondrWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A4496509DF0B0EECCCFCCF6 /* SondrWidgetsBundle.swift */; };
@@ -102,6 +106,8 @@
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		424F466EE18E9FFF553E32AF /* MilestoneWording.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MilestoneWording.swift; sourceTree = "<group>"; };
+		19D3BE2D0EBB795259646427 /* MilestoneDisplay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MilestoneDisplay.swift; sourceTree = "<group>"; };
+		062646C4869BCA816B77E62E /* MilestoneDisplayTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MilestoneDisplayTests.swift; sourceTree = "<group>"; };
 		4430ADE4653C351BAAEB430F /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		4A53A9F23C61867C485DF16F /* SondrIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SondrIntents.swift; sourceTree = "<group>"; };
 		678AEAC8B66358CA9DD273D0 /* SondrWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SondrWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -174,6 +180,7 @@
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 				67FC1EB3886F336D9235DF24 /* SessionSnapshotTests.swift */,
 				7F587DF1F612A0EF668819A5 /* MilestoneWordingTests.swift */,
+				062646C4869BCA816B77E62E /* MilestoneDisplayTests.swift */,
 				8CC132AED2AD33CD2F86B39B /* SessionMutationTests.swift */,
 				09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */,
 				11142AB3CDD95AD4D37334DA /* SharedFixtureTests.swift */,
@@ -263,6 +270,7 @@
 				872C22E0D8D0FB74AACBEC64 /* SondrWidgets.entitlements */,
 				9E2624A08FF2E130A4A72BC4 /* Inter-Variable.ttf */,
 				424F466EE18E9FFF553E32AF /* MilestoneWording.swift */,
+				19D3BE2D0EBB795259646427 /* MilestoneDisplay.swift */,
 				321192FF6E879C02EC1E5F1E /* SessionMutation.swift */,
 				4A53A9F23C61867C485DF16F /* SondrIntents.swift */,
 			);
@@ -526,6 +534,9 @@
 				6787E99BE94F20B050BF60AA /* SessionSnapshot.swift in Sources */,
 				D63CABD6E01CE9A02672E890 /* SessionSnapshotTests.swift in Sources */,
 				AC4A11188DB2DE3C24567553 /* MilestoneWording.swift in Sources */,
+				97231A8D3FEFAC882DB3A466 /* SondrPalette.swift in Sources */,
+				8BB1A4ED72845522AC53EFBF /* MilestoneDisplay.swift in Sources */,
+				B263DEC7A3903341ECEA79CC /* MilestoneDisplayTests.swift in Sources */,
 				391A3EEB5B96994C2A68ECB7 /* MilestoneWordingTests.swift in Sources */,
 				D905D7DF88CF3927CC99C997 /* SessionMutation.swift in Sources */,
 				13B8269FE7CB8918D01C8A3A /* SessionMutationTests.swift in Sources */,
@@ -547,6 +558,7 @@
 				EEFA24E3F2859DE2D4C552E4 /* SondrSessionActivity.swift in Sources */,
 				C64A9F10059A2EDD831A575E /* SondrWidgetsBundle.swift in Sources */,
 				A0FC935FF946C24E4B44B175 /* MilestoneWording.swift in Sources */,
+				87F24DD4D72A02C554332605 /* MilestoneDisplay.swift in Sources */,
 				0B8DFF424E8FD8DDEB311B98 /* SessionMutation.swift in Sources */,
 				311DEA9F38484E0253310527 /* SondrIntents.swift in Sources */,
 			);

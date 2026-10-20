@@ -10,6 +10,11 @@ enum Ink {
   static let primary = Color(red: 0xFA / 255, green: 0xFA / 255, blue: 0xFA / 255)
   static let secondary = Color(red: 0xB0 / 255, green: 0xB0 / 255, blue: 0xB0 / 255)
   static let tertiary = Color(red: 0x6E / 255, green: 0x6E / 255, blue: 0x6E / 255)
+
+  /// A completed milestone ring. The app's `ringFillOuter`, which is the
+  /// same #FAFAFA as `primary` — named separately because the two mean
+  /// different things and only one of them is about a ring.
+  static let ringComplete = primary
 }
 
 /// Inter, bundled with the extension, because a widget renders in its own

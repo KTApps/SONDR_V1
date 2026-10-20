@@ -90,11 +90,22 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
 
   // MARK: - ActivityKit
 
+  /// The card's content, and when it stops being able to speak for itself.
+  ///
+  /// The staleDate is the session's projected crossing. A running card
+  /// hands its countdown to the system as a date and is then left alone
+  /// for hours; without a staleDate, that countdown passes zero and starts
+  /// counting back up. With one, the system redraws at the crossing and
+  /// the card says the milestone was reached instead.
+  ///
+  /// Recomputed on every push — start, pause and resume all come through
+  /// here — because the crossing moves whenever paused time does.
   @available(iOS 17.0, *)
   private static func content(
-    of session: SessionSnapshot
+    of session: SessionSnapshot,
+    at now: Date = Date()
   ) -> ActivityContent<SondrActivityAttributes.ContentState> {
-    ActivityContent(state: .init(session), staleDate: nil)
+    ActivityContent(state: .init(session), staleDate: session.staleDate(at: now))
   }
 
   /// Put the session on the Lock Screen, starting a card if there is none.

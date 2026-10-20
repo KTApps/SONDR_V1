@@ -77,9 +77,13 @@ enum SessionControl {
       let session = SessionSnapshot.from(changed)
     else { return }
 
+    // Recomputed here too, not just in the app: pausing clears the
+    // staleDate, because a paused session is not approaching anything, and
+    // resuming has to set a fresh one — the crossing has moved by however
+    // long the pause lasted.
     let content = ActivityContent(
       state: SondrActivityAttributes.ContentState(session),
-      staleDate: nil
+      staleDate: session.staleDate(at: now)
     )
     for activity in Activity<SondrActivityAttributes>.activities {
       await activity.update(content)

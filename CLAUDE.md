@@ -124,6 +124,49 @@ firebase deploy --only firestore:rules --project sondr-cd439
 
 `firebase deploy --dry-run` validates and resolves without publishing.
 
+## Firestore rules
+
+**Rules are not filters.** A query succeeds only if the rules can prove that
+*every* document it could match is readable. A read rule that depends on
+per-document data the query does not constrain does not quietly omit those
+rows — it fails the whole query with `permission-denied`. So "hide A's posts
+from B" cannot be done with a rule; it is done by taking B out of the
+`audience` array that every post and every comment carries, and querying
+`where('audience', arrayContains: myUid)`.
+
+Audiences are frozen at write time and can only ever narrow. A comment
+copies its post's audience when it is created.
+
+**Test rules against the emulator, never by reasoning about them.** The
+tests in [test/rules/](test/rules/) assert the thing that matters: a pruned
+reader gets a *shorter* feed, not an error.
+
+```bash
+cd test/rules && npm install
+npx -y firebase-tools@13.35.1 emulators:exec --only firestore \
+  --project demo-sondr "npm test"
+```
+
+**The 13.35.1 pin is deliberate.** The installed CLI is 15.x, which needs
+Java 21, and this machine has Java 11 — the emulator simply will not start
+under it. The pin affects the emulator only; the installed CLI is still what
+deploys. Drop the pin if a JDK 21 ever arrives.
+
+**Indexes.** A query on one field never needs a composite index, and
+declaring one is rejected (`this index is not necessary`). But a
+*collection-group* query on one field does need that field's single-field
+index built at collection-group scope, and the automatic ones are
+collection-scoped — that is a `fieldOverrides` entry in
+`firestore.indexes.json`, not an `indexes` entry. An override replaces the
+automatic indexing for the field, so declare the collection-scoped orders
+alongside the collection-group one or they are lost.
+
+**Order of operations when the rules get stricter.** Deploy indexes and wait
+for them to report `READY`, then backfill the documents that predate the new
+field, then deploy the rules. Rules last: the moment they land, anything
+missing the field they require is invisible to everyone, its own author
+included.
+
 ## Build churn — do not commit
 
 Every `flutter pub get` / `flutter build` rewrites these. They are generated,

@@ -15,6 +15,27 @@ import 'photos_repository.dart';
 ///
 /// Stores the FULL band (the uncapped mosaic); the ≤9 even spread is only
 /// the celebration's preview.
+/// The crossing photo has just been saved: put it in the milestone's
+/// collage. The collage was composed at the crossing, before this photo
+/// existed, so without this the photo that marks the milestone is the one
+/// photo it never shows. Swallows its own failures, like the compose.
+Future<void> attachCrossingPhoto(
+  WidgetRef ref,
+  String taskId,
+  int milestoneHours,
+  String photoId,
+) async {
+  final photos = ref.read(photosRepositoryProvider);
+  final collages = ref.read(collagesRepositoryProvider);
+  if (photos == null || collages == null) return;
+  try {
+    final band = await photos.photosForBand(taskId, milestoneHours);
+    await collages.attachCrossing(taskId, milestoneHours, photoId, band);
+  } catch (e) {
+    debugPrint('SONDR collage attach error: $e');
+  }
+}
+
 Future<void> autoComposeCollage(
   WidgetRef ref,
   String taskId,

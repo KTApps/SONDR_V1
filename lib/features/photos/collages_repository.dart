@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import 'models/collage.dart';
+import 'collage_selection.dart';
 import 'models/photo.dart';
 import 'photos_repository.dart';
 
@@ -55,6 +56,32 @@ class CollagesRepository {
       'photoIds': photoIds,
       'edited': false,
       'createdAt': existing.data()?['createdAt'] ?? FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Put the crossing photo into this milestone's stored collage, if there
+  /// is one: recomposed from [band] when auto-composed, appended to the
+  /// owner's picks when curated — see [attachCrossingIds]. No collage, no
+  /// write: the stretch shows the band itself, which already holds it.
+  Future<void> attachCrossing(
+    String taskId,
+    int milestoneHours,
+    String crossingId,
+    List<Photo> band,
+  ) async {
+    final ref = _col.doc(Collage.docId(taskId, milestoneHours));
+    final existing = await ref.get();
+    final data = existing.data();
+    if (data == null) return;
+    final collage = Collage.fromMap(data);
+    final ids = attachCrossingIds(collage, band, crossingId);
+    if (ids.length == collage.photoIds.length && collage.edited) return;
+    await ref.set({
+      'taskId': taskId,
+      'milestoneHours': milestoneHours,
+      'photoIds': ids,
+      'edited': collage.edited,
+      'createdAt': data['createdAt'] ?? FieldValue.serverTimestamp(),
     });
   }
 

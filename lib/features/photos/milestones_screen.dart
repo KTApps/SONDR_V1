@@ -535,13 +535,21 @@ class _BandEntryState extends ConsumerState<_BandEntry> {
             c.milestoneHours == widget.bandHours)
         .firstOrNull;
 
+    final band = ref
+            .watch(bandPhotosProvider('${widget.task.id}|${widget.bandHours}'))
+            .value ??
+        const <Photo>[];
+    // A stored collage was composed at the crossing, before the crossing
+    // photo was captured; the photo that marks the milestone is added back
+    // at read time, so milestones saved before that was fixed show it too.
     final photos = collage != null
-        ? ref.watch(collagePhotosProvider(collage.photoIds.join(','))).value ??
-            const <Photo>[]
-        : ref
-                .watch(bandPhotosProvider('${widget.task.id}|${widget.bandHours}'))
-                .value ??
-            const <Photo>[];
+        ? withCrossingPhotos(
+            ref.watch(collagePhotosProvider(collage.photoIds.join(','))).value ??
+                const <Photo>[],
+            band,
+            widget.bandHours,
+          )
+        : band;
 
     final keptCount = photos.length - _removed.length;
 

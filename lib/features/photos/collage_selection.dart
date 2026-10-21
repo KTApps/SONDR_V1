@@ -1,3 +1,4 @@
+import 'models/collage.dart';
 import 'models/photo.dart';
 
 /// One 20-hour milestone stretch, in seconds.
@@ -89,4 +90,39 @@ List<Photo> collageSelection(List<Photo> taskPhotos, int milestoneHours) {
     if (seen.add(idx)) picked.add(band[idx]);
   }
   return picked;
+}
+
+/// The crossing photo, added to what a stored collage shows — at read time,
+/// so a milestone saved before the fix shows its photo without a write.
+///
+/// A collage is composed at the crossing, BEFORE the crossing photo is
+/// captured, so it never held the photo that marks the milestone. Here any
+/// photo of the band tagged with this milestone and not already shown is
+/// appended, in band order. Shown photos keep their order; removed ones
+/// stay removed — only the milestone's own photos are added.
+List<Photo> withCrossingPhotos(
+  List<Photo> shown,
+  List<Photo> band,
+  int milestoneHours,
+) {
+  final have = {for (final p in shown) p.id};
+  return [
+    ...shown,
+    for (final p in band)
+      if (p.milestoneHours == milestoneHours && !have.contains(p.id)) p,
+  ];
+}
+
+/// What a stored collage's ids become once the crossing photo is saved.
+///
+/// Auto-composed: recomposed from the band, which now holds the crossing
+/// photo (placed there by [bandIndexOf]). User-curated: the owner's picks
+/// are kept exactly, and the crossing photo is appended once. A stored
+/// collage is the full band, uncapped — the ≤9 is only the celebration's
+/// preview, and that keeps the crossing photo by construction, as the
+/// band's last — so there is never an oldest pick to drop.
+List<String> attachCrossingIds(Collage collage, List<Photo> band, String crossingId) {
+  if (!collage.edited) return [for (final p in band) p.id];
+  if (collage.photoIds.contains(crossingId)) return collage.photoIds;
+  return [...collage.photoIds, crossingId];
 }

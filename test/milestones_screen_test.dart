@@ -6,6 +6,8 @@ import 'package:sondr/core/utils/date.dart';
 import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/features/photos/milestones_screen.dart';
+import 'package:sondr/features/photos/collages_repository.dart';
+import 'package:sondr/features/photos/models/collage.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/tasks/models/task.dart';
@@ -155,6 +157,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Photos'), findsOneWidget);
     expect(find.text('No photos from this stretch.'), findsNothing);
+  });
+
+  testWidgets('a stretch with a stored collage still shows its crossing photo', (
+    tester,
+  ) async {
+    // The collage was composed at the crossing, before the crossing photo
+    // was captured. Stored: two seeded photos. The band: those two and the
+    // crossing photo. The detail shows all three.
+    const golf = Task(id: 'golf', name: 'Golf', secondsByDay: {'2026-10-01': 20 * 3600 + 60});
+    Photo photo(int ts, {int? hours}) => Photo(
+          taskId: 'golf', taskName: 'Golf', dayKey: '2026-10-01', timestamp: ts,
+          sessionSeconds: 60, photoUrl: '', storagePath: '',
+          milestoneHours: hours, cumulativeSeconds: hours == null ? ts : 20 * 3600 + 5,
+        );
+    final seeded = [photo(1000), photo(5000)];
+    final crossing = photo(99, hours: 20);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        collagesListProvider.overrideWith((ref) async => [
+              Collage(taskId: 'golf', milestoneHours: 20, photoIds: [for (final p in seeded) p.id], edited: false),
+            ]),
+        collagePhotosProvider.overrideWith((ref, key) async => seeded),
+        bandPhotosProvider.overrideWith((ref, key) async => [...seeded, crossing]),
+      ],
+      child: const _Harness(landOnTask: golf, landOnBandHours: 20),
+    ));
+    await tester.pumpAndSettle();
+
+    final grid = tester.widget<CollageGrid>(find.byType(CollageGrid).first);
+    expect(grid.photos.map((p) => p.id), [seeded[0].id, seeded[1].id, crossing.id]);
   });
 
   testWidgets('a caller can open straight onto the Photos lens', (

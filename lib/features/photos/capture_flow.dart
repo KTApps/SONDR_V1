@@ -11,6 +11,7 @@ import '../shell/main_shell.dart';
 import 'capture_review_screen.dart';
 import 'models/photo.dart';
 import 'photo_refresh.dart';
+import 'auto_collage.dart';
 import 'photos_repository.dart';
 import 'sondr_camera.dart';
 
@@ -140,6 +141,11 @@ Future<String?> _savePrivately(
     );
     // Every surface that shows a photo is reading a cached one until it is
     // told otherwise — see [invalidatePhotoViews].
+    // A photo taken at a crossing belongs in that milestone's collage, which
+    // was composed before this photo existed.
+    if (milestoneHours != null) {
+      await attachCrossingPhoto(ref, taskId, milestoneHours, photoId);
+    }
     invalidatePhotoViews(ref);
     return photoId;
   } catch (e) {

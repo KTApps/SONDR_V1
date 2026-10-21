@@ -93,4 +93,76 @@ void main() {
       expect(collageSelection(all, 20).length, 9);
     });
   });
+
+  group('one band rule — bandIndexOf', () {
+    const h20 = 20 * 3600;
+
+    test('a photo at exactly the boundary completed the milestone (20h band)', () {
+      expect(bandIndexOf(_p(h20)), 0);
+      expect(_cums(bandPhotos([_p(h20)], 20)), [h20]);
+      expect(bandPhotos([_p(h20)], 40), isEmpty);
+    });
+
+    test('a photo one second past the boundary opened the next band', () {
+      expect(bandIndexOf(_p(h20 + 1)), 1);
+      expect(bandPhotos([_p(h20 + 1)], 20), isEmpty);
+      expect(_cums(bandPhotos([_p(h20 + 1)], 40)), [h20 + 1]);
+    });
+
+    test('the photo taken at the crossing belongs to the milestone it completed, whatever its total says', () {
+      final crossing = Photo(
+        taskId: 't', taskName: 'T', dayKey: '2020-01-01', timestamp: 99,
+        sessionSeconds: 60, photoUrl: '', storagePath: '',
+        milestoneHours: 20, cumulativeSeconds: h20 + 6,
+      );
+      expect(bandIndexOf(crossing), 0);
+      expect(bandPhotos([crossing], 20), [crossing]);
+      expect(bandPhotos([crossing], 40), isEmpty);
+    });
+
+    test('zero and the first second are band 0; null is unplaceable', () {
+      expect(bandIndexOf(_p(0)), 0);
+      expect(bandIndexOf(_p(1)), 0);
+      expect(bandIndexOf(_p(null, marker: 5)), isNull);
+    });
+  });
+
+  group('the count uses the same rule as the list', () {
+    const h20 = 20 * 3600;
+
+    test('one milestone reached: the boundary photo counts, the one past it does not', () {
+      final photos = [_p(h20), _p(h20 + 1), _p(10), _p(null, marker: 7)];
+      final counted = reachedBandPhotos(photos, 1);
+      expect(_cums(counted), unorderedEquals([h20, 10]));
+      // and every counted photo is in the 20h stretch's own list
+      expect(_cums(bandPhotos(photos, 20)), unorderedEquals(_cums(counted)));
+    });
+
+    test('a task with no milestone reached counts nothing', () {
+      expect(reachedBandPhotos([_p(10), _p(h20)], 0), isEmpty);
+    });
+  });
+
+  group('representative photo', () {
+    const h20 = 20 * 3600;
+    Photo tagged(int ts, {int cum = h20 + 3}) => Photo(
+          taskId: 't', taskName: 'T', dayKey: '2020-01-01', timestamp: ts,
+          sessionSeconds: 60, photoUrl: '', storagePath: '',
+          milestoneHours: 20, cumulativeSeconds: cum,
+        );
+
+    test('the crossing photo wins over newer-looking band photos', () {
+      final band = bandPhotos([_p(100, marker: 500), tagged(50), _p(3000, marker: 900)], 20);
+      expect(representativePhoto(band, 20)?.timestamp, 50);
+    });
+
+    test('with no crossing photo, the newest photo in the band', () {
+      final band = bandPhotos([_p(100, marker: 500), _p(3000, marker: 900), _p(200, marker: 700)], 20);
+      expect(representativePhoto(band, 20)?.timestamp, 900);
+    });
+
+    test('an empty band has no representative', () {
+      expect(representativePhoto(const [], 20), isNull);
+    });
+  });
 }

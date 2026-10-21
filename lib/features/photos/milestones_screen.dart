@@ -14,6 +14,7 @@ import '../../shared/sondr_loading.dart';
 import '../history/day_detail_sheet.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
+import 'collage_selection.dart';
 import 'collages_repository.dart';
 import 'models/collage.dart';
 import 'models/photo.dart';
@@ -284,8 +285,12 @@ class _TaskRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final scale = figmaScale(context);
 
-    final photos =
-        ref.watch(taskBandPhotosProvider(task.id)).value ?? const <Photo>[];
+    // Counted by the same rule the stretches use to list, so "1 photo" here
+    // is always a photo some stretch below will show.
+    final photos = reachedBandPhotos(
+      ref.watch(taskBandPhotosProvider(task.id)).value ?? const <Photo>[],
+      task.milestonesReached,
+    );
     // The task's own milestones, not the app's total — the rows SUM to the
     // figure on Profile. Counting the rows instead was the easy mistake:
     // fourteen rows is fourteen tasks, which is not fourteen milestones.

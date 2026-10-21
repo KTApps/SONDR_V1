@@ -228,9 +228,29 @@ void main() {
     expect(find.byType(CollageGrid), findsNothing);
   });
 
-  testWidgets('the band photos survive a route pop, and invalidatePhotoViews re-reads them', (
-    tester,
-  ) async {
+  test('the band photos are kept once nobody is listening', () async {
+    // The last listener goes away — as it does when the detail is popped —
+    // and the provider is NOT disposed: the next read is the same answer,
+    // with no second fetch. Without keepAlive it would be re-created, and
+    // the first frame after re-opening would be empty again.
+    final photos = _CountingPhotos();
+    final container = ProviderContainer(
+      overrides: [photosRepositoryProvider.overrideWithValue(photos)],
+    );
+    addTearDown(container.dispose);
+
+    final sub = container.listen(bandPhotosProvider('t|20'), (_, _) {});
+    expect((await container.read(bandPhotosProvider('t|20').future)).length, 1);
+    expect(photos.forTaskCalls, 1);
+
+    sub.close();
+    await container.pump(); // let any disposal happen
+
+    expect(container.read(bandPhotosProvider('t|20')).hasValue, isTrue);
+    expect(photos.forTaskCalls, 1, reason: 'kept, so not fetched again');
+  });
+
+  testWidgets('invalidatePhotoViews re-reads the kept band photos', (tester) async {
     final photos = _CountingPhotos();
     late WidgetRef outerRef;
     await tester.pumpWidget(ProviderScope(
@@ -238,34 +258,20 @@ void main() {
       child: MaterialApp(
         home: Consumer(builder: (context, ref, _) {
           outerRef = ref;
-          return TextButton(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => Consumer(builder: (_, ref, _) {
-                final v = ref.watch(bandPhotosProvider('t|20'));
-                return Text(v.hasValue ? 'loaded ${v.value!.length}' : 'loading');
-              }),
-            )),
-            child: const Text('open'),
-          );
+          final v = ref.watch(bandPhotosProvider('t|20'));
+          return Text(v.hasValue ? 'loaded ${v.value!.length}' : 'loading');
         }),
       ),
     ));
-    await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     expect(find.text('loaded 1'), findsOneWidget);
     expect(photos.forTaskCalls, 1);
 
-    Navigator.of(tester.element(find.text('loaded 1'))).pop();
-    await tester.pumpAndSettle();
-    final container = ProviderScope.containerOf(tester.element(find.text('open')));
-    // Still resolved after nobody watched it across the pop: no re-fetch.
-    expect(container.read(bandPhotosProvider('t|20')).hasValue, isTrue);
-    expect(photos.forTaskCalls, 1);
-
     // A write tells every surface, and only then is it read again.
     invalidatePhotoViews(outerRef);
-    await container.read(bandPhotosProvider('t|20').future);
+    await tester.pumpAndSettle();
     expect(photos.forTaskCalls, 2);
+    expect(find.text('loaded 1'), findsOneWidget);
   });
 
   testWidgets('the grid is built once, with the crossing photo already in it', (

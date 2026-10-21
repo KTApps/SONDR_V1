@@ -127,6 +127,10 @@ final collagesRepositoryProvider = Provider<CollagesRepository?>((ref) {
 /// doorway and the collages screen.
 final collagesListProvider =
     FutureProvider.autoDispose<List<Collage>>((ref) async {
+  // Kept once fetched: refreshed explicitly by invalidatePhotoViews on every
+  // write, so a disposal would catch nothing — only cost a re-fetch, and an
+  // empty first frame, on every open.
+  ref.keepAlive();
   final repo = ref.watch(collagesRepositoryProvider);
   if (repo == null) return const [];
   final all = await repo.allCollages();
@@ -138,6 +142,10 @@ final collagesListProvider =
 /// deleted photo just vanishes from the grid. Empty on the local backend.
 final collagePhotosProvider =
     FutureProvider.family.autoDispose<List<Photo>, String>((ref, idsCsv) async {
+  // Kept once fetched: refreshed explicitly by invalidatePhotoViews on every
+  // write, so a disposal would catch nothing — only cost a re-fetch, and an
+  // empty first frame, on every open.
+  ref.keepAlive();
   final repo = ref.watch(photosRepositoryProvider);
   if (repo == null) return const [];
   final ids = [for (final s in idsCsv.split(',')) if (s.isNotEmpty) s];
@@ -153,6 +161,10 @@ final collagePhotosProvider =
 /// shows for it.
 final bandPhotosProvider =
     FutureProvider.family.autoDispose<List<Photo>, String>((ref, key) async {
+  // Kept once fetched: refreshed explicitly by invalidatePhotoViews on every
+  // write, so a disposal would catch nothing — only cost a re-fetch, and an
+  // empty first frame, on every open.
+  ref.keepAlive();
   final repo = ref.watch(photosRepositoryProvider);
   if (repo == null) return const [];
   final parts = key.split('|');
@@ -168,6 +180,10 @@ final bandPhotosProvider =
 /// same rule the bands themselves use.
 final taskBandPhotosProvider =
     FutureProvider.family.autoDispose<List<Photo>, String>((ref, taskId) async {
+  // Kept once fetched: refreshed explicitly by invalidatePhotoViews on every
+  // write, so a disposal would catch nothing — only cost a re-fetch, and an
+  // empty first frame, on every open.
+  ref.keepAlive();
   final repo = ref.watch(photosRepositoryProvider);
   if (repo == null) return const [];
   final all = await repo.photosForTask(taskId);

@@ -261,6 +261,8 @@ final photosForDayProvider = FutureProvider.family
 /// shows up). Empty on the local backend.
 final photosForMonthProvider = FutureProvider.family
     .autoDispose<Map<String, List<Photo>>, String>((ref, monthKey) async {
+  // Kept once fetched; refreshed by invalidatePhotoViews, never disposed.
+  ref.keepAlive();
       final repo = ref.watch(photosRepositoryProvider);
       if (repo == null) return const {};
       final parts = monthKey.split('-');
@@ -275,6 +277,8 @@ final photosForMonthProvider = FutureProvider.family
 /// read; autoDispose so a first-ever capture is picked up on re-entry.
 final earliestPhotoMonthProvider =
     FutureProvider.autoDispose<DateTime?>((ref) async {
+  // Kept once fetched; refreshed by invalidatePhotoViews, never disposed.
+  ref.keepAlive();
       final repo = ref.watch(photosRepositoryProvider);
       if (repo == null) return null;
       final when = await repo.earliestPhotoTime();

@@ -316,9 +316,13 @@ class _TaskRow extends ConsumerWidget {
     final scale = figmaScale(context);
 
     // Counted by the same rule the stretches use to list, so "1 photo" here
-    // is always a photo some stretch below will show.
+    // is always a photo some stretch below will show. Until the count has
+    // resolved the line says nothing about photos at all: "no photos" is an
+    // answer, and a frame that has not asked yet must not give it.
+    final photosAsync = ref.watch(taskBandPhotosProvider(task.id));
+    final loaded = photosAsync.hasValue;
     final photos = reachedBandPhotos(
-      ref.watch(taskBandPhotosProvider(task.id)).value ?? const <Photo>[],
+      photosAsync.value ?? const <Photo>[],
       task.milestonesReached,
     );
     // The task's own milestones, not the app's total — the rows SUM to the
@@ -328,10 +332,11 @@ class _TaskRow extends ConsumerWidget {
     // The hours are not repeated here: the ring beside this already reads
     // "40h", and the line said the same number twice.
     final reached = task.milestonesReached;
-    final supporting =
-        '$reached ${reached == 1 ? 'milestone' : 'milestones'} · '
-        '${photos.isEmpty ? 'no photos' : '${photos.length} '
-              '${photos.length == 1 ? 'photo' : 'photos'}'}';
+    final supporting = !loaded
+        ? '$reached ${reached == 1 ? 'milestone' : 'milestones'}'
+        : '$reached ${reached == 1 ? 'milestone' : 'milestones'} · '
+            '${photos.isEmpty ? 'no photos' : '${photos.length} '
+                '${photos.length == 1 ? 'photo' : 'photos'}'}';
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -377,7 +382,7 @@ class _TaskRow extends ConsumerWidget {
             ),
             // Omitted entirely when the task has banked nothing — an empty
             // frame would promise a photo that is not there.
-            if (photos.isNotEmpty) ...[
+            if (loaded && photos.isNotEmpty) ...[
               SizedBox(width: kSpacingBase * scale),
               ClipRRect(
                 borderRadius: BorderRadius.circular(8 * scale),
@@ -529,23 +534,31 @@ class _BandEntryState extends ConsumerState<_BandEntry> {
     final theme = Theme.of(context);
     final scale = figmaScale(context);
 
-    final collage = (ref.watch(collagesListProvider).value ?? const <Collage>[])
+    final collagesAsync = ref.watch(collagesListProvider);
+    final collage = (collagesAsync.value ?? const <Collage>[])
         .where((c) =>
             c.taskId == widget.task.id &&
             c.milestoneHours == widget.bandHours)
         .firstOrNull;
 
-    final band = ref
-            .watch(bandPhotosProvider('${widget.task.id}|${widget.bandHours}'))
-            .value ??
-        const <Photo>[];
+    final bandAsync =
+        ref.watch(bandPhotosProvider('${widget.task.id}|${widget.bandHours}'));
+    final band = bandAsync.value ?? const <Photo>[];
+    final collagePhotosAsync = collage == null
+        ? null
+        : ref.watch(collagePhotosProvider(collage.photoIds.join(',')));
+    // Nothing is said about the stretch until everything it is drawn from
+    // has resolved: "No photos from this stretch." is an answer, and a
+    // frame that has not asked yet must not give it.
+    final loaded = collagesAsync.hasValue &&
+        bandAsync.hasValue &&
+        (collagePhotosAsync?.hasValue ?? true);
     // A stored collage was composed at the crossing, before the crossing
     // photo was captured; the photo that marks the milestone is added back
     // at read time, so milestones saved before that was fixed show it too.
     final photos = collage != null
         ? withCrossingPhotos(
-            ref.watch(collagePhotosProvider(collage.photoIds.join(','))).value ??
-                const <Photo>[],
+            collagePhotosAsync?.value ?? const <Photo>[],
             band,
             widget.bandHours,
           )
@@ -581,7 +594,7 @@ class _BandEntryState extends ConsumerState<_BandEntry> {
                   ),
                 ),
               ),
-              if (photos.isNotEmpty && !_editing)
+              if (loaded && photos.isNotEmpty && !_editing)
                 SondrAction(
                   label: 'Edit',
                   supporting: true,
@@ -593,7 +606,9 @@ class _BandEntryState extends ConsumerState<_BandEntry> {
           SizedBox(height: kSpacingBase * scale),
           // A stretch with nothing in it says so in one quiet line. A grid of
           // nothing would read as a loading failure.
-          if (photos.isEmpty)
+          if (!loaded)
+            const SizedBox.shrink()
+          else if (photos.isEmpty)
             Text(
               'No photos from this stretch.',
               style: theme.textTheme.bodyMedium?.copyWith(

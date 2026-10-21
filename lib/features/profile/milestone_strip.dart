@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../photos/collage_selection.dart';
+import '../photos/collages_repository.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
 import '../tasks/models/task.dart';
@@ -39,14 +40,18 @@ class MilestoneStripEntry {
 /// chronological — a preview of a single stretch, not the milestones.
 final milestoneStripProvider =
     FutureProvider.autoDispose<List<MilestoneStripEntry>>((ref) async {
-  final repo = ref.watch(photosRepositoryProvider);
-  if (repo == null) return const [];
+  if (ref.watch(photosRepositoryProvider) == null) return const [];
   final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
+  // Profile is mounted from launch, so reading the Milestones page's own
+  // providers here resolves them before anyone taps — and keeps them so.
+  // The strip is built from exactly the data the page will show.
+  ref.watch(collagesListProvider);
+  ref.watch(earliestPhotoMonthProvider);
   final out = <MilestoneStripEntry>[];
   for (final task in tasks) {
     final reached = task.milestonesReached;
     if (reached < 1) continue;
-    final photos = await repo.photosForTask(task.id);
+    final photos = await ref.watch(taskBandPhotosProvider(task.id).future);
     for (var b = 1; b <= reached; b++) {
       final hours = b * Task.milestoneStepHours;
       final rep = representativePhoto(bandPhotos(photos, hours), hours);

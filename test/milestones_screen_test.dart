@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +12,8 @@ import 'package:sondr/features/photos/collages_repository.dart';
 import 'package:sondr/features/photos/models/collage.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
+import 'package:sondr/features/photos/photo_refresh.dart';
+import 'package:sondr/features/photos/collage_selection.dart';
 import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/photos/widgets/collage_grid.dart';
 import 'package:sondr/shared/ring/ring_dial.dart';
@@ -189,6 +193,81 @@ void main() {
     expect(grid.photos.map((p) => p.id), [seeded[0].id, seeded[1].id, crossing.id]);
   });
 
+  testWidgets('a row whose photo count is still loading says nothing about photos', (
+    tester,
+  ) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        taskBandPhotosProvider.overrideWith((ref, id) => Completer<List<Photo>>().future),
+      ],
+      child: const _Harness(),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Golf'), findsOneWidget);
+    expect(find.text('1 milestone'), findsOneWidget);
+    expect(find.textContaining('photo'), findsNothing);
+  });
+
+  testWidgets('a stretch whose data is still loading shows neither the line nor a grid', (
+    tester,
+  ) async {
+    const golf = Task(id: 'golf', name: 'Golf', secondsByDay: {'2026-10-01': 20 * 3600 + 60});
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        collagesListProvider.overrideWith((ref) => Completer<List<Collage>>().future),
+      ],
+      child: const _Harness(landOnTask: golf, landOnBandHours: 20),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('20h'), findsWidgets);
+    expect(find.text('No photos from this stretch.'), findsNothing);
+    expect(find.byType(CollageGrid), findsNothing);
+  });
+
+  testWidgets('the band photos survive a route pop, and invalidatePhotoViews re-reads them', (
+    tester,
+  ) async {
+    final photos = _CountingPhotos();
+    late WidgetRef outerRef;
+    await tester.pumpWidget(ProviderScope(
+      overrides: [photosRepositoryProvider.overrideWithValue(photos)],
+      child: MaterialApp(
+        home: Consumer(builder: (context, ref, _) {
+          outerRef = ref;
+          return TextButton(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => Consumer(builder: (_, ref, _) {
+                final v = ref.watch(bandPhotosProvider('t|20'));
+                return Text(v.hasValue ? 'loaded ${v.value!.length}' : 'loading');
+              }),
+            )),
+            child: const Text('open'),
+          );
+        }),
+      ),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('loaded 1'), findsOneWidget);
+    expect(photos.forTaskCalls, 1);
+
+    Navigator.of(tester.element(find.text('loaded 1'))).pop();
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(tester.element(find.text('open')));
+    // Still resolved after nobody watched it across the pop: no re-fetch.
+    expect(container.read(bandPhotosProvider('t|20')).hasValue, isTrue);
+    expect(photos.forTaskCalls, 1);
+
+    // A write tells every surface, and only then is it read again.
+    invalidatePhotoViews(outerRef);
+    await container.read(bandPhotosProvider('t|20').future);
+    expect(photos.forTaskCalls, 2);
+  });
+
   testWidgets('a caller can open straight onto the Photos lens', (
     tester,
   ) async {
@@ -342,4 +421,27 @@ class _Harness extends StatelessWidget {
       landOnBandHours: landOnBandHours,
     ),
   );
+}
+
+/// A photo store that counts its reads. Everything the providers under test
+/// do not touch falls through to noSuchMethod.
+class _CountingPhotos implements PhotosRepository {
+  int forTaskCalls = 0;
+  static const Photo _one = Photo(
+    taskId: 't', taskName: 'T', dayKey: '2026-10-01', timestamp: 7,
+    sessionSeconds: 60, photoUrl: '', storagePath: '', cumulativeSeconds: 100,
+  );
+
+  @override
+  Future<List<Photo>> photosForTask(String taskId) async {
+    forTaskCalls++;
+    return [_one];
+  }
+
+  @override
+  Future<List<Photo>> photosForBand(String taskId, int milestoneHours) async =>
+      bandPhotos(await photosForTask(taskId), milestoneHours);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

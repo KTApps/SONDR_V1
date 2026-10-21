@@ -40,6 +40,9 @@ import 'package:sondr/shared/ring/ring_metrics.dart';
 /// A task list we choose, so "nearest milestone" can be checked exactly
 /// instead of against whatever the local seed happens to hold.
 class _FakeTasks implements TasksRepository {
+  @override
+  Future<void> delete(String taskId) async {}
+
   _FakeTasks(this.tasks);
 
   final List<Task> tasks;

@@ -7,6 +7,8 @@ import '../../../shared/ring/ring_metrics.dart';
 import '../../../shared/sondr_swipe_row.dart';
 import '../../tasks/models/task.dart';
 import '../../tasks/tasks_providers.dart';
+import '../../../shared/sondr_prompt.dart';
+import '../../tasks/delete_task.dart';
 import '../timer_controller.dart';
 
 /// Top-of-screen task switcher.
@@ -261,6 +263,26 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
     setState(() => _leaving.remove(task.id));
   }
 
+  /// Delete, from the archived tray only. The prompt names what goes; nothing
+  /// happens on Cancel. Posts the photos were shared into are kept.
+  Future<void> _delete(Task task) async {
+    final photos = await ref.read(taskPurgeProvider).photoCount(task.id);
+    if (!mounted) return;
+    final ok = await showSondrConfirm(
+      context,
+      title: 'Delete ${task.name}?',
+      body: deleteTaskBody(
+        hours: task.wholeHours,
+        milestones: task.milestonesReached,
+        photos: photos,
+      ),
+      confirmLabel: 'Delete',
+    );
+    if (!ok || !mounted) return;
+    await _leave(task);
+    await deleteTask(ref, task);
+    _arrived(task);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -406,6 +428,11 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                               label: _archived ? 'Unarchive' : 'Archive',
                               onTap: () => _setArchived(task, !_archived),
                             ),
+                            if (_archived)
+                              _PillTrayAction(
+                                label: 'Delete',
+                                onTap: () => _delete(task),
+                              ),
                           ],
                           child: _TaskPill(
                             scale: scale,

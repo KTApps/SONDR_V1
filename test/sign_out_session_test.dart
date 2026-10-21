@@ -392,6 +392,9 @@ class _MemoryStore implements SessionStore {
 }
 
 class _FakeTasks implements TasksRepository {
+  @override
+  Future<void> delete(String taskId) async {}
+
   _FakeTasks(this.tasks, this.order);
 
   final List<Task> tasks;

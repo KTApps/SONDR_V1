@@ -27,6 +27,15 @@ class CollagesRepository {
     return Collage.fromMap(data);
   }
 
+  /// Remove every collage of [taskId]. Returns how many went.
+  Future<int> deleteForTask(String taskId) async {
+    final snap = await _col.where('taskId', isEqualTo: taskId).get();
+    for (final d in snap.docs) {
+      await d.reference.delete();
+    }
+    return snap.docs.length;
+  }
+
   /// Auto-compose save at the milestone moment. Idempotent and **non-destructive**:
   /// if a collage already exists and has been user-edited (`edited: true`), it is
   /// left untouched — a re-crossing or re-open never clobbers a curated collage.

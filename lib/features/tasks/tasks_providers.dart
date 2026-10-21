@@ -58,6 +58,14 @@ class TasksController extends AsyncNotifier<List<Task>> {
     state = AsyncData(await _repo.fetchAll());
   }
 
+  /// Removes [taskId]'s document and refreshes the list. The task's photos
+  /// and collages are removed by `deleteTask`, which calls this last, so the
+  /// list only loses the task once nothing of it is left behind.
+  Future<void> deleteTask(String taskId) async {
+    await _repo.delete(taskId);
+    state = AsyncData(await _repo.fetchAll());
+  }
+
   /// Logs [seconds] of effort against [taskId] on the day [when]. This is how a
   /// finished/paused timer session lands in a task's history.
   /// Credit [seconds] to [taskId] on [when]'s day.

@@ -141,6 +141,16 @@ class PhotosRepository {
     }
   }
 
+  /// Remove every photo of [taskId] — each doc, then its Storage binary, by
+  /// the same rule as [delete]. Returns how many docs went.
+  Future<int> deleteForTask(String taskId) async {
+    final photos = await photosForTask(taskId);
+    for (final p in photos) {
+      await delete(p);
+    }
+    return photos.length;
+  }
+
   /// The most recent [limit] photos across all days, newest first. A single
   /// orderBy on `timestamp` → automatic single-field index, no composite. Backs
   /// the profile gallery doorway's thumbnail strip.

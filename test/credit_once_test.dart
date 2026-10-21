@@ -257,6 +257,9 @@ class _MemoryStore implements SessionStore {
 /// descends into nested maps; every write here carries the whole map, so
 /// the difference does not arise.)
 class _QueueingTasks implements TasksRepository {
+  @override
+  Future<void> delete(String taskId) async {}
+
   _QueueingTasks(List<Task> seed) {
     for (final t in seed) {
       docs[t.id] = t.toMap();

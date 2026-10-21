@@ -59,6 +59,11 @@ class LocalTasksRepository implements TasksRepository {
   }
 
   @override
+  Future<void> delete(String taskId) async {
+    _tasks.removeWhere((t) => t.id == taskId);
+  }
+
+  @override
   Future<void> save(Task task) async {
     final i = _tasks.indexWhere((t) => t.id == task.id);
     if (i == -1) {

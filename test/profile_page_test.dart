@@ -171,9 +171,7 @@ void main() {
             authUserProvider.overrideWith((ref) => const Stream<User?>.empty()),
             tasksRepositoryProvider.overrideWithValue(_FakeTasks(tasks)),
             currentProfileProvider.overrideWith((ref) async => profile),
-            galleryPreviewProvider.overrideWith(
-              (ref) async => (recent: recent, total: recent.length),
-            ),
+            galleryPreviewProvider.overrideWith((ref) async => recent),
             collagesListProvider.overrideWith(
               (ref) async => milestonePhotos.isEmpty
                   ? const <Collage>[]

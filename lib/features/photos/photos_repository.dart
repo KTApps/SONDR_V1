@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/backend.dart';
 import '../../core/utils/date.dart';
 import 'collage_selection.dart';
+import 'local_first.dart';
 import 'models/photo.dart';
 
 /// The private photo store. Each photo is a document under
@@ -154,11 +155,18 @@ class PhotosRepository {
   /// The most recent [limit] photos across all days, newest first. A single
   /// orderBy on `timestamp` → automatic single-field index, no composite. Backs
   /// the profile gallery doorway's thumbnail strip.
-  Future<List<Photo>> photosRecent(int limit) async {
+  Future<List<Photo>> photosRecent(int limit) => photosRecentFrom(limit);
+
+  /// [photosRecent], read from [source]. The cache answers at once on launch;
+  /// the server answers when the network does.
+  Future<List<Photo>> photosRecentFrom(
+    int limit, {
+    Source source = Source.serverAndCache,
+  }) async {
     final snap = await _col
         .orderBy('timestamp', descending: true)
         .limit(limit)
-        .get();
+        .get(GetOptions(source: source));
     return [for (final d in snap.docs) Photo.fromMap(d.data())];
   }
 
@@ -180,8 +188,16 @@ class PhotosRepository {
   /// All of a task's photos (any day). A single equality filter on `taskId` →
   /// automatic single-field index, no composite. Order is irrelevant here —
   /// [collageSelection] re-sorts by cumulative seconds.
-  Future<List<Photo>> photosForTask(String taskId) async {
-    final snap = await _col.where('taskId', isEqualTo: taskId).get();
+  Future<List<Photo>> photosForTask(String taskId) => photosForTaskFrom(taskId);
+
+  /// [photosForTask], read from [source].
+  Future<List<Photo>> photosForTaskFrom(
+    String taskId, {
+    Source source = Source.serverAndCache,
+  }) async {
+    final snap = await _col
+        .where('taskId', isEqualTo: taskId)
+        .get(GetOptions(source: source));
     return [for (final d in snap.docs) Photo.fromMap(d.data())];
   }
 
@@ -194,20 +210,39 @@ class PhotosRepository {
   /// The **full** band for [taskId]'s [milestoneHours] milestone — every photo
   /// in the 20h stretch, chronological, uncapped. This is what the collage
   /// stores (the full mosaic).
-  Future<List<Photo>> photosForBand(String taskId, int milestoneHours) async {
-    return bandPhotos(await photosForTask(taskId), milestoneHours);
+  Future<List<Photo>> photosForBand(String taskId, int milestoneHours) =>
+      photosForBandFrom(taskId, milestoneHours);
+
+  /// [photosForBand], read from [source].
+  Future<List<Photo>> photosForBandFrom(
+    String taskId,
+    int milestoneHours, {
+    Source source = Source.serverAndCache,
+  }) async {
+    return bandPhotos(
+      await photosForTaskFrom(taskId, source: source),
+      milestoneHours,
+    );
   }
 
   /// Resolve photo [ids] to [Photo]s, **re-ordered to the passed [ids]** and
   /// dropping any that no longer exist (a deleted photo just vanishes). Chunked
   /// into `whereIn` batches of 30 (its cap), since a full-band collage can hold
   /// far more than that.
-  Future<List<Photo>> photosByIds(List<String> ids) async {
+  Future<List<Photo>> photosByIds(List<String> ids) => photosByIdsFrom(ids);
+
+  /// [photosByIds], read from [source].
+  Future<List<Photo>> photosByIdsFrom(
+    List<String> ids, {
+    Source source = Source.serverAndCache,
+  }) async {
     if (ids.isEmpty) return const [];
     final byId = <String, Photo>{};
     for (var i = 0; i < ids.length; i += 30) {
       final chunk = ids.sublist(i, i + 30 < ids.length ? i + 30 : ids.length);
-      final snap = await _col.where(FieldPath.documentId, whereIn: chunk).get();
+      final snap = await _col
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get(GetOptions(source: source));
       for (final d in snap.docs) {
         byId[d.id] = Photo.fromMap(d.data());
       }
@@ -289,10 +324,17 @@ final earliestPhotoMonthProvider =
 /// total count, fetched together. Empty/zero on the local backend; autoDispose
 /// so it refreshes when the profile is revisited.
 final galleryPreviewProvider =
-    FutureProvider.autoDispose<({List<Photo> recent, int total})>((ref) async {
+    FutureProvider.autoDispose<List<Photo>>((ref) async {
+      ref.keepAlive(); // refreshed by invalidatePhotoViews, never disposed
       final repo = ref.watch(photosRepositoryProvider);
-      if (repo == null) return (recent: const <Photo>[], total: 0);
-      final recent = await repo.photosRecent(4);
-      final total = await repo.photosCount();
-      return (recent: recent, total: total);
+      if (repo == null) return const <Photo>[];
+      // The hero needs the newest photo on the first frame. This used to
+      // await the photo count as well — a server-only aggregate that nothing
+      // reads — and the hero waited for it.
+      return localFirst<List<Photo>>(
+        ref,
+        read: (source) => repo.photosRecentFrom(4, source: source),
+        isEmpty: (v) => v.isEmpty,
+        same: (a, b) => sameIds([for (final p in a) p.id], [for (final p in b) p.id]),
+      );
     });

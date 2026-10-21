@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart' show Source;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -499,7 +500,11 @@ class _Harness extends StatelessWidget {
 /// A photo store that counts its reads. Everything the providers under test
 /// do not touch falls through to noSuchMethod.
 class _CountingPhotos implements PhotosRepository {
+  /// Reads answered from the cache — the ones a cold open pays for. Local-first
+  /// also asks the server once behind every cached answer; that is counted
+  /// apart, so "fetched again" means a second cache read, not the follow-up.
   int forTaskCalls = 0;
+  int serverCalls = 0;
   static const Photo _one = Photo(
     taskId: 't', taskName: 'T', dayKey: '2026-10-01', timestamp: 7,
     sessionSeconds: 60, photoUrl: '', storagePath: '', cumulativeSeconds: 100,
@@ -512,8 +517,21 @@ class _CountingPhotos implements PhotosRepository {
   }
 
   @override
+  Future<List<Photo>> photosForTaskFrom(String taskId, {Source source = Source.serverAndCache}) async {
+    if (source == Source.server) {
+      serverCalls++;
+      return [_one];
+    }
+    return photosForTask(taskId);
+  }
+
+  @override
   Future<List<Photo>> photosForBand(String taskId, int milestoneHours) async =>
       bandPhotos(await photosForTask(taskId), milestoneHours);
+
+  @override
+  Future<List<Photo>> photosForBandFrom(String taskId, int milestoneHours, {Source source = Source.serverAndCache}) async =>
+      bandPhotos(await photosForTaskFrom(taskId, source: source), milestoneHours);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

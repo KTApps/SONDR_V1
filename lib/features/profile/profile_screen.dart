@@ -661,9 +661,14 @@ class _HeroEmblem extends ConsumerWidget {
     final profile = ref.watch(currentProfileProvider).value;
     // photosRecent orders by timestamp descending, so the head of this list is
     // the newest capture across every task.
-    final recent =
-        ref.watch(galleryPreviewProvider).value?.recent ?? const <Photo>[];
+    final galleryAsync = ref.watch(galleryPreviewProvider);
+    final recent = galleryAsync.value ?? const <Photo>[];
     final newest = recent.isEmpty ? null : recent.first;
+    // Until the newest photo is known, the disc is a fixed, quiet surface —
+    // the same size and tone as the photo's own placeholder — never the
+    // initial, which is an answer ("there is no photo") the frame does not
+    // yet have.
+    final heroKnown = galleryAsync.hasValue;
 
     return Column(
       children: [
@@ -676,7 +681,9 @@ class _HeroEmblem extends ConsumerWidget {
           center: SizedBox(
             width: _photo * scale,
             height: _photo * scale,
-            child: newest == null
+            child: !heroKnown
+                ? ClipOval(child: ColoredBox(color: tokens.surface))
+                : newest == null
                 ? Center(
                     child: Text(
                       initialOf(profile),

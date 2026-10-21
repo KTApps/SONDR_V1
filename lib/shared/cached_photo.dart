@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -8,8 +10,12 @@ import 'photo_tint.dart';
 /// every rebuild or surface re-entry — the root of the intermittent blank-tile
 /// bug, where a flaky connection or an expired Storage token turned a re-render
 /// into a failed request. Drop-in for `NetworkImage`.
-ImageProvider cachedPhotoProvider(String url) =>
-    CachedNetworkImageProvider(url);
+ImageProvider cachedPhotoProvider(String url) => photoImageProviderFactory(url);
+
+/// How a URL becomes an [ImageProvider]. The cache-backed network provider
+/// in the app; a test replaces it with something it can decode.
+ImageProvider Function(String url) photoImageProviderFactory =
+    (url) => CachedNetworkImageProvider(url);
 
 /// Decode these now, so the surface that shows them next paints its first
 /// frame from memory instead of swapping a placeholder for the bitmap a
@@ -21,14 +27,27 @@ ImageProvider cachedPhotoProvider(String url) =>
 final Set<String> _warmed = {};
 const int kPrecacheLimit = 30;
 void precachePhotos(BuildContext context, Iterable<String> urls) {
+  unawaited(precachePhotosAwait(context, urls));
+}
+
+/// [precachePhotos] that completes once every decode it started has
+/// finished (or failed). The boot gate waits on this, bounded by its own
+/// timeout, so Profile's first frame paints its photos from memory.
+Future<void> precachePhotosAwait(BuildContext context, Iterable<String> urls) {
+  final pending = <Future<void>>[];
   var n = 0;
   for (final url in urls) {
     if (url.isEmpty || _warmed.contains(url)) continue;
-    if (++n > kPrecacheLimit) return;
+    if (++n > kPrecacheLimit) break;
     _warmed.add(url);
-    precacheImage(cachedPhotoProvider(url), context).catchError((_) {});
+    pending.add(precacheImage(cachedPhotoProvider(url), context).catchError((_) {}));
   }
+  return Future.wait(pending);
 }
+
+/// Forget what has been warmed — for tests that run several launches.
+@visibleForTesting
+void resetPrecacheMemory() => _warmed.clear();
 
 /// The one cached-image widget behind the app's Storage photos (calendar,
 /// day-detail thumbnails, collages, profile gallery). It's a plain [Image] fed

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/backend.dart';
 import 'models/collage.dart';
 import 'collage_selection.dart';
+import 'local_first.dart';
 import 'models/photo.dart';
 import 'photos_repository.dart';
 
@@ -107,8 +108,15 @@ class CollagesRepository {
 
   /// Every collage, newest first. Single-field `orderBy(createdAt)` → automatic
   /// index, no composite.
-  Future<List<Collage>> allCollages() async {
-    final snap = await _col.orderBy('createdAt', descending: true).get();
+  Future<List<Collage>> allCollages() => allCollagesFrom();
+
+  /// [allCollages], read from [source].
+  Future<List<Collage>> allCollagesFrom({
+    Source source = Source.serverAndCache,
+  }) async {
+    final snap = await _col
+        .orderBy('createdAt', descending: true)
+        .get(GetOptions(source: source));
     return [for (final d in snap.docs) Collage.fromMap(d.data())];
   }
 }
@@ -133,7 +141,15 @@ final collagesListProvider =
   ref.keepAlive();
   final repo = ref.watch(collagesRepositoryProvider);
   if (repo == null) return const [];
-  final all = await repo.allCollages();
+  final all = await localFirst<List<Collage>>(
+    ref,
+    read: (source) => repo.allCollagesFrom(source: source),
+    isEmpty: (v) => v.isEmpty,
+    same: (a, b) => sameIds(
+      [for (final c in a) '${c.id}:${c.photoIds.join(',')}'],
+      [for (final c in b) '${c.id}:${c.photoIds.join(',')}'],
+    ),
+  );
   return [for (final c in all) if (c.photoIds.isNotEmpty) c];
 });
 
@@ -149,7 +165,12 @@ final collagePhotosProvider =
   final repo = ref.watch(photosRepositoryProvider);
   if (repo == null) return const [];
   final ids = [for (final s in idsCsv.split(',')) if (s.isNotEmpty) s];
-  return repo.photosByIds(ids);
+  return localFirst<List<Photo>>(
+    ref,
+    read: (source) => repo.photosByIdsFrom(ids, source: source),
+    isEmpty: (v) => v.isEmpty,
+    same: (a, b) => sameIds([for (final p in a) p.id], [for (final p in b) p.id]),
+  );
 });
 
 /// Every photo in one task's milestone band, chronological and uncapped —
@@ -171,7 +192,12 @@ final bandPhotosProvider =
   if (parts.length != 2) return const [];
   final hours = int.tryParse(parts[1]);
   if (hours == null) return const [];
-  return repo.photosForBand(parts[0], hours);
+  return localFirst<List<Photo>>(
+    ref,
+    read: (source) => repo.photosForBandFrom(parts[0], hours, source: source),
+    isEmpty: (v) => v.isEmpty,
+    same: (a, b) => sameIds([for (final p in a) p.id], [for (final p in b) p.id]),
+  );
 });
 
 /// Every photo a task has that belongs to a REACHED band, newest band first.
@@ -186,7 +212,12 @@ final taskBandPhotosProvider =
   ref.keepAlive();
   final repo = ref.watch(photosRepositoryProvider);
   if (repo == null) return const [];
-  final all = await repo.photosForTask(taskId);
+  final all = await localFirst<List<Photo>>(
+    ref,
+    read: (source) => repo.photosForTaskFrom(taskId, source: source),
+    isEmpty: (v) => v.isEmpty,
+    same: (a, b) => sameIds([for (final p in a) p.id], [for (final p in b) p.id]),
+  );
   final assignable = [
     for (final p in all)
       if (p.cumulativeSeconds != null) p,

@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
+import '../../shared/cached_photo.dart';
 import '../friends/friends_repository.dart';
+import '../photos/photos_repository.dart';
+import '../profile/milestone_strip.dart';
 import '../habits/habits_providers.dart';
 import '../shell/main_shell.dart';
 import '../tasks/tasks_providers.dart';
@@ -25,8 +28,22 @@ class BootGate extends ConsumerStatefulWidget {
   ConsumerState<BootGate> createState() => _BootGateState();
 }
 
+/// Decode Profile's photos behind the splash: the hero, the strip's tiles
+/// and the newest photos its stretches would show. Resolves when they are
+/// decoded or when [kBootPrecacheTimeout] has passed, whichever is first —
+/// the splash is held for a moment, never for a network.
+///
+/// A provider so a test can stand in for it.
+final bootPrecacheProvider =
+    Provider<Future<void> Function(BuildContext, List<String>)>(
+  (ref) => (context, urls) => precachePhotosAwait(context, urls)
+      .timeout(kBootPrecacheTimeout, onTimeout: () {}),
+);
+const Duration kBootPrecacheTimeout = Duration(milliseconds: 1500);
+
 class _BootGateState extends ConsumerState<BootGate> {
   bool _ready = false;
+  bool _warming = false;
   Timer? _failsafe;
 
   static const Duration _maxWait = Duration(seconds: 6);
@@ -52,6 +69,20 @@ class _BootGateState extends ConsumerState<BootGate> {
     super.dispose();
   }
 
+  /// Everything Profile paints on its first frame, decoded first. Runs once
+  /// the data is in; lifts the splash when the photos are in memory or the
+  /// timeout has passed. The failsafe still lifts it regardless.
+  Future<void> _warmThenLift(List<String> urls) async {
+    if (_warming || !mounted) return;
+    _warming = true;
+    try {
+      await ref.read(bootPrecacheProvider)(context, urls);
+    } catch (_) {
+      // A decode that failed costs exactly what not asking would have.
+    }
+    _lift();
+  }
+
   void _lift() {
     if (_ready || !mounted) return;
     setState(() => _ready = true);
@@ -65,12 +96,33 @@ class _BootGateState extends ConsumerState<BootGate> {
     if (!_ready) {
       final tasks = ref.watch(tasksProvider);
       final habits = ref.watch(habitsProvider);
+      // Profile's photos too: the hero and the strip are read local-first,
+      // so this is the cache answering, not a network. Their images are
+      // then decoded before the splash lifts, so Profile's first frame is
+      // complete — nothing lands a moment later.
+      final gallery = ref.watch(galleryPreviewProvider);
+      final strip = ref.watch(milestoneStripProvider);
 
-      final bothLoaded = tasks.hasValue && habits.hasValue;
-      final anyError = tasks.hasError || habits.hasError;
-      if (bothLoaded || anyError) {
+      final anyError = tasks.hasError ||
+          habits.hasError ||
+          gallery.hasError ||
+          strip.hasError;
+      final allLoaded = tasks.hasValue &&
+          habits.hasValue &&
+          gallery.hasValue &&
+          strip.hasValue;
+      if (anyError) {
         // Can't setState during build — lift after this frame.
         WidgetsBinding.instance.addPostFrameCallback((_) => _lift());
+      } else if (allLoaded && !_warming) {
+        final urls = <String>[
+          for (final p in gallery.value!.take(1)) p.photoUrl,
+          for (final e in strip.value!) e.photo.photoUrl,
+          for (final e in strip.value!)
+            for (final p in e.detail.photos) p.photoUrl,
+        ];
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _warmThenLift(urls));
       }
     }
 

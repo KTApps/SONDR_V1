@@ -161,7 +161,9 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
 
   Future<void> _add([String? handle]) async {
     final h = handle ?? _handle.text;
-    await _run((repo) => repo.sendRequest(h), success: 'Request sent.');
+    // No notice: the button has already flipped to Requested and the request
+    // is already under Pending, so a third announcement said nothing new.
+    await _run((repo) => repo.sendRequest(h));
     _handle.clear();
     _onQueryChanged('');
   }

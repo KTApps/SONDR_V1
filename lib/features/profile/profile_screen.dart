@@ -983,7 +983,18 @@ class _MilestonesRow extends ConsumerWidget {
                 children: [
                   for (var i = 0; i < strip.length; i++) ...[
                     if (i > 0) SizedBox(width: _kStripGap * scale),
-                    _GalleryThumb(photo: strip[i].photo),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => MilestonesScreen(
+                            landOnTask: strip[i].task,
+                            landOnBandHours: strip[i].bandHours,
+                          ),
+                        ),
+                      ),
+                      child: _GalleryThumb(photo: strip[i].photo),
+                    ),
                   ],
                 ],
               ),

@@ -85,12 +85,24 @@ enum _Lens { milestones, photos }
 /// `cumulativeSeconds` existed) is invisible under the first lens and present
 /// under the second, and the gallery is how you know nothing was lost.
 class MilestonesScreen extends ConsumerStatefulWidget {
-  const MilestonesScreen({super.key, this.startOnPhotos = false});
+  const MilestonesScreen({
+    super.key,
+    this.startOnPhotos = false,
+    this.landOnTask,
+    this.landOnBandHours,
+  });
 
   /// Open on the Photos lens instead of Milestones. For a caller that already
   /// knows there are no milestones to land on — the Profile doorway when it is
   /// counting captures rather than milestones.
   final bool startOnPhotos;
+
+  /// Land straight on one milestone: the page opens on its default lens and
+  /// immediately continues into [landOnTask]'s journey, scrolled to the
+  /// [landOnBandHours] stretch — the same two pushes a tap on the row and then
+  /// the band would make. Back unwinds through the page as usual.
+  final Task? landOnTask;
+  final int? landOnBandHours;
 
   @override
   ConsumerState<MilestonesScreen> createState() => _MilestonesScreenState();
@@ -98,6 +110,24 @@ class MilestonesScreen extends ConsumerStatefulWidget {
 
 class _MilestonesScreenState extends ConsumerState<MilestonesScreen> {
   late _Lens _lens = widget.startOnPhotos ? _Lens.photos : _Lens.milestones;
+
+  @override
+  void initState() {
+    super.initState();
+    final task = widget.landOnTask;
+    if (task == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _TaskJourneyScreen(
+            task: task,
+            initialBandHours: widget.landOnBandHours,
+          ),
+        ),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -371,13 +401,35 @@ class _TaskRow extends ConsumerWidget {
 /// Highest band first because the question is "where has this got to", and
 /// the answer is the most recent stretch — reading downward is reading back
 /// in time.
-class _TaskJourneyScreen extends ConsumerWidget {
-  const _TaskJourneyScreen({required this.task});
+class _TaskJourneyScreen extends ConsumerStatefulWidget {
+  const _TaskJourneyScreen({required this.task, this.initialBandHours});
 
   final Task task;
 
+  /// The stretch to open on, scrolled into view once the list has laid out.
+  final int? initialBandHours;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TaskJourneyScreen> createState() => _TaskJourneyScreenState();
+}
+
+class _TaskJourneyScreenState extends ConsumerState<_TaskJourneyScreen> {
+  final Map<int, GlobalKey> _bandKeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    final hours = widget.initialBandHours;
+    if (hours == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _bandKeys[hours]?.currentContext;
+      if (ctx != null) Scrollable.ensureVisible(ctx, alignment: 0);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final task = widget.task;
     final scale = figmaScale(context);
     final reached = task.milestonesReached;
 
@@ -396,6 +448,7 @@ class _TaskJourneyScreen extends ConsumerWidget {
                 children: [
                   for (var b = reached; b >= 1; b--)
                     _BandEntry(
+                      key: _bandKeys[b * Task.milestoneStepHours] ??= GlobalKey(),
                       task: task,
                       bandHours: b * Task.milestoneStepHours,
                     ),
@@ -425,7 +478,7 @@ class _TaskJourneyScreen extends ConsumerWidget {
 /// collage doc yet the full band is shown instead, so a stretch is never
 /// blank just because nothing has composed it.
 class _BandEntry extends ConsumerStatefulWidget {
-  const _BandEntry({required this.task, required this.bandHours});
+  const _BandEntry({super.key, required this.task, required this.bandHours});
 
   final Task task;
   final int bandHours;

@@ -8,6 +8,7 @@ import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/features/photos/milestones_screen.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
+import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/photos/widgets/collage_grid.dart';
 import 'package:sondr/shared/ring/ring_dial.dart';
 import 'package:sondr/shared/ring/ring_metrics.dart';
@@ -127,6 +128,33 @@ void main() {
     expect(find.text('20h'), findsWidgets);
     // Still dismissable.
     expect(find.text('Back'), findsWidgets);
+  });
+
+  testWidgets('a caller can land straight on one milestone', (tester) async {
+    // The Profile strip does this: the page opens and continues at once into
+    // the task's journey, on the stretch that was tapped — the same two
+    // pushes a tap on the row and then the band would make.
+    const golf = Task(
+      id: 'golf',
+      name: 'Golf',
+      secondsByDay: {'2026-10-01': 20 * 3600 + 60},
+    );
+    await tester.pumpWidget(const ProviderScope(
+      child: _Harness(landOnTask: golf, landOnBandHours: 20),
+    ));
+    await tester.pumpAndSettle();
+
+    // On the journey, not the list: the stretch is shown (empty, with no
+    // photo store behind the test) and the lens toggle is behind us.
+    expect(find.text('No photos from this stretch.'), findsOneWidget);
+    expect(find.text('Photos'), findsNothing);
+    expect(find.text('20h'), findsWidgets);
+
+    // Back unwinds to the page itself, on its default lens.
+    await tester.tap(find.text('Back').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Photos'), findsOneWidget);
+    expect(find.text('No photos from this stretch.'), findsNothing);
   });
 
   testWidgets('a caller can open straight onto the Photos lens', (
@@ -267,13 +295,19 @@ void _journeyGridTests() {
 }
 
 class _Harness extends StatelessWidget {
-  const _Harness({this.startOnPhotos = false});
+  const _Harness({this.startOnPhotos = false, this.landOnTask, this.landOnBandHours});
 
   final bool startOnPhotos;
+  final Task? landOnTask;
+  final int? landOnBandHours;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     theme: AppTheme.dark(),
-    home: MilestonesScreen(startOnPhotos: startOnPhotos),
+    home: MilestonesScreen(
+      startOnPhotos: startOnPhotos,
+      landOnTask: landOnTask,
+      landOnBandHours: landOnBandHours,
+    ),
   );
 }

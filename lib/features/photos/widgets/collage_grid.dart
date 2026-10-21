@@ -23,7 +23,11 @@ class CollageGrid extends StatelessWidget {
     this.removedIds,
     this.onToggleRemove,
     this.canMark,
+    this.onOpen,
   });
+
+  /// A tap on a tile when not editing — the viewer, on this photo.
+  final void Function(Photo)? onOpen;
 
   final List<Photo> photos;
   final double spacing;
@@ -77,6 +81,7 @@ class CollageGrid extends StatelessWidget {
             marked: removed.contains(p.id),
             canMark: canMark?.call(p) ?? true,
             onToggle: onToggleRemove == null ? null : () => onToggleRemove!(p),
+            onOpen: onOpen == null ? null : () => onOpen!(p),
           ),
       ],
     );
@@ -91,6 +96,7 @@ class _CollageTile extends StatelessWidget {
     this.marked = false,
     this.canMark = true,
     this.onToggle,
+    this.onOpen,
   });
 
   final Photo photo;
@@ -99,6 +105,7 @@ class _CollageTile extends StatelessWidget {
   final bool marked;
   final bool canMark;
   final VoidCallback? onToggle;
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +126,14 @@ class _CollageTile extends StatelessWidget {
         ? Stack(fit: StackFit.expand, children: [image, const SharedTag()])
         : image;
 
-    if (!editing) return tile;
+    if (!editing) {
+      if (onOpen == null) return tile;
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onOpen,
+        child: tile,
+      );
+    }
 
     // A marked tile can always be un-marked; an un-marked one only if it wouldn't
     // empty the collage (min 1).

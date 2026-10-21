@@ -14,12 +14,15 @@ import 'package:sondr/features/photos/models/collage.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/photos/photo_refresh.dart';
+import 'package:sondr/features/photos/photo_viewer.dart';
 import 'package:sondr/features/photos/collage_selection.dart';
 import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/photos/widgets/collage_grid.dart';
 import 'package:sondr/shared/ring/ring_dial.dart';
 import 'package:sondr/shared/ring/ring_metrics.dart';
 import 'package:sondr/shared/sondr_header.dart';
+
+import 'tiny_png.dart';
 
 /// The lens toggle is the only state this screen owns, so the thing worth
 /// asserting is that it actually swaps what is on screen.
@@ -192,6 +195,43 @@ void main() {
 
     final grid = tester.widget<CollageGrid>(find.byType(CollageGrid).first);
     expect(grid.photos.map((p) => p.id), [seeded[0].id, seeded[1].id, crossing.id]);
+  });
+
+  testWidgets('a tile in the stretch opens the viewer on that photo, the stretch a swipe away', (
+    tester,
+  ) async {
+    final factoryBefore = photoImageProviderFactory;
+    photoImageProviderFactory = (_) => MemoryImage(tinyPng);
+    addTearDown(() => photoImageProviderFactory = factoryBefore);
+    const golf = Task(id: 'golf', name: 'Golf', secondsByDay: {'2026-10-01': 20 * 3600 + 60});
+    Photo photo(int ts, {int? hours}) => Photo(
+          taskId: 'golf', taskName: 'Golf', dayKey: '2026-10-01', timestamp: ts,
+          sessionSeconds: 60, photoUrl: '', storagePath: '',
+          milestoneHours: hours, cumulativeSeconds: hours == null ? ts : 20 * 3600 + 5,
+        );
+    // The collage shows two of the band's four; the viewer reaches all four.
+    final seeded = [photo(1000), photo(5000)];
+    final band = [photo(500), ...seeded, photo(9000)];
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        collagesListProvider.overrideWith((ref) async => [
+              Collage(taskId: 'golf', milestoneHours: 20, photoIds: [for (final p in seeded) p.id], edited: true),
+            ]),
+        collagePhotosProvider.overrideWith((ref, key) async => seeded),
+        bandPhotosProvider.overrideWith((ref, key) async => band),
+      ],
+      child: const _Harness(landOnTask: golf, landOnBandHours: 20),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byType(PhotoViewer), findsNothing);
+
+    // The second tile: the collage's second photo, page 2 of the four.
+    await tester.tap(find.descendant(of: find.byType(CollageGrid), matching: find.byType(SondrPhoto)).at(1));
+    await tester.pumpAndSettle();
+    final viewer = tester.widget<PhotoViewer>(find.byType(PhotoViewer));
+    expect(viewer.photos.map((p) => p.timestamp), [1000, 5000, 500, 9000]);
+    expect(viewer.index, 1);
+    expect(find.text('2 of 4'), findsOneWidget);
   });
 
   testWidgets('a row whose photo count is still loading says nothing about photos', (
@@ -423,6 +463,25 @@ void _galleryTests() {
     );
     expect(find.byType(SondrPhoto), findsNWidgets(5));
     expect(find.text('No photos yet.'), findsNothing);
+  });
+
+  testWidgets('a tile opens the viewer on it, the month in its order a swipe away', (
+    tester,
+  ) async {
+    final factoryBefore = photoImageProviderFactory;
+    photoImageProviderFactory = (_) => MemoryImage(tinyPng);
+    addTearDown(() => photoImageProviderFactory = factoryBefore);
+    await pumpGallery(tester, 5);
+    final tiles = find.byType(SondrPhoto);
+    final shown = [
+      for (var i = 0; i < 5; i++) tester.widget<SondrPhoto>(tiles.at(i)).url,
+    ];
+    await tester.tap(tiles.at(2));
+    await tester.pumpAndSettle();
+    final viewer = tester.widget<PhotoViewer>(find.byType(PhotoViewer));
+    expect(viewer.photos.map((p) => p.photoUrl), shown);
+    expect(viewer.index, 2);
+    expect(find.text('3 of 5'), findsOneWidget);
   });
 
   testWidgets('only the shared photo is tagged', (tester) async {

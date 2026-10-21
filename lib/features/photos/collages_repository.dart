@@ -229,9 +229,16 @@ final taskBandPhotosProvider =
 /// any) and the photos to draw — the collage's, with the crossing photo
 /// added back, or the band itself.
 class BandDetail {
-  const BandDetail({required this.collage, required this.photos});
+  const BandDetail({
+    required this.collage,
+    required this.photos,
+    this.band = const [],
+  });
   final Collage? collage;
   final List<Photo> photos;
+
+  /// Every photo of the stretch, capture order — the collage may show fewer.
+  final List<Photo> band;
 }
 
 /// One answer for one stretch — the band detail draws from THIS and nothing
@@ -253,11 +260,14 @@ final bandDetailProvider =
       .where((c) => c.taskId == taskId && c.milestoneHours == hours)
       .firstOrNull;
   final band = await ref.watch(bandPhotosProvider(key).future);
-  if (collage == null) return BandDetail(collage: null, photos: band);
+  if (collage == null) {
+    return BandDetail(collage: null, photos: band, band: band);
+  }
   final shown =
       await ref.watch(collagePhotosProvider(collage.photoIds.join(',')).future);
   return BandDetail(
     collage: collage,
     photos: withCrossingPhotos(shown, band, hours),
+    band: band,
   );
 });

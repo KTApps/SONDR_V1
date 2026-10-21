@@ -11,7 +11,6 @@ import '../../shared/ring/ring_metrics.dart';
 import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
 import '../../shared/sondr_loading.dart';
-import '../history/day_detail_sheet.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'collage_selection.dart';
@@ -19,6 +18,8 @@ import 'collages_repository.dart';
 import 'models/collage.dart';
 import 'models/photo.dart';
 import 'photo_refresh.dart';
+import 'photo_viewer_sets.dart';
+import 'photo_viewer.dart';
 import 'photos_repository.dart';
 import 'widgets/collage_grid.dart';
 import 'widgets/shared_tag.dart';
@@ -636,6 +637,10 @@ class _BandEntryState extends ConsumerState<_BandEntry> {
               removedIds: _editing ? _removed : null,
               onToggleRemove: _editing ? _toggle : null,
               canMark: _editing ? (_) => keptCount > 1 : null,
+              onOpen: (p) {
+                final set = bandViewerSet(detail);
+                showPhotoViewer(context, photos: set, index: viewerIndexOf(set, p));
+              },
             ),
           if (_editing) ...[
             SizedBox(height: kSpacingBase * scale),
@@ -787,8 +792,7 @@ class _MonthSection extends ConsumerWidget {
 }
 
 /// A month's photos as a fixed three-across grid of squares. Tapping one opens
-/// that day's detail sheet — the photo's context (what was worked, for how
-/// long, what else was captured) is the day, and that sheet already tells it.
+/// the viewer on it, with the rest of the month a swipe away in this order.
 ///
 /// Three columns at every count, unlike [CollageGrid], which adapts its column
 /// count to the number of photos: a collage is one composed picture, a gallery
@@ -817,7 +821,11 @@ class _PhotoGrid extends StatelessWidget {
         for (final p in photos)
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => showDayDetailSheet(context, p.dayKey),
+            onTap: () => showPhotoViewer(
+              context,
+              photos: displayedViewerSet(photos),
+              index: viewerIndexOf(photos, p),
+            ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10 * scale),
               child: Stack(

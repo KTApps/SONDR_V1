@@ -6,7 +6,13 @@ import 'package:sondr/core/utils/date.dart';
 import 'package:sondr/features/history/calendar_screen.dart';
 import 'package:sondr/features/history/day_detail_sheet.dart';
 import 'package:sondr/features/history/history_providers.dart';
+import 'package:sondr/features/photos/models/photo.dart';
+import 'package:sondr/features/photos/photo_viewer.dart';
+import 'package:sondr/features/photos/photos_repository.dart';
+import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/features/tasks/tasks_providers.dart';
+
+import 'tiny_png.dart';
 
 void main() {
   test('DayKey.parse round-trips a key to its date', () {
@@ -84,5 +90,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(DayDetailSheet), findsOneWidget);
     expect(find.text('Logged'), findsOneWidget);
+  });
+
+  testWidgets('a greyed day thumbnail opens the viewer in full colour, the day a swipe away', (
+    tester,
+  ) async {
+    final factoryBefore = photoImageProviderFactory;
+    photoImageProviderFactory = (_) => MemoryImage(tinyPng);
+    addTearDown(() => photoImageProviderFactory = factoryBefore);
+    final today = DayKey.of(DateTime.now());
+    Photo photo(int ts) => Photo(
+          taskId: 't', taskName: 'Golf', dayKey: today, timestamp: ts,
+          sessionSeconds: 60, photoUrl: 'https://x/$ts.jpg', storagePath: '',
+          cumulativeSeconds: ts,
+        );
+    final day = [photo(1), photo(2), photo(3)];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          photosForDayProvider.overrideWith((ref, key) async => day),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: Scaffold(body: DayDetailSheet(dayKey: today)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The sheet's thumbnails are tinted; the viewer's photo is not.
+    final thumbs = find.byType(SondrPhoto);
+    expect(thumbs, findsNWidgets(3));
+    expect(tester.widget<SondrPhoto>(thumbs.first).saturation, isNotNull);
+    final tappedUrl = tester.widget<SondrPhoto>(thumbs.at(1)).url;
+    await tester.tap(thumbs.at(1));
+    await tester.pumpAndSettle();
+
+    final viewer = tester.widget<PhotoViewer>(find.byType(PhotoViewer));
+    expect(viewer.photos.length, 3);
+    expect(viewer.photos[viewer.index].photoUrl, tappedUrl);
+    final shown = find.descendant(of: find.byType(PhotoViewer), matching: find.byType(SondrPhoto));
+    expect(tester.widget<SondrPhoto>(shown.first).saturation, isNull);
+    expect(find.text('2 of 3'), findsOneWidget);
   });
 }

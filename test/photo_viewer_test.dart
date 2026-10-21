@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/photos/models/photo.dart';
@@ -71,12 +72,14 @@ void main() {
     });
 
     Future<void> open(WidgetTester tester, List<Photo> photos, int index) async {
-      await tester.pumpWidget(MaterialApp(
-        theme: AppTheme.dark(),
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => showPhotoViewer(context, photos: photos, index: index),
-            child: const Text('open'),
+      await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showPhotoViewer(context, photos: photos, index: index),
+              child: const Text('open'),
+            ),
           ),
         ),
       ));
@@ -108,7 +111,7 @@ void main() {
     testWidgets('a set of one shows no counter, and Close leaves', (tester) async {
       await open(tester, [_photo()], 0);
       expect(find.textContaining(' of '), findsNothing);
-      expect(find.text('Delete'), findsNothing, reason: 'no delete handler, no Delete');
+      expect(find.text('Delete'), findsOneWidget);
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
       expect(find.byType(PhotoViewer), findsNothing);

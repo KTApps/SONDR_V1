@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/sondr_action.dart';
+import 'delete_photo.dart';
 import 'models/photo.dart';
 import 'photo_viewer_text.dart';
 
@@ -13,7 +15,6 @@ Future<void> showPhotoViewer(
   BuildContext context, {
   required List<Photo> photos,
   required int index,
-  Future<bool> Function(Photo photo)? onDelete,
 }) {
   if (photos.isEmpty) return Future.value();
   return Navigator.of(context).push(
@@ -25,7 +26,6 @@ Future<void> showPhotoViewer(
       pageBuilder: (_, _, _) => PhotoViewer(
         photos: photos,
         index: index.clamp(0, photos.length - 1),
-        onDelete: onDelete,
       ),
       transitionsBuilder: (_, anim, _, child) =>
           FadeTransition(opacity: anim, child: child),
@@ -38,31 +38,28 @@ const Duration kPhotoViewerFade = Duration(milliseconds: 180);
 /// The photo, large, with what it is: the task and the session it came
 /// from, when it was taken and where the task stood, and — for a crossing
 /// photo — the milestone it marks. Swipe sideways through the set; tap,
-/// swipe down, or Close to leave.
+/// swipe down, or Close to leave. Delete asks first, then takes the photo
+/// out of everything it is in ([deletePhotoEverywhere]) and moves on to
+/// the next one, or leaves when it was the last.
 ///
 /// No AppBar, no Material buttons: a dark scrim, the photo at 3:4 inset 18
 /// with an 18 radius, centred in the space above the text, and the app's
 /// own actions beneath. Greyscale only (see DESIGN.md).
-class PhotoViewer extends StatefulWidget {
+class PhotoViewer extends ConsumerStatefulWidget {
   const PhotoViewer({
     super.key,
     required this.photos,
     required this.index,
-    this.onDelete,
   });
 
   final List<Photo> photos;
   final int index;
 
-  /// Asked to delete the current photo; returns whether it went. Absent, no
-  /// Delete is offered.
-  final Future<bool> Function(Photo photo)? onDelete;
-
   @override
-  State<PhotoViewer> createState() => _PhotoViewerState();
+  ConsumerState<PhotoViewer> createState() => _PhotoViewerState();
 }
 
-class _PhotoViewerState extends State<PhotoViewer> {
+class _PhotoViewerState extends ConsumerState<PhotoViewer> {
   late final List<Photo> _photos = List.of(widget.photos);
   late int _index = widget.index;
   late final PageController _pages = PageController(initialPage: _index);
@@ -100,21 +97,28 @@ class _PhotoViewerState extends State<PhotoViewer> {
   void _close() => Navigator.of(context).maybePop();
 
   Future<void> _delete() async {
-    final ask = widget.onDelete;
-    if (ask == null || _deleting) return;
+    if (_deleting) return;
     final photo = _photos[_index];
-    setState(() => _deleting = true);
-    final gone = await ask(photo);
+    // Busy only once the prompt has been answered: a photo being deleted,
+    // not a question being asked.
+    final gone = await confirmDeletePhoto(
+      context,
+      ref,
+      photo,
+      onDeleting: () => setState(() => _deleting = true),
+    );
     if (!mounted) return;
     if (!gone) {
-      setState(() => _deleting = false);
+      if (_deleting) setState(() => _deleting = false);
       return;
     }
-    _photos.removeAt(_index);
-    if (_photos.isEmpty) {
+    if (_photos.length == 1) {
+      // The last one: leave, still "Deleting…" through the fade. The set is
+      // not emptied — there is no frame to build from nothing.
       _close();
       return;
     }
+    _photos.removeAt(_index);
     // The next photo in the set, or the new last one.
     final next = _index.clamp(0, _photos.length - 1);
     setState(() {
@@ -212,23 +216,21 @@ class _PhotoViewerState extends State<PhotoViewer> {
               ],
               SizedBox(height: 32 * scale),
               SondrAction(label: 'Close', supporting: true, onPressed: _close),
-              if (widget.onDelete != null) ...[
-                SizedBox(height: 12 * scale),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _deleting ? null : _delete,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 24 * scale,
-                      vertical: 4 * scale,
-                    ),
-                    child: Text(
-                      _deleting ? 'Deleting…' : 'Delete',
-                      style: style(15, tokens.textTertiary),
-                    ),
+              SizedBox(height: 12 * scale),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _deleting ? null : _delete,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 24 * scale,
+                    vertical: 4 * scale,
+                  ),
+                  child: Text(
+                    _deleting ? 'Deleting…' : 'Delete',
+                    style: style(15, tokens.textTertiary),
                   ),
                 ),
-              ],
+              ),
               SizedBox(height: 24 * scale),
             ],
           ),

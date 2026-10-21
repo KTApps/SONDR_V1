@@ -29,6 +29,48 @@ class CollagesRepository {
     return Collage.fromMap(data);
   }
 
+  /// The milestone whose stored collage holds [photoId], or null if none
+  /// does — for the delete prompt, before anything goes.
+  Future<int?> milestoneHoursOf(String taskId, String photoId) async {
+    final snap = await _col.where('taskId', isEqualTo: taskId).get();
+    for (final d in snap.docs) {
+      final collage = Collage.fromMap(d.data());
+      if (collage.photoIds.contains(photoId)) return collage.milestoneHours;
+    }
+    return null;
+  }
+
+  /// Drop [photoId] from whichever of [taskId]'s collages hold it, keeping
+  /// each one's `edited` flag and `createdAt`. A collage left with nothing
+  /// in it is deleted, so the stretch falls back to showing its band.
+  /// Returns the milestone it was removed from, or null if none held it.
+  Future<int?> removePhoto(String taskId, String photoId) async {
+    final snap = await _col.where('taskId', isEqualTo: taskId).get();
+    int? removedFrom;
+    for (final d in snap.docs) {
+      final data = d.data();
+      final collage = Collage.fromMap(data);
+      if (!collage.photoIds.contains(photoId)) continue;
+      removedFrom ??= collage.milestoneHours;
+      final remaining = [
+        for (final id in collage.photoIds)
+          if (id != photoId) id,
+      ];
+      if (remaining.isEmpty) {
+        await d.reference.delete();
+        continue;
+      }
+      await d.reference.set({
+        'taskId': collage.taskId,
+        'milestoneHours': collage.milestoneHours,
+        'photoIds': remaining,
+        'edited': collage.edited,
+        'createdAt': data['createdAt'] ?? FieldValue.serverTimestamp(),
+      });
+    }
+    return removedFrom;
+  }
+
   /// Remove every collage of [taskId]. Returns how many went.
   Future<int> deleteForTask(String taskId) async {
     final snap = await _col.where('taskId', isEqualTo: taskId).get();

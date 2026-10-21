@@ -245,6 +245,49 @@ void main() async {
       expect(tray('Unarchive'), findsOneWidget);
     });
 
+    Future<void> openMenuWith(
+      WidgetTester tester, {
+      required TaskPurge purge,
+      required SessionStore store,
+    }) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            taskPurgeProvider.overrideWithValue(purge),
+            sessionStoreProvider.overrideWithValue(store),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const Scaffold(body: Center(child: TaskDropdown())),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tapSelector(tester);
+    }
+
+    testWidgets('archiving a row leaves the row that moves up CLOSED', (
+      tester,
+    ) async {
+      // The seed lists Spanish, Piano, Golf. Archive the first: Piano moves
+      // up into its slot. Keyed by slot it arrived already swiped open and
+      // looked untouched; keyed by task it arrives shut.
+      await openMenu(tester);
+      await tester.drag(row('Spanish'), const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      expect(tray('Archive'), findsOneWidget);
+
+      await tester.tap(tray('Archive'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Spanish'), findsNothing);
+      expect(row('Piano'), findsOneWidget);
+      expect(row('Golf'), findsOneWidget);
+      expect(tray('Archive'), findsNothing, reason: 'no row is left open');
+      expect(containerOf(tester).read(activeTasksProvider).map((t) => t.name),
+          unorderedEquals(['Piano', 'Golf']));
+    });
+
     testWidgets('swiping the other way leaves the tray shut', (tester) async {
       await openMenu(tester);
       await tester.drag(row('Golf'), const Offset(200, 0));

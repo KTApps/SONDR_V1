@@ -12,6 +12,9 @@ import 'package:sondr/features/timer/timer_controller.dart';
 
 /// Minimal repository with a single, precisely-seeded task.
 class _FakeTasksRepo implements TasksRepository {
+  @override
+  Future<void> delete(String taskId) async {}
+
   _FakeTasksRepo(this.tasks);
   final List<Task> tasks;
 

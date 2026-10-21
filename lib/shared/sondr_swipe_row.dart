@@ -44,6 +44,13 @@ class SondrSwipeRow extends StatefulWidget {
 
   @override
   State<SondrSwipeRow> createState() => _SondrSwipeRowState();
+
+  /// Close the tray of the row enclosing [context] — for an action to call
+  /// once it has been tapped, so a row is never left standing open after the
+  /// thing it offered has been done. No-op outside a row.
+  static void close(BuildContext context) {
+    context.findAncestorStateOfType<_SondrSwipeRowState>()?._open.reverse();
+  }
 }
 
 class _SondrSwipeRowState extends State<SondrSwipeRow>

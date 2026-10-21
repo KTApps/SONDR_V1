@@ -14,4 +14,8 @@ abstract interface class TasksRepository {
 
   /// Persists changes to an existing task (e.g. after logging time).
   Future<void> save(Task task);
+
+  /// Removes the task document itself. Everything that hangs off a task —
+  /// photos, collages — is someone else's to remove; see `deleteTask`.
+  Future<void> delete(String taskId);
 }

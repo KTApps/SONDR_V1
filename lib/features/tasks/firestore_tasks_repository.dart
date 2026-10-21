@@ -35,6 +35,11 @@ class FirestoreTasksRepository implements TasksRepository {
   }
 
   @override
+  Future<void> delete(String taskId) async {
+    await _col.doc(taskId).delete();
+  }
+
+  @override
   Future<void> save(Task task) async {
     // Merge so the createdAt ordering key is preserved.
     await _col.doc(task.id).set(task.toMap(), SetOptions(merge: true));

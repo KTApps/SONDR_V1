@@ -25,6 +25,7 @@ void invalidatePhotoViews(WidgetRef ref) {
   ref.invalidate(collagesListProvider);
   ref.invalidate(collagePhotosProvider);
   ref.invalidate(bandPhotosProvider);
+  ref.invalidate(bandDetailProvider);
   ref.invalidate(taskBandPhotosProvider);
   // History: the calendar's month grid and a day's detail sheet.
   ref.invalidate(photosForDayProvider);

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/photos/milestones_screen.dart';
 import 'package:sondr/features/profile/profile_providers.dart';
+import 'package:sondr/features/tasks/delete_task.dart';
 import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/tasks/tasks_providers.dart';
 import 'package:sondr/features/timer/session_clock.dart';
@@ -245,6 +246,135 @@ void main() async {
       expect(tray('Unarchive'), findsOneWidget);
     });
 
+    Future<void> openMenuWith(
+      WidgetTester tester, {
+      required TaskPurge purge,
+      required SessionStore store,
+    }) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            taskPurgeProvider.overrideWithValue(purge),
+            sessionStoreProvider.overrideWithValue(store),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const Scaffold(body: Center(child: TaskDropdown())),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tapSelector(tester);
+    }
+
+    testWidgets('archiving a row leaves the row that moves up CLOSED', (
+      tester,
+    ) async {
+      // The seed lists Spanish, Piano, Golf. Archive the first: Piano moves
+      // up into its slot. Keyed by slot it arrived already swiped open and
+      // looked untouched; keyed by task it arrives shut.
+      await openMenu(tester);
+      await tester.drag(row('Spanish'), const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      expect(tray('Archive'), findsOneWidget);
+
+      await tester.tap(tray('Archive'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Spanish'), findsNothing);
+      expect(row('Piano'), findsOneWidget);
+      expect(row('Golf'), findsOneWidget);
+      expect(tray('Archive'), findsNothing, reason: 'no row is left open');
+      expect(containerOf(tester).read(activeTasksProvider).map((t) => t.name),
+          unorderedEquals(['Piano', 'Golf']));
+    });
+
+    testWidgets('Delete is not offered in the active list\'s tray', (
+      tester,
+    ) async {
+      await openMenu(tester);
+      await tester.drag(row('Golf'), const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      expect(tray('Archive'), findsOneWidget);
+      expect(tray('Delete'), findsNothing);
+    });
+
+    testWidgets('the archived tray offers Delete; Cancel changes nothing', (
+      tester,
+    ) async {
+      final purge = _FakePurge(photos: 2);
+      await openMenuWith(tester, purge: purge, store: _NoStore());
+      final c = containerOf(tester);
+      final golf = c.read(tasksProvider).value!.firstWhere((t) => t.name == 'Golf');
+
+      await tester.drag(row('Golf'), const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      await tester.tap(tray('Archive'));
+      await tester.pumpAndSettle();
+      await tester.tap(archiveToggle());
+      await tester.pumpAndSettle();
+
+      await tester.drag(row('Golf'), const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      expect(tray('Unarchive'), findsOneWidget);
+      expect(tray('Delete'), findsOneWidget);
+
+      await tester.tap(tray('Delete'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete Golf?'), findsOneWidget);
+      expect(
+        find.text(deleteTaskBody(
+          hours: golf.wholeHours,
+          milestones: golf.milestonesReached,
+          photos: 2,
+        )),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete Golf?'), findsNothing);
+      expect(c.read(tasksProvider).value!.length, 3);
+      expect(c.read(archivedTasksProvider).map((t) => t.name), ['Golf']);
+      expect(purge.deletedPhotos, isEmpty);
+      expect(purge.deletedCollages, isEmpty);
+    });
+
+    testWidgets('Delete removes the task, its photos and collages, and clears the selection', (
+      tester,
+    ) async {
+      final purge = _FakePurge(photos: 2);
+      final store = _NoStore();
+      await openMenuWith(tester, purge: purge, store: store);
+      final c = containerOf(tester);
+      final golf = c.read(tasksProvider).value!.firstWhere((t) => t.name == 'Golf');
+
+      await tester.drag(row('Golf'), const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      await tester.tap(tray('Archive'));
+      await tester.pumpAndSettle();
+      await tester.tap(archiveToggle());
+      await tester.pumpAndSettle();
+      // Selected and named by the stored session — both must be let go of.
+      c.read(selectedTaskIdProvider.notifier).select(golf.id);
+      store.saved = SessionClock(startedAt: DateTime(2026), taskId: golf.id);
+
+      await tester.drag(row('Golf'), const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      await tester.tap(tray('Delete'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete').last); // the prompt's, above the tray's
+      await tester.pumpAndSettle();
+
+      expect(c.read(tasksProvider).value!.map((t) => t.name), ['Spanish', 'Piano']);
+      expect(c.read(archivedTasksProvider), isEmpty);
+      expect(purge.deletedPhotos, [golf.id]);
+      expect(purge.deletedCollages, [golf.id]);
+      expect(c.read(selectedTaskIdProvider), isNull);
+      expect(store.saved, isNull);
+      expect(find.text('Golf'), findsNothing);
+    });
+
     testWidgets('swiping the other way leaves the tray shut', (tester) async {
       await openMenu(tester);
       await tester.drag(row('Golf'), const Offset(200, 0));
@@ -355,4 +485,18 @@ class _NoStore implements SessionStore {
 
   @override
   Future<void> clear() async => saved = null;
+}
+
+class _FakePurge implements TaskPurge {
+  _FakePurge({required this.photos});
+  final int photos;
+  final List<String> deletedPhotos = [];
+  final List<String> deletedCollages = [];
+
+  @override
+  Future<int> photoCount(String taskId) async => photos;
+  @override
+  Future<void> deletePhotos(String taskId) async => deletedPhotos.add(taskId);
+  @override
+  Future<void> deleteCollages(String taskId) async => deletedCollages.add(taskId);
 }

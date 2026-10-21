@@ -14,6 +14,7 @@ import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/collages_repository.dart';
 import 'package:sondr/features/photos/milestones_screen.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
+import 'package:sondr/features/profile/milestone_strip.dart';
 import 'package:sondr/features/profile/profile_providers.dart';
 import 'package:sondr/features/profile/profile_screen.dart';
 import 'package:sondr/features/tasks/models/task.dart';
@@ -39,6 +40,9 @@ import 'package:sondr/shared/ring/ring_metrics.dart';
 /// A task list we choose, so "nearest milestone" can be checked exactly
 /// instead of against whatever the local seed happens to hold.
 class _FakeTasks implements TasksRepository {
+  @override
+  Future<void> delete(String taskId) async {}
+
   _FakeTasks(this.tasks);
 
   final List<Task> tasks;
@@ -167,9 +171,7 @@ void main() {
             authUserProvider.overrideWith((ref) => const Stream<User?>.empty()),
             tasksRepositoryProvider.overrideWithValue(_FakeTasks(tasks)),
             currentProfileProvider.overrideWith((ref) async => profile),
-            galleryPreviewProvider.overrideWith(
-              (ref) async => (recent: recent, total: recent.length),
-            ),
+            galleryPreviewProvider.overrideWith((ref) async => recent),
             collagesListProvider.overrideWith(
               (ref) async => milestonePhotos.isEmpty
                   ? const <Collage>[]
@@ -184,6 +186,18 @@ void main() {
             ),
             collagePhotosProvider.overrideWith(
               (ref, key) async => milestonePhotos,
+            ),
+            milestoneStripProvider.overrideWith(
+              (ref) async => [
+                for (final p in milestonePhotos)
+                  MilestoneStripEntry(
+                    task: _task('t', seconds: 20 * 3600),
+                    bandHours: 20,
+                    photo: p,
+                    crossedAt: p.timestamp,
+                    detail: BandDetail(collage: null, photos: [p]),
+                  ),
+              ],
             ),
             friendshipsProvider.overrideWith(
               (ref) => Stream.value(friendships),
@@ -581,14 +595,36 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('the strip still opens the Milestones page', (tester) async {
+    testWidgets('the heading opens the Milestones page on its default lens', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        milestonePhotos: [for (var i = 0; i < 4; i++) _photo(3000 + i)],
+      );
+      await tester.tap(find.text('Milestones'));
+      await tester.pumpAndSettle();
+      expect(find.byType(MilestonesScreen), findsOneWidget);
+      // The page itself, not a journey: both lenses are on screen.
+      expect(find.text('Photos'), findsOneWidget);
+    });
+
+    testWidgets('a photo in the strip opens the page landed on that milestone', (
+      tester,
+    ) async {
       await pumpProfile(
         tester,
         milestonePhotos: [for (var i = 0; i < 4; i++) _photo(3000 + i)],
       );
       await tester.tap(find.byType(SondrPhoto).first);
       await tester.pumpAndSettle();
-      expect(find.byType(MilestonesScreen), findsOneWidget);
+      // The page is there — underneath. On top is the task's journey, on
+      // the stretch that was tapped: its ring, and the stretch's photos
+      // (the harness stubs a collage for it), with the lens toggle behind us.
+      expect(find.byType(MilestonesScreen, skipOffstage: false), findsOneWidget);
+      expect(find.text('Photos'), findsNothing);
+      expect(find.text('20h'), findsWidgets);
+      expect(find.byType(SondrPhoto), findsWidgets);
     });
 
     testWidgets('nothing is carded, and nothing wears a chevron', (

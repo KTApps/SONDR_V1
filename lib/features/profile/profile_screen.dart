@@ -18,13 +18,12 @@ import '../auth/profile_repository.dart';
 import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
-import '../photos/collages_repository.dart';
 import '../photos/milestones_screen.dart';
-import '../photos/models/collage.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
+import 'milestone_strip.dart';
 import 'profile_providers.dart';
 
 // Photo tints — the near-raw whisper the day-detail thumbnails use, so the
@@ -662,9 +661,14 @@ class _HeroEmblem extends ConsumerWidget {
     final profile = ref.watch(currentProfileProvider).value;
     // photosRecent orders by timestamp descending, so the head of this list is
     // the newest capture across every task.
-    final recent =
-        ref.watch(galleryPreviewProvider).value?.recent ?? const <Photo>[];
+    final galleryAsync = ref.watch(galleryPreviewProvider);
+    final recent = galleryAsync.value ?? const <Photo>[];
     final newest = recent.isEmpty ? null : recent.first;
+    // Until the newest photo is known, the disc is a fixed, quiet surface —
+    // the same size and tone as the photo's own placeholder — never the
+    // initial, which is an answer ("there is no photo") the frame does not
+    // yet have.
+    final heroKnown = galleryAsync.hasValue;
 
     return Column(
       children: [
@@ -677,7 +681,9 @@ class _HeroEmblem extends ConsumerWidget {
           center: SizedBox(
             width: _photo * scale,
             height: _photo * scale,
-            child: newest == null
+            child: !heroKnown
+                ? ClipOval(child: ColoredBox(color: tokens.surface))
+                : newest == null
                 ? Center(
                     child: Text(
                       initialOf(profile),
@@ -910,18 +916,21 @@ class _FriendsRow extends ConsumerWidget {
 }
 
 /// The way into the Milestones page: the word, the count, and a strip of the
-/// most recent milestone's photos beneath it.
+/// crossed milestones beneath it — one photo per milestone, the most recently
+/// crossed first.
 ///
-/// Borderless like Friends, and it opens the page on its default lens — the
-/// row is always here, so the Photos lens is one tab away once you arrive.
+/// Borderless like Friends. The heading opens the page on its default lens —
+/// the row is always here, so the Photos lens is one tab away once you
+/// arrive. A photo in the strip opens the page landed on THAT milestone: the
+/// task's journey, scrolled to the stretch.
 ///
 /// The COUNT is [milestonesReachedProvider], the same figure the totals above
 /// show. It used to be the number of saved collages, which is a different
 /// thing: a collage is written when a milestone is crossed with photos in its
 /// band, so a milestone reached with nothing captured, or crossed before the
-/// auto-compose existed, had no collage and went uncounted. The photo strip
-/// still comes from the newest collage — that is a preview, and a preview may
-/// well have less behind it than the count.
+/// auto-compose existed, had no collage and went uncounted. The strip is
+/// [milestoneStripProvider], one entry per crossed milestone that has a photo
+/// to show; a milestone with none is counted and not pictured.
 class _MilestonesRow extends ConsumerWidget {
   const _MilestonesRow();
 
@@ -932,13 +941,19 @@ class _MilestonesRow extends ConsumerWidget {
     final scale = figmaScale(context);
 
     final n = ref.watch(milestonesReachedProvider);
-    final collages = ref.watch(collagesListProvider).value ?? const <Collage>[];
-    final List<Photo> strip;
-    if (collages.isNotEmpty) {
-      final ids = collages.first.photoIds.join(',');
-      strip = ref.watch(collagePhotosProvider(ids)).value ?? const <Photo>[];
-    } else {
-      strip = const <Photo>[];
+    final strip = ref.watch(milestoneStripProvider).value ??
+        const <MilestoneStripEntry>[];
+    // Decode what the strip shows and what each of its stretches would show,
+    // now, while Profile is on screen: the detail then paints from memory.
+    if (strip.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        precachePhotos(context, [
+          for (final e in strip) e.photo.photoUrl,
+          for (final e in strip)
+            for (final p in e.detail.photos) p.photoUrl,
+        ]);
+      });
     }
 
     return GestureDetector(
@@ -987,7 +1002,19 @@ class _MilestonesRow extends ConsumerWidget {
                 children: [
                   for (var i = 0; i < strip.length; i++) ...[
                     if (i > 0) SizedBox(width: _kStripGap * scale),
-                    _GalleryThumb(photo: strip[i]),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => MilestonesScreen(
+                            landOnTask: strip[i].task,
+                            landOnBandHours: strip[i].bandHours,
+                            landOnDetail: strip[i].detail,
+                          ),
+                        ),
+                      ),
+                      child: _GalleryThumb(photo: strip[i].photo),
+                    ),
                   ],
                 ],
               ),

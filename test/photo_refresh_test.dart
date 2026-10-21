@@ -41,7 +41,7 @@ void main() {
         overrides: [
           galleryPreviewProvider.overrideWith((ref) async {
             reads++;
-            return (recent: <Photo>[newest], total: reads);
+            return <Photo>[newest];
           }),
         ],
         child: MaterialApp(
@@ -50,8 +50,7 @@ void main() {
             builder: (context, ref, _) {
               captured = ref;
               final recent =
-                  ref.watch(galleryPreviewProvider).value?.recent ??
-                  const <Photo>[];
+                  ref.watch(galleryPreviewProvider).value ?? const <Photo>[];
               return Scaffold(
                 body: recent.isEmpty
                     ? const Text('none')

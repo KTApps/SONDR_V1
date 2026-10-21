@@ -14,6 +14,7 @@ import '../../shared/sondr_loading.dart';
 import '../history/day_detail_sheet.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
+import 'collage_selection.dart';
 import 'collages_repository.dart';
 import 'models/collage.dart';
 import 'models/photo.dart';
@@ -84,12 +85,28 @@ enum _Lens { milestones, photos }
 /// `cumulativeSeconds` existed) is invisible under the first lens and present
 /// under the second, and the gallery is how you know nothing was lost.
 class MilestonesScreen extends ConsumerStatefulWidget {
-  const MilestonesScreen({super.key, this.startOnPhotos = false});
+  const MilestonesScreen({
+    super.key,
+    this.startOnPhotos = false,
+    this.landOnTask,
+    this.landOnBandHours,
+    this.landOnDetail,
+  });
 
   /// Open on the Photos lens instead of Milestones. For a caller that already
   /// knows there are no milestones to land on — the Profile doorway when it is
   /// counting captures rather than milestones.
   final bool startOnPhotos;
+
+  /// Land straight on one milestone: the page opens on its default lens and
+  /// immediately continues into [landOnTask]'s journey, scrolled to the
+  /// [landOnBandHours] stretch — the same two pushes a tap on the row and then
+  /// the band would make. Back unwinds through the page as usual.
+  final Task? landOnTask;
+  final int? landOnBandHours;
+
+  /// The landed-on stretch's data, if the caller already had it.
+  final BandDetail? landOnDetail;
 
   @override
   ConsumerState<MilestonesScreen> createState() => _MilestonesScreenState();
@@ -97,6 +114,25 @@ class MilestonesScreen extends ConsumerStatefulWidget {
 
 class _MilestonesScreenState extends ConsumerState<MilestonesScreen> {
   late _Lens _lens = widget.startOnPhotos ? _Lens.photos : _Lens.milestones;
+
+  @override
+  void initState() {
+    super.initState();
+    final task = widget.landOnTask;
+    if (task == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _TaskJourneyScreen(
+            task: task,
+            initialBandHours: widget.landOnBandHours,
+            initialDetail: widget.landOnDetail,
+          ),
+        ),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -284,8 +320,22 @@ class _TaskRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final scale = figmaScale(context);
 
-    final photos =
-        ref.watch(taskBandPhotosProvider(task.id)).value ?? const <Photo>[];
+    // Counted by the same rule the stretches use to list, so "1 photo" here
+    // is always a photo some stretch below will show. Until the count has
+    // resolved the line says nothing about photos at all: "no photos" is an
+    // answer, and a frame that has not asked yet must not give it.
+    final photosAsync = ref.watch(taskBandPhotosProvider(task.id));
+    final loaded = photosAsync.hasValue;
+    final photos = reachedBandPhotos(
+      photosAsync.value ?? const <Photo>[],
+      task.milestonesReached,
+    );
+    // The thumb, decoded before it is asked for.
+    if (loaded && photos.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) precachePhotos(context, [photos.first.photoUrl]);
+      });
+    }
     // The task's own milestones, not the app's total — the rows SUM to the
     // figure on Profile. Counting the rows instead was the easy mistake:
     // fourteen rows is fourteen tasks, which is not fourteen milestones.
@@ -293,10 +343,11 @@ class _TaskRow extends ConsumerWidget {
     // The hours are not repeated here: the ring beside this already reads
     // "40h", and the line said the same number twice.
     final reached = task.milestonesReached;
-    final supporting =
-        '$reached ${reached == 1 ? 'milestone' : 'milestones'} · '
-        '${photos.isEmpty ? 'no photos' : '${photos.length} '
-              '${photos.length == 1 ? 'photo' : 'photos'}'}';
+    final supporting = !loaded
+        ? '$reached ${reached == 1 ? 'milestone' : 'milestones'}'
+        : '$reached ${reached == 1 ? 'milestone' : 'milestones'} · '
+            '${photos.isEmpty ? 'no photos' : '${photos.length} '
+                '${photos.length == 1 ? 'photo' : 'photos'}'}';
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -342,7 +393,7 @@ class _TaskRow extends ConsumerWidget {
             ),
             // Omitted entirely when the task has banked nothing — an empty
             // frame would promise a photo that is not there.
-            if (photos.isNotEmpty) ...[
+            if (loaded && photos.isNotEmpty) ...[
               SizedBox(width: kSpacingBase * scale),
               ClipRRect(
                 borderRadius: BorderRadius.circular(8 * scale),
@@ -366,13 +417,43 @@ class _TaskRow extends ConsumerWidget {
 /// Highest band first because the question is "where has this got to", and
 /// the answer is the most recent stretch — reading downward is reading back
 /// in time.
-class _TaskJourneyScreen extends ConsumerWidget {
-  const _TaskJourneyScreen({required this.task});
+class _TaskJourneyScreen extends ConsumerStatefulWidget {
+  const _TaskJourneyScreen({
+    required this.task,
+    this.initialBandHours,
+    this.initialDetail,
+  });
 
   final Task task;
 
+  /// The stretch to open on, scrolled into view once the list has laid out.
+  final int? initialBandHours;
+
+  /// That stretch's data, when the caller already had it — drawn on the
+  /// first frame rather than after a fetch.
+  final BandDetail? initialDetail;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TaskJourneyScreen> createState() => _TaskJourneyScreenState();
+}
+
+class _TaskJourneyScreenState extends ConsumerState<_TaskJourneyScreen> {
+  final Map<int, GlobalKey> _bandKeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    final hours = widget.initialBandHours;
+    if (hours == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _bandKeys[hours]?.currentContext;
+      if (ctx != null) Scrollable.ensureVisible(ctx, alignment: 0);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final task = widget.task;
     final scale = figmaScale(context);
     final reached = task.milestonesReached;
 
@@ -391,8 +472,12 @@ class _TaskJourneyScreen extends ConsumerWidget {
                 children: [
                   for (var b = reached; b >= 1; b--)
                     _BandEntry(
+                      key: _bandKeys[b * Task.milestoneStepHours] ??= GlobalKey(),
                       task: task,
                       bandHours: b * Task.milestoneStepHours,
+                      initial: b * Task.milestoneStepHours == widget.initialBandHours
+                          ? widget.initialDetail
+                          : null,
                     ),
                 ],
               ),
@@ -420,10 +505,20 @@ class _TaskJourneyScreen extends ConsumerWidget {
 /// collage doc yet the full band is shown instead, so a stretch is never
 /// blank just because nothing has composed it.
 class _BandEntry extends ConsumerStatefulWidget {
-  const _BandEntry({required this.task, required this.bandHours});
+  const _BandEntry({
+    super.key,
+    required this.task,
+    required this.bandHours,
+    this.initial,
+  });
 
   final Task task;
   final int bandHours;
+
+  /// What to draw before the provider has answered — the strip hands the
+  /// stretch it was already showing, so the detail is built on its first
+  /// frame. Once the provider answers, the provider wins.
+  final BandDetail? initial;
 
   @override
   ConsumerState<_BandEntry> createState() => _BandEntryState();
@@ -471,19 +566,17 @@ class _BandEntryState extends ConsumerState<_BandEntry> {
     final theme = Theme.of(context);
     final scale = figmaScale(context);
 
-    final collage = (ref.watch(collagesListProvider).value ?? const <Collage>[])
-        .where((c) =>
-            c.taskId == widget.task.id &&
-            c.milestoneHours == widget.bandHours)
-        .firstOrNull;
-
-    final photos = collage != null
-        ? ref.watch(collagePhotosProvider(collage.photoIds.join(','))).value ??
-            const <Photo>[]
-        : ref
-                .watch(bandPhotosProvider('${widget.task.id}|${widget.bandHours}'))
-                .value ??
-            const <Photo>[];
+    // One answer, from one provider: the collage, the band and the crossing
+    // photo resolved together, so the grid is built once. Until it answers,
+    // what the strip handed over (if anything) is drawn; nothing is said
+    // about the stretch otherwise — "No photos from this stretch." is an
+    // answer, and a frame that has not asked yet must not give it.
+    final detail = ref
+            .watch(bandDetailProvider('${widget.task.id}|${widget.bandHours}'))
+            .value ??
+        widget.initial;
+    final loaded = detail != null;
+    final photos = detail?.photos ?? const <Photo>[];
 
     final keptCount = photos.length - _removed.length;
 
@@ -515,7 +608,7 @@ class _BandEntryState extends ConsumerState<_BandEntry> {
                   ),
                 ),
               ),
-              if (photos.isNotEmpty && !_editing)
+              if (loaded && photos.isNotEmpty && !_editing)
                 SondrAction(
                   label: 'Edit',
                   supporting: true,
@@ -527,7 +620,9 @@ class _BandEntryState extends ConsumerState<_BandEntry> {
           SizedBox(height: kSpacingBase * scale),
           // A stretch with nothing in it says so in one quiet line. A grid of
           // nothing would read as a loading failure.
-          if (photos.isEmpty)
+          if (!loaded)
+            const SizedBox.shrink()
+          else if (photos.isEmpty)
             Text(
               'No photos from this stretch.',
               style: theme.textTheme.bodyMedium?.copyWith(

@@ -7,6 +7,8 @@ import '../../../shared/ring/ring_metrics.dart';
 import '../../../shared/sondr_swipe_row.dart';
 import '../../tasks/models/task.dart';
 import '../../tasks/tasks_providers.dart';
+import '../../../shared/sondr_prompt.dart';
+import '../../tasks/delete_task.dart';
 import '../timer_controller.dart';
 
 /// Top-of-screen task switcher.
@@ -22,6 +24,10 @@ import '../timer_controller.dart';
 /// All-tasks (collective) mode is reached by **double-tapping** the selector, so
 /// it no longer needs a menu entry. The control is locked while a timer session
 /// is active so logged time can't be misattributed by switching mid-session.
+/// How long a row that has been acted on takes to collapse — the habits
+/// list's 180ms ease-out, so the two lists move the same way.
+const Duration _kLeaveDuration = Duration(milliseconds: 180);
+
 class TaskDropdown extends ConsumerStatefulWidget {
   const TaskDropdown({super.key});
 
@@ -233,7 +239,49 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
     if (archived && ref.read(selectedTaskIdProvider) == task.id) {
       ref.read(selectedTaskIdProvider.notifier).clear();
     }
+    await _leave(task);
     await ref.read(tasksProvider.notifier).setArchived(task.id, archived);
+    _arrived(task);
+  }
+
+  /// Rows on their way out: collapsed over 180ms (the habits list's move)
+  /// so the rows below visibly slide up, then removed by the refresh.
+  ///
+  /// Forgotten again once the refresh has landed — the same task is about
+  /// to be drawn at full height on the OTHER list, and a row still marked
+  /// as leaving would arrive there collapsed and invisible.
+  final Set<String> _leaving = {};
+
+  Future<void> _leave(Task task) async {
+    if (!mounted) return;
+    setState(() => _leaving.add(task.id));
+    await Future<void>.delayed(_kLeaveDuration);
+  }
+
+  void _arrived(Task task) {
+    if (!mounted) return;
+    setState(() => _leaving.remove(task.id));
+  }
+
+  /// Delete, from the archived tray only. The prompt names what goes; nothing
+  /// happens on Cancel. Posts the photos were shared into are kept.
+  Future<void> _delete(Task task) async {
+    final photos = await ref.read(taskPurgeProvider).photoCount(task.id);
+    if (!mounted) return;
+    final ok = await showSondrConfirm(
+      context,
+      title: 'Delete ${task.name}?',
+      body: deleteTaskBody(
+        hours: task.wholeHours,
+        milestones: task.milestonesReached,
+        photos: photos,
+      ),
+      confirmLabel: 'Delete',
+    );
+    if (!ok || !mounted) return;
+    await _leave(task);
+    await deleteTask(ref, task);
+    _arrived(task);
   }
 
   @override
@@ -362,12 +410,29 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                         // it. Reveal, never dismiss — the gesture uncovers the
                         // word and waits for a tap, and a tap anywhere on the
                         // open row closes it again.
-                        return SondrSwipeRow(
+                        //
+                        // Keyed by the TASK, not the slot: swipe state belongs
+                        // to a row, and when a row leaves, the one that moves
+                        // up into its slot must arrive closed. Keyed by index
+                        // it arrived already open — and looked untouched.
+                        return AnimatedSize(
+                          key: ValueKey(task.id),
+                          duration: _kLeaveDuration,
+                          curve: Curves.easeOut,
+                          alignment: Alignment.topCenter,
+                          child: _leaving.contains(task.id)
+                              ? const SizedBox(height: 0, width: double.infinity)
+                              : SondrSwipeRow(
                           actions: [
                             _PillTrayAction(
                               label: _archived ? 'Unarchive' : 'Archive',
                               onTap: () => _setArchived(task, !_archived),
                             ),
+                            if (_archived)
+                              _PillTrayAction(
+                                label: 'Delete',
+                                onTap: () => _delete(task),
+                              ),
                           ],
                           child: _TaskPill(
                             scale: scale,
@@ -380,6 +445,7 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                                 ? null
                                 : () => Navigator.of(context).pop(task.id),
                           ),
+                        ),
                         );
                       },
                           ),
@@ -455,7 +521,12 @@ class _PillTrayAction extends StatelessWidget {
     final scale = figmaScale(context);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
+      // The tray closes the moment its word is tapped: the row is never
+      // left standing open after the thing it offered has been done.
+      onTap: () {
+        SondrSwipeRow.close(context);
+        onTap();
+      },
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: 12 * scale),
         child: Text(

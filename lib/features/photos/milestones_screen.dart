@@ -330,6 +330,12 @@ class _TaskRow extends ConsumerWidget {
       photosAsync.value ?? const <Photo>[],
       task.milestonesReached,
     );
+    // The thumb, decoded before it is asked for.
+    if (loaded && photos.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) precachePhotos(context, [photos.first.photoUrl]);
+      });
+    }
     // The task's own milestones, not the app's total — the rows SUM to the
     // figure on Profile. Counting the rows instead was the easy mistake:
     // fourteen rows is fourteen tasks, which is not fourteen milestones.

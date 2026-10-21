@@ -936,6 +936,18 @@ class _MilestonesRow extends ConsumerWidget {
     final n = ref.watch(milestonesReachedProvider);
     final strip = ref.watch(milestoneStripProvider).value ??
         const <MilestoneStripEntry>[];
+    // Decode what the strip shows and what each of its stretches would show,
+    // now, while Profile is on screen: the detail then paints from memory.
+    if (strip.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        precachePhotos(context, [
+          for (final e in strip) e.photo.photoUrl,
+          for (final e in strip)
+            for (final p in e.detail.photos) p.photoUrl,
+        ]);
+      });
+    }
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

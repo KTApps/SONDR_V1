@@ -11,6 +11,25 @@ import 'photo_tint.dart';
 ImageProvider cachedPhotoProvider(String url) =>
     CachedNetworkImageProvider(url);
 
+/// Decode these now, so the surface that shows them next paints its first
+/// frame from memory instead of swapping a placeholder for the bitmap a
+/// moment later. Bounded, deduplicated per process, and silent on failure:
+/// a precache that could not happen costs exactly what not asking costs.
+///
+/// The decoded bitmap is keyed by URL alone, so a photo warmed for the
+/// Profile strip is warm for the band detail and the Milestones row too.
+final Set<String> _warmed = {};
+const int kPrecacheLimit = 30;
+void precachePhotos(BuildContext context, Iterable<String> urls) {
+  var n = 0;
+  for (final url in urls) {
+    if (url.isEmpty || _warmed.contains(url)) continue;
+    if (++n > kPrecacheLimit) return;
+    _warmed.add(url);
+    precacheImage(cachedPhotoProvider(url), context).catchError((_) {});
+  }
+}
+
 /// The one cached-image widget behind the app's Storage photos (calendar,
 /// day-detail thumbnails, collages, profile gallery). It's a plain [Image] fed
 /// by [cachedPhotoProvider] — deliberately, so its layout, sizing and fit behave
@@ -62,10 +81,7 @@ class SondrPhoto extends StatelessWidget {
       // Hold the last frame across rebuilds instead of flashing the placeholder.
       gaplessPlayback: true,
       errorBuilder: (ctx, _, _) => error?.call(ctx) ?? const SizedBox.shrink(),
-      frameBuilder: (ctx, child, frame, _) {
-        if (frame == null) {
-          return placeholder?.call(ctx) ?? const SizedBox.shrink();
-        }
+      frameBuilder: (ctx, child, frame, wasSynchronouslyLoaded) {
         Widget img = child;
         if (saturation != null) {
           img = ColorFiltered(
@@ -79,7 +95,25 @@ class SondrPhoto extends StatelessWidget {
             child: img,
           );
         }
-        return img;
+        // Already in memory: paint it, as before. Nothing to ease.
+        if (wasSynchronouslyLoaded) return img;
+        // Landing late: the placeholder holds the slot and the image eases
+        // in over it, so a decode that arrives after the first frame reads
+        // as arriving rather than as a flash. The slot's size is the
+        // caller's, so nothing here changes layout.
+        return Stack(
+          fit: StackFit.passthrough,
+          children: [
+            if (frame == null)
+              placeholder?.call(ctx) ?? const SizedBox.shrink(),
+            AnimatedOpacity(
+              opacity: frame == null ? 0 : 1,
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOut,
+              child: img,
+            ),
+          ],
+        );
       },
     );
   }

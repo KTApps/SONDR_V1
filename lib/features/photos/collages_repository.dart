@@ -193,3 +193,40 @@ final taskBandPhotosProvider =
   ]..sort((a, b) => b.cumulativeSeconds!.compareTo(a.cumulativeSeconds!));
   return assignable;
 });
+
+/// Everything one stretch shows, resolved together: its stored collage (if
+/// any) and the photos to draw — the collage's, with the crossing photo
+/// added back, or the band itself.
+class BandDetail {
+  const BandDetail({required this.collage, required this.photos});
+  final Collage? collage;
+  final List<Photo> photos;
+}
+
+/// One answer for one stretch — the band detail draws from THIS and nothing
+/// else. Keyed "taskId|hours". It awaits the collage list, the band and the
+/// collage's own photos before answering, so the grid is built once, with
+/// the crossing photo already in it. Drawing from the three underneath as
+/// they landed built the grid twice, and the second time with a different
+/// column count.
+final bandDetailProvider =
+    FutureProvider.family.autoDispose<BandDetail, String>((ref, key) async {
+  ref.keepAlive(); // refreshed by invalidatePhotoViews, never disposed
+  final parts = key.split('|');
+  if (parts.length != 2) return const BandDetail(collage: null, photos: []);
+  final taskId = parts[0];
+  final hours = int.tryParse(parts[1]);
+  if (hours == null) return const BandDetail(collage: null, photos: []);
+  final collages = await ref.watch(collagesListProvider.future);
+  final collage = collages
+      .where((c) => c.taskId == taskId && c.milestoneHours == hours)
+      .firstOrNull;
+  final band = await ref.watch(bandPhotosProvider(key).future);
+  if (collage == null) return BandDetail(collage: null, photos: band);
+  final shown =
+      await ref.watch(collagePhotosProvider(collage.photoIds.join(',')).future);
+  return BandDetail(
+    collage: collage,
+    photos: withCrossingPhotos(shown, band, hours),
+  );
+});

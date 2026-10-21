@@ -268,6 +268,66 @@ void main() {
     expect(photos.forTaskCalls, 2);
   });
 
+  testWidgets('the grid is built once, with the crossing photo already in it', (
+    tester,
+  ) async {
+    // The collage list, the collage's photos and the band resolve at three
+    // different moments. Whatever frame first shows a grid must already
+    // show all three photos — never a two-photo grid that regrows.
+    const golf = Task(id: 'golf', name: 'Golf', secondsByDay: {'2026-10-01': 20 * 3600 + 60});
+    Photo photo(int ts, {int? hours}) => Photo(
+          taskId: 'golf', taskName: 'Golf', dayKey: '2026-10-01', timestamp: ts,
+          sessionSeconds: 60, photoUrl: '', storagePath: '',
+          milestoneHours: hours, cumulativeSeconds: hours == null ? ts : 20 * 3600 + 5,
+        );
+    final seeded = [photo(1000), photo(5000)];
+    final crossing = photo(99, hours: 20);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        collagesListProvider.overrideWith((ref) => Future.delayed(const Duration(milliseconds: 20), () => [
+              Collage(taskId: 'golf', milestoneHours: 20, photoIds: [for (final p in seeded) p.id], edited: false),
+            ])),
+        collagePhotosProvider.overrideWith((ref, key) => Future.delayed(const Duration(milliseconds: 40), () => seeded)),
+        bandPhotosProvider.overrideWith((ref, key) => Future.delayed(const Duration(milliseconds: 120), () => [...seeded, crossing])),
+      ],
+      child: const _Harness(landOnTask: golf, landOnBandHours: 20),
+    ));
+    final seen = <int>[];
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+      final grids = find.byType(CollageGrid);
+      if (grids.evaluate().isNotEmpty) {
+        seen.add(tester.widget<CollageGrid>(grids.first).photos.length);
+      }
+    }
+    expect(seen, isNotEmpty);
+    expect(seen.toSet(), {3}, reason: 'every frame that had a grid had the full three');
+    expect(find.text('No photos from this stretch.'), findsNothing);
+  });
+
+  testWidgets('handed its stretch, the detail is built on the first frame', (
+    tester,
+  ) async {
+    const golf = Task(id: 'golf', name: 'Golf', secondsByDay: {'2026-10-01': 20 * 3600 + 60});
+    Photo photo(int ts) => Photo(
+          taskId: 'golf', taskName: 'Golf', dayKey: '2026-10-01', timestamp: ts,
+          sessionSeconds: 60, photoUrl: '', storagePath: '', cumulativeSeconds: ts,
+        );
+    final handed = BandDetail(collage: null, photos: [photo(1), photo(2), photo(3)]);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        // Nothing underneath ever answers.
+        bandDetailProvider.overrideWith((ref, key) => Completer<BandDetail>().future),
+      ],
+      child: _Harness(landOnTask: golf, landOnBandHours: 20, landOnDetail: handed),
+    ));
+    await tester.pump();            // the page
+    await tester.pump();            // the post-frame push of the journey
+    await tester.pump();            // the journey's first frame
+
+    expect(tester.widget<CollageGrid>(find.byType(CollageGrid).first).photos.length, 3);
+  });
+
   testWidgets('a caller can open straight onto the Photos lens', (
     tester,
   ) async {
@@ -406,11 +466,17 @@ void _journeyGridTests() {
 }
 
 class _Harness extends StatelessWidget {
-  const _Harness({this.startOnPhotos = false, this.landOnTask, this.landOnBandHours});
+  const _Harness({
+    this.startOnPhotos = false,
+    this.landOnTask,
+    this.landOnBandHours,
+    this.landOnDetail,
+  });
 
   final bool startOnPhotos;
   final Task? landOnTask;
   final int? landOnBandHours;
+  final BandDetail? landOnDetail;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -419,6 +485,7 @@ class _Harness extends StatelessWidget {
       startOnPhotos: startOnPhotos,
       landOnTask: landOnTask,
       landOnBandHours: landOnBandHours,
+      landOnDetail: landOnDetail,
     ),
   );
 }

@@ -15,11 +15,16 @@ class MilestoneStripEntry {
     required this.bandHours,
     required this.photo,
     required this.crossedAt,
+    required this.detail,
   });
 
   final Task task;
   final int bandHours;
   final Photo photo;
+
+  /// Everything the stretch's detail shows, already resolved — handed to
+  /// the page so the detail is built on its first frame.
+  final BandDetail detail;
 
   /// When the milestone was crossed, as best the record can say: the crossing
   /// photo's capture instant when there is one, else the newest photo in the
@@ -56,11 +61,14 @@ final milestoneStripProvider =
       final hours = b * Task.milestoneStepHours;
       final rep = representativePhoto(bandPhotos(photos, hours), hours);
       if (rep == null) continue;
+      final detail =
+          await ref.watch(bandDetailProvider('${task.id}|$hours').future);
       out.add(MilestoneStripEntry(
         task: task,
         bandHours: hours,
         photo: rep,
         crossedAt: rep.timestamp,
+        detail: detail,
       ));
     }
   }

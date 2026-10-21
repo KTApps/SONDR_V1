@@ -90,6 +90,7 @@ class MilestonesScreen extends ConsumerStatefulWidget {
     this.startOnPhotos = false,
     this.landOnTask,
     this.landOnBandHours,
+    this.landOnDetail,
   });
 
   /// Open on the Photos lens instead of Milestones. For a caller that already
@@ -103,6 +104,9 @@ class MilestonesScreen extends ConsumerStatefulWidget {
   /// the band would make. Back unwinds through the page as usual.
   final Task? landOnTask;
   final int? landOnBandHours;
+
+  /// The landed-on stretch's data, if the caller already had it.
+  final BandDetail? landOnDetail;
 
   @override
   ConsumerState<MilestonesScreen> createState() => _MilestonesScreenState();
@@ -123,6 +127,7 @@ class _MilestonesScreenState extends ConsumerState<MilestonesScreen> {
           builder: (_) => _TaskJourneyScreen(
             task: task,
             initialBandHours: widget.landOnBandHours,
+            initialDetail: widget.landOnDetail,
           ),
         ),
       );
@@ -407,12 +412,20 @@ class _TaskRow extends ConsumerWidget {
 /// the answer is the most recent stretch — reading downward is reading back
 /// in time.
 class _TaskJourneyScreen extends ConsumerStatefulWidget {
-  const _TaskJourneyScreen({required this.task, this.initialBandHours});
+  const _TaskJourneyScreen({
+    required this.task,
+    this.initialBandHours,
+    this.initialDetail,
+  });
 
   final Task task;
 
   /// The stretch to open on, scrolled into view once the list has laid out.
   final int? initialBandHours;
+
+  /// That stretch's data, when the caller already had it — drawn on the
+  /// first frame rather than after a fetch.
+  final BandDetail? initialDetail;
 
   @override
   ConsumerState<_TaskJourneyScreen> createState() => _TaskJourneyScreenState();
@@ -456,6 +469,9 @@ class _TaskJourneyScreenState extends ConsumerState<_TaskJourneyScreen> {
                       key: _bandKeys[b * Task.milestoneStepHours] ??= GlobalKey(),
                       task: task,
                       bandHours: b * Task.milestoneStepHours,
+                      initial: b * Task.milestoneStepHours == widget.initialBandHours
+                          ? widget.initialDetail
+                          : null,
                     ),
                 ],
               ),
@@ -483,10 +499,20 @@ class _TaskJourneyScreenState extends ConsumerState<_TaskJourneyScreen> {
 /// collage doc yet the full band is shown instead, so a stretch is never
 /// blank just because nothing has composed it.
 class _BandEntry extends ConsumerStatefulWidget {
-  const _BandEntry({super.key, required this.task, required this.bandHours});
+  const _BandEntry({
+    super.key,
+    required this.task,
+    required this.bandHours,
+    this.initial,
+  });
 
   final Task task;
   final int bandHours;
+
+  /// What to draw before the provider has answered — the strip hands the
+  /// stretch it was already showing, so the detail is built on its first
+  /// frame. Once the provider answers, the provider wins.
+  final BandDetail? initial;
 
   @override
   ConsumerState<_BandEntry> createState() => _BandEntryState();
@@ -534,35 +560,17 @@ class _BandEntryState extends ConsumerState<_BandEntry> {
     final theme = Theme.of(context);
     final scale = figmaScale(context);
 
-    final collagesAsync = ref.watch(collagesListProvider);
-    final collage = (collagesAsync.value ?? const <Collage>[])
-        .where((c) =>
-            c.taskId == widget.task.id &&
-            c.milestoneHours == widget.bandHours)
-        .firstOrNull;
-
-    final bandAsync =
-        ref.watch(bandPhotosProvider('${widget.task.id}|${widget.bandHours}'));
-    final band = bandAsync.value ?? const <Photo>[];
-    final collagePhotosAsync = collage == null
-        ? null
-        : ref.watch(collagePhotosProvider(collage.photoIds.join(',')));
-    // Nothing is said about the stretch until everything it is drawn from
-    // has resolved: "No photos from this stretch." is an answer, and a
-    // frame that has not asked yet must not give it.
-    final loaded = collagesAsync.hasValue &&
-        bandAsync.hasValue &&
-        (collagePhotosAsync?.hasValue ?? true);
-    // A stored collage was composed at the crossing, before the crossing
-    // photo was captured; the photo that marks the milestone is added back
-    // at read time, so milestones saved before that was fixed show it too.
-    final photos = collage != null
-        ? withCrossingPhotos(
-            collagePhotosAsync?.value ?? const <Photo>[],
-            band,
-            widget.bandHours,
-          )
-        : band;
+    // One answer, from one provider: the collage, the band and the crossing
+    // photo resolved together, so the grid is built once. Until it answers,
+    // what the strip handed over (if anything) is drawn; nothing is said
+    // about the stretch otherwise — "No photos from this stretch." is an
+    // answer, and a frame that has not asked yet must not give it.
+    final detail = ref
+            .watch(bandDetailProvider('${widget.task.id}|${widget.bandHours}'))
+            .value ??
+        widget.initial;
+    final loaded = detail != null;
+    final photos = detail?.photos ?? const <Photo>[];
 
     final keptCount = photos.length - _removed.length;
 

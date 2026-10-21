@@ -197,6 +197,7 @@ void main() {
                     bandHours: 20,
                     photo: p,
                     crossedAt: p.timestamp,
+                    detail: BandDetail(collage: null, photos: [p]),
                   ),
               ],
             ),

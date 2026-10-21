@@ -990,6 +990,7 @@ class _MilestonesRow extends ConsumerWidget {
                           builder: (_) => MilestonesScreen(
                             landOnTask: strip[i].task,
                             landOnBandHours: strip[i].bandHours,
+                            landOnDetail: strip[i].detail,
                           ),
                         ),
                       ),

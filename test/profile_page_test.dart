@@ -12,6 +12,7 @@ import 'package:sondr/features/auth/profile_repository.dart';
 import 'package:sondr/features/photos/models/collage.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/collages_repository.dart';
+import 'package:sondr/features/photos/photo_viewer.dart';
 import 'package:sondr/features/photos/milestones_screen.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/profile/milestone_strip.dart';
@@ -30,6 +31,8 @@ import 'package:sondr/features/timer/home_metrics.dart';
 
 import 'support/app_viewport.dart';
 import 'package:sondr/shared/ring/ring_metrics.dart';
+
+import 'tiny_png.dart';
 
 /// The profile page reorganised around one hero emblem.
 ///
@@ -609,22 +612,25 @@ void main() {
       expect(find.text('Photos'), findsOneWidget);
     });
 
-    testWidgets('a photo in the strip opens the page landed on that milestone', (
+    testWidgets('a photo in the strip opens the viewer on it, not the page', (
       tester,
     ) async {
+      final factoryBefore = photoImageProviderFactory;
+      photoImageProviderFactory = (_) => MemoryImage(tinyPng);
+      addTearDown(() => photoImageProviderFactory = factoryBefore);
       await pumpProfile(
         tester,
         milestonePhotos: [for (var i = 0; i < 4; i++) _photo(3000 + i)],
       );
       await tester.tap(find.byType(SondrPhoto).first);
       await tester.pumpAndSettle();
-      // The page is there — underneath. On top is the task's journey, on
-      // the stretch that was tapped: its ring, and the stretch's photos
-      // (the harness stubs a collage for it), with the lens toggle behind us.
-      expect(find.byType(MilestonesScreen, skipOffstage: false), findsOneWidget);
-      expect(find.text('Photos'), findsNothing);
-      expect(find.text('20h'), findsWidgets);
-      expect(find.byType(SondrPhoto), findsWidgets);
+      // The photo itself, large, with its stretch (the harness hands each
+      // milestone a one-photo stretch) — and no journey pushed underneath.
+      final viewer = tester.widget<PhotoViewer>(find.byType(PhotoViewer));
+      expect(viewer.photos.map((p) => p.id), [_photo(3000).id]);
+      expect(viewer.index, 0);
+      expect(find.byType(MilestonesScreen, skipOffstage: false), findsNothing);
+      expect(find.text('Close'), findsOneWidget);
     });
 
     testWidgets('nothing is carded, and nothing wears a chevron', (

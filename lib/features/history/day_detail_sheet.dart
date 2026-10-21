@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../shared/sondr_loading.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
@@ -9,6 +8,8 @@ import '../../core/utils/duration_format.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../photos/models/photo.dart';
+import '../photos/photo_viewer.dart';
+import '../photos/photo_viewer_sets.dart';
 import '../photos/photos_repository.dart';
 import 'history_providers.dart';
 
@@ -250,7 +251,10 @@ class _Captured extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: [for (final p in ordered) _Thumb(photo: p)],
+          children: [
+            for (var i = 0; i < ordered.length; i++)
+              _Thumb(photos: ordered, index: i),
+          ],
         ),
       ],
     );
@@ -260,9 +264,13 @@ class _Captured extends StatelessWidget {
 /// One rounded-rectangle thumbnail. Fixed size so a slow/broken URL never shifts
 /// the layout: a muted placeholder while loading, a blank tile on error.
 class _Thumb extends StatelessWidget {
-  const _Thumb({required this.photo});
+  const _Thumb({required this.photos, required this.index});
 
-  final Photo photo;
+  /// The day's photos, in the order they are laid out, and which this is.
+  final List<Photo> photos;
+  final int index;
+
+  Photo get photo => photos[index];
 
   static const double _w = 56;
   static const double _h = 74;
@@ -271,7 +279,13 @@ class _Thumb extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     return GestureDetector(
-      onTap: () => _showPhotoOverlay(context, photo),
+      // The viewer: the photo in full colour — the greying is the tile's —
+      // with the rest of the day a swipe away.
+      onTap: () => showPhotoViewer(
+        context,
+        photos: displayedViewerSet(photos),
+        index: index,
+      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: SizedBox(
@@ -294,114 +308,6 @@ class _Thumb extends StatelessWidget {
 
 /// Tapping a thumbnail opens a lightweight scrim overlay (not a route push) with
 /// the full untinted photo and its session detail.
-void _showPhotoOverlay(BuildContext context, Photo photo) {
-  showGeneralDialog(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: Colors.black.withValues(alpha: 0.72),
-    transitionDuration: const Duration(milliseconds: 200),
-    pageBuilder: (_, _, _) => _PhotoOverlay(photo: photo),
-    transitionBuilder: (_, anim, _, child) =>
-        FadeTransition(opacity: anim, child: child),
-  );
-}
-
-/// The expanded photo: full and untinted (a close look, meant to be enjoyed),
-/// with session detail beneath — task, duration, time of day, and a milestone
-/// line only when the photo carries [Photo.milestoneHours]. Read-only — the
-/// gallery is purely a gallery (sharing to the feed happens from the capture
-/// flows, not here). Tapping the card is absorbed; tapping the scrim dismisses.
-class _PhotoOverlay extends StatelessWidget {
-  const _PhotoOverlay({required this.photo});
-
-  final Photo photo;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
-
-    final duration = DurationFormat.hm(Duration(seconds: photo.sessionSeconds));
-    final time = MaterialLocalizations.of(
-      context,
-    ).formatTimeOfDay(TimeOfDay.fromDateTime(photo.capturedAt));
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28),
-        child: GestureDetector(
-          onTap: () {}, // absorb taps so the card itself never dismisses
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.sizeOf(context).height * 0.6,
-                  ),
-                  // The full untinted photo, routed through the shared cache
-                  // (so reopening the overlay doesn't re-fetch) while keeping
-                  // the Image widget's intrinsic sizing, spinner and broken-
-                  // image fallback exactly as before.
-                  child: Image(
-                    image: cachedPhotoProvider(photo.photoUrl),
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => Container(
-                      width: 220,
-                      height: 280,
-                      color: tokens.ringTrack,
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.broken_image_outlined,
-                        color: tokens.textTertiary,
-                      ),
-                    ),
-                    loadingBuilder: (ctx, child, progress) => progress == null
-                        ? child
-                        : Container(
-                            width: 220,
-                            height: 280,
-                            color: tokens.surface,
-                            alignment: Alignment.center,
-                            child: const SondrLoading(),
-                          ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                photo.taskName,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '$duration · $time',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: tokens.textSecondary,
-                ),
-              ),
-              if (photo.milestoneHours != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '${photo.milestoneHours} hour milestone',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: tokens.textSecondary,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Habit completion marker: a solid dot (done, primary tone) or a hollow
 /// outlined dot (not done, muted tone). Carries the state the strikethrough used
 /// to; the label stays plainly legible beside it.

@@ -21,6 +21,8 @@ import '../habits/habits_providers.dart';
 import '../photos/milestones_screen.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
+import '../photos/photo_viewer_sets.dart';
+import '../photos/photo_viewer.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'milestone_strip.dart';
@@ -921,8 +923,8 @@ class _FriendsRow extends ConsumerWidget {
 ///
 /// Borderless like Friends. The heading opens the page on its default lens —
 /// the row is always here, so the Photos lens is one tab away once you
-/// arrive. A photo in the strip opens the page landed on THAT milestone: the
-/// task's journey, scrolled to the stretch.
+/// arrive. A photo in the strip opens the viewer on that photo, with the
+/// rest of its stretch a swipe away.
 ///
 /// The COUNT is [milestonesReachedProvider], the same figure the totals above
 /// show. It used to be the number of saved collages, which is a different
@@ -1004,15 +1006,17 @@ class _MilestonesRow extends ConsumerWidget {
                     if (i > 0) SizedBox(width: _kStripGap * scale),
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => MilestonesScreen(
-                            landOnTask: strip[i].task,
-                            landOnBandHours: strip[i].bandHours,
-                            landOnDetail: strip[i].detail,
-                          ),
-                        ),
-                      ),
+                      // The photo itself, large, with the rest of its
+                      // stretch a swipe away. The heading still opens the
+                      // Milestones page.
+                      onTap: () {
+                        final set = bandViewerSet(strip[i].detail);
+                        showPhotoViewer(
+                          context,
+                          photos: set,
+                          index: viewerIndexOf(set, strip[i].photo),
+                        );
+                      },
                       child: _GalleryThumb(photo: strip[i].photo),
                     ),
                   ],

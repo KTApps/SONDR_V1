@@ -26,6 +26,11 @@ struct SondrRing: View {
   /// because the system does not accept one.
   let diameter: CGFloat
 
+  /// Whether the milestone is still ahead, and what colour that makes the
+  /// ring. Passed in rather than worked out here, so the line under the
+  /// clock and the ring cannot reach different answers.
+  let display: MilestoneDisplay
+
   private var stroke: CGFloat { diameter / 10 }
 
   /// Inset by half a stroke, so the stroke's outer edge lands on the frame
@@ -35,7 +40,9 @@ struct SondrRing: View {
   var body: some View {
     ZStack {
       band.stroke(Ink.ringTrack, lineWidth: stroke)
-      if session.isPaused {
+      if display.isCrossed {
+        completeRing
+      } else if session.isPaused {
         pausedArc
       } else {
         ProgressView(timerInterval: session.bandRange(at: now), countsDown: false) {
@@ -44,10 +51,23 @@ struct SondrRing: View {
           EmptyView()
         }
         .progressViewStyle(.circular)
-        .tint(Ink.ringFill)
+        .tint(display.ringFill)
       }
     }
     .frame(width: diameter, height: diameter)
+  }
+
+  /// A reached milestone, drawn full.
+  ///
+  /// The whole circle at the same diameter, stroke and round caps as the
+  /// arc it replaces, so it reads as the same ring finished rather than a
+  /// different ring. The band is already closed, so the caps never show —
+  /// they are kept so the geometry is identical either way.
+  private var completeRing: some View {
+    band.stroke(
+      display.ringFill,
+      style: StrokeStyle(lineWidth: stroke, lineCap: .round)
+    )
   }
 
   @ViewBuilder
@@ -59,7 +79,7 @@ struct SondrRing: View {
       band
         .trim(from: 0, to: progress)
         .stroke(
-          Ink.ringFill,
+          display.ringFill,
           // The system's arc ends are round. A butt cap here would make
           // pausing redraw the ring rather than stop it.
           style: StrokeStyle(lineWidth: stroke, lineCap: .round)

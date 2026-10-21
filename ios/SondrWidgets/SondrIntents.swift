@@ -77,6 +77,9 @@ enum SessionControl {
       let session = SessionSnapshot.from(changed)
     else { return }
 
+    // Never a staleDate — see SessionActivityChannel.content(of:). The
+    // card is redrawn from the session at this push and holds until the
+    // next one.
     let content = ActivityContent(
       state: SondrActivityAttributes.ContentState(session),
       staleDate: nil

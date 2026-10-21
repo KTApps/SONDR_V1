@@ -210,6 +210,121 @@ final class SessionSnapshotTests: XCTestCase {
     )
   }
 
+  // MARK: - The projected crossing
+
+  func testTheTargetIsTheFirstMilestoneAboveWhereTheTaskStood() {
+    XCTAssertEqual(
+      SessionSnapshot(startedAt: t0, taskSecondsBefore: 7 * hour).targetSeconds,
+      20 * hour
+    )
+    XCTAssertEqual(
+      SessionSnapshot(startedAt: t0, taskSecondsBefore: 31 * hour).targetSeconds,
+      40 * hour
+    )
+  }
+
+  func testATaskOnAnExactMilestoneAimsAtTheNextOne() {
+    XCTAssertEqual(
+      SessionSnapshot(startedAt: t0, taskSecondsBefore: 20 * hour).targetSeconds,
+      40 * hour,
+      "twenty hours exactly is an empty ring, so the next one is forty"
+    )
+  }
+
+  func testProjectedRemainingMatchesRemainingUntilTheCrossing() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 16 * hour)
+    let now = t0.addingTimeInterval(48 * 60)
+
+    XCTAssertEqual(
+      session.projectedRemaining(at: now),
+      session.remaining(at: now),
+      accuracy: 0.001,
+      "nothing about the ordinary countdown may change"
+    )
+  }
+
+  func testProjectedRemainingGoesNegativeOnceCrossedWhileRemainingResets() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
+    let past = t0.addingTimeInterval(90 * 60) // 20h30m on the task
+
+    XCTAssertEqual(session.projectedRemaining(at: past), -30 * 60, accuracy: 0.001)
+    XCTAssertEqual(
+      session.remaining(at: past),
+      19.5 * hour,
+      accuracy: 0.001,
+      "remaining springs back to the new band — which is why it cannot be the test for crossed"
+    )
+  }
+
+  func testProjectedRemainingKeepsFallingThroughASecondMilestone() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
+    let farPast = t0.addingTimeInterval(21.5 * hour) // 40h30m on the task
+
+    XCTAssertLessThan(
+      session.projectedRemaining(at: farPast),
+      0,
+      "a second crossing is still crossed"
+    )
+  }
+
+  // MARK: - The one push nobody makes: a minute before the crossing
+
+  func testTheLastMinuteFiresOneMinuteBeforeTheCrossing() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 16 * hour)
+    let now = t0.addingTimeInterval(48 * 60) // 3h12m to go
+
+    XCTAssertEqual(
+      session.staticLineFireDate(at: now),
+      now.addingTimeInterval(3 * hour + 12 * 60 - 60)
+    )
+  }
+
+  func testTheLastMinuteFireDateDoesNotDriftBetweenPushes() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 16 * hour)
+
+    XCTAssertEqual(
+      session.staticLineFireDate(at: t0.addingTimeInterval(hour)),
+      session.staticLineFireDate(at: t0.addingTimeInterval(hour + 30)),
+      "the crossing is a fixed instant; re-pushing must not move the booking"
+    )
+  }
+
+  func testNothingToBookInsideTheLastMinute() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
+    let now = t0.addingTimeInterval(hour - 45) // 45s to go
+
+    XCTAssertNil(session.staticLineFireDate(at: now), "the line is already static")
+  }
+
+  func testNothingToBookOnceCrossed() {
+    let session = SessionSnapshot(startedAt: t0, taskSecondsBefore: 19 * hour)
+
+    XCTAssertNil(session.staticLineFireDate(at: t0.addingTimeInterval(90 * 60)))
+  }
+
+  func testNothingToBookWhilePaused() {
+    let pausedAt = t0.addingTimeInterval(30 * 60)
+    let session = SessionSnapshot(startedAt: t0, pausedAt: pausedAt, taskSecondsBefore: 16 * hour)
+
+    XCTAssertNil(
+      session.staticLineFireDate(at: pausedAt.addingTimeInterval(600)),
+      "a paused session is not approaching anything"
+    )
+  }
+
+  func testAFreshSessionAfterAStopCountsDownFromTheNewRemaining() {
+    // The stopped session's time is now part of the task, crossed hours
+    // included: 19h before, ran 90m, so the new session starts at 20h30m.
+    let next = SessionSnapshot(
+      startedAt: t0,
+      taskSecondsBefore: 20.5 * hour
+    )
+
+    XCTAssertEqual(next.targetSeconds, 40 * hour)
+    XCTAssertEqual(next.projectedRemaining(at: t0), 19.5 * hour, accuracy: 0.001)
+    XCTAssertEqual(next.staticLineFireDate(at: t0), t0.addingTimeInterval(19.5 * hour - 60))
+  }
+
   // MARK: - Reading it out of the App Group
 
   func testReadsWhatTheAppWroteIntoSharedStorage() {

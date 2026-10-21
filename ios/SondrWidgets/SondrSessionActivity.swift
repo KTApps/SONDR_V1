@@ -34,13 +34,14 @@ struct SondrSessionActivity: Widget {
     } dynamicIsland: { context in
       let session = context.state.session
       let now = Date()
+      let display = MilestoneDisplay.state(for: session, at: now)
       let name = taskLine(context.attributes.taskName, session.isPaused)
       return DynamicIsland {
         // The ring on its own. Sharing the leading region with the task
         // name left the name about forty points wide, so "Learn piano"
         // arrived as "Learn…".
         DynamicIslandExpandedRegion(.leading) {
-          SondrRing(session: session, now: now, diameter: 36)
+          SondrRing(session: session, now: now, diameter: 36, display: display)
         }
         DynamicIslandExpandedRegion(.trailing) {
           Elapsed(session: session, size: 24)
@@ -65,12 +66,12 @@ struct SondrSessionActivity: Widget {
           .frame(maxWidth: .infinity)
         }
       } compactLeading: {
-        SondrRing(session: session, now: now, diameter: 20)
+        SondrRing(session: session, now: now, diameter: 20, display: display)
       } compactTrailing: {
         Elapsed(session: session, size: 13)
           .foregroundStyle(session.isPaused ? Ink.tertiary : Ink.primary)
       } minimal: {
-        SondrRing(session: session, now: now, diameter: 20)
+        SondrRing(session: session, now: now, diameter: 20, display: display)
       }
     }
   }
@@ -90,8 +91,9 @@ private struct LockScreenCard: View {
   var body: some View {
     let session = state.session
     let now = Date()
+    let display = MilestoneDisplay.state(for: session, at: now)
     HStack(spacing: 12) {
-      SondrRing(session: session, now: now, diameter: 48)
+      SondrRing(session: session, now: now, diameter: 48, display: display)
       VStack(alignment: .leading, spacing: 6) {
         Text(taskLine(taskName, session.isPaused))
           .font(.inter(13, .semibold))
@@ -99,7 +101,7 @@ private struct LockScreenCard: View {
           .lineLimit(1)
         Elapsed(session: session, size: 30)
           .foregroundStyle(session.isPaused ? Ink.tertiary : Ink.primary)
-        MilestoneLine(session: session, now: now)
+        MilestoneLine(session: session, now: now, display: display)
       }
       Spacer(minLength: 0)
       VStack(alignment: .trailing, spacing: 10) {
@@ -172,7 +174,7 @@ private struct Elapsed: View {
   }
 }
 
-/// "… to your next milestone".
+/// "… to your next milestone", or "You've reached a milestone".
 ///
 /// While the session runs the remaining time is handed to the system as a
 /// date, because that is the only countdown that keeps moving without the
@@ -181,18 +183,35 @@ private struct Elapsed: View {
 /// A paused card has to write the line itself, and has to write it the
 /// system's way: pausing must stop the clock, not reword the sentence
 /// under it.
+///
+/// Inside the last minute the line is a fixed string, so nothing in it can
+/// count — and so nothing can count back up past the crossing before the
+/// next push. Once the milestone is reached the sentence changes again. The
+/// same 11pt tertiary line throughout.
 private struct MilestoneLine: View {
   let session: SessionSnapshot
   let now: Date
+  let display: MilestoneDisplay
 
   var body: some View {
     Group {
-      if session.isPaused {
-        Text("\(MilestoneWording.remaining(session.remaining(at: now))) to your next milestone")
-      } else {
-        Text(
-          "\(Text(session.milestoneDate(at: now), style: .relative)) to your next milestone"
-        )
+      switch display {
+      case .crossed:
+        Text(MilestoneDisplay.reachedMessage)
+      case .lastMinute:
+        Text(MilestoneDisplay.lastMinuteMessage)
+      case .counting(let remaining):
+        if session.isPaused {
+          Text("\(MilestoneWording.remaining(remaining)) to your next milestone")
+        } else {
+          // Handed over as a date, not a string, because that is the only
+          // countdown that keeps moving without the app being woken to
+          // retype it. It never reaches zero on this card: a minute out,
+          // the app pushes again and the line above takes over.
+          Text(
+            "\(Text(session.projectedMilestoneDate(at: now), style: .relative)) to your next milestone"
+          )
+        }
       }
     }
     .font(.inter(11, .regular))

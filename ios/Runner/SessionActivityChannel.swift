@@ -90,11 +90,42 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
 
   // MARK: - ActivityKit
 
+  /// The card's content. Never a staleDate: a stale card loses the seconds
+  /// off its elapsed clock ("7:--"), measured on device. The card changes
+  /// only when something pushes it.
   @available(iOS 17.0, *)
   private static func content(
     of session: SessionSnapshot
   ) -> ActivityContent<SondrActivityAttributes.ContentState> {
     ActivityContent(state: .init(session), staleDate: nil)
+  }
+
+  /// The one push nobody makes: a minute before the crossing.
+  ///
+  /// Every other push — start, pause, resume, foreground — is caused by a
+  /// person. If nobody touches the phone for the last minute, the running
+  /// countdown would reach zero and turn round. So while the app is in the
+  /// foreground, one update is booked for a minute out, which redraws the
+  /// card with its fixed last-minute line. Rebooked on every push, because
+  /// the crossing moves with paused time; dropped on clear.
+  ///
+  /// If the app is suspended before it fires, it does not fire — the line
+  /// may then count up briefly until the next push. Accepted.
+  private let lastMinute = ScheduledUpdate()
+
+  @available(iOS 17.0, *)
+  private func bookLastMinute(for session: SessionSnapshot) {
+    lastMinute.cancel()
+    guard let at = session.staticLineFireDate(at: Date()) else { return }
+    lastMinute.schedule(at: at) { [weak self] in
+      // The stored session is the truth; this one may be a minute stale.
+      guard let self, let current = SessionSnapshot.current(), !current.isPaused
+      else { return }
+      let content = Self.content(of: current)
+      for activity in Activity<SondrActivityAttributes>.activities {
+        await activity.update(content)
+      }
+    }
   }
 
   /// Put the session on the Lock Screen, starting a card if there is none.
@@ -111,6 +142,7 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
   private func show(_ session: SessionSnapshot) {
     let name = session.taskName ?? ""
     let content = Self.content(of: session)
+    bookLastMinute(for: session)
     Task {
       let existing = Activity<SondrActivityAttributes>.activities
       let mine = existing.filter { $0.attributes.taskName == name }
@@ -134,6 +166,7 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
   /// "Pause" after the session is over is a lie on the Lock Screen.
   @available(iOS 17.0, *)
   private func clear() {
+    lastMinute.cancel()
     Task {
       for activity in Activity<SondrActivityAttributes>.activities {
         await activity.end(nil, dismissalPolicy: .immediate)

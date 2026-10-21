@@ -112,6 +112,58 @@ struct SessionSnapshot: Equatable {
     now.addingTimeInterval(remaining(at: now))
   }
 
+  /// The milestone this session set out to reach: the first one strictly
+  /// above where the task already stood when Start was pressed.
+  ///
+  /// Anchored to the session rather than to `now`, and that is the whole
+  /// point. `bandSeconds` resets at every crossing, so `remaining` springs
+  /// back to a full twenty hours the instant a milestone passes — right for
+  /// a ring that begins filling again, useless for a card that has to say
+  /// the milestone was reached. This target does not move while the session
+  /// runs, so the time to it keeps falling and goes negative once crossed.
+  ///
+  /// A task sitting on an exact multiple counts as having reached that one
+  /// already and aims at the next, which is the same reading `bandSeconds`
+  /// gives: twenty hours exactly is an empty ring, not a full one.
+  var targetSeconds: TimeInterval {
+    (taskSecondsBefore / Self.milestoneSeconds).rounded(.down) * Self.milestoneSeconds
+      + Self.milestoneSeconds
+  }
+
+  /// How long until this session reaches `targetSeconds`; negative once it
+  /// has.
+  ///
+  /// Identical to `remaining(at:)` right up to the crossing. The two part
+  /// company only afterwards, which is the one moment that matters here.
+  func projectedRemaining(at now: Date) -> TimeInterval {
+    targetSeconds - taskSeconds(at: now)
+  }
+
+  /// The instant this session crosses, projected from `now`.
+  func projectedMilestoneDate(at now: Date) -> Date {
+    now.addingTimeInterval(projectedRemaining(at: now))
+  }
+
+  /// Inside this much of the crossing, the card stops counting.
+  ///
+  /// The running card's countdown is `Text(_, style: .relative)`, handed
+  /// to the system as a date so it keeps moving without the app awake.
+  /// Nothing stops it at zero: left alone past the crossing it turns round
+  /// and counts back up. So the last minute is drawn as a fixed string
+  /// instead — nothing in it can move, so nothing can move the wrong way.
+  static let lastMinuteSeconds: TimeInterval = 60
+
+  /// When a running card should be redrawn so that the last minute lands
+  /// without anyone touching the phone: one minute before the crossing.
+  /// Nil while paused, nil once inside the last minute (already static),
+  /// nil once crossed (nothing left to wait for).
+  func staticLineFireDate(at now: Date) -> Date? {
+    guard !isPaused else { return nil }
+    let remaining = projectedRemaining(at: now)
+    guard remaining > Self.lastMinuteSeconds else { return nil }
+    return now.addingTimeInterval(remaining - Self.lastMinuteSeconds)
+  }
+
   /// The current milestone as a span of time: empty at the lower bound,
   /// full at the upper.
   ///

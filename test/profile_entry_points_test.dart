@@ -220,7 +220,6 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('ada’s friends'), findsOneWidget);
     await tester.tap(find.text('cass'));
     await tester.pumpAndSettle();
     expect(

@@ -1,8 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/cached_photo.dart';
+import '../timer/home_metrics.dart';
 
 /// The Profile page's measurements, in one place, because a second profile
 /// now uses them.
@@ -24,8 +28,63 @@ const double kProfileTopMargin = 46;
 const double kProfileEmblemSize = 128;
 const double kProfileEmblemPhoto = kProfileEmblemSize * 104 / 132;
 
-/// Emblem to handle.
+/// Emblem to handle, with no pin to satisfy. Between the floor and the
+/// ceiling, and fixed, because without something to line up with at the
+/// bottom there is no reason for the hero to stretch at all.
 const double kProfileHeroGap = 18;
+
+/// The FLOOR on each of the two flexible hero gaps.
+///
+/// They are equal and flexible — ABOVE the handle and BELOW the subtitle,
+/// which is to say either side of the pair, never between them. The first
+/// screen's height is pinned, and these two are the only gaps that give,
+/// splitting whatever the pin leaves over. 16 is the tightest either may
+/// become.
+///
+/// Flex is here, which the rest of the page forbids, and the difference is
+/// the pin: an Expanded with nothing below it to stop against is what
+/// pooled the slack into a void last time. Here the bottom is fixed by a
+/// target, so there is a bounded amount to share and exactly two places for
+/// it to go.
+const double kProfileHeroGapMin = 16;
+
+/// The floor on the hero gaps of a profile ABOUT SOMEBODY ELSE.
+///
+/// Lower than [kProfileHeroGapMin], and it has to be. That page ends on a
+/// photo strip — a heading, 26, and an 80 tile — where the personal
+/// Profile ends on a ring row, a heading, 20, and a 78 tile. Seven points
+/// more content, in a first screen pinned to the same line, and the hero
+/// gaps are the only thing that gives: held at 16 the page cannot make the
+/// line at all, and misses it by those seven points.
+///
+/// 12 is [kSpacingPair], the tightest gap in the ladder, and it leaves the
+/// pair the same air a pair gets anywhere else. The ceiling is unchanged,
+/// so a sparse page still opens up exactly as the personal one does.
+const double kProfileOtherHeroGapMin = 12;
+
+/// The CEILING on each flexible gap.
+///
+/// 32 is the void threshold the composition has always been checked
+/// against; past it a gap stops reading as spacing and starts reading as a
+/// page that has run out of things to say. The gaps hit it on a sparse page
+/// — a guest with no tasks and no milestones has a third less content for
+/// the same pinned height — and on the device they reached 117, which put
+/// the ring and the line under it at opposite ends of the screen.
+///
+/// The slack past the ceiling goes to the BOTTOM of the first screen, below
+/// the last section, where empty space at the end reads as the end of the
+/// page rather than as a hole in the middle of it.
+const double kProfileHeroGapMax = 32;
+
+/// The ring labels' own size — the line the first screen is pinned by.
+const double kProfileRingLabelSize = 11;
+
+/// What is left below the last element: the clearance to the tab bar, and
+/// the only gap that can give once the emblem and the top margin are
+/// spent. It is also what the two profiles have in common at the bottom —
+/// the last thing on each first screen ends this far above its foot, which
+/// is what lands them on the same line.
+const double kProfileTabClearance = 16;
 
 /// Handle to the line under it: a PAIR gap, the tightest on the page.
 const double kProfileHandleToSubline = 4;
@@ -207,3 +266,243 @@ class ProfileHairline extends StatelessWidget {
   Widget build(BuildContext context) =>
       const SizedBox(height: 1, child: ColoredBox(color: kProfileHairline));
 }
+
+/// The style the ring labels are set in, shared so the pin below can measure
+/// a line of it without rendering one.
+TextStyle? profileRingLabelStyle(BuildContext context) =>
+    Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontSize: kProfileRingLabelSize * figmaScale(context),
+      fontWeight: FontWeight.w600,
+      color: GreyscaleTokens.of(context).textSecondary,
+    );
+
+/// The height the first screen must be for the ring labels to sit on Home's
+/// "View your progress" line.
+///
+/// Read downward from the label's CENTRE, which is the thing being pinned:
+/// below it there is only its own lower half and the clearance to the tab bar.
+/// Everything above it is fixed except the two hero gaps, so they take the
+/// difference — see [kProfileHeroGapMin].
+double profileFirstScreenHeight(BuildContext context, double columnTop) {
+  final scale = figmaScale(context);
+  final label = lineHeightOf(context, profileRingLabelStyle(context), kProfileRingLabelSize);
+  // [homeCtaCentreY] is a SCREEN y; this is a height measured from the
+  // column's own top, which is [columnTop] below the top of the screen. It
+  // has to be read ABOVE the page's SafeArea — inside it, both padding and
+  // viewPadding have already been consumed and read as zero.
+  return homeCtaCentreY(context) -
+      columnTop +
+      label / 2 +
+      kProfileTabClearance * scale;
+}
+
+/// The first screen, sized by whether the pin can land without opening a void.
+///
+/// The pin puts the ring labels on Home's "View your progress" line by handing
+/// the hero's two flexible gaps whatever the target height leaves over. That
+/// is a couple of points on a full page and a hundred on a sparse one, so the
+/// pin is only worth having when the gaps it asks for are gaps: at most
+/// [gapCeiling]. Past that the page is better off unpinned, with the hero at
+/// [gapUnpinned] and the slack at the foot.
+///
+/// The decision needs the column's natural height, which is not calculable in
+/// a build method — it depends on which sections this account has — so it is
+/// MEASURED here, as the child's intrinsic height. [_CappedSlack] reports zero
+/// so that number is the column with both gaps at their floor, which is
+/// exactly what the comparison needs.
+class ProfileFirstScreen extends SingleChildRenderObjectWidget {
+  const ProfileFirstScreen({
+    super.key,
+    required this.pin,
+    required this.viewport,
+    required this.gapFloor,
+    required this.gapCeiling,
+    required this.gapUnpinned,
+    required this.canPin,
+    required Widget super.child,
+  });
+
+  /// The height that lands the labels on Home's line.
+  final double pin;
+
+  /// The scroll viewport, so the account block starts past the bottom edge
+  /// whichever way the decision goes.
+  final double viewport;
+
+  final double gapFloor;
+  final double gapCeiling;
+  final double gapUnpinned;
+
+  /// False when there is no ring row — no label to pin, so nothing to aim at.
+  final bool canPin;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderProfileFirstScreen(
+    pin: pin,
+    viewport: viewport,
+    gapFloor: gapFloor,
+    gapCeiling: gapCeiling,
+    gapUnpinned: gapUnpinned,
+    canPin: canPin,
+  );
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant RenderObject renderObject,
+  ) {
+    (renderObject as _RenderProfileFirstScreen)
+        .configure(
+      pin: pin,
+      viewport: viewport,
+      gapFloor: gapFloor,
+      gapCeiling: gapCeiling,
+      gapUnpinned: gapUnpinned,
+      canPin: canPin,
+    );
+  }
+}
+
+class _RenderProfileFirstScreen extends RenderShiftedBox {
+  _RenderProfileFirstScreen({
+    required this.pin,
+    required this.viewport,
+    required this.gapFloor,
+    required this.gapCeiling,
+    required this.gapUnpinned,
+    required this.canPin,
+  }) : super(null);
+
+  double pin;
+  double viewport;
+  double gapFloor;
+  double gapCeiling;
+  double gapUnpinned;
+  bool canPin;
+
+  /// One entry point for all six, so a changed number can never be applied
+  /// without the relayout that has to follow it.
+  void configure({
+    required double pin,
+    required double viewport,
+    required double gapFloor,
+    required double gapCeiling,
+    required double gapUnpinned,
+    required bool canPin,
+  }) {
+    if (pin == this.pin &&
+        viewport == this.viewport &&
+        gapFloor == this.gapFloor &&
+        gapCeiling == this.gapCeiling &&
+        gapUnpinned == this.gapUnpinned &&
+        canPin == this.canPin) {
+      return;
+    }
+    this.pin = pin;
+    this.viewport = viewport;
+    this.gapFloor = gapFloor;
+    this.gapCeiling = gapCeiling;
+    this.gapUnpinned = gapUnpinned;
+    this.canPin = canPin;
+    markNeedsLayout();
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      child?.getMinIntrinsicHeight(width) ?? 0;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      child?.getMaxIntrinsicHeight(width) ?? 0;
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    final width = constraints.maxWidth;
+    // The column with both flexible gaps at their floor.
+    final natural = child.getMaxIntrinsicHeight(width);
+    // What each gap would have to grow to for the labels to land on the line.
+    final wanted = gapFloor + (pin - natural) / 2;
+    final pinned = canPin && wanted <= gapCeiling;
+    // Pinned, the column is the target (or its own height, when the text is
+    // big enough that the target is already too small — the yield).
+    // Unpinned, it is its natural height with both gaps opened to their
+    // fixed figure, and everything else becomes slack at the foot.
+    final height = pinned
+        ? math.max(pin, natural)
+        : natural + 2 * (gapUnpinned - gapFloor);
+    child.layout(
+      BoxConstraints.tightFor(width: width, height: height),
+      parentUsesSize: true,
+    );
+    (child.parentData! as BoxParentData).offset = Offset.zero;
+    // At least the viewport, so the account block is always past the fold.
+    size = constraints.constrain(Size(width, math.max(height, viewport)));
+  }
+}
+
+/// Flexible space that takes up to [cap] of whatever it is offered, and asks
+/// for NOTHING when the column is measured.
+///
+/// Both halves matter. A `Flexible` around a `SizedBox(height: cap)` caps the
+/// gap correctly but reports the cap as its intrinsic height, and the first
+/// screen is sized by [IntrinsicHeight] — so the page grew by the two caps
+/// and the ring labels dropped 28 below Home's line. A cap is a limit on
+/// space offered, never a request for it, which is what these zero intrinsics
+/// say.
+class ProfileCappedSlack extends LeafRenderObjectWidget {
+  const ProfileCappedSlack(this.cap, {super.key});
+
+  final double cap;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderProfileCappedSlack(cap);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant RenderObject renderObject,
+  ) {
+    (renderObject as _RenderProfileCappedSlack).cap = cap;
+  }
+}
+
+class _RenderProfileCappedSlack extends RenderBox {
+  _RenderProfileCappedSlack(this._cap);
+
+  double _cap;
+  set cap(double value) {
+    if (value == _cap) return;
+    _cap = value;
+    markNeedsLayout();
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) => 0;
+  @override
+  double computeMaxIntrinsicWidth(double height) => 0;
+  @override
+  double computeMinIntrinsicHeight(double width) => 0;
+  @override
+  double computeMaxIntrinsicHeight(double width) => 0;
+
+  @override
+  void performLayout() {
+    // Whatever is offered, up to the cap. What it declines stays in the
+    // column's remaining space, which a start-aligned Column leaves after
+    // its last child.
+    size = constraints.constrain(
+      Size(0, math.min(_cap, constraints.maxHeight)),
+    );
+  }
+}
+
+/// The page's content margin, applied per child.
+///
+/// It is not on the page's column, because the two horizontal scrollers have
+/// to span the whole screen; everything else is wrapped in this instead.

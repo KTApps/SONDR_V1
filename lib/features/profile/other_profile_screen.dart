@@ -123,10 +123,10 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
     final scale = figmaScale(context);
     final myUid = ref.watch(currentUidProvider) ?? '';
-    final friendships = ref.watch(friendshipsProvider).value ?? const <Friendship>[];
+    final friendships =
+        ref.watch(friendshipsProvider).value ?? const <Friendship>[];
     final status = friendStatusOf(
       myUid: myUid,
       theirUid: widget.uid,
@@ -179,136 +179,177 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
       });
     }
 
+    // Read above the SafeArea that consumes it, like the personal Profile.
+    final topInset = MediaQuery.paddingOf(context).top;
+
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(height: kProfileTopMargin * scale),
-              _Emblem(them: them, photoUrl: sees ? _ringPhoto(milestones) : null),
-              SizedBox(height: kProfileHeroGap * scale),
-              Center(
-                child: Text(
-                  // No "@": the handle is their name here, the same reading
-                  // the friends list and my own page take.
-                  them.handle.isEmpty ? 'Someone' : them.handle,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontSize: 20 * scale,
-                    fontWeight: FontWeight.w700,
-                    color: tokens.textPrimary,
-                  ),
+        child: LayoutBuilder(
+          builder: (context, viewport) {
+            // The pin exists to land the last strip on the line the
+            // personal Profile's last element sits on. A stranger's page
+            // has no sections to reach that far, and pinning anyway is
+            // what inflates a hero into a void — so it is top-anchored
+            // and compact instead, exactly as a guest's own Profile is.
+            final canPin = sees;
+            final heroGap = [
+              SizedBox(height: kProfileOtherHeroGapMin * scale),
+              Flexible(
+                child: ProfileCappedSlack(
+                  (kProfileHeroGapMax - kProfileOtherHeroGapMin) * scale,
                 ),
               ),
-              SizedBox(height: kSpacingSection * scale),
-              // Nothing published means their hours are unknown, not zero.
-              // A figure the page cannot stand behind is not shown.
-              if (published != null || sees) ...[
-                ProfileGutter(
-                  child: _Stats(
-                    hours: published?.hours,
-                    milestones: sees ? milestones.length : null,
-                  ),
-                ),
-                SizedBox(height: kSpacingSection * scale),
-              ],
-              Center(
-                child: SondrAction(
-                  label: friendStatusLabel(status),
-                  supporting: false,
-                  onPressed: _busy || !friendStatusIsActionable(status)
-                      ? null
-                      : () => _act(status, them, friendships, myUid),
-                ),
-              ),
-              if (!sees) ...[
-                SizedBox(height: kSpacingBase * scale),
-                ProfileGutter(
-                  child: Text(
-                    'Add each other as friends to see posts and milestones.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontSize: 13 * scale,
-                      color: tokens.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-              if (_notice != null) ...[
-                SizedBox(height: kSpacingBase * scale),
-                ProfileGutter(
-                  child: SondrError(_notice!, textAlign: TextAlign.center),
-                ),
-              ],
-              if (sees) ...[
-                _Break(
-                  child: ProfileGutter(
-                    child: ProfileHeading(
-                      label: 'Friends',
-                      count: friendCount > 0 ? '$friendCount' : null,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => FriendsOfScreen(
-                            uid: widget.uid,
-                            handle: them.handle,
+            ];
+
+            return SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ProfileFirstScreen(
+                    pin: profileFirstScreenHeight(context, topInset),
+                    viewport: viewport.maxHeight,
+                    gapFloor: kProfileOtherHeroGapMin * scale,
+                    gapCeiling: kProfileHeroGapMax * scale,
+                    gapUnpinned: kProfileHeroGap * scale,
+                    canPin: canPin,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(height: kProfileTopMargin * scale),
+                        ProfileGutter(
+                          child: _Emblem(
+                            them: them,
+                            photoUrl: sees ? _ringPhoto(milestones) : null,
                           ),
                         ),
-                      ),
+                        // The two flexible gaps, either side of the
+                        // handle-and-status pair — siblings in ONE column,
+                        // because flex only equalises siblings.
+                        ...heroGap,
+                        ProfileGutter(
+                          child: _HeroCaption(
+                            them: them,
+                            status: status,
+                            busy: _busy,
+                            onAct: () => _act(status, them, friendships, myUid),
+                          ),
+                        ),
+                        ...heroGap,
+                        // Hours are the published copy's alone: a handle
+                        // from a byline says nothing about how long they
+                        // have worked, and 0 would be a claim.
+                        if (published != null || sees) ...[
+                          ProfileGutter(
+                            child: _Stats(
+                              hours: published?.hours,
+                              milestones: sees ? milestones.length : null,
+                            ),
+                          ),
+                        ],
+                        if (!sees) ...[
+                          SizedBox(height: kSpacingBase * scale),
+                          ProfileGutter(
+                            child: Text(
+                              'Add each other as friends to see posts and '
+                              'milestones.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    fontSize: 13 * scale,
+                                    color: tokens.textSecondary,
+                                  ),
+                            ),
+                          ),
+                        ],
+                        if (_notice != null) ...[
+                          SizedBox(height: kSpacingBase * scale),
+                          ProfileGutter(
+                            child: SondrError(
+                              _notice!,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                        if (sees) ...[
+                          _Break(
+                            child: ProfileGutter(
+                              child: ProfileHeading(
+                                label: 'Friends',
+                                count: friendCount > 0 ? '$friendCount' : null,
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => FriendsOfScreen(
+                                      uid: widget.uid,
+                                      handle: them.handle,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          _Break(
+                            child: _PostSection(
+                              label: 'Milestones',
+                              uid: widget.uid,
+                              handle: them.handle,
+                              posts: milestones,
+                              milestonesOnly: true,
+                            ),
+                          ),
+                          _Break(
+                            child: _PostSection(
+                              label: 'Posts',
+                              uid: widget.uid,
+                              handle: them.handle,
+                              posts: posts,
+                              milestonesOnly: false,
+                            ),
+                          ),
+                        ],
+                        // The same clearance the personal Profile leaves
+                        // below its last element — which is what puts the
+                        // two pages' last lines on the same line.
+                        SizedBox(height: kProfileTabClearance * scale),
+                      ],
                     ),
                   ),
-                ),
-                _Break(
-                  child: _PostSection(
-                    label: 'Milestones',
-                    uid: widget.uid,
-                    handle: them.handle,
-                    posts: milestones,
-                    milestonesOnly: true,
+                  // BELOW THE FOLD, where Sign out lives on my own page:
+                  // the two things you would be sorry to tap by accident,
+                  // and the way back.
+                  SizedBox(height: kSpacingBase * scale),
+                  const ProfileGutter(child: ProfileHairline()),
+                  SizedBox(height: kSpacingSection * scale),
+                  if (status == FriendStatus.accepted)
+                    Center(
+                      child: SondrAction(
+                        label: 'Remove friend',
+                        supporting: true,
+                        onPressed: _busy
+                            ? null
+                            : () => _remove(them, friendships, myUid),
+                      ),
+                    ),
+                  if (status != FriendStatus.blockedByMe)
+                    Center(
+                      child: SondrAction(
+                        label: 'Block',
+                        supporting: true,
+                        onPressed: _busy ? null : () => _block(them, myUid),
+                      ),
+                    ),
+                  Center(
+                    child: SondrAction(
+                      label: 'Back',
+                      supporting: true,
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
                   ),
-                ),
-                _Break(
-                  child: _PostSection(
-                    label: 'Posts',
-                    uid: widget.uid,
-                    handle: them.handle,
-                    posts: posts,
-                    milestonesOnly: false,
-                  ),
-                ),
-              ],
-              // A scroll away, like Sign out: the two things you would be
-              // sorry to tap by accident.
-              SizedBox(height: kProfileBreak * scale),
-              const ProfileGutter(child: ProfileHairline()),
-              SizedBox(height: kProfileUnderHairline * scale),
-              if (status == FriendStatus.accepted)
-                Center(
-                  child: SondrAction(
-                    label: 'Remove friend',
-                    supporting: true,
-                    onPressed: _busy
-                        ? null
-                        : () => _remove(them, friendships, myUid),
-                  ),
-                ),
-              if (status != FriendStatus.blockedByMe)
-                Center(
-                  child: SondrAction(
-                    label: 'Block',
-                    supporting: true,
-                    onPressed: _busy ? null : () => _block(them, myUid),
-                  ),
-                ),
-              Center(
-                child: SondrAction(
-                  label: 'Back',
-                  supporting: true,
-                  onPressed: () => Navigator.of(context).maybePop(),
-                ),
+                  SizedBox(height: kSpacingSection * scale),
+                ],
               ),
-              SizedBox(height: kSpacingSection * scale),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -446,6 +487,73 @@ String? _ringPhoto(List<MilestonePost> milestones) {
     if (p.photos.isNotEmpty) return p.photos.first.url;
   }
   return null;
+}
+
+/// The handle, and under it the one thing this page is for: where you
+/// stand with them.
+///
+/// The status sits in the subtitle's slot — the line the personal Profile
+/// uses for "Nh to your next milestone" — at the same size, because it
+/// answers the same question in the same place: what is going on with this
+/// person. Add friend, Accept and Unblock are offers and take the page's
+/// full tone; Requested and Friends are states, and a state that looks
+/// tappable is a lie.
+class _HeroCaption extends StatelessWidget {
+  const _HeroCaption({
+    required this.them,
+    required this.status,
+    required this.busy,
+    required this.onAct,
+  });
+
+  final PublicProfile them;
+  final FriendStatus status;
+  final bool busy;
+  final VoidCallback onAct;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final scale = figmaScale(context);
+    final actionable = friendStatusIsActionable(status) && !busy;
+
+    final line = Text(
+      friendStatusLabel(status),
+      textAlign: TextAlign.center,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        fontSize: 13 * scale,
+        // The WEIGHT is the same either way, so an inert state does not
+        // change size and shift what sits under it. Tone carries it.
+        fontWeight: FontWeight.w700,
+        color: actionable ? tokens.textPrimary : tokens.textTertiary,
+      ),
+    );
+
+    return Column(
+      children: [
+        Text(
+          // No "@". The handle is their name here, the same reading the
+          // friends list and my own page take.
+          them.handle.isEmpty ? 'Someone' : them.handle,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: 20 * scale,
+            fontWeight: FontWeight.w700,
+            color: tokens.textPrimary,
+          ),
+        ),
+        SizedBox(height: kProfileHandleToSubline * scale),
+        if (!actionable)
+          line
+        else
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onAct,
+            child: line,
+          ),
+      ],
+    );
+  }
 }
 
 /// The hero: their newest shared milestone photo, or their initial, inside a

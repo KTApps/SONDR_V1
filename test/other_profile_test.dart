@@ -271,10 +271,11 @@ void main() {
       tester,
     ) async {
       await pump(tester, friendships: [_friendship(accepted: false)]);
-      final action = tester.widget<SondrAction>(
-        find.widgetWithText(SondrAction, 'Requested'),
-      );
-      expect(action.onPressed, isNull);
+      // A state, not an offer: it sits in the subtitle's slot in the
+      // quiet tone and nothing takes a tap.
+      final line = tester.widget<Text>(find.text('Requested'));
+      expect(line.style?.color, const Color(0xFF6E6E6E));
+      expect(find.widgetWithText(SondrAction, 'Requested'), findsNothing);
       expect(find.text('Milestones'), findsNothing);
     });
 
@@ -310,9 +311,9 @@ void main() {
       // The newest shared milestone photo is in the ring, not their initial.
       expect(find.text('C'), findsNothing);
       expect(
-        find.widgetWithText(SondrAction, 'Friends'),
-        findsOneWidget,
-        reason: 'the status, beside the heading of the same name',
+        find.text('Friends'),
+        findsNWidgets(2),
+        reason: 'the status line, and the section heading of the same name',
       );
       expect(find.text('Remove friend'), findsOneWidget);
       expect(find.text('Block'), findsOneWidget);
@@ -350,6 +351,9 @@ void main() {
       tester,
     ) async {
       await pump(tester, friendships: [_friendship()]);
+      // A scroll away, like Sign out.
+      await tester.ensureVisible(find.text('Remove friend'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Remove friend'));
       await tester.pumpAndSettle();
       expect(find.text('Remove friend?'), findsOneWidget);
@@ -363,6 +367,8 @@ void main() {
 
     testWidgets('Block asks first, naming what it does', (tester) async {
       await pump(tester, friendships: [_friendship()]);
+      await tester.ensureVisible(find.text('Block'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Block'));
       await tester.pumpAndSettle();
       expect(find.text('Block this person?'), findsOneWidget);
@@ -536,6 +542,8 @@ void main() {
       final acts = _FakeActions();
       final f = _friendship();
       await pump(tester, friendships: [f], actions: acts, published: null);
+      await tester.ensureVisible(find.text('Remove friend'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Remove friend'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove'));

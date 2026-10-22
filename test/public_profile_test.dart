@@ -1,4 +1,8 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sondr/features/friends/friends_repository.dart';
 import 'package:sondr/features/auth/models/profile.dart';
 import 'package:sondr/features/friends/models/friendship.dart';
 import 'package:sondr/features/profile/friend_mirror.dart';
@@ -220,6 +224,52 @@ void main() {
         tasks: [_task('a', seconds: 41 * 3600)],
       );
       expect(target.published, isEmpty);
+    });
+  });
+
+  group('the friend mirror, live', () {
+    test('it is read again when a friendship of mine changes', () async {
+      // Before they accept, the read is REFUSED and the refusal is cached
+      // as an empty list. The acceptance is exactly the moment nothing was
+      // asking again — which is why the count only appeared after a
+      // relaunch.
+      final friendships = StreamController<List<Friendship>>();
+      addTearDown(friendships.close);
+      var answer = <String>[];
+      var reads = 0;
+      final container = ProviderContainer(
+        overrides: [
+          friendshipsProvider.overrideWith((ref) => friendships.stream),
+          friendMirrorReaderProvider.overrideWithValue((uid, source) async {
+            reads++;
+            return answer;
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+      // A listener, because the screen is one: a provider nobody is
+      // watching is paused, and a paused provider is not what this is
+      // about.
+      final sub = container.listen(friendUidsProvider('them'), (_, _) {});
+      addTearDown(sub.close);
+
+      friendships.add(const []);
+      await Future<void>.delayed(Duration.zero);
+      expect(await container.read(friendUidsProvider('them').future), isEmpty);
+      final before = reads;
+
+      // They accept: the friendship moves, and the list becomes readable.
+      answer = ['a', 'b'];
+      friendships.add([_friendship('them')]);
+      // The stream's emission, then the rebuild it causes.
+      await Future<void>.delayed(Duration.zero);
+      await container.pump();
+
+      expect(
+        await container.read(friendUidsProvider('them').future),
+        ['a', 'b'],
+      );
+      expect(reads, greaterThan(before), reason: 'nothing asked again');
     });
   });
 

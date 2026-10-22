@@ -542,6 +542,59 @@ void main() {
       expect(acts.removed, [f.id]);
     });
 
+    testWidgets('accepting fills the Friends section in, with no relaunch', (
+      tester,
+    ) async {
+      // The real friendUidsProvider, with only its READ faked: before they
+      // accept, the mirror is refused (empty); after, it answers. Nothing
+      // is re-pumped from scratch — the page is the same page.
+      final factoryBefore = photoImageProviderFactory;
+      photoImageProviderFactory = (_) => MemoryImage(tinyPng);
+      addTearDown(() => photoImageProviderFactory = factoryBefore);
+      final friendships = StreamController<List<Friendship>>();
+      addTearDown(friendships.close);
+      var mirror = <String>[];
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUidProvider.overrideWithValue(me),
+            friendshipsProvider.overrideWith((ref) => friendships.stream),
+            blockedAccountsProvider.overrideWith(
+              (ref) => Stream.value(const <Block>[]),
+            ),
+            publicProfileProvider.overrideWith(
+              (ref, uid) async => const PublicProfile(
+                uid: them,
+                handle: 'cass',
+                displayName: 'Cass',
+                hours: 41,
+              ),
+            ),
+            profilePostsProvider.overrideWith((ref, uid) async => const []),
+            friendMirrorReaderProvider.overrideWithValue(
+              (uid, source) async => mirror,
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const OtherProfileScreen(uid: them),
+          ),
+        ),
+      );
+      friendships.add([_friendship(accepted: false, requestedBy: them)]);
+      await tester.pumpAndSettle();
+      expect(find.text('Accept'), findsOneWidget);
+      expect(find.widgetWithText(ProfileHeading, 'Friends'), findsNothing);
+
+      // They are friends now, and their mirror answers.
+      mirror = ['a', 'b'];
+      friendships.add([_friendship()]);
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(ProfileHeading, 'Friends'), findsOneWidget);
+      expect(find.widgetWithText(ProfileHeading, '2'), findsOneWidget);
+    });
+
     testWidgets('nothing is painted until everything is known', (tester) async {
       final factoryBefore = photoImageProviderFactory;
       photoImageProviderFactory = (_) => MemoryImage(tinyPng);

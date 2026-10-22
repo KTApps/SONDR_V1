@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import '../friends/friends_repository.dart';
 import '../auth/models/profile.dart';
 import '../auth/profile_repository.dart';
 import '../photos/local_first.dart';
@@ -170,17 +171,35 @@ final publicProfileProvider =
   );
 });
 
+/// How a friend mirror is read. A seam, so a test can watch the reads
+/// happen — the thing that was wrong here is a read that never happened
+/// again.
+final friendMirrorReaderProvider =
+    Provider<Future<List<String>> Function(String uid, Source source)?>((ref) {
+  final repo = ref.watch(publicProfilesRepositoryProvider);
+  if (repo == null) return null;
+  return (uid, source) => repo.friendUids(uid, source: source);
+});
+
 /// Someone's friends, as uids. Empty rather than throwing when the read is
 /// refused: not being allowed to see a friend list is an answer.
+///
+/// Re-read whenever any friendship of mine changes. A friend list is the one
+/// thing on a profile that a friendship CREATES the right to see: before
+/// they accept, the read is refused and the refusal is cached as an empty
+/// list, and the acceptance that makes it readable is exactly the moment
+/// nothing was asking again. Accepting, removing and blocking all move a
+/// friendships document, so one watch covers all three.
 final friendUidsProvider =
     FutureProvider.autoDispose.family<List<String>, String>((ref, ofUid) async {
-  final repo = ref.watch(publicProfilesRepositoryProvider);
-  if (repo == null) return const [];
+  final read = ref.watch(friendMirrorReaderProvider);
+  if (read == null) return const [];
+  ref.watch(friendshipsProvider);
   ref.keepAlive();
   try {
     return await localFirst<List<String>>(
       ref,
-      read: (source) => repo.friendUids(ofUid, source: source),
+      read: (source) => read(ofUid, source),
       isEmpty: (list) => list.isEmpty,
       same: sameIds,
     );

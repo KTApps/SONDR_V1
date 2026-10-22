@@ -13,6 +13,7 @@ import 'package:sondr/features/friends/models/block.dart';
 import 'package:sondr/features/friends/models/friendship.dart';
 import 'package:sondr/features/profile/friend_status.dart';
 import 'package:sondr/features/profile/other_profile_screen.dart';
+import 'package:sondr/features/profile/profile_actions.dart';
 import 'package:sondr/features/profile/profile_metrics.dart';
 import 'package:sondr/features/profile/public_profile.dart';
 import 'package:sondr/shared/cached_photo.dart';
@@ -63,6 +64,31 @@ Post _sessionPost(int i, {bool photo = true}) => SessionPost(
   taskName: 'Piano',
   sessionSeconds: 3600,
 );
+
+/// What the profile asked for, without a Firestore in the way.
+class _FakeActions implements ProfileActions {
+  final added = <({String uid, String handle})>[];
+  final accepted = <String>[];
+  final removed = <String>[];
+  final blocked = <String>[];
+  final unblocked = <String>[];
+
+  @override
+  Future<void> addFriend(String uid, {String handle = ''}) async =>
+      added.add((uid: uid, handle: handle));
+  @override
+  Future<void> acceptRequest(String pairId) async => accepted.add(pairId);
+  @override
+  Future<void> removeFriend(String pairId) async => removed.add(pairId);
+  @override
+  Future<void> block({
+    required String uid,
+    required String handle,
+    required String displayName,
+  }) async => blocked.add(uid);
+  @override
+  Future<void> unblock(String uid) async => unblocked.add(uid);
+}
 
 void main() {
   group('where I stand with someone', () {
@@ -168,6 +194,7 @@ void main() {
       List<Post> posts = const [],
       List<String> friendUids = const [],
       List<Block> blocks = const [],
+      _FakeActions? actions,
       PublicProfile? published = const PublicProfile(
         uid: them,
         handle: 'cass',
@@ -187,6 +214,8 @@ void main() {
             publicProfileProvider.overrideWith((ref, uid) async => published),
             profilePostsProvider.overrideWith((ref, uid) async => posts),
             friendUidsProvider.overrideWith((ref, uid) async => friendUids),
+            if (actions != null)
+              profileActionsProvider.overrideWithValue(actions),
           ],
           child: MaterialApp(
             theme: AppTheme.dark(),
@@ -358,6 +387,57 @@ void main() {
       expect(find.byType(ProfileStripTile), findsNothing);
       // Blocking again is not offered.
       expect(find.text('Block'), findsNothing);
+    });
+
+    testWidgets('Add friend works on a profile that has published nothing', (
+      tester,
+    ) async {
+      // The bug: the page had no handle to offer, so the request was
+      // refused for want of one — search's rule, applied where a uid is
+      // the address.
+      final acts = _FakeActions();
+      await pump(tester, published: null, actions: acts);
+      await tester.tap(find.text('Add friend'));
+      await tester.pumpAndSettle();
+      expect(acts.added, hasLength(1));
+      expect(acts.added.single.uid, them);
+      // And never search's validation copy.
+      expect(find.text('Enter a handle.'), findsNothing);
+    });
+
+    testWidgets('Add friend carries the handle when the page knows one', (
+      tester,
+    ) async {
+      final acts = _FakeActions();
+      await pump(tester, actions: acts);
+      await tester.tap(find.text('Add friend'));
+      await tester.pumpAndSettle();
+      expect(acts.added.single.uid, them);
+      expect(acts.added.single.handle, 'cass');
+    });
+
+    testWidgets('Accept answers the request this page is about', (
+      tester,
+    ) async {
+      final acts = _FakeActions();
+      final f = _friendship(accepted: false, requestedBy: them);
+      await pump(tester, friendships: [f], actions: acts, published: null);
+      await tester.tap(find.text('Accept'));
+      await tester.pumpAndSettle();
+      expect(acts.accepted, [f.id]);
+    });
+
+    testWidgets('Remove and Unblock act on the uid, not on a handle', (
+      tester,
+    ) async {
+      final acts = _FakeActions();
+      final f = _friendship();
+      await pump(tester, friendships: [f], actions: acts, published: null);
+      await tester.tap(find.text('Remove friend'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+      expect(acts.removed, [f.id]);
     });
 
     testWidgets('nothing is painted until everything is known', (tester) async {

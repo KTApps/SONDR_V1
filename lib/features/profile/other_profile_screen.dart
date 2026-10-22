@@ -20,6 +20,7 @@ import '../friends/models/friendship.dart';
 import '../shell/main_shell.dart';
 import '../tasks/models/task.dart';
 import 'friend_status.dart';
+import 'profile_actions.dart';
 import 'profile_metrics.dart';
 import 'public_profile.dart';
 
@@ -70,9 +71,9 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
     if (mounted) setState(() => _notice = message);
   }
 
-  Future<void> _run(Future<void> Function(FriendsRepository repo) action) async {
-    final repo = ref.read(friendsRepositoryProvider);
-    if (repo == null) {
+  Future<void> _run(Future<void> Function(ProfileActions acts) action) async {
+    final acts = ref.read(profileActionsProvider);
+    if (acts == null) {
       _say('Sign in to add friends.');
       return;
     }
@@ -81,7 +82,7 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
       _notice = null;
     });
     try {
-      await action(repo);
+      await action(acts);
     } on FriendException catch (e) {
       // Including the one a block raises, whose wording is identical to a
       // handle that does not exist.
@@ -292,16 +293,19 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
         )) {
           return;
         }
-        _run((repo) => repo.sendRequest(them.handle));
+        // By uid. The handle rides along for the wording and for the
+        // pending row to print; it is not what this is addressed to, and a
+        // profile whose owner has published nothing still adds.
+        _run((acts) => acts.addFriend(widget.uid, handle: them.handle));
       case FriendStatus.incoming:
         final f = friendshipWith(
           myUid: myUid,
           theirUid: widget.uid,
           friendships: friendships,
         );
-        if (f != null) _run((repo) => repo.accept(f.id));
+        if (f != null) _run((acts) => acts.acceptRequest(f.id));
       case FriendStatus.blockedByMe:
-        _run((repo) => repo.unblockUser(widget.uid));
+        _run((acts) => acts.unblock(widget.uid));
       case FriendStatus.requested:
       case FriendStatus.accepted:
         break;
@@ -326,7 +330,7 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
       confirmLabel: 'Remove',
     );
     if (!yes || !mounted) return;
-    await _run((repo) => repo.remove(f.id));
+    await _run((acts) => acts.removeFriend(f.id));
   }
 
   Future<void> _block(PublicProfile them, String myUid) async {
@@ -337,9 +341,9 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
       confirmLabel: 'Block',
     );
     if (!yes || !mounted) return;
-    await _run((repo) => repo.blockUser(
-          targetUid: widget.uid,
-          username: them.handle,
+    await _run((acts) => acts.block(
+          uid: widget.uid,
+          handle: them.handle,
           displayName: them.displayName,
         ));
   }

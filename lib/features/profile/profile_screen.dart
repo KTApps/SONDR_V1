@@ -26,13 +26,14 @@ import '../photos/photo_viewer.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'milestone_strip.dart';
+import 'profile_metrics.dart';
 import 'profile_providers.dart';
 
 // Photo tints — the near-raw whisper the day-detail thumbnails use, so the
 // hero's face and the milestone strip sit in the same family as every other
 // photo surface.
-const double _kPhotoSaturation = 0.85;
-const Color _kPhotoTint = Color(0x1A000000);
+const double _kPhotoSaturation = kProfilePhotoSaturation;
+const Color _kPhotoTint = kProfilePhotoTint;
 
 /// The Milestones strip: four equal squares across the content width.
 ///
@@ -70,10 +71,10 @@ const Color _kPhotoTint = Color(0x1A000000);
 /// but can be dragged clear of it, and its last item can come to rest there
 /// too. A scroller that stopped at the content box looked like a list with
 /// nothing after it.
-const double _kGutter = 24;
+const double _kGutter = kProfileGutter;
 
-const double _kTopMargin = 46;
-const double _kEmblemSize = 128;
+const double _kTopMargin = kProfileTopMargin;
+const double _kEmblemSize = kProfileEmblemSize;
 /// Symmetric around the handle: the same 9 above it and below it, so the name
 /// sits in its own space rather than closer to the ring than to the line it
 /// introduces. The pair totals the 18 it did before, so nothing beneath the
@@ -114,21 +115,21 @@ const double _kHeroGapMax = 32;
 /// [_firstScreenHeight]. Between the floor and the ceiling, and fixed,
 /// because without a ring row at the bottom there is nothing to line up
 /// with and no reason for the hero to stretch at all.
-const double _kHeroGapFixed = 18;
+const double _kHeroGapFixed = kProfileHeroGap;
 
 /// Handle to subtitle: a PAIR gap, and the tightest number on the page.
 ///
 /// Below [kSpacingPair] deliberately. The two lines are one unit — a name and
 /// what the name is doing — and anything looser let the subtitle drift into
 /// being its own announcement.
-const double _kHandleToSubline = 4;
-const double _kStatGap = 5;
-const double _kBreak = 22;
+const double _kHandleToSubline = kProfileHandleToSubline;
+const double _kStatGap = kProfileStatGap;
+const double _kBreak = kProfileBreak;
 /// The gap ABOVE a heading, between the line and the words. Smaller than
 /// every gap BELOW a heading (20 at the tightest), so a heading stays bound
 /// to the content it introduces rather than to the rule above it.
-const double _kUnderHairline = 14;
-const double _kHeadingToPhotos = 26;
+const double _kUnderHairline = kProfileUnderHairline;
+const double _kHeadingToPhotos = kProfileHeadingToPhotos;
 const double _kHeadingToRings = 20;
 /// What is left for the clearance once the rest is paid for. The emblem is
 /// fixed and the top margin is spent, so this is the only gap that can give.
@@ -136,22 +137,22 @@ const double _kTabClearance = 16;
 
 /// Section headings take the app's Heading token — the same 20/bold Home puts
 /// on "Last 10 days".
-const double _kHeadingSize = 20;
+const double _kHeadingSize = kProfileHeadingSize;
 
 /// The ring labels' own size — the line the page's bottom is pinned by.
 const double _kRingLabelSize = 11;
 
 /// The counts beside them.
-const double _kCountSize = 14;
+const double _kCountSize = kProfileCountSize;
 
 /// The stats' figures and their labels.
-const double _kStatFigureSize = 22;
-const double _kStatLabelSize = 12;
+const double _kStatFigureSize = kProfileStatFigureSize;
+const double _kStatLabelSize = kProfileStatLabelSize;
 
 /// The hairline. Darker than [GreyscaleTokens.ringTrack], which is a RING
 /// tone: a rule between sections should part them without being read as one
 /// more thing on the page.
-const Color _kHairline = Color(0xFF242424);
+const Color _kHairline = kProfileHairline;
 
 /// The in-progress rings: the tile's width and the gap between tiles. About
 /// four fit the content width and the fifth peeks, which is the only thing
@@ -159,12 +160,9 @@ const Color _kHairline = Color(0xFF242424);
 const double _kRingTileWidth = 72;
 const double _kRingGap = 14;
 
-/// The Milestones strip: fixed squares scrolling sideways, exactly as the
-/// rings do. Four fit the content width, so a collage of more than four is
-/// reached by dragging rather than by shrinking every tile to suit.
-const double _kStripTile = 80;
-const double _kStripGap = 8;
-const double _kStripRadius = 13;
+/// The gap between the Milestones strip's tiles. The tiles themselves are
+/// [ProfileStripTile], shared with the profile of another person.
+const double _kStripGap = kProfileStripGap;
 
 /// The Profile tab: who you are, then what you are climbing toward.
 ///
@@ -1191,22 +1189,5 @@ class _GalleryThumb extends StatelessWidget {
   final Photo photo;
 
   @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final scale = figmaScale(context);
-    return SizedBox(
-      width: _kStripTile * scale,
-      height: _kStripTile * scale,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(_kStripRadius * scale),
-        child: SondrPhoto(
-          url: photo.photoUrl,
-          saturation: _kPhotoSaturation,
-          tint: _kPhotoTint,
-          placeholder: (_) => ColoredBox(color: tokens.ringTrack),
-          error: (_) => ColoredBox(color: tokens.ringTrack),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ProfileStripTile(url: photo.photoUrl);
 }

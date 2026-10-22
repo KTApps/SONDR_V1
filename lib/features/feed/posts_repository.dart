@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import '../photos/local_first.dart';
 import 'models/comment.dart';
 import '../friends/friends_repository.dart';
 import 'models/post.dart';
@@ -33,6 +35,31 @@ class PostsRepository {
         .map(
           (snap) => snap.docs.map((d) => Post.fromMap(d.id, d.data())).toList(),
         );
+  }
+
+  /// Someone's posts that I am in the audience of, newest first — what their
+  /// profile shows. Bounded: a profile is a glance at what they have been
+  /// doing, not an archive, and the count beside each heading is the length
+  /// of this list (capped, so it can read "100+").
+  ///
+  /// The `audience array-contains` is not a nicety. The read rule requires
+  /// the reader to be in the audience, and a query whose rule leans on
+  /// per-document data it does not constrain fails WHOLESALE rather than
+  /// omitting rows — so without this filter a profile does not show fewer
+  /// posts, it errors. Needs the (authorUid, audience, createdAt) composite
+  /// index. See test/rules/rules.test.mjs.
+  Future<List<Post>> postsByAuthor(
+    String authorUid, {
+    int limit = kProfilePostsLimit,
+    Source source = Source.serverAndCache,
+  }) async {
+    final snap = await _posts
+        .where('authorUid', isEqualTo: authorUid)
+        .where('audience', arrayContains: uid)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .get(GetOptions(source: source));
+    return [for (final d in snap.docs) Post.fromMap(d.id, d.data())];
   }
 
   Future<PostAuthor> _author() async {
@@ -356,3 +383,31 @@ final postCommentsProvider =
         (list) => withoutBlockedAuthors(list, blocked, (c) => c.authorUid),
       );
 });
+
+/// How many of someone's posts a profile reads. Past this the count reads
+/// "100+" — the figure stops being interesting long before the page does.
+const int kProfilePostsLimit = 100;
+
+/// Someone's posts, as their profile shows them: what I am allowed to see,
+/// newest first, read local-first so a profile opened twice paints from the
+/// cache. Empty rather than throwing when there is nothing to show.
+final profilePostsProvider =
+    FutureProvider.autoDispose.family<List<Post>, String>((ref, authorUid) async {
+  final repo = ref.watch(postsRepositoryProvider);
+  if (repo == null) return const [];
+  ref.keepAlive();
+  try {
+    return await localFirst<List<Post>>(
+      ref,
+      read: (source) => repo.postsByAuthor(authorUid, source: source),
+      isEmpty: (list) => list.isEmpty,
+      same: (a, b) => sameIds([for (final p in a) p.id], [for (final p in b) p.id]),
+    );
+  } on FirebaseException catch (e) {
+    debugPrint('SONDR profile posts error: ${e.code}');
+    return const [];
+  }
+});
+
+/// The count beside a heading: the list's length, or "100+" at the cap.
+String profileCountLabel(int n) => n >= kProfilePostsLimit ? '$n+' : '$n';

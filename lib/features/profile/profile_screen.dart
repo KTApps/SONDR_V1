@@ -1,13 +1,10 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../debug/position_readout.dart';
-import '../timer/home_metrics.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../../shared/ring/ring_metrics.dart';
@@ -26,13 +23,14 @@ import '../photos/photo_viewer.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'milestone_strip.dart';
+import 'profile_metrics.dart';
 import 'profile_providers.dart';
 
 // Photo tints — the near-raw whisper the day-detail thumbnails use, so the
 // hero's face and the milestone strip sit in the same family as every other
 // photo surface.
-const double _kPhotoSaturation = 0.85;
-const Color _kPhotoTint = Color(0x1A000000);
+const double _kPhotoSaturation = kProfilePhotoSaturation;
+const Color _kPhotoTint = kProfilePhotoTint;
 
 /// The Milestones strip: four equal squares across the content width.
 ///
@@ -70,88 +68,44 @@ const Color _kPhotoTint = Color(0x1A000000);
 /// but can be dragged clear of it, and its last item can come to rest there
 /// too. A scroller that stopped at the content box looked like a list with
 /// nothing after it.
-const double _kGutter = 24;
+const double _kGutter = kProfileGutter;
 
-const double _kTopMargin = 46;
-const double _kEmblemSize = 128;
-/// Symmetric around the handle: the same 9 above it and below it, so the name
-/// sits in its own space rather than closer to the ring than to the line it
-/// introduces. The pair totals the 18 it did before, so nothing beneath the
-/// subtitle moves — only the handle, back onto the line the emblem's own gap
-/// originally put it on.
-/// The FLOOR on each of the two flexible gaps, not their value.
-///
-/// They are equal and flexible — ABOVE the handle and BELOW the subtitle,
-/// which is to say either side of the pair, never between them. The first
-/// screen's height is pinned so the ring labels land on Home's "View your
-/// progress" line, and these two are the only gaps that give, splitting
-/// whatever the pin leaves over. 16 is the tightest either may become, which
-/// is the tier the gap under the pair was declared at before it could flex,
-/// so that gap never reads tighter than it used to.
-///
-/// Flex is here, which the rest of this page still forbids, and the
-/// difference is the pin: an Expanded with nothing below it to stop against
-/// is what pooled the slack into a void last time. Here the bottom is fixed
-/// by a target, so there is a bounded amount to share and exactly two places
-/// for it to go.
-const double _kHeroGapMin = 16;
+const double _kTopMargin = kProfileTopMargin;
+const double _kEmblemSize = kProfileEmblemSize;
 
-/// The CEILING on each flexible gap.
-///
-/// 32 is the void threshold the composition has always been checked against;
-/// past it a gap stops reading as spacing and starts reading as a page that
-/// has run out of things to say. The gaps hit it on a sparse page — a guest
-/// with no tasks and no milestones has a third less content for the same
-/// pinned height — and on the device they reached 117, which put the ring
-/// and the line under it at opposite ends of the screen.
-///
-/// The slack past the ceiling goes to the BOTTOM of the first screen, below
-/// the last section, where empty space above the tab bar reads as the end of
-/// the page rather than as a hole in the middle of it.
-const double _kHeroGapMax = 32;
 
-/// The hero gaps when there is no pin to satisfy — see [_kHeroGapMax] and
-/// [_firstScreenHeight]. Between the floor and the ceiling, and fixed,
-/// because without a ring row at the bottom there is nothing to line up
-/// with and no reason for the hero to stretch at all.
-const double _kHeroGapFixed = 18;
 
 /// Handle to subtitle: a PAIR gap, and the tightest number on the page.
 ///
 /// Below [kSpacingPair] deliberately. The two lines are one unit — a name and
 /// what the name is doing — and anything looser let the subtitle drift into
 /// being its own announcement.
-const double _kHandleToSubline = 4;
-const double _kStatGap = 5;
-const double _kBreak = 22;
+const double _kHandleToSubline = kProfileHandleToSubline;
+const double _kStatGap = kProfileStatGap;
+const double _kBreak = kProfileBreak;
 /// The gap ABOVE a heading, between the line and the words. Smaller than
 /// every gap BELOW a heading (20 at the tightest), so a heading stays bound
 /// to the content it introduces rather than to the rule above it.
-const double _kUnderHairline = 14;
-const double _kHeadingToPhotos = 26;
-const double _kHeadingToRings = 20;
-/// What is left for the clearance once the rest is paid for. The emblem is
-/// fixed and the top margin is spent, so this is the only gap that can give.
-const double _kTabClearance = 16;
+const double _kUnderHairline = kProfileUnderHairline;
+const double _kHeadingToPhotos = kProfileHeadingToPhotos;
+const double _kHeadingToRings = kProfileHeadingToRings;
 
 /// Section headings take the app's Heading token — the same 20/bold Home puts
 /// on "Last 10 days".
-const double _kHeadingSize = 20;
+const double _kHeadingSize = kProfileHeadingSize;
 
-/// The ring labels' own size — the line the page's bottom is pinned by.
-const double _kRingLabelSize = 11;
 
 /// The counts beside them.
-const double _kCountSize = 14;
+const double _kCountSize = kProfileCountSize;
 
 /// The stats' figures and their labels.
-const double _kStatFigureSize = 22;
-const double _kStatLabelSize = 12;
+const double _kStatFigureSize = kProfileStatFigureSize;
+const double _kStatLabelSize = kProfileStatLabelSize;
 
 /// The hairline. Darker than [GreyscaleTokens.ringTrack], which is a RING
 /// tone: a rule between sections should part them without being read as one
 /// more thing on the page.
-const Color _kHairline = Color(0xFF242424);
+const Color _kHairline = kProfileHairline;
 
 /// The in-progress rings: the tile's width and the gap between tiles. About
 /// four fit the content width and the fifth peeks, which is the only thing
@@ -159,12 +113,9 @@ const Color _kHairline = Color(0xFF242424);
 const double _kRingTileWidth = 72;
 const double _kRingGap = 14;
 
-/// The Milestones strip: fixed squares scrolling sideways, exactly as the
-/// rings do. Four fit the content width, so a collage of more than four is
-/// reached by dragging rather than by shrinking every tile to suit.
-const double _kStripTile = 80;
-const double _kStripGap = 8;
-const double _kStripRadius = 13;
+/// The gap between the Milestones strip's tiles. The tiles themselves are
+/// [ProfileStripTile], shared with the profile of another person.
+const double _kStripGap = kProfileStripGap;
 
 /// The Profile tab: who you are, then what you are climbing toward.
 ///
@@ -231,14 +182,14 @@ class ProfileScreen extends ConsumerWidget {
             final canPin = tasks.isNotEmpty;
             // Floor, then up to the ceiling — and no further. A LOOSE
             // Flexible takes min(its child, its share), so the gap is
-            // clamped to [_kHeroGapMin, _kHeroGapMax] by the layout rather
+            // clamped to [kProfileHeroGapMin, kProfileHeroGapMax] by the layout rather
             // than by arithmetic, and the share it declines stays in the
             // column's remaining space. Start-aligned, that remainder
             // collects after the last child: the bottom of the first screen.
             final heroGap = [
-              SizedBox(height: _kHeroGapMin * scale),
+              SizedBox(height: kProfileHeroGapMin * scale),
               Flexible(
-                child: _CappedSlack((_kHeroGapMax - _kHeroGapMin) * scale),
+                child: ProfileCappedSlack((kProfileHeroGapMax - kProfileHeroGapMin) * scale),
               ),
             ];
 
@@ -265,12 +216,12 @@ class ProfileScreen extends ConsumerWidget {
                   // at the foot as a cavern. The slack lives in the top
                   // margin above the emblem instead, where empty space at the
                   // top of a page reads as margin.
-                  _FirstScreen(
-                    pin: _firstScreenHeight(context, topInset),
+                  ProfileFirstScreen(
+                    pin: profileFirstScreenHeight(context, topInset),
                     viewport: viewport.maxHeight,
-                    gapFloor: _kHeroGapMin * scale,
-                    gapCeiling: _kHeroGapMax * scale,
-                    gapUnpinned: _kHeroGapFixed * scale,
+                    gapFloor: kProfileHeroGapMin * scale,
+                    gapCeiling: kProfileHeroGapMax * scale,
+                    gapUnpinned: kProfileHeroGap * scale,
                     canPin: canPin,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -305,7 +256,7 @@ class ProfileScreen extends ConsumerWidget {
                         const _Gutter(child: _Hairline()),
                         SizedBox(height: _kUnderHairline * scale),
                         _TasksInProgress(tasks: tasks),
-                        SizedBox(height: _kTabClearance * scale),
+                        SizedBox(height: kProfileTabClearance * scale),
                       ],
                     ),
                   ),
@@ -325,243 +276,6 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-/// The style the ring labels are set in, shared so the pin below can measure
-/// a line of it without rendering one.
-TextStyle? nameStyleOf(BuildContext context) =>
-    Theme.of(context).textTheme.bodyMedium?.copyWith(
-      fontSize: _kRingLabelSize * figmaScale(context),
-      fontWeight: FontWeight.w600,
-      color: GreyscaleTokens.of(context).textSecondary,
-    );
-
-/// The height the first screen must be for the ring labels to sit on Home's
-/// "View your progress" line.
-///
-/// Read downward from the label's CENTRE, which is the thing being pinned:
-/// below it there is only its own lower half and the clearance to the tab bar.
-/// Everything above it is fixed except the two hero gaps, so they take the
-/// difference — see [_kHeroGapMin].
-double _firstScreenHeight(BuildContext context, double columnTop) {
-  final scale = figmaScale(context);
-  final label = lineHeightOf(context, nameStyleOf(context), _kRingLabelSize);
-  // [homeCtaCentreY] is a SCREEN y; this is a height measured from the
-  // column's own top, which is [columnTop] below the top of the screen. It
-  // has to be read ABOVE the page's SafeArea — inside it, both padding and
-  // viewPadding have already been consumed and read as zero.
-  return homeCtaCentreY(context) -
-      columnTop +
-      label / 2 +
-      _kTabClearance * scale;
-}
-
-/// The first screen, sized by whether the pin can land without opening a void.
-///
-/// The pin puts the ring labels on Home's "View your progress" line by handing
-/// the hero's two flexible gaps whatever the target height leaves over. That
-/// is a couple of points on a full page and a hundred on a sparse one, so the
-/// pin is only worth having when the gaps it asks for are gaps: at most
-/// [gapCeiling]. Past that the page is better off unpinned, with the hero at
-/// [gapUnpinned] and the slack at the foot.
-///
-/// The decision needs the column's natural height, which is not calculable in
-/// a build method — it depends on which sections this account has — so it is
-/// MEASURED here, as the child's intrinsic height. [_CappedSlack] reports zero
-/// so that number is the column with both gaps at their floor, which is
-/// exactly what the comparison needs.
-class _FirstScreen extends SingleChildRenderObjectWidget {
-  const _FirstScreen({
-    required this.pin,
-    required this.viewport,
-    required this.gapFloor,
-    required this.gapCeiling,
-    required this.gapUnpinned,
-    required this.canPin,
-    required Widget super.child,
-  });
-
-  /// The height that lands the labels on Home's line.
-  final double pin;
-
-  /// The scroll viewport, so the account block starts past the bottom edge
-  /// whichever way the decision goes.
-  final double viewport;
-
-  final double gapFloor;
-  final double gapCeiling;
-  final double gapUnpinned;
-
-  /// False when there is no ring row — no label to pin, so nothing to aim at.
-  final bool canPin;
-
-  @override
-  RenderObject createRenderObject(BuildContext context) => _RenderFirstScreen(
-    pin: pin,
-    viewport: viewport,
-    gapFloor: gapFloor,
-    gapCeiling: gapCeiling,
-    gapUnpinned: gapUnpinned,
-    canPin: canPin,
-  );
-
-  @override
-  void updateRenderObject(
-    BuildContext context,
-    covariant _RenderFirstScreen renderObject,
-  ) {
-    renderObject.configure(
-      pin: pin,
-      viewport: viewport,
-      gapFloor: gapFloor,
-      gapCeiling: gapCeiling,
-      gapUnpinned: gapUnpinned,
-      canPin: canPin,
-    );
-  }
-}
-
-class _RenderFirstScreen extends RenderShiftedBox {
-  _RenderFirstScreen({
-    required this.pin,
-    required this.viewport,
-    required this.gapFloor,
-    required this.gapCeiling,
-    required this.gapUnpinned,
-    required this.canPin,
-  }) : super(null);
-
-  double pin;
-  double viewport;
-  double gapFloor;
-  double gapCeiling;
-  double gapUnpinned;
-  bool canPin;
-
-  /// One entry point for all six, so a changed number can never be applied
-  /// without the relayout that has to follow it.
-  void configure({
-    required double pin,
-    required double viewport,
-    required double gapFloor,
-    required double gapCeiling,
-    required double gapUnpinned,
-    required bool canPin,
-  }) {
-    if (pin == this.pin &&
-        viewport == this.viewport &&
-        gapFloor == this.gapFloor &&
-        gapCeiling == this.gapCeiling &&
-        gapUnpinned == this.gapUnpinned &&
-        canPin == this.canPin) {
-      return;
-    }
-    this.pin = pin;
-    this.viewport = viewport;
-    this.gapFloor = gapFloor;
-    this.gapCeiling = gapCeiling;
-    this.gapUnpinned = gapUnpinned;
-    this.canPin = canPin;
-    markNeedsLayout();
-  }
-
-  @override
-  double computeMinIntrinsicHeight(double width) =>
-      child?.getMinIntrinsicHeight(width) ?? 0;
-
-  @override
-  double computeMaxIntrinsicHeight(double width) =>
-      child?.getMaxIntrinsicHeight(width) ?? 0;
-
-  @override
-  void performLayout() {
-    final child = this.child;
-    if (child == null) {
-      size = constraints.smallest;
-      return;
-    }
-    final width = constraints.maxWidth;
-    // The column with both flexible gaps at their floor.
-    final natural = child.getMaxIntrinsicHeight(width);
-    // What each gap would have to grow to for the labels to land on the line.
-    final wanted = gapFloor + (pin - natural) / 2;
-    final pinned = canPin && wanted <= gapCeiling;
-    // Pinned, the column is the target (or its own height, when the text is
-    // big enough that the target is already too small — the yield).
-    // Unpinned, it is its natural height with both gaps opened to their
-    // fixed figure, and everything else becomes slack at the foot.
-    final height = pinned
-        ? math.max(pin, natural)
-        : natural + 2 * (gapUnpinned - gapFloor);
-    child.layout(
-      BoxConstraints.tightFor(width: width, height: height),
-      parentUsesSize: true,
-    );
-    (child.parentData! as BoxParentData).offset = Offset.zero;
-    // At least the viewport, so the account block is always past the fold.
-    size = constraints.constrain(Size(width, math.max(height, viewport)));
-  }
-}
-
-/// Flexible space that takes up to [cap] of whatever it is offered, and asks
-/// for NOTHING when the column is measured.
-///
-/// Both halves matter. A `Flexible` around a `SizedBox(height: cap)` caps the
-/// gap correctly but reports the cap as its intrinsic height, and the first
-/// screen is sized by [IntrinsicHeight] — so the page grew by the two caps
-/// and the ring labels dropped 28 below Home's line. A cap is a limit on
-/// space offered, never a request for it, which is what these zero intrinsics
-/// say.
-class _CappedSlack extends LeafRenderObjectWidget {
-  const _CappedSlack(this.cap);
-
-  final double cap;
-
-  @override
-  RenderObject createRenderObject(BuildContext context) =>
-      _RenderCappedSlack(cap);
-
-  @override
-  void updateRenderObject(
-    BuildContext context,
-    covariant _RenderCappedSlack renderObject,
-  ) {
-    renderObject.cap = cap;
-  }
-}
-
-class _RenderCappedSlack extends RenderBox {
-  _RenderCappedSlack(this._cap);
-
-  double _cap;
-  set cap(double value) {
-    if (value == _cap) return;
-    _cap = value;
-    markNeedsLayout();
-  }
-
-  @override
-  double computeMinIntrinsicWidth(double height) => 0;
-  @override
-  double computeMaxIntrinsicWidth(double height) => 0;
-  @override
-  double computeMinIntrinsicHeight(double width) => 0;
-  @override
-  double computeMaxIntrinsicHeight(double width) => 0;
-
-  @override
-  void performLayout() {
-    // Whatever is offered, up to the cap. What it declines stays in the
-    // column's remaining space, which a start-aligned Column leaves after
-    // its last child.
-    size = constraints.constrain(
-      Size(0, math.min(_cap, constraints.maxHeight)),
-    );
-  }
-}
-
-/// The page's content margin, applied per child.
-///
-/// It is not on the page's column, because the two horizontal scrollers have
-/// to span the whole screen; everything else is wrapped in this instead.
 class _Gutter extends StatelessWidget {
   const _Gutter({required this.child});
 
@@ -761,7 +475,10 @@ class _HeroCaption extends ConsumerWidget {
                 ? [TextSpan(text: 'No task in progress.', style: quiet)]
                 : [
                     TextSpan(
-                      text: '${next.hoursRemaining}h',
+                      // The figure, in the page's own tone — now with the
+                      // minutes, because an hour is a long time to be told
+                      // the same number.
+                      text: remainingLabel(next.secondsRemaining),
                       style: quiet?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: tokens.textPrimary,
@@ -796,7 +513,10 @@ class _EffortSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hours = (lifetime.inMinutes / 60).round();
+    // FLOORED, not rounded. 19h 59m is 19 hours done, and a figure that
+    // claims the twentieth before it is logged is the one figure on this
+    // page the owner can check against the clock.
+    final hours = lifetime.inHours;
 
     return Row(
       children: [
@@ -1125,8 +845,8 @@ class _TaskTile extends StatelessWidget {
   /// _DoneRing in milestones_screen.dart), so a ring is the same size and the
   /// same weight on both screens. The TONE is not shared: this one is
   /// progress, so it stays grey, and white remains a milestone reached.
-  static const double ringSize = 56;
-  static const double labelGap = 8;
+  static const double ringSize = kProfileRingTileSize;
+  static const double labelGap = kProfileRingLabelGap;
 
   @override
   Widget build(BuildContext context) {
@@ -1142,7 +862,7 @@ class _TaskTile extends StatelessWidget {
       fontWeight: FontWeight.w700,
       color: tokens.textPrimary,
     );
-    final nameStyle = nameStyleOf(context);
+    final nameStyle = profileRingLabelStyle(context);
 
     return SizedBox(
       width: _kRingTileWidth * scale,
@@ -1191,22 +911,5 @@ class _GalleryThumb extends StatelessWidget {
   final Photo photo;
 
   @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    final scale = figmaScale(context);
-    return SizedBox(
-      width: _kStripTile * scale,
-      height: _kStripTile * scale,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(_kStripRadius * scale),
-        child: SondrPhoto(
-          url: photo.photoUrl,
-          saturation: _kPhotoSaturation,
-          tint: _kPhotoTint,
-          placeholder: (_) => ColoredBox(color: tokens.ringTrack),
-          error: (_) => ColoredBox(color: tokens.ringTrack),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ProfileStripTile(url: photo.photoUrl);
 }

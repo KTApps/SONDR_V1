@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,7 @@ import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_header.dart';
 import 'profile_repository.dart';
+import '../profile/public_profile.dart';
 
 /// Pick a unique handle. Validates format client-side, then claims it
 /// atomically via [ProfileRepository.claimHandle] (rejecting duplicates).
@@ -63,6 +66,9 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
         displayName: widget.suggestedDisplayName,
       );
       ref.invalidate(currentProfileProvider);
+      // The handle is what a profile is found by, and the rules check it
+      // against the usernames index — so publish it the moment it is ours.
+      unawaited(ref.read(publishPublicProfileProvider)());
       // Land on Home (the timer) after finishing sign-up + handle setup.
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } on HandleTakenException {
@@ -94,7 +100,18 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SondrHeader(title: 'Choose a handle'),
+              // The word is gone, the space it occupied is not: the line
+              // below says what the screen is for, and the field under it
+              // is labelled "Handle". Kept as a maintained-size Visibility
+              // rather than a measured box, the way Blocked does it, so
+              // nothing moves if the header's type changes.
+              const Visibility(
+                visible: false,
+                maintainSize: true,
+                maintainAnimation: true,
+                maintainState: true,
+                child: SondrHeader(title: 'Choose a handle'),
+              ),
               SizedBox(height: kSpacingBase * scale),
               Text(
                 'This is how friends will find you. It can\'t be changed later.',

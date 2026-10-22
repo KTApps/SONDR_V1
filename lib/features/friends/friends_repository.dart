@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import '../profile/friend_mirror.dart';
 import 'content_prune.dart';
 import 'models/block.dart';
 import 'models/friendship.dart';
@@ -19,19 +20,77 @@ class FriendException implements Exception {
 String normalizeHandle(String raw) =>
     raw.trim().toLowerCase().replaceFirst(RegExp(r'^@'), '');
 
+/// One person found by handle: what to show, and whose profile it is.
+///
+/// The uid matters as much as the handle now — a search result opens that
+/// person's profile, and `usernames/{handle}` is the only place the two are
+/// written down together.
+class HandleMatch {
+  const HandleMatch({required this.handle, required this.uid});
+
+  final String handle;
+  final String uid;
+}
+
 /// The handles in [candidates] (handle -> owner uid) that [blockedUids] does
 /// not cover, in order.
 ///
 /// Pure, so the filter is testable without Firestore. A candidate with no uid
-/// is dropped: a usernames entry with no owner is malformed and unusable.
-List<String> handlesNotBlocked(
+/// is dropped: a usernames entry with no owner is malformed and unusable —
+/// and now also unopenable, since a profile is addressed by uid.
+List<HandleMatch> handlesNotBlocked(
   Iterable<MapEntry<String, String?>> candidates,
   Set<String> blockedUids,
 ) =>
     [
       for (final c in candidates)
-        if (c.value != null && !blockedUids.contains(c.value)) c.key,
+        if (c.value != null && !blockedUids.contains(c.value))
+          HandleMatch(handle: c.key, uid: c.value!),
     ];
+
+/// What a friend request should be refused for, before anything is written
+/// — or null to go ahead.
+///
+/// Pure, and deliberately says NOTHING about handles being required. A
+/// profile is reached by uid and the public document that would name its
+/// owner may not exist; refusing the add for want of a handle is search's
+/// rule, not a profile's, and applying it here is what made Add friend on a
+/// profile answer "Enter a handle." and send nothing.
+FriendException? addFriendRefusal({
+  required String myUid,
+  required String targetUid,
+  required String myHandle,
+  required String handle,
+  required Set<String> blockedByMe,
+  required Friendship? existing,
+}) {
+  if (targetUid.isEmpty || targetUid == myUid) {
+    return const FriendException('That is your own profile.');
+  }
+  if (myHandle.isEmpty) {
+    return const FriendException('Set a handle before adding friends.');
+  }
+  // Someone this user has blocked is refused in the same words as someone
+  // who does not exist — and the rules refuse the write in the other
+  // direction with the same words again, so a block stays invisible.
+  if (blockedByMe.contains(targetUid)) {
+    return FriendException(addFriendUnavailable(handle));
+  }
+  if (existing != null) {
+    final named = handle.isEmpty ? '' : ' with @$handle';
+    return FriendException(existing.isAccepted
+        ? "You're already friends$named."
+        : 'There’s already a pending request$named.');
+  }
+  return null;
+}
+
+/// The one wording a refusal that must not disclose anything takes. Named
+/// where the page knows a handle, because that is what search says and the
+/// two must not be told apart.
+String addFriendUnavailable(String handle) => handle.isEmpty
+    ? 'That person is no longer available.'
+    : 'No one found with the handle @$handle.';
 
 /// Reads and mutates the `friendships` collection for the current [uid]. All
 /// reads are scoped by `array-contains uid`, matching the security rule that a
@@ -135,6 +194,9 @@ class FriendsRepository {
   }) async {
     final batch = db.batch();
     batch.delete(_friendships.doc(Friendship.pairId(uid, targetUid)));
+    // Their profile must stop listing us, and ours them, the moment the
+    // friendship goes — either party may clear either half.
+    removeFriendMirror(batch, db, uid, targetUid);
     batch.set(_blocks.doc(Block.idFor(uid, targetUid)), {
       'blocker': uid,
       'blocked': targetUid,
@@ -163,10 +225,13 @@ class FriendsRepository {
             snap.docs.map((d) => Friendship.fromMap(d.id, d.data())).toList());
   }
 
-  /// Handles starting with [prefix], alphabetical, excluding this user's own.
-  /// Handles are the `usernames` doc ids, so this is a doc-id range query —
-  /// no composite index needed.
-  Future<List<String>> searchHandles(String prefix, {int limit = 8}) async {
+  /// People whose handle starts with [prefix], alphabetical, excluding this
+  /// user's own. Handles are the `usernames` doc ids, so this is a doc-id
+  /// range query — no composite index needed.
+  Future<List<HandleMatch>> searchHandles(
+    String prefix, {
+    int limit = 8,
+  }) async {
     final h = normalizeHandle(prefix);
     if (h.isEmpty) return const [];
     final snap = await db
@@ -206,8 +271,11 @@ class FriendsRepository {
     );
   }
 
-  /// Send a friend request to whoever owns [handle]. Resolves the handle via the
-  /// public usernames index; refuses self, missing handles, and duplicates.
+  /// Send a friend request to whoever owns [handle]. Resolves the handle via
+  /// the public usernames index, then adds by uid like everything else.
+  ///
+  /// The handle is required HERE because a handle is all this caller has —
+  /// it is typed into a field. A profile adds by uid; see [sendRequestTo].
   Future<void> sendRequest(String handle) async {
     final h = normalizeHandle(handle);
     if (h.isEmpty) throw const FriendException('Enter a handle.');
@@ -220,31 +288,41 @@ class FriendsRepository {
     final idx = await db.collection('usernames').doc(h).get();
     final targetUid = idx.data()?['uid'] as String?;
     if (!idx.exists || targetUid == null) {
-      throw FriendException('No one found with the handle @$h.');
+      throw FriendException(addFriendUnavailable(h));
     }
+    return sendRequestTo(targetUid, handle: h);
+  }
 
-    // The message is deliberately the same as "not found": telling someone
-    // they have been blocked is itself information. Only this user's own
-    // blocks are checked here; the other direction is refused by the rules on
-    // the write below, which raises the identical message.
-    if ((await _blockedByMe()).contains(targetUid)) {
-      throw FriendException('No one found with the handle @$h.');
-    }
+  /// Send a friend request to [targetUid] — what a profile does.
+  ///
+  /// The handle is optional and is never read to decide anything: it is
+  /// carried only so the pending row has something to print until they
+  /// accept and write their own identity. A profile is addressed by uid,
+  /// and the published document that would name its owner may not exist.
+  Future<void> sendRequestTo(String targetUid, {String handle = ''}) async {
+    final me = await _myIdentity();
 
-    // Duplicate check via a query we're allowed to run (the same array-contains
-    // shape as the stream) — NOT a direct get() on the pair doc. Reading a
-    // not-yet-existent friendships doc is denied, because the participant read
-    // rule dereferences resource.data.users on a null resource.
-    final mine =
-        await _friendships.where('users', arrayContains: uid).get();
-    final existing = mine.docs
+    // Duplicate check via a query we're allowed to run (the same
+    // array-contains shape as the stream) — NOT a direct get() on the pair
+    // doc. Reading a not-yet-existent friendships doc is denied, because
+    // the participant read rule dereferences resource.data.users on a null
+    // resource.
+    final mine = await _friendships.where('users', arrayContains: uid).get();
+    final existingDoc = mine.docs
         .where((d) => (d.data()['users'] as List?)?.contains(targetUid) ?? false)
         .firstOrNull;
-    if (existing != null) {
-      throw FriendException(existing.data()['status'] == 'accepted'
-          ? "You're already friends with @$h."
-          : 'There’s already a pending request with @$h.');
-    }
+
+    final refusal = addFriendRefusal(
+      myUid: uid,
+      targetUid: targetUid,
+      myHandle: me.username,
+      handle: handle,
+      blockedByMe: await _blockedByMe(),
+      existing: existingDoc == null
+          ? null
+          : Friendship.fromMap(existingDoc.id, existingDoc.data()),
+    );
+    if (refusal != null) throw refusal;
 
     final users = [uid, targetUid]..sort();
     try {
@@ -254,16 +332,16 @@ class FriendsRepository {
         'status': 'pending',
         'profiles': {
           uid: {'username': me.username, 'displayName': me.displayName},
-          targetUid: {'username': h},
+          targetUid: {'username': handle},
         },
         'createdAt': FieldValue.serverTimestamp(),
       });
     } on FirebaseException catch (e) {
-      // For a well-formed request the create rule's only conditional refusal
-      // is blockedEitherWay() — they blocked us. Same wording again, so the
-      // block stays invisible.
+      // For a well-formed request the create rule's only conditional
+      // refusal is blockedEitherWay() — they blocked us. The same wording
+      // as "no one found", so the block stays invisible.
       if (e.code == 'permission-denied') {
-        throw FriendException('No one found with the handle @$h.');
+        throw FriendException(addFriendUnavailable(handle));
       }
       rethrow;
     }
@@ -278,7 +356,11 @@ class FriendsRepository {
       throw const FriendException('That request is no longer available.');
     }
     try {
-      await _friendships.doc(pairId).update({
+      // One batch: the acceptance and both halves of the friend mirror. The
+      // rules allow a mirror entry only where the friendship is accepted
+      // AFTER the write lands (getAfter), which is exactly this.
+      final batch = db.batch();
+      batch.update(_friendships.doc(pairId), {
         'status': 'accepted',
         'acceptedAt': FieldValue.serverTimestamp(),
         'profiles.$uid': {
@@ -286,6 +368,8 @@ class FriendsRepository {
           'displayName': me.displayName,
         },
       });
+      if (other.isNotEmpty) addFriendMirror(batch, db, uid, other);
+      await batch.commit();
     } on FirebaseException catch (e) {
       // Denied means the rules refused the accept across a block in either
       // direction. Neutral wording: it does not say which.
@@ -309,8 +393,15 @@ class FriendsRepository {
   /// prunes too; the audiences simply contain nobody to remove, because a
   /// pending request was never in one.
   Future<void> remove(String pairId) async {
-    await _friendships.doc(pairId).delete();
     final other = Friendship.otherIn(pairId, uid);
+    final batch = db.batch();
+    batch.delete(_friendships.doc(pairId));
+    // A declined or cancelled REQUEST has no mirror halves; deleting what
+    // was never written is a no-op the rules allow, so this needs no branch.
+    if (other != null && other.isNotEmpty) {
+      removeFriendMirror(batch, db, uid, other);
+    }
+    await batch.commit();
     if (other != null) unawaited(pruner.pruneMyContentFor(other));
   }
 }

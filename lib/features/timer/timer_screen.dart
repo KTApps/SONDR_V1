@@ -21,6 +21,7 @@ import '../habits/habits_screen.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
 import '../milestone/milestone_celebration.dart';
+import '../profile/public_profile.dart';
 import '../photos/auto_collage.dart';
 import '../photos/collage_selection.dart';
 import '../photos/collages_repository.dart';
@@ -113,6 +114,10 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _maybeAskStillGoing();
+    // Leaving is the last chance to publish whatever this visit changed.
+    if (state == AppLifecycleState.paused) {
+      unawaited(ref.read(publishPublicProfileProvider)());
+    }
   }
 
   /// Ask whether a long-running session is real, and act on the answer.
@@ -429,6 +434,10 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
 
   Future<void> _onStop(BuildContext context, WidgetRef ref, Task? task) async {
     final outcome = await ref.read(timerControllerProvider.notifier).stop();
+    // The hours other people see. Covers the milestone crossing below too —
+    // every crossing is logged time first — and writes nothing when the
+    // whole-hour figure has not moved.
+    unawaited(ref.read(publishPublicProfileProvider)());
     // Always leave Focus Mode when the session ends.
     ref.read(focusModeProvider.notifier).disable();
     if (!context.mounted || outcome.loggedSeconds <= 0) return;

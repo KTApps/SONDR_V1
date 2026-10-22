@@ -14,6 +14,7 @@ import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_swipe_row.dart';
 import '../auth/handle_screen.dart';
+import '../profile/other_profile_screen.dart';
 import '../auth/profile_repository.dart';
 import 'blocked_accounts_screen.dart';
 import 'friends_repository.dart';
@@ -58,7 +59,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
   Timer? _debounce;
   String _query = '';
   String _matchesFor = '';
-  List<String> _matches = const [];
+  List<HandleMatch> _matches = const [];
 
   void _onQueryChanged(String raw) {
     final q = normalizeHandle(raw);
@@ -78,7 +79,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
   Future<void> _search(String q) async {
     final repo = ref.read(friendsRepositoryProvider);
     if (repo == null) return;
-    List<String> found;
+    List<HandleMatch> found;
     try {
       found = await repo.searchHandles(q);
     } catch (e) {
@@ -221,24 +222,28 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        for (final h in _matches)
+        for (final m in _matches)
           _FriendRow(
-            identity: FriendIdentity(username: h, displayName: ''),
-            status: areFriends.contains(h)
+            identity: FriendIdentity(username: m.handle, displayName: ''),
+            // The row itself is the way to their profile; Add stays where it
+            // is, so a tap on the name and a tap on the action still mean
+            // two different things.
+            onTap: () => openProfile(context, ref, m.uid, handle: m.handle),
+            status: areFriends.contains(m.handle)
                 ? 'Friends'
-                : sent.contains(h)
+                : sent.contains(m.handle)
                     ? 'Requested'
-                    : received.contains(h)
+                    : received.contains(m.handle)
                         ? 'Sent you a request'
                         : null,
-            trailing: areFriends.contains(h) ||
-                    sent.contains(h) ||
-                    received.contains(h)
+            trailing: areFriends.contains(m.handle) ||
+                    sent.contains(m.handle) ||
+                    received.contains(m.handle)
                 ? null
                 : SondrAction(
                     label: 'Add',
                     fontSize: kRowActionSize,
-                    onPressed: _busy ? null : () => _add(h),
+                    onPressed: _busy ? null : () => _add(m.handle),
                   ),
           ),
       ],
@@ -332,16 +337,18 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                   // A request is a decision, so both answers stay on the row.
                   _FriendRow(
                     identity: f.otherIdentity(uid ?? ''),
+                    onTap: () => _openOther(context, ref, f, uid),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         SondrAction(
                           label: 'Accept',
                           fontSize: kRowActionSize,
-                          onPressed: _busy
-                              ? null
-                              : () => _run((r) => r.accept(f.id),
-                                  success: 'You\u2019re now friends.'),
+                          // No notice: the row leaves Requests and joins
+                          // Friends, and the profile's status reads
+                          // Friends. Saying it a third time said nothing.
+                          onPressed:
+                              _busy ? null : () => _run((r) => r.accept(f.id)),
                         ),
                         SondrAction(
                           label: 'Decline',
@@ -380,6 +387,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                     ],
                     child: _FriendRow(
                       identity: f.otherIdentity(uid ?? ''),
+                      onTap: () => _openOther(context, ref, f, uid),
                       status: 'Requested',
                     ),
                   ),
@@ -424,7 +432,10 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                             },
                     ),
                   ],
-                  child: _FriendRow(identity: f.otherIdentity(uid ?? '')),
+                  child: _FriendRow(
+                    identity: f.otherIdentity(uid ?? ''),
+                    onTap: () => _openOther(context, ref, f, uid),
+                  ),
                 ),
             ],
           ),
@@ -490,6 +501,26 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       ],
     );
   }
+}
+
+/// The other participant's profile, told the identity the friendship has
+/// already denormalised — so it opens with their name in it whether or not
+/// they have published a profile of their own.
+void _openOther(
+  BuildContext context,
+  WidgetRef ref,
+  Friendship f,
+  String? myUid,
+) {
+  final me = myUid ?? '';
+  final identity = f.otherIdentity(me);
+  openProfile(
+    context,
+    ref,
+    f.otherUid(me),
+    handle: identity?.username ?? '',
+    displayName: identity?.displayName ?? '',
+  );
 }
 
 /// Which collapsible section is open. Friends is deliberately absent — it is
@@ -565,9 +596,17 @@ class _Capped extends StatelessWidget {
 /// yet, so the square is a surface-toned placeholder rather than an avatar; it
 /// is deliberately a rounded square, not a circle, and never a white fill.
 class _FriendRow extends StatelessWidget {
-  const _FriendRow({required this.identity, this.status, this.trailing});
+  const _FriendRow({
+    required this.identity,
+    this.status,
+    this.trailing,
+    this.onTap,
+  });
 
   final FriendIdentity? identity;
+
+  /// Their profile. Absent only where there is no uid to open.
+  final VoidCallback? onTap;
 
   /// Metadata beside the name, e.g. "Requested".
   final String? status;
@@ -598,7 +637,7 @@ class _FriendRow extends StatelessWidget {
     final scale = figmaScale(context);
     final name = identity?.username ?? 'Unknown';
 
-    return Padding(
+    final row = Padding(
       padding: EdgeInsets.symmetric(
         horizontal: 24 * scale,
         vertical: _kRowPad * scale,
@@ -640,6 +679,14 @@ class _FriendRow extends StatelessWidget {
           ?trailing,
         ],
       ),
+    );
+    if (onTap == null) return row;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      // A tap on an OPEN swipe tray closes it; the row's own tap only means
+      // "go to their profile" once nothing is revealed.
+      onTap: onTap,
+      child: row,
     );
   }
 }

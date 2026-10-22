@@ -62,6 +62,39 @@ service cloud.firestore {
       return blocked(users[0], users[1]) || blocked(users[1], users[0]);
     }
 
+    // The friendships document id for a pair: the two uids sorted and
+    // joined. MUST stay byte-identical to Friendship.pairId in
+    // lib/features/friends/models/friendship.dart — if the two drift apart
+    // the mirror rules below look up a document that does not exist and
+    // every friend list silently stops being readable.
+    function pairId(a, b) {
+      return a < b ? a + '__' + b : b + '__' + a;
+    }
+
+    // Whether a and b are friends, as things stand. A missing document is
+    // null, not an error, so a pair who have never met is simply false.
+    function acceptedBetween(a, b) {
+      let pair = get(/databases/$(database)/documents/friendships/$(pairId(a, b)));
+      return pair != null && pair.data.status == 'accepted';
+    }
+
+    // Whether they are friends AFTER this write lands. The accepter writes
+    // both halves of the mirror in the same batch as the acceptance itself,
+    // so at the moment the rule runs the friendship is still pending —
+    // get() would refuse the very write that makes it true.
+    function acceptedAfter(a, b) {
+      let pair = getAfter(/databases/$(database)/documents/friendships/$(pairId(a, b)));
+      return pair != null && pair.data.status == 'accepted';
+    }
+
+    // Whether `handle` is claimed by `uid` in the usernames index. A public
+    // profile that could name any handle would be an impersonation vector:
+    // the handle is the name everything else in the app goes by.
+    function handleIsTheirs(handle, uid) {
+      let claim = get(/databases/$(database)/documents/usernames/$(handle));
+      return claim != null && claim.data.uid == uid;
+    }
+
     match /friendships/{pairId} {
       allow read, delete: if request.auth != null
                           && request.auth.uid in resource.data.users;
@@ -96,6 +129,66 @@ service cloud.firestore {
     match /{path=**}/comments/{commentId} {
       allow read: if request.auth != null
                   && resource.data.authorUid == request.auth.uid;
+    }
+
+    // What a profile for OTHER people can show.
+    //
+    // `users/{uid}/**` is owner-only, so nothing about another person is
+    // readable from it — not their handle, not their hours. A profile needs
+    // a published copy of the few facts it shows, and this is it: the
+    // handle, the display name, and whole hours. The owner's own client
+    // writes it, debounced; the handle is checked against the usernames
+    // index so the doc cannot claim someone else's name.
+    //
+    // Readable by any signed-in user, and deliberately NOT block-aware. A
+    // read that failed for one person and succeeded for another would be
+    // the tell that they had been blocked, which is the one thing a block
+    // must never disclose. Blocks are enforced where they already are: on
+    // the writes, whose refusals are worded identically to "no one found".
+    match /publicProfiles/{uid} {
+      allow read: if request.auth != null;
+
+      allow create, update: if request.auth != null
+                            && request.auth.uid == uid
+                            && handleIsTheirs(request.resource.data.handle, uid);
+
+      // A delete carries no incoming document, so there is nothing to check
+      // but ownership.
+      allow delete: if request.auth != null && request.auth.uid == uid;
+
+      // Their friends, mirrored.
+      //
+      // `friendships` itself cannot answer "who are their friends": a rule
+      // asking whether the reader is a friend of one of a document's two
+      // participants would have to look up a path built from that
+      // document's own data, which a list query cannot prove, so the whole
+      // query would fail rather than return the allowed rows. Here the path
+      // names the owner, so the lookup is built from the path — the same
+      // shape as a comment's rule reaching its parent post.
+      //
+      // Id-only on purpose: the document id IS the friend's uid, and each
+      // row renders from that person's own publicProfiles doc, so a name
+      // can neither go stale nor be forged.
+      match /friends/{friendUid} {
+        allow read: if request.auth != null
+                    && (request.auth.uid == uid
+                        || acceptedBetween(request.auth.uid, uid));
+
+        // Either party may write either half, so the acceptance and both
+        // halves of the mirror are one batch — and a half can only exist
+        // where the friendship really does.
+        allow create, update: if request.auth != null
+                              && (request.auth.uid == uid
+                                  || request.auth.uid == friendUid)
+                              && request.resource.data.keys().hasOnly(['since'])
+                              && acceptedAfter(uid, friendUid);
+
+        // Either party may remove either half, so unfriending and blocking
+        // clear the mirror in the same batch that clears the friendship.
+        allow delete: if request.auth != null
+                      && (request.auth.uid == uid
+                          || request.auth.uid == friendUid);
+      }
     }
 
     // Feed posts. Friends-only: each post carries an `audience` array (the

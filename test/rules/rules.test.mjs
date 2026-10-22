@@ -7,7 +7,8 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  collection, doc, getDocs, orderBy, query, setDoc, updateDoc, where,
+  collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, setDoc,
+  updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
 /**
@@ -24,6 +25,14 @@ import {
 const A = 'uid_author';
 const B = 'uid_blocked';
 const C = 'uid_friend';
+/// A fourth party, friends with nobody — the stranger's view of a profile.
+const D = 'uid_stranger';
+
+/// The friendships document id for a pair. Byte-identical to
+/// Friendship.pairId in lib/features/friends/models/friendship.dart AND to
+/// pairId() in firestore.rules; the test below proves all three agree by
+/// writing with one and reading under the other.
+function pairId(a, b) { return [a, b].sort().join('__'); }
 
 let env;
 
@@ -212,5 +221,245 @@ describe('finding my own comments to prune', () => {
   it('an unfiltered collection-group query is denied', async () => {
     const { collectionGroup } = await import('firebase/firestore');
     await assertFails(getDocs(collectionGroup(as(A), 'comments')));
+  });
+});
+
+/**
+ * A profile for OTHER people.
+ *
+ * Nothing under users/{uid} is readable cross-user, so the facts a profile
+ * shows are published into publicProfiles/{uid} by their owner, and their
+ * friend list is mirrored into a subcollection whose PATH names the owner —
+ * which is the only shape a friends-only list query can prove.
+ */
+describe('publicProfiles', () => {
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'usernames/ada'), { uid: A });
+      await setDoc(doc(db, 'usernames/cass'), { uid: C });
+      await setDoc(doc(db, 'publicProfiles/' + A), {
+        handle: 'ada', displayName: 'Ada', hours: 41, updatedAt: 1,
+      });
+    });
+  });
+
+  it('any signed-in user can read one', async () => {
+    const snap = await assertSucceeds(getDoc(doc(as(D), 'publicProfiles/' + A)));
+    assert.equal(snap.data().hours, 41);
+  });
+
+  it('a signed-out reader cannot', async () => {
+    await assertFails(
+      getDoc(doc(env.unauthenticatedContext().firestore(), 'publicProfiles/' + A)));
+  });
+
+  it('only the owner writes it', async () => {
+    await assertSucceeds(setDoc(doc(as(A), 'publicProfiles/' + A), {
+      handle: 'ada', displayName: 'Ada', hours: 42, updatedAt: 2,
+    }));
+    await assertFails(setDoc(doc(as(C), 'publicProfiles/' + A), {
+      handle: 'ada', displayName: 'Not Ada', hours: 999, updatedAt: 3,
+    }));
+  });
+
+  it('a handle the usernames index does not give them is refused', async () => {
+    // Cass's own doc may not claim Ada's handle, and may not claim a handle
+    // nobody has registered.
+    await assertFails(setDoc(doc(as(C), 'publicProfiles/' + C), {
+      handle: 'ada', displayName: 'Cass', hours: 1, updatedAt: 1,
+    }));
+    await assertFails(setDoc(doc(as(C), 'publicProfiles/' + C), {
+      handle: 'nobody', displayName: 'Cass', hours: 1, updatedAt: 1,
+    }));
+    await assertSucceeds(setDoc(doc(as(C), 'publicProfiles/' + C), {
+      handle: 'cass', displayName: 'Cass', hours: 1, updatedAt: 1,
+    }));
+  });
+});
+
+describe('the friend mirror', () => {
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      // A and C are friends; A and D have a pending request; B is nobody's.
+      await setDoc(doc(db, 'friendships/' + pairId(A, C)), {
+        users: [A, C].sort(), requestedBy: A, status: 'accepted',
+      });
+      // A asked D, so D is the one who can accept it.
+      await setDoc(doc(db, 'friendships/' + pairId(A, D)), {
+        users: [A, D].sort(), requestedBy: A, status: 'pending',
+      });
+      await setDoc(doc(db, 'publicProfiles/' + A + '/friends/' + C), { since: 1 });
+    });
+  });
+
+  it('a friend can list it', async () => {
+    const snap = await assertSucceeds(
+      getDocs(collection(as(C), 'publicProfiles/' + A + '/friends')));
+    assert.deepEqual(snap.docs.map((d) => d.id), [C]);
+  });
+
+  it('the owner can always list their own', async () => {
+    await assertSucceeds(
+      getDocs(collection(as(A), 'publicProfiles/' + A + '/friends')));
+  });
+
+  it('a stranger is denied, and so is a pending relationship', async () => {
+    await assertFails(
+      getDocs(collection(as(B), 'publicProfiles/' + A + '/friends')));
+    await assertFails(
+      getDocs(collection(as(D), 'publicProfiles/' + A + '/friends')));
+  });
+
+  it('the pair id the rules build is the one Dart writes', async () => {
+    // The friendship was seeded under the SORTED id. The read above found it
+    // from C's side; this finds it from A's, so neither order can be the
+    // only one that works.
+    await assertSucceeds(
+      getDocs(collection(as(A), 'publicProfiles/' + C + '/friends')));
+  });
+
+  it('an entry without an accepted friendship behind it is refused', async () => {
+    // A's request to D is still pending.
+    await assertFails(
+      setDoc(doc(as(D), 'publicProfiles/' + D + '/friends/' + A), { since: 1 }));
+    await assertFails(
+      setDoc(doc(as(D), 'publicProfiles/' + A + '/friends/' + D), { since: 1 }));
+    // And nobody can invent a friendship that was never asked for.
+    await assertFails(
+      setDoc(doc(as(B), 'publicProfiles/' + B + '/friends/' + A), { since: 1 }));
+  });
+
+  it('an entry carrying more than `since` is refused', async () => {
+    await assertFails(
+      setDoc(doc(as(C), 'publicProfiles/' + C + '/friends/' + A),
+        { since: 1, handle: 'ada' }));
+  });
+
+  it('the accepter writes both halves in the same batch as the accept', async () => {
+    const pair = pairId(A, D);
+    const db = as(D);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'friendships/' + pair), { status: 'accepted' });
+    batch.set(doc(db, 'publicProfiles/' + D + '/friends/' + A), { since: 2 });
+    batch.set(doc(db, 'publicProfiles/' + A + '/friends/' + D), { since: 2 });
+    await assertSucceeds(batch.commit());
+  });
+
+  it('either party can delete either half', async () => {
+    // C removes themselves from A's list, and A removes C's copy.
+    await assertSucceeds(
+      deleteDoc(doc(as(C), 'publicProfiles/' + A + '/friends/' + C)));
+    await seed(async (db) => {
+      await setDoc(doc(db, 'publicProfiles/' + C + '/friends/' + A), { since: 1 });
+    });
+    await assertSucceeds(
+      deleteDoc(doc(as(A), 'publicProfiles/' + C + '/friends/' + A)));
+    // Someone outside the pair cannot.
+    await seed(async (db) => {
+      await setDoc(doc(db, 'publicProfiles/' + A + '/friends/' + C), { since: 1 });
+    });
+    await assertFails(
+      deleteDoc(doc(as(B), 'publicProfiles/' + A + '/friends/' + C)));
+  });
+});
+
+describe('the posts on a profile', () => {
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      // Three of A's posts. C is in all three; B was pruned out of one;
+      // D (a stranger) is in none.
+      await setDoc(doc(db, 'posts/p1'), {
+        authorUid: A, audience: [A, B, C], type: 'milestone', createdAt: 1 });
+      await setDoc(doc(db, 'posts/p2'), {
+        authorUid: A, audience: [A, C], type: 'session', createdAt: 2 });
+      await setDoc(doc(db, 'posts/p3'), {
+        authorUid: A, audience: [A, B, C], type: 'session', createdAt: 3 });
+      // Someone else's post, to prove the author filter is doing something.
+      await setDoc(doc(db, 'posts/p4'), {
+        authorUid: C, audience: [A, B, C], type: 'session', createdAt: 4 });
+    });
+  });
+
+  /** The query the profile screen runs. */
+  function profilePosts(reader, author) {
+    return query(
+      collection(as(reader), 'posts'),
+      where('authorUid', '==', author),
+      where('audience', 'array-contains', reader),
+      orderBy('createdAt', 'desc'),
+      limit(100),
+    );
+  }
+
+  it('returns the author\'s posts the reader is in', async () => {
+    const snap = await assertSucceeds(getDocs(profilePosts(C, A)));
+    assert.deepEqual(snap.docs.map((d) => d.id), ['p3', 'p2', 'p1']);
+  });
+
+  it('a pruned reader gets a SHORTER list, not an error', async () => {
+    const snap = await assertSucceeds(getDocs(profilePosts(B, A)));
+    assert.deepEqual(snap.docs.map((d) => d.id), ['p3', 'p1']);
+  });
+
+  it('a stranger gets an empty list, not an error', async () => {
+    const snap = await assertSucceeds(getDocs(profilePosts(D, A)));
+    assert.equal(snap.size, 0);
+  });
+
+  it('the same query without the audience filter is denied outright', async () => {
+    await assertFails(getDocs(query(
+      collection(as(C), 'posts'),
+      where('authorUid', '==', A),
+      orderBy('createdAt', 'desc'),
+    )));
+  });
+});
+
+describe('a profile gives a block away nowhere', () => {
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      // A has blocked B: the friendship is gone and B is pruned out of the
+      // audiences. B must not be able to tell any of that apart from "we
+      // were never friends".
+      await setDoc(doc(db, 'usernames/ada'), { uid: A });
+      await setDoc(doc(db, 'publicProfiles/' + A), {
+        handle: 'ada', displayName: 'Ada', hours: 41, updatedAt: 1 });
+      await setDoc(doc(db, 'blocks/' + A + '__' + B), { blocker: A, blocked: B });
+      await setDoc(doc(db, 'posts/p1'), {
+        authorUid: A, audience: [A], type: 'milestone', createdAt: 1 });
+    });
+  });
+
+  it('the blocked reader still reads the public profile normally', async () => {
+    const snap = await assertSucceeds(getDoc(doc(as(B), 'publicProfiles/' + A)));
+    assert.equal(snap.data().handle, 'ada');
+    // Byte for byte what a stranger sees.
+    const theirs = await assertSucceeds(getDoc(doc(as(D), 'publicProfiles/' + A)));
+    assert.deepEqual(snap.data(), theirs.data());
+  });
+
+  it('their posts query is empty, exactly as a stranger\'s is', async () => {
+    const mine = await assertSucceeds(getDocs(query(
+      collection(as(B), 'posts'),
+      where('authorUid', '==', A),
+      where('audience', 'array-contains', B),
+      orderBy('createdAt', 'desc'),
+    )));
+    assert.equal(mine.size, 0);
+  });
+
+  it('the friend list is denied the same way it is for a stranger', async () => {
+    await assertFails(
+      getDocs(collection(as(B), 'publicProfiles/' + A + '/friends')));
+    await assertFails(
+      getDocs(collection(as(D), 'publicProfiles/' + A + '/friends')));
+  });
+
+  it('the block document itself stays invisible to the person blocked', async () => {
+    await assertFails(getDoc(doc(as(B), 'blocks/' + A + '__' + B)));
   });
 });

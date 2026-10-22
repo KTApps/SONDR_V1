@@ -252,7 +252,7 @@ void main() {
       // Their initial instead.
       expect(find.text('C'), findsOneWidget);
       // Removing a friend you do not have is not offered; blocking is.
-      expect(find.text('Remove friend'), findsNothing);
+      expect(find.text('Remove'), findsNothing);
       expect(find.text('Block'), findsOneWidget);
     });
 
@@ -319,7 +319,7 @@ void main() {
         findsNWidgets(2),
         reason: 'the status line, and the section heading of the same name',
       );
-      expect(find.text('Remove friend'), findsOneWidget);
+      expect(find.text('Remove'), findsOneWidget);
       expect(find.text('Block'), findsOneWidget);
     });
 
@@ -355,31 +355,29 @@ void main() {
       tester,
     ) async {
       await pump(tester, friendships: [_friendship()]);
-      // A scroll away, like Sign out.
-      await tester.ensureVisible(find.text('Remove friend'));
+      await tester.tap(find.text('Remove'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove friend'));
-      await tester.pumpAndSettle();
-      expect(find.text('Remove friend?'), findsOneWidget);
+      expect(find.text('Remove cass?'), findsOneWidget);
       expect(find.text(removeFriendBody('cass')), findsOneWidget);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
-      expect(find.text('Remove friend?'), findsNothing);
+      expect(find.text('Remove cass?'), findsNothing);
       // Still their friend.
       expect(find.text('Friends'), findsWidgets);
     });
 
     testWidgets('Block asks first, naming what it does', (tester) async {
       await pump(tester, friendships: [_friendship()]);
-      await tester.ensureVisible(find.text('Block'));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Block'));
       await tester.pumpAndSettle();
-      expect(find.text('Block this person?'), findsOneWidget);
-      expect(find.textContaining('taken out of the posts'), findsOneWidget);
+      expect(find.text('Block cass?'), findsOneWidget);
+      expect(
+        find.text('They won\'t be able to see your profile or posts.'),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
-      expect(find.text('Block this person?'), findsNothing);
+      expect(find.text('Block cass?'), findsNothing);
     });
 
     testWidgets('someone I blocked shows nothing of theirs, and Unblock', (
@@ -546,11 +544,10 @@ void main() {
       final acts = _FakeActions();
       final f = _friendship();
       await pump(tester, friendships: [f], actions: acts, published: null);
-      await tester.ensureVisible(find.text('Remove friend'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove friend'));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+      // The card's Remove, not the bar's.
+      await tester.tap(find.text('Remove').last);
       await tester.pumpAndSettle();
       expect(acts.removed, [f.id]);
     });
@@ -652,6 +649,47 @@ void main() {
 
       expect(find.widgetWithText(ProfileHeading, 'Friends'), findsOneWidget);
       expect(find.widgetWithText(ProfileHeading, '2'), findsOneWidget);
+    });
+
+    testWidgets('a second tap on the bar never confirms', (tester) async {
+      // The actions sit where muscle memory expects a tab. Tapping twice
+      // — the way you would switch tabs and change your mind — must not
+      // remove or block anyone. (The second tap lands on the card's
+      // scrim, which dismisses it: a no, as it should be.)
+      final acts = _FakeActions();
+      await pump(tester, friendships: [_friendship()], actions: acts);
+      for (final label in ['Remove', 'Block']) {
+        final slot = tester.getRect(find.text(label)).center;
+        await tester.tapAt(slot);
+        await tester.pumpAndSettle();
+        // The card's own action is nowhere near the slot that opened it.
+        expect(
+          tester.getRect(find.text(label).last).contains(slot),
+          isFalse,
+          reason: '$label sits under its own slot',
+        );
+        await tester.tapAt(slot);
+        await tester.pumpAndSettle();
+      }
+      expect(acts.removed, isEmpty, reason: 'a double tap removed them');
+      expect(acts.blocked, isEmpty, reason: 'a double tap blocked them');
+    });
+
+    testWidgets('Block writes nothing until the card says so', (tester) async {
+      final acts = _FakeActions();
+      await pump(tester, friendships: [_friendship()], actions: acts);
+      await tester.tap(find.text('Block'));
+      await tester.pumpAndSettle();
+      expect(acts.blocked, isEmpty);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(acts.blocked, isEmpty);
+
+      await tester.tap(find.text('Block'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Block').last);
+      await tester.pumpAndSettle();
+      expect(acts.blocked, [them]);
     });
 
     testWidgets('nothing is painted until everything is known', (tester) async {

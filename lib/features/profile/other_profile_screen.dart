@@ -20,6 +20,7 @@ import '../friends/models/friendship.dart';
 import '../shell/main_shell.dart';
 import '../timer/home_metrics.dart';
 import 'friend_status.dart';
+import 'profile_action_bar.dart';
 import 'profile_actions.dart';
 import 'profile_metrics.dart';
 import 'public_profile.dart';
@@ -181,15 +182,57 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
     // Read above the SafeArea that consumes it, like the personal Profile.
     final topInset = MediaQuery.paddingOf(context).top;
 
+    // What the Posts grid holds, and how it is laid out: four across,
+    // filling the content box exactly.
+    final pictured = [
+      for (final p in posts)
+        if (p.photos.isNotEmpty) p,
+    ];
+    final contentWidth =
+        MediaQuery.sizeOf(context).width - 2 * kProfileGutter * scale;
+    final tile = profileGridTile(context, contentWidth);
+    final rows = <List<Post>>[
+      for (var i = 0; i < pictured.length; i += kProfileGridColumns)
+        pictured.sublist(
+          i,
+          (i + kProfileGridColumns).clamp(0, pictured.length),
+        ),
+    ];
+
     return Scaffold(
+      // The bar sits where the tab bar sits, and takes the same space out
+      // of the page, so the grid runs to its top edge exactly as Profile's
+      // own content runs to the tab bar's.
+      bottomNavigationBar: ProfileActionBar(
+        slots: [
+          if (status == FriendStatus.accepted)
+            ProfileBarSlot(
+              label: 'Remove',
+              onTap: _busy ? null : () => _remove(them, friendships, myUid),
+            )
+          else
+            null,
+          ProfileBarSlot(
+            label: 'Back',
+            onTap: () => Navigator.of(context).maybePop(),
+          ),
+          if (status == FriendStatus.blockedByMe)
+            null
+          else
+            ProfileBarSlot(
+              label: 'Block',
+              onTap: _busy ? null : () => _block(them, myUid),
+            ),
+        ],
+      ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, viewport) {
-            // The pin exists to land the last strip on the line the
-            // personal Profile's last element sits on. A stranger's page
-            // has no sections to reach that far, and pinning anyway is
-            // what inflates a hero into a void — so it is top-anchored
-            // and compact instead, exactly as a guest's own Profile is.
+            // The pin exists to land what the first screen ends on where
+            // the personal Profile's last element lands. A stranger's page
+            // has nothing to reach that far, and pinning anyway is what
+            // inflates a hero into a void — so it is top-anchored and
+            // compact instead, exactly as a guest's own Profile is.
             final canPin = sees;
             final heroGap = [
               SizedBox(height: kProfileHeroGapMin * scale),
@@ -199,6 +242,17 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
                 ),
               ),
             ];
+            // The first screen ends one ROW GAP after the grid's first
+            // row, not one clearance, so the second row follows at the
+            // grid's own rhythm. Both the box and its trailing space come
+            // down by the same amount, which leaves the hero gaps — and so
+            // every element above — exactly where they were.
+            final clearance = profileLastStripClearance(context);
+            final trailing = rows.isEmpty
+                ? clearance
+                : kProfileStripGap * scale;
+            final pin = profileFirstScreenHeight(context, topInset) -
+                (clearance - trailing);
 
             return SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
@@ -206,8 +260,11 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   ProfileFirstScreen(
-                    pin: profileFirstScreenHeight(context, topInset),
-                    viewport: viewport.maxHeight,
+                    pin: pin,
+                    // No viewport floor: the grid carries on straight out
+                    // of the box, and the bar is what holds the bottom of
+                    // the page now.
+                    viewport: 0,
                     gapFloor: kProfileHeroGapMin * scale,
                     gapCeiling: kProfileHeroGapMax * scale,
                     gapUnpinned: kProfileHeroGap * scale,
@@ -297,63 +354,37 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
                               milestonesOnly: true,
                             ),
                           ),
+                          // Posts: the heading, and the grid's FIRST row.
+                          // The rest of the grid is below, outside the
+                          // box, so the page can be as long as it likes
+                          // without moving anything above it.
                           _Break(
-                            child: _PostSection(
-                              label: 'Posts',
+                            child: _PostsHead(
                               uid: widget.uid,
                               handle: them.handle,
-                              posts: posts,
-                              milestonesOnly: false,
-                              // The last section stands where "In progress"
-                              // stands: the same line box for its heading,
-                              // and the same 20 beneath it, so its strip
-                              // starts on the ring row's top.
-                              last: true,
+                              count: posts.length,
+                              firstRow: rows.isEmpty ? const [] : rows.first,
+                              tile: tile,
                             ),
                           ),
                         ],
-                        // The personal Profile's clearance, adjusted by
-                        // however much a strip tile differs from the ring
-                        // row it stands in for at this text size. Taking
-                        // that difference from BELOW the strip rather than
-                        // from the hero above it is what keeps every
-                        // element on this page on its counterpart's line.
-                        SizedBox(height: profileLastStripClearance(context)),
+                        SizedBox(height: trailing),
                       ],
                     ),
                   ),
-                  // BELOW THE FOLD, where Sign out lives on my own page:
-                  // the two things you would be sorry to tap by accident,
-                  // and the way back.
+                  // THE REST OF THE GRID, straight out of the box at the
+                  // same rhythm.
+                  if (sees)
+                    for (var r = 1; r < rows.length; r++) ...[
+                      ProfileGutter(
+                        child: _GridRow(photos: rows[r], tile: tile),
+                      ),
+                      if (r < rows.length - 1)
+                        SizedBox(height: kProfileStripGap * scale),
+                    ],
+                  // The last row ends above the bar where Profile's own
+                  // content ends above the tab bar.
                   SizedBox(height: kSpacingBase * scale),
-                  const ProfileGutter(child: ProfileHairline()),
-                  SizedBox(height: kSpacingSection * scale),
-                  if (status == FriendStatus.accepted)
-                    Center(
-                      child: SondrAction(
-                        label: 'Remove friend',
-                        supporting: true,
-                        onPressed: _busy
-                            ? null
-                            : () => _remove(them, friendships, myUid),
-                      ),
-                    ),
-                  if (status != FriendStatus.blockedByMe)
-                    Center(
-                      child: SondrAction(
-                        label: 'Block',
-                        supporting: true,
-                        onPressed: _busy ? null : () => _block(them, myUid),
-                      ),
-                    ),
-                  Center(
-                    child: SondrAction(
-                      label: 'Back',
-                      supporting: true,
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                  ),
-                  SizedBox(height: kSpacingSection * scale),
                 ],
               ),
             );
@@ -414,7 +445,7 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
     if (f == null) return;
     final yes = await showSondrConfirm(
       context,
-      title: 'Remove friend?',
+      title: removeFriendTitle(them.handle),
       body: removeFriendBody(them.handle),
       confirmLabel: 'Remove',
     );
@@ -425,7 +456,7 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
   Future<void> _block(PublicProfile them, String myUid) async {
     final yes = await showSondrConfirm(
       context,
-      title: 'Block this person?',
+      title: blockTitle(them.handle),
       body: blockBody(them.handle),
       confirmLabel: 'Block',
     );
@@ -438,20 +469,23 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
   }
 }
 
-/// What removing a friend costs, said plainly. Named where there is a name
-/// to use, because the page can be reached from a list and the person you
-/// mean should not be in doubt.
-String removeFriendBody(String handle) =>
-    '${handle.isEmpty ? 'They' : handle} will stop seeing your posts, and '
-    'you theirs. You can add each other again later.';
+/// The two confirms, named where there is a name to use.
+///
+/// Both actions sit in the bar, under the thumb that reaches for a tab, so
+/// neither acts on a tap: they ask first, in a card in the middle of the
+/// screen, nowhere near the slot that opened it. A second tap on the bar
+/// lands on the card's scrim.
+String removeFriendTitle(String handle) =>
+    'Remove ${handle.isEmpty ? 'them' : handle}?';
 
-/// What blocking does. The second clause is the prune: blocking takes the
-/// other person out of the audiences of everything this user has already
-/// written, which is why it is not simply an unfriend.
+String removeFriendBody(String handle) =>
+    'You\'ll stop seeing each other\'s posts.';
+
+String blockTitle(String handle) =>
+    'Block ${handle.isEmpty ? 'them' : handle}?';
+
 String blockBody(String handle) =>
-    '${handle.isEmpty ? 'They' : handle} will not see your posts or be able '
-    'to add you, and they are taken out of the posts and comments you have '
-    'already written.';
+    'They won\'t be able to see your profile or posts.';
 
 /// Who to say this is.
 ///
@@ -692,6 +726,92 @@ class _Break extends StatelessWidget {
 /// strip is the ones with a photo, the same rule my own Milestones strip
 /// takes — a post with nothing to show is counted and not pictured. The
 /// heading opens the lot as a grid.
+/// The Posts heading, and the first row of its grid.
+///
+/// The heading opens the lot as a page; a tile opens one post. The count
+/// is every post the reader may see — a post with no photo is counted and
+/// not pictured, the same rule the strip above it takes.
+class _PostsHead extends StatelessWidget {
+  const _PostsHead({
+    required this.uid,
+    required this.handle,
+    required this.count,
+    required this.firstRow,
+    required this.tile,
+  });
+
+  final String uid;
+  final String handle;
+  final int count;
+  final List<Post> firstRow;
+  final double tile;
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = figmaScale(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ProfileGutter(
+          child: ProfileHeading(
+            label: 'Posts',
+            // The last section's heading stands in the box "In progress"
+            // stands in — see ProfileHeading.tight.
+            tight: true,
+            count: count == 0 ? null : profileCountLabel(count),
+            onTap: count == 0
+                ? null
+                : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => PostsGridScreen(
+                          uid: uid,
+                          handle: handle,
+                          title: 'Posts',
+                          milestonesOnly: false,
+                        ),
+                      ),
+                    ),
+          ),
+        ),
+        if (firstRow.isNotEmpty) ...[
+          SizedBox(height: kProfileHeadingToRings * scale),
+          ProfileGutter(child: _GridRow(photos: firstRow, tile: tile)),
+        ],
+      ],
+    );
+  }
+}
+
+/// One row of the Posts grid: up to four tiles, the gap between them, and
+/// nothing stretched to fill a short last row.
+class _GridRow extends StatelessWidget {
+  const _GridRow({required this.photos, required this.tile});
+
+  final List<Post> photos;
+  final double tile;
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = figmaScale(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < photos.length; i++) ...[
+          if (i > 0) SizedBox(width: kProfileStripGap * scale),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => showSinglePost(context, photos[i]),
+            child: ProfileStripTile(
+              url: photos[i].photos.first.url,
+              side: tile,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _PostSection extends ConsumerWidget {
   const _PostSection({
     required this.label,
@@ -699,13 +819,7 @@ class _PostSection extends ConsumerWidget {
     required this.handle,
     required this.posts,
     required this.milestonesOnly,
-    this.last = false,
   });
-
-  /// The bottom section of the first screen, standing where "In progress"
-  /// stands on the personal Profile: a tighter heading, and 20 beneath it
-  /// rather than 26.
-  final bool last;
 
   final String label;
   final String uid;
@@ -726,7 +840,6 @@ class _PostSection extends ConsumerWidget {
         ProfileGutter(
           child: ProfileHeading(
             label: label,
-            tight: last,
             count: posts.isEmpty ? null : profileCountLabel(posts.length),
             onTap: posts.isEmpty
                 ? null
@@ -743,11 +856,7 @@ class _PostSection extends ConsumerWidget {
           ),
         ),
         if (pictured.isNotEmpty) ...[
-          SizedBox(
-            height:
-                (last ? kProfileHeadingToRings : kProfileHeadingToPhotos) *
-                    scale,
-          ),
+          SizedBox(height: kProfileHeadingToPhotos * scale),
           // Full-bleed: the viewport is the screen and the margin is the
           // scroller's own padding, so the first tile starts on the margin
           // and the last can be dragged to it.

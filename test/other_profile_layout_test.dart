@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/backend.dart';
 import 'package:sondr/core/theme/app_theme.dart';
+import 'package:sondr/core/theme/spacing.dart';
 import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/auth/models/profile.dart';
 import 'package:sondr/features/auth/profile_repository.dart';
@@ -17,15 +18,16 @@ import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/profile/milestone_strip.dart';
 import 'package:sondr/features/profile/other_profile_screen.dart';
+import 'package:sondr/features/profile/profile_action_bar.dart';
 import 'package:sondr/features/profile/profile_metrics.dart';
 import 'package:sondr/features/profile/profile_screen.dart';
 import 'package:sondr/features/profile/public_profile.dart';
+import 'package:sondr/features/shell/main_shell.dart';
 import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/tasks/tasks_providers.dart';
 import 'package:sondr/features/tasks/tasks_repository.dart';
 import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/shared/ring/progress_ring.dart';
-import 'package:sondr/shared/sondr_action.dart';
 
 import 'support/app_viewport.dart';
 import 'tiny_png.dart';
@@ -175,6 +177,7 @@ void main() {
     bool friends = true,
     List<Post> posts = const [],
     List<String> friendUids = const ['a', 'b'],
+    List<Block> blocks = const [],
     double textScale = 1.0,
     PublicProfile? published = const PublicProfile(
       uid: them,
@@ -197,9 +200,7 @@ void main() {
           friendshipsProvider.overrideWith(
             (ref) => Stream.value(friends ? [_friendship()] : const []),
           ),
-          blockedAccountsProvider.overrideWith(
-            (ref) => Stream.value(const <Block>[]),
-          ),
+          blockedAccountsProvider.overrideWith((ref) => Stream.value(blocks)),
           publicProfileProvider.overrideWith((ref, uid) async => published),
           profilePostsProvider.overrideWith((ref, uid) async => posts),
           friendUidsProvider.overrideWith((ref, uid) async => friendUids),
@@ -320,36 +321,92 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('Remove friend, Block and Back are below it', (tester) async {
-      await pumpTheirs(tester, posts: [_milestone(0)]);
-      for (final label in ['Remove friend', 'Block', 'Back']) {
-        final action = find.widgetWithText(SondrAction, label);
-        expect(action, findsOneWidget, reason: label);
-        expect(
-          tester.getRect(action).top,
-          greaterThanOrEqualTo(fold13),
-          reason: '$label is above the fold',
-        );
-      }
-    });
-
-    testWidgets('a stranger\'s bottom block is below the fold too', (
+    testWidgets('the actions stand on the tab bar\'s own three slots', (
       tester,
     ) async {
-      await pumpTheirs(tester, friends: false);
-      for (final label in ['Block', 'Back']) {
-        expect(
-          tester.getRect(find.widgetWithText(SondrAction, label)).top,
-          greaterThanOrEqualTo(fold13),
-          reason: label,
-        );
+      // The real bar, measured, then the profile's.
+      tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      tester.view.padding = const FakeViewPadding(
+        top: top13 * 3,
+        bottom: kRefBottomInset * 3,
+      );
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(),
+          home: Scaffold(
+            body: const SizedBox.expand(),
+            bottomNavigationBar: TextTabBar(currentIndex: 2, onSelect: (_) {}),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final tabBar = tester.getRect(find.byType(TextTabBar));
+      final tabs = {
+        for (final label in ['Home', 'Feed', 'Profile'])
+          label: tester.getRect(find.text(label)).center,
+      };
+
+      await pumpTheirs(tester, posts: [_milestone(0)]);
+      final bar = tester.getRect(find.byType(ProfileActionBar));
+      expect(bar.top, closeTo(tabBar.top, 0.5));
+      expect(bar.bottom, closeTo(tabBar.bottom, 0.5));
+      expect(bar.height, closeTo(tabBar.height, 0.5));
+
+      for (final (label, tab) in [
+        ('Remove', 'Home'),
+        ('Back', 'Feed'),
+        ('Block', 'Profile'),
+      ]) {
+        final slot = tester.getRect(find.text(label)).center;
+        expect(slot.dx, closeTo(tabs[tab]!.dx, 0.5), reason: '$label x');
+        expect(slot.dy, closeTo(tabs[tab]!.dy, 0.5), reason: '$label y');
+        final style = tester.widget<Text>(find.text(label)).style;
+        expect(style?.fontSize, ProfileActionBar.labelSize);
+        expect(style?.fontWeight, FontWeight.w500);
+        expect(style?.color, const Color(0xFF6E6E6E));
       }
-      expect(find.widgetWithText(SondrAction, 'Remove friend'), findsNothing);
-      // And its rule is inset like every other.
-      final rule = find.byType(ProfileHairline);
-      expect(rule, findsOneWidget);
-      final scale = figmaScale(tester.element(find.byType(OtherProfileScreen)));
-      expect(tester.getRect(rule).left, closeTo(kProfileGutter * scale, 0.5));
+      // Nothing here is selected, so nothing is underlined.
+      expect(
+        find.descendant(
+          of: find.byType(ProfileActionBar),
+          matching: find.byWidgetPredicate(
+            (w) => w is Container && w.decoration != null,
+          ),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('Back is always the middle slot, whatever the state', (
+      tester,
+    ) async {
+      Offset backCentre() => tester.getRect(find.text('Back')).center;
+
+      await pumpTheirs(tester, posts: [_milestone(0)]);
+      final centre = backCentre();
+      expect(find.text('Remove'), findsOneWidget);
+      expect(find.text('Block'), findsOneWidget);
+
+      // A stranger: no Remove, Block still on the right, Back unmoved.
+      await pumpTheirs(tester, friends: false);
+      expect(find.text('Remove'), findsNothing);
+      expect(find.text('Block'), findsOneWidget);
+      expect(backCentre(), centre);
+
+      // Someone I blocked: neither, and Unblock is in the status line.
+      await pumpTheirs(
+        tester,
+        friends: false,
+        blocks: const [
+          Block(blocker: me, blocked: them, username: 'cass', displayName: 'Cass'),
+        ],
+      );
+      expect(find.text('Remove'), findsNothing);
+      expect(find.text('Block'), findsNothing);
+      expect(find.text('Unblock'), findsOneWidget);
+      expect(backCentre(), centre);
     });
 
     testWidgets('the status sits in the subtitle\'s slot, at its size', (
@@ -413,6 +470,120 @@ void main() {
         findsOneWidget,
       );
       expect(status.bottom, lessThan(fold13 / 2));
+    });
+  });
+
+  group('the Posts grid', () {
+    testWidgets('four across, filling the gutter exactly', (tester) async {
+      await pumpTheirs(
+        tester,
+        posts: [
+          _milestone(0),
+          _milestone(1),
+          for (var i = 2; i < 6; i++) _session(i),
+        ],
+      );
+      final scale = figmaScale(
+        tester.element(find.byType(OtherProfileScreen)),
+      );
+      // Two tiles in the Milestones strip, then the grid's six: one row
+      // of four and one of two.
+      final tiles = find.byType(ProfileStripTile);
+      expect(tiles, findsNWidgets(8));
+      final r0 = [for (var i = 2; i < 6; i++) tester.getRect(tiles.at(i))];
+      final r1 = [for (var i = 6; i < 8; i++) tester.getRect(tiles.at(i))];
+
+      // The row starts on the gutter and ends on it — no bleed.
+      final width = tester.getSize(find.byType(OtherProfileScreen)).width;
+      expect(r0.first.left, closeTo(kProfileGutter * scale, 0.5));
+      expect(r0.last.right, closeTo(width - kProfileGutter * scale, 0.5));
+      // Four square tiles, three gaps of 8.
+      for (final t in r0) {
+        expect(t.width, closeTo(t.height, 0.01));
+        expect(t.width, closeTo(r0.first.width, 0.01));
+      }
+      for (var i = 1; i < 4; i++) {
+        expect(
+          r0[i].left - r0[i - 1].right,
+          closeTo(kProfileStripGap * scale, 0.5),
+          reason: 'gap $i',
+        );
+      }
+      // The second row follows at the same gap, and a short row is not
+      // stretched to fill.
+      expect(r1.first.top - r0.first.bottom, closeTo(kProfileStripGap * scale, 0.5));
+      expect(r1.first.left, closeTo(r0.first.left, 0.5));
+      expect(r1.last.right, lessThan(r0.last.right));
+    });
+
+    testWidgets('the heading and the first row have not moved', (
+      tester,
+    ) async {
+      // The build-62 positions, with the strip where the grid now is.
+      await pumpTheirs(
+        tester,
+        posts: [
+          _milestone(0),
+          _milestone(1),
+          for (var i = 2; i < 9; i++) _session(i),
+        ],
+      );
+      expect(
+        tester.getRect(find.text('Posts')).top,
+        closeTo(619.64, 0.5),
+      );
+      // The grid's first row, which is the third tile on the page: the
+      // Milestones strip holds the first two.
+      expect(
+        tester.getRect(find.byType(ProfileStripTile).at(2)).top,
+        closeTo(663.45, 0.5),
+      );
+    });
+
+    testWidgets('the Milestones strip is still a sideways scroller', (
+      tester,
+    ) async {
+      await pumpTheirs(
+        tester,
+        posts: [_milestone(0), _milestone(1), _session(0)],
+      );
+      final scrollers = find.descendant(
+        of: find.byType(OtherProfileScreen),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is SingleChildScrollView &&
+              w.scrollDirection == Axis.horizontal,
+        ),
+      );
+      // Exactly one: Milestones. Posts is a grid now.
+      expect(scrollers, findsOneWidget);
+      // And it is full-bleed: its own padding is the gutter.
+      final strip = tester.widget<SingleChildScrollView>(scrollers);
+      expect(strip.padding, isNotNull);
+      expect(tester.getRect(scrollers).left, 0);
+    });
+
+    testWidgets('the last row ends above the bar where my own content does', (
+      tester,
+    ) async {
+      await pumpTheirs(
+        tester,
+        posts: [
+          _milestone(0),
+          _milestone(1),
+          for (var i = 2; i < 12; i++) _session(i),
+        ],
+      );
+      final scale = figmaScale(
+        tester.element(find.byType(OtherProfileScreen)),
+      );
+      await tester.drag(find.byType(SingleChildScrollView).first, const Offset(0, -2000));
+      await tester.pumpAndSettle();
+      final bar = tester.getRect(find.byType(ProfileActionBar));
+      final lastTile = tester.getRect(find.byType(ProfileStripTile).last);
+      // kSpacingBase, the same trailing space the personal Profile leaves
+      // under its account block at its own scroll end.
+      expect(bar.top - lastTile.bottom, closeTo(kSpacingBase * scale, 0.5));
     });
   });
 

@@ -152,19 +152,40 @@ const double kProfileStripTile = 80;
 const double kProfileStripGap = 8;
 const double kProfileStripRadius = 13;
 
+/// How many photos stand across the Posts grid.
+const int kProfileGridColumns = 4;
+
+/// The side of a tile in that grid.
+///
+/// The strip's tiles are a fixed 80 and scroll sideways, so whatever is
+/// left over at the edge is simply more scroll. A grid has to FILL the
+/// content box, so its tile is what four of them plus three gaps leave:
+/// (393 − 48 gutter − 3 × 8) / 4 = 80.25 on the reference canvas, a
+/// quarter of a point wider than a strip tile. Anything else leaves a
+/// ragged right edge or runs under the gutter.
+double profileGridTile(BuildContext context, double contentWidth) =>
+    (contentWidth - (kProfileGridColumns - 1) * kProfileStripGap * figmaScale(context)) /
+    kProfileGridColumns;
+
 /// One tile in a strip: a fixed square, rounded, at the page's photo tone.
 class ProfileStripTile extends StatelessWidget {
-  const ProfileStripTile({super.key, required this.url});
+  const ProfileStripTile({super.key, required this.url, this.side});
 
   final String url;
+
+  /// The side, when something other than the strip's fixed square — the
+  /// grid's tile is a quarter of a point wider, so that four of them fill
+  /// the content box exactly.
+  final double? side;
 
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final scale = figmaScale(context);
+    final size = side ?? kProfileStripTile * scale;
     return SizedBox(
-      width: kProfileStripTile * scale,
-      height: kProfileStripTile * scale,
+      width: size,
+      height: size,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(kProfileStripRadius * scale),
         child: SondrPhoto(

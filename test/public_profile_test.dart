@@ -19,11 +19,13 @@ PublicProfile _published({
   String handle = 'ada',
   String displayName = 'Ada',
   int hours = 20,
+  double ringProgress = 0,
 }) => PublicProfile(
   uid: 'me',
   handle: handle,
   displayName: displayName,
   hours: hours,
+  ringProgress: ringProgress,
 );
 
 Friendship _friendship(
@@ -110,7 +112,12 @@ void main() {
       expect(mine!.handle, 'ada');
       expect(mine.displayName, 'Ada');
       expect(mine.hours, 20);
-      expect(mine.toMap(), {'handle': 'ada', 'displayName': 'Ada', 'hours': 20});
+      expect(mine.toMap(), {
+        'handle': 'ada',
+        'displayName': 'Ada',
+        'hours': 20,
+        'ringProgress': mine.ringProgress,
+      });
     });
 
     test('an unchanged figure writes nothing, however often it is asked', () {
@@ -120,10 +127,15 @@ void main() {
             uid: 'me',
             profile: _profile(),
             tasks: [_task('a', seconds: 20 * 3600 + 59 * 60)],
-            published: _published(hours: 20),
+            published: _published(
+              hours: 20,
+              ringProgress: ringProgressOf([
+                _task('a', seconds: 20 * 3600 + 59 * 60),
+              ]),
+            ),
           ),
           isNull,
-          reason: 'still 20 whole hours',
+          reason: 'still 20 whole hours, and the ring has not moved',
         );
       }
     });
@@ -186,13 +198,12 @@ void main() {
     });
 
     test('an unchanged figure writes nothing, however often it is asked', () async {
-      final target = _FakeTarget(stored: _published(hours: 41));
+      final tasks = [_task('a', seconds: 41 * 3600 + 59 * 60)];
+      final target = _FakeTarget(
+        stored: _published(hours: 41, ringProgress: ringProgressOf(tasks)),
+      );
       for (var i = 0; i < 3; i++) {
-        await publishTo(
-          target,
-          profile: _profile(),
-          tasks: [_task('a', seconds: 41 * 3600 + 59 * 60)],
-        );
+        await publishTo(target, profile: _profile(), tasks: tasks);
       }
       expect(target.published, isEmpty);
     });
@@ -224,6 +235,65 @@ void main() {
         tasks: [_task('a', seconds: 41 * 3600)],
       );
       expect(target.published, isEmpty);
+    });
+  });
+
+  group('the ring', () {
+    test('fills by the task furthest through its band, as my own does', () {
+      // 19h of 20 is nearly there whatever it has logged in total; a task
+      // at 81h has just started a band.
+      expect(
+        ringProgressOf([_task('a', seconds: 19 * 3600)]),
+        closeTo(0.95, 0.001),
+      );
+      expect(
+        ringProgressOf([
+          _task('a', seconds: 19 * 3600),
+          _task('b', seconds: 81 * 3600),
+        ]),
+        closeTo(0.95, 0.001),
+      );
+      expect(ringProgressOf(const []), 0);
+    });
+
+    test('is rounded to a hundredth — a finer figure is a write nobody sees', () {
+      final p = ringProgressOf([_task('a', seconds: 3607)]);
+      expect(p, (p * 100).round() / 100);
+    });
+
+    test('a task put away is not something you are climbing', () {
+      expect(
+        ringProgressOf([
+          Task(
+            id: 'old',
+            name: 'old',
+            secondsByDay: const {'2026-10-01': 19 * 3600},
+            archived: true,
+          ),
+        ]),
+        0,
+      );
+    });
+
+    test('it is published, and a changed fill is worth a write', () async {
+      final target = _FakeTarget();
+      await publishTo(
+        target,
+        profile: _profile(),
+        tasks: [_task('a', seconds: 10 * 3600)],
+      );
+      expect(target.published.single.ringProgress, closeTo(0.5, 0.001));
+      expect(target.published.single.toMap()['ringProgress'], isNotNull);
+
+      // The hours have not moved, but the ring has.
+      await publishTo(
+        target,
+        profile: _profile(),
+        tasks: [_task('a', seconds: 10 * 3600 + 30 * 60)],
+      );
+      expect(target.published, hasLength(2));
+      expect(target.published.last.hours, 10);
+      expect(target.published.last.ringProgress, closeTo(0.53, 0.011));
     });
   });
 

@@ -27,6 +27,7 @@ class PublicProfile {
     required this.handle,
     required this.displayName,
     required this.hours,
+    this.ringProgress = 0,
   });
 
   final String uid;
@@ -35,6 +36,16 @@ class PublicProfile {
 
   /// Lifetime hours across every task, rounded down.
   final int hours;
+
+  /// How far through its current 20-hour band their nearest milestone is,
+  /// 0..1 — the same figure the owner's own hero ring fills by, so the two
+  /// rings mean the same thing. Friends see the fill; a stranger sees the
+  /// bare track, because a stranger is not being shown what they are
+  /// working on.
+  ///
+  /// Rounded to a hundredth: the ring is 128 across, so a finer figure
+  /// would be a write nobody could see.
+  final double ringProgress;
 
   /// What to show as a name: the display name, falling back to the handle.
   String get label => displayName.isNotEmpty ? displayName : '@$handle';
@@ -52,6 +63,7 @@ class PublicProfile {
     'handle': handle,
     'displayName': displayName,
     'hours': hours,
+    'ringProgress': ringProgress,
   };
 
   factory PublicProfile.fromMap(String uid, Map<String, dynamic> map) =>
@@ -60,6 +72,8 @@ class PublicProfile {
         handle: (map['handle'] as String?) ?? '',
         displayName: (map['displayName'] as String?) ?? '',
         hours: (map['hours'] as num?)?.toInt() ?? 0,
+        ringProgress: ((map['ringProgress'] as num?)?.toDouble() ?? 0)
+            .clamp(0.0, 1.0),
       );
 
   /// Whether the published copy would say anything new.
@@ -67,7 +81,8 @@ class PublicProfile {
       other != null &&
       other.handle == handle &&
       other.displayName == displayName &&
-      other.hours == hours;
+      other.hours == hours &&
+      other.ringProgress == ringProgress;
 }
 
 /// Where a published profile is read back and written.
@@ -230,6 +245,7 @@ PublicProfile? profileToPublish({
     handle: profile.username,
     displayName: profile.displayName,
     hours: wholeHoursOf(tasks),
+    ringProgress: ringProgressOf(tasks),
   );
   return mine.sameAs(published) ? null : mine;
 }
@@ -308,6 +324,23 @@ void resetPublishedProfileMemory() => _lastPublished = null;
 /// figure [lifetimeDurationProvider] shows on my own Profile.
 int wholeHoursOf(List<Task> tasks) =>
     tasks.fold<int>(0, (total, t) => total + t.totalSeconds) ~/ 3600;
+
+/// How full the hero ring is: the active task furthest through its current
+/// 20-hour band, 0..1.
+///
+/// The same rule [nextMilestoneProvider] uses for my own ring — a task at
+/// 19h is nearly there whatever it has logged in total — so the ring on a
+/// profile of somebody else means exactly what the ring on mine does.
+/// Archived tasks are not candidates: you are not climbing toward a
+/// milestone on a task you have put away. Rounded to a hundredth.
+double ringProgressOf(List<Task> tasks) {
+  var best = 0.0;
+  for (final t in tasks) {
+    if (t.archived) continue;
+    if (t.milestoneProgress > best) best = t.milestoneProgress;
+  }
+  return (best.clamp(0.0, 1.0) * 100).roundToDouble() / 100;
+}
 
 /// Publishing as a callable, so a caller decides when it runs and a test can
 /// stand in for it.

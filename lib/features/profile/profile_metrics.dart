@@ -48,19 +48,41 @@ const double kProfileHeroGap = 18;
 /// it to go.
 const double kProfileHeroGapMin = 16;
 
-/// The floor on the hero gaps of a profile ABOUT SOMEBODY ELSE.
+/// The in-progress ring tile: the ring, and the gap to its label.
+const double kProfileRingTileSize = 56;
+const double kProfileRingLabelGap = 8;
+
+/// The height of the ring row that ends the personal Profile's first
+/// screen — the row a profile of somebody else stands a photo strip in
+/// place of.
 ///
-/// Lower than [kProfileHeroGapMin], and it has to be. That page ends on a
-/// photo strip — a heading, 26, and an 80 tile — where the personal
-/// Profile ends on a ring row, a heading, 20, and a 78 tile. Seven points
-/// more content, in a first screen pinned to the same line, and the hero
-/// gaps are the only thing that gives: held at 16 the page cannot make the
-/// line at all, and misses it by those seven points.
+/// Measured rather than assumed, because the label grows with the reader's
+/// text size and an 80 tile does not: at the default size the strip is a
+/// point taller than the row, at the smallest it is three, and at the
+/// largest it is shorter. That difference is taken from the clearance
+/// BELOW the strip rather than from the hero above it, which is what keeps
+/// every element on the two pages on the same line whatever the text size
+/// — only the strip itself ends a point or so away.
 ///
-/// 12 is [kSpacingPair], the tightest gap in the ladder, and it leaves the
-/// pair the same air a pair gets anywhere else. The ceiling is unchanged,
-/// so a sparse page still opens up exactly as the personal one does.
-const double kProfileOtherHeroGapMin = 12;
+/// A test holds this to the real row's measured height on all three text
+/// sizes, so it cannot drift from [_TaskTile].
+double profileRingRowHeight(BuildContext context) {
+  final scale = figmaScale(context);
+  return (kProfileRingTileSize + kProfileRingLabelGap) * scale +
+      lineHeightOf(
+        context,
+        profileRingLabelStyle(context),
+        kProfileRingLabelSize,
+      );
+}
+
+/// What the clearance under the last strip becomes, so that the strip's
+/// section occupies exactly the box the ring row's does.
+double profileLastStripClearance(BuildContext context) {
+  final scale = figmaScale(context);
+  return kProfileTabClearance * scale -
+      (kProfileStripTile * scale - profileRingRowHeight(context));
+}
 
 /// The CEILING on each flexible gap.
 ///
@@ -102,6 +124,12 @@ const double kProfileUnderHairline = 14;
 
 /// A heading to the strip beneath it.
 const double kProfileHeadingToPhotos = 26;
+
+/// A heading to the LAST section's content. Tighter than
+/// [kProfileHeadingToPhotos] by six, and the personal Profile is built that
+/// way: the ring row sits 20 under "In progress". A page that stands in the
+/// same boxes takes the same number.
+const double kProfileHeadingToRings = 20;
 
 /// Section headings take the app's Heading token — the same 20/bold Home
 /// puts on "Last 10 days" — and the counts beside them this.
@@ -214,9 +242,17 @@ class ProfileHeading extends StatelessWidget {
     required this.label,
     this.count,
     this.onTap,
+    this.tight = false,
   });
 
   final String label;
+
+  /// The LAST section's heading sits in a shorter line box than the ones
+  /// above it — titleMedium rather than bodyMedium, four points less — and
+  /// that is how the personal Profile is built: Friends and Milestones at
+  /// one height, "In progress" at another. The glyphs are identical; only
+  /// the box differs. A page that stands in the same boxes takes both.
+  final bool tight;
 
   /// Already formatted, so a capped count can read "100+".
   final String? count;
@@ -231,11 +267,12 @@ class ProfileHeading extends StatelessWidget {
       children: [
         Text(
           label,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontSize: kProfileHeadingSize * scale,
-            fontWeight: FontWeight.w700,
-            color: tokens.textPrimary,
-          ),
+          style: (tight ? theme.textTheme.titleMedium : theme.textTheme.bodyMedium)
+              ?.copyWith(
+                fontSize: kProfileHeadingSize * scale,
+                fontWeight: FontWeight.w700,
+                color: tokens.textPrimary,
+              ),
         ),
         const Spacer(),
         if (count != null)

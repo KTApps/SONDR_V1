@@ -220,7 +220,7 @@ void main() {
   }
 
   /// The personal Profile, pinned: one task and a strip, in the shell.
-  Future<void> pumpMine(WidgetTester tester) async {
+  Future<void> pumpMine(WidgetTester tester, {double textScale = 1.0}) async {
     // Unmount anything a previous pump left behind: a ProviderScope
     // cannot change how many overrides it has.
     await tester.pumpWidget(const SizedBox.shrink());
@@ -258,6 +258,12 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.dark(),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           home: Scaffold(
             body: const ProfileScreen(),
             bottomNavigationBar: const SizedBox(
@@ -283,8 +289,11 @@ void main() {
         tester,
         posts: [_milestone(0), _milestone(1), _session(0)],
       );
+      // Within a point: the strip tile is that much taller than the ring
+      // row it stands in for, and that point is taken from the clearance
+      // below rather than from anything above.
       final theirs = tester.getRect(find.byType(ProfileStripTile).last).bottom;
-      expect(theirs, closeTo(mine, 0.5));
+      expect(theirs, closeTo(mine, 1.2));
     });
 
     testWidgets('all three sections are visible before the fold', (
@@ -322,6 +331,25 @@ void main() {
           reason: '$label is above the fold',
         );
       }
+    });
+
+    testWidgets('a stranger\'s bottom block is below the fold too', (
+      tester,
+    ) async {
+      await pumpTheirs(tester, friends: false);
+      for (final label in ['Block', 'Back']) {
+        expect(
+          tester.getRect(find.widgetWithText(SondrAction, label)).top,
+          greaterThanOrEqualTo(fold13),
+          reason: label,
+        );
+      }
+      expect(find.widgetWithText(SondrAction, 'Remove friend'), findsNothing);
+      // And its rule is inset like every other.
+      final rule = find.byType(ProfileHairline);
+      expect(rule, findsOneWidget);
+      final scale = figmaScale(tester.element(find.byType(OtherProfileScreen)));
+      expect(tester.getRect(rule).left, closeTo(kProfileGutter * scale, 0.5));
     });
 
     testWidgets('the status sits in the subtitle\'s slot, at its size', (
@@ -442,4 +470,155 @@ void main() {
       }
     }
   });
+  /// The personal Profile's elements, and their counterparts on a
+  /// friend's profile. The page is the same composition about somebody
+  /// else, so every one of these stands in its counterpart's place.
+  group('element for element', () {
+    Finder statFigure(WidgetTester tester, Type screen) {
+      final scale = figmaScale(tester.element(find.byType(screen)));
+      return find.byWidgetPredicate(
+        (w) =>
+            w is Text &&
+            w.style?.fontSize != null &&
+            (w.style!.fontSize! - kProfileStatFigureSize * scale).abs() < 0.01,
+      );
+    }
+
+    for (final ts in [0.824, 1.0, 1.235]) {
+      testWidgets('at textScale $ts, every element stands in its place', (
+        tester,
+      ) async {
+        await pumpMine(tester, textScale: ts);
+        final lines = find.byWidgetPredicate(
+          (w) => w is SizedBox && w.height == 1,
+        );
+        final mine = <String, Rect>{
+          'ring': tester.getRect(find.byType(ProgressRing).first),
+          'handle': tester.getRect(find.text('tanaka')),
+          'subtitle': tester.getRect(
+            find.textContaining('to your next milestone'),
+          ),
+          'stats': tester.getRect(statFigure(tester, ProfileScreen).first),
+          'hairline 1': tester.getRect(lines.at(0)),
+          'Friends': tester.getRect(find.text('Friends')),
+          'hairline 2': tester.getRect(lines.at(1)),
+          'Milestones': tester.getRect(find.text('Milestones')),
+          'strip': tester.getRect(find.byType(ProfileStripTile).first),
+          'hairline 3': tester.getRect(lines.at(2)),
+          'last heading': tester.getRect(find.text('In progress')),
+          'last row': tester.getRect(find.byType(ProgressRing).at(1)),
+        };
+        final lastLine = tester.getRect(find.text('Task 0')).bottom;
+
+        await pumpTheirs(
+          tester,
+          textScale: ts,
+          posts: [_milestone(0), _milestone(1), _session(0)],
+        );
+        final rules = find.byType(ProfileHairline);
+        final theirs = <String, Rect>{
+          'ring': tester.getRect(find.byType(ProgressRing).first),
+          'handle': tester.getRect(find.text('cass')),
+          'subtitle': tester.getRect(find.text('Friends').first),
+          'stats': tester.getRect(statFigure(tester, OtherProfileScreen).first),
+          'hairline 1': tester.getRect(rules.at(0)),
+          'Friends': tester.getRect(
+            find.descendant(
+              of: find.byType(ProfileHeading),
+              matching: find.text('Friends'),
+            ),
+          ),
+          'hairline 2': tester.getRect(rules.at(1)),
+          'Milestones': tester.getRect(find.text('Milestones')),
+          'strip': tester.getRect(find.byType(ProfileStripTile).first),
+          'hairline 3': tester.getRect(rules.at(2)),
+          'last heading': tester.getRect(find.text('Posts')),
+          'last row': tester.getRect(find.byType(ProfileStripTile).last),
+        };
+
+        for (final key in mine.keys) {
+          expect(
+            theirs[key]!.top,
+            closeTo(mine[key]!.top, 0.5),
+            reason: '$key top ($ts)',
+          );
+        }
+        // The left edge, for everything that starts on the gutter rather
+        // than being centred.
+        for (final key in [
+          'hairline 1',
+          'hairline 2',
+          'hairline 3',
+          'Friends',
+          'Milestones',
+          'strip',
+          'last heading',
+        ]) {
+          expect(
+            theirs[key]!.left,
+            closeTo(mine[key]!.left, 0.5),
+            reason: '$key left ($ts)',
+          );
+        }
+        // Every rule runs the same width, gutter to gutter.
+        for (final key in ['hairline 1', 'hairline 2', 'hairline 3']) {
+          expect(
+            theirs[key]!.right,
+            closeTo(mine[key]!.right, 0.5),
+            reason: '$key right ($ts)',
+          );
+          expect(
+            theirs[key]!.left,
+            closeTo(mine['Friends']!.left, 0.5),
+            reason: '$key starts where "Friends" does ($ts)',
+          );
+        }
+        // Centred things are centred on the same line.
+        for (final key in ['ring', 'handle', 'subtitle']) {
+          expect(
+            theirs[key]!.center.dx,
+            closeTo(mine[key]!.center.dx, 0.5),
+            reason: '$key centre ($ts)',
+          );
+        }
+        // The ring is the same ring.
+        expect(theirs['ring']!.size, mine['ring']!.size);
+        // The one place the two pages may differ: the last strip ends
+        // lower or higher than the personal Profile's last line by
+        // exactly how much an 80 tile differs from the ring row it
+        // stands in for — a point at the default size — and by nothing
+        // else.
+        final context = tester.element(find.byType(OtherProfileScreen));
+        final overhang = kProfileStripTile * figmaScale(context) -
+            profileRingRowHeight(context);
+        expect(
+          theirs['last row']!.bottom,
+          closeTo(lastLine + overhang, 0.5),
+          reason: 'the last line ($ts)',
+        );
+        if (ts == 1.0) {
+          expect(overhang, closeTo(1, 0.5), reason: 'a point at default text');
+        }
+      });
+    }
+
+    testWidgets('the ring row height the clearance is built on is the real one', (
+      tester,
+    ) async {
+      // The last section stands in the ring row's box, so the figure that
+      // box is computed from cannot be allowed to drift from the widget.
+      for (final ts in [0.824, 1.0, 1.235]) {
+        await pumpMine(tester, textScale: ts);
+        final context = tester.element(find.byType(ProfileScreen));
+        final ringTop = tester.getRect(find.byType(ProgressRing).at(1)).top;
+        final labelBottom = tester.getRect(find.text('Task 0')).bottom;
+        expect(
+          profileRingRowHeight(context),
+          closeTo(labelBottom - ringTop, 0.5),
+          reason: 'at $ts',
+        );
+      }
+    });
+  });
+
 }

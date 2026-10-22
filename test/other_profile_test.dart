@@ -18,6 +18,7 @@ import 'package:sondr/features/profile/profile_actions.dart';
 import 'package:sondr/features/profile/profile_metrics.dart';
 import 'package:sondr/features/profile/public_profile.dart';
 import 'package:sondr/shared/cached_photo.dart';
+import 'package:sondr/shared/ring/progress_ring.dart';
 import 'package:sondr/shared/sondr_action.dart';
 
 import 'tiny_png.dart';
@@ -206,6 +207,9 @@ void main() {
       final factoryBefore = photoImageProviderFactory;
       photoImageProviderFactory = (_) => MemoryImage(tinyPng);
       addTearDown(() => photoImageProviderFactory = factoryBefore);
+      // Unmount anything a previous pump left behind, so a test that
+      // pumps twice really gets two pages.
+      await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -549,6 +553,32 @@ void main() {
       await tester.tap(find.text('Remove'));
       await tester.pumpAndSettle();
       expect(acts.removed, [f.id]);
+    });
+
+    testWidgets('a friend\'s ring fills; a stranger\'s is the bare track', (
+      tester,
+    ) async {
+      const filled = PublicProfile(
+        uid: them,
+        handle: 'cass',
+        displayName: 'Cass',
+        hours: 41,
+        ringProgress: 0.6,
+      );
+      double ringFill(WidgetTester t) =>
+          t.widget<ProgressRing>(find.byType(ProgressRing).first).progress;
+
+      await pump(
+        tester,
+        friendships: [_friendship()],
+        posts: [_milestonePost(0)],
+        published: filled,
+      );
+      expect(ringFill(tester), closeTo(0.6, 0.001));
+
+      // A stranger is not shown what they are working on.
+      await pump(tester, friendships: const [], published: filled);
+      expect(ringFill(tester), 0);
     });
 
     testWidgets('the rules sit inside the gutter, as they do on my own page', (

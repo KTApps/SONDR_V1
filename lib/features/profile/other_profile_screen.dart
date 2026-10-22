@@ -19,7 +19,6 @@ import '../friends/friends_repository.dart';
 import '../friends/models/friendship.dart';
 import '../shell/main_shell.dart';
 import '../timer/home_metrics.dart';
-import '../tasks/models/task.dart';
 import 'friend_status.dart';
 import 'profile_actions.dart';
 import 'profile_metrics.dart';
@@ -193,10 +192,10 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
             // and compact instead, exactly as a guest's own Profile is.
             final canPin = sees;
             final heroGap = [
-              SizedBox(height: kProfileOtherHeroGapMin * scale),
+              SizedBox(height: kProfileHeroGapMin * scale),
               Flexible(
                 child: ProfileCappedSlack(
-                  (kProfileHeroGapMax - kProfileOtherHeroGapMin) * scale,
+                  (kProfileHeroGapMax - kProfileHeroGapMin) * scale,
                 ),
               ),
             ];
@@ -209,7 +208,7 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
                   ProfileFirstScreen(
                     pin: profileFirstScreenHeight(context, topInset),
                     viewport: viewport.maxHeight,
-                    gapFloor: kProfileOtherHeroGapMin * scale,
+                    gapFloor: kProfileHeroGapMin * scale,
                     gapCeiling: kProfileHeroGapMax * scale,
                     gapUnpinned: kProfileHeroGap * scale,
                     canPin: canPin,
@@ -221,6 +220,7 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
                           child: _Emblem(
                             them: them,
                             photoUrl: sees ? _ringPhoto(milestones) : null,
+                            fill: sees,
                           ),
                         ),
                         // The two flexible gaps, either side of the
@@ -304,13 +304,21 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
                               handle: them.handle,
                               posts: posts,
                               milestonesOnly: false,
+                              // The last section stands where "In progress"
+                              // stands: the same line box for its heading,
+                              // and the same 20 beneath it, so its strip
+                              // starts on the ring row's top.
+                              last: true,
                             ),
                           ),
                         ],
-                        // The same clearance the personal Profile leaves
-                        // below its last element — which is what puts the
-                        // two pages' last lines on the same line.
-                        SizedBox(height: kProfileTabClearance * scale),
+                        // The personal Profile's clearance, adjusted by
+                        // however much a strip tile differs from the ring
+                        // row it stands in for at this text size. Taking
+                        // that difference from BELOW the strip rather than
+                        // from the hero above it is what keeps every
+                        // element on this page on its counterpart's line.
+                        SizedBox(height: profileLastStripClearance(context)),
                       ],
                     ),
                   ),
@@ -478,6 +486,7 @@ PublicProfile profileIdentity({
       fromFriendship?.displayName ?? '',
     ]),
     hours: published?.hours ?? 0,
+    ringProgress: published?.ringProgress ?? 0,
   );
 }
 
@@ -565,24 +574,32 @@ class _HeroCaption extends StatelessWidget {
 /// and nothing shared, a filled ring would be claiming knowledge the page
 /// does not have.
 class _Emblem extends StatelessWidget {
-  const _Emblem({required this.them, required this.photoUrl});
+  const _Emblem({
+    required this.them,
+    required this.photoUrl,
+    required this.fill,
+  });
 
   final PublicProfile them;
   final String? photoUrl;
+
+  /// Whether the ring shows how far through their band they are — a
+  /// friend's page does, a stranger's does not.
+  final bool fill;
 
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);
-    final intoBand = them.hours % Task.milestoneStepHours;
     return Center(
       child: ProgressRing(
         size: kProfileEmblemSize * scale,
         stroke: ringStroke(scale),
-        progress: photoUrl == null
-            ? shownProgress(0)
-            : shownProgress(intoBand / Task.milestoneStepHours),
+        // A friend's ring fills the way their own does. A stranger's is
+        // the bare track: what they are working on is not a stranger's
+        // business, and a ring filled to nothing would be a claim.
+        progress: shownProgress(fill ? them.ringProgress : 0),
         center: SizedBox(
           width: kProfileEmblemPhoto * scale,
           height: kProfileEmblemPhoto * scale,
@@ -682,7 +699,13 @@ class _PostSection extends ConsumerWidget {
     required this.handle,
     required this.posts,
     required this.milestonesOnly,
+    this.last = false,
   });
+
+  /// The bottom section of the first screen, standing where "In progress"
+  /// stands on the personal Profile: a tighter heading, and 20 beneath it
+  /// rather than 26.
+  final bool last;
 
   final String label;
   final String uid;
@@ -703,6 +726,7 @@ class _PostSection extends ConsumerWidget {
         ProfileGutter(
           child: ProfileHeading(
             label: label,
+            tight: last,
             count: posts.isEmpty ? null : profileCountLabel(posts.length),
             onTap: posts.isEmpty
                 ? null
@@ -719,7 +743,11 @@ class _PostSection extends ConsumerWidget {
           ),
         ),
         if (pictured.isNotEmpty) ...[
-          SizedBox(height: kProfileHeadingToPhotos * scale),
+          SizedBox(
+            height:
+                (last ? kProfileHeadingToRings : kProfileHeadingToPhotos) *
+                    scale,
+          ),
           // Full-bleed: the viewport is the screen and the margin is the
           // scroller's own padding, so the first tile starts on the margin
           // and the last can be dragged to it.

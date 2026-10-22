@@ -88,7 +88,7 @@ const double _kBreak = kProfileBreak;
 /// to the content it introduces rather than to the rule above it.
 const double _kUnderHairline = kProfileUnderHairline;
 const double _kHeadingToPhotos = kProfileHeadingToPhotos;
-const double _kHeadingToRings = 20;
+const double _kHeadingToRings = kProfileHeadingToRings;
 
 /// Section headings take the app's Heading token — the same 20/bold Home puts
 /// on "Last 10 days".
@@ -839,8 +839,8 @@ class _TaskTile extends StatelessWidget {
   /// _DoneRing in milestones_screen.dart), so a ring is the same size and the
   /// same weight on both screens. The TONE is not shared: this one is
   /// progress, so it stays grey, and white remains a milestone reached.
-  static const double ringSize = 56;
-  static const double labelGap = 8;
+  static const double ringSize = kProfileRingTileSize;
+  static const double labelGap = kProfileRingLabelGap;
 
   @override
   Widget build(BuildContext context) {

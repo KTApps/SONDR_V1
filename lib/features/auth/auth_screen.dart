@@ -137,7 +137,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SondrHeader(title: _signUp ? 'Create account' : 'Sign in'),
+              // The primary action below says which of the two this is
+              // — "Create account" or "Sign in" — so the page said it
+              // twice. The space it took is kept, the way Blocked and the
+              // handle screen keep theirs, so nothing below moves.
+              Visibility(
+                visible: false,
+                maintainSize: true,
+                maintainAnimation: true,
+                maintainState: true,
+                child: SondrHeader(
+                  title: _signUp ? 'Create account' : 'Sign in',
+                ),
+              ),
               SizedBox(height: kSpacingBase * scale),
               SondrField(
                 label: 'Email',

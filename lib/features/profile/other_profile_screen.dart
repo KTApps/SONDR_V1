@@ -18,6 +18,7 @@ import '../feed/single_post_screen.dart';
 import '../friends/friends_repository.dart';
 import '../friends/models/friendship.dart';
 import '../shell/main_shell.dart';
+import '../timer/home_metrics.dart';
 import '../tasks/models/task.dart';
 import 'friend_status.dart';
 import 'profile_actions.dart';
@@ -766,16 +767,15 @@ class FriendsOfScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(height: kSpacingSection * scale),
-            ProfileGutter(
-              child: Text(
-                handle.isEmpty
-                    ? 'Friends'
-                    : '$handle’s friends',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontSize: kProfileHeadingSize * scale,
-                  fontWeight: FontWeight.w700,
-                  color: tokens.textPrimary,
-                ),
+            // Where the title used to be. You arrived by tapping "Friends"
+            // on their profile, so the page naming itself again told you
+            // nothing — but the rows were composed against this much air
+            // above them, so the air stays.
+            SizedBox(
+              height: lineHeightOf(
+                context,
+                theme.textTheme.titleLarge,
+                kProfileHeadingSize,
               ),
             ),
             SizedBox(height: kSpacingSection * scale),

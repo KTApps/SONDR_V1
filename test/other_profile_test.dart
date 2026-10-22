@@ -655,6 +655,51 @@ void main() {
     });
   });
 
+  group('their friends list', () {
+    Future<void> pumpList(WidgetTester tester, {List<String> uids = const ['a', 'b']}) async {
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      tester.view.padding = const FakeViewPadding(top: 47 * 3, bottom: 34 * 3);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUidProvider.overrideWithValue(me),
+            publicProfileProvider.overrideWith(
+              (ref, uid) async => PublicProfile(
+                uid: uid,
+                handle: 'cass',
+                displayName: 'Cass',
+                hours: 3,
+              ),
+            ),
+            friendUidsProvider.overrideWith((ref, uid) async => uids),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const FriendsOfScreen(uid: them, handle: 'ada'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('names nobody — you arrived by tapping Friends', (
+      tester,
+    ) async {
+      await pumpList(tester);
+      expect(find.text('ada’s friends'), findsNothing);
+      expect(find.textContaining('friends'), findsNothing);
+    });
+
+    testWidgets('and the first row has not moved', (tester) async {
+      // Measured on a 13 Pro with the title still there (135.786), before
+      // it was replaced with its own height in empty space.
+      await pumpList(tester);
+      expect(tester.getRect(find.text('cass').first).top, closeTo(135.79, 0.5));
+    });
+  });
+
   group('one post on its own page', () {
     testWidgets('the card, its actions, and the way back', (tester) async {
       final factoryBefore = photoImageProviderFactory;

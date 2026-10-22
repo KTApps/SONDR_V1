@@ -167,6 +167,65 @@ field, then deploy the rules. Rules last: the moment they land, anything
 missing the field they require is invisible to everyone, its own author
 included.
 
+## Public profiles
+
+`users/{uid}/**` is owner-only, so **nothing about another person is readable
+from it** — not their handle, not their hours. A profile for other people is
+built from two additions instead.
+
+**`publicProfiles/{uid}`** holds `handle`, `displayName`, whole `hours` and
+`updatedAt`. Any signed-in user can read it; only its owner can write it, and
+the write rule checks the handle against `usernames/{handle}.uid`, so a
+public doc cannot claim someone else's name. The owner's own client publishes
+it — at launch, when the handle or name is claimed, after a session is logged
+(which covers every milestone crossing), and when the app goes to the
+background. Never per tick: `profileToPublish` writes nothing unless the
+whole-hour figure, the handle or the name has actually changed.
+
+It is deliberately **not** block-aware. A read that failed for one person and
+succeeded for another would be the tell that they had been blocked; blocks
+stay enforced on the writes, whose refusals are worded identically to "no one
+found".
+
+**`publicProfiles/{uid}/friends/{friendUid}`** is the friend list, mirrored,
+id-only (`{since}` — nothing else is allowed). `friendships` cannot answer
+"who are their friends": a rule asking whether the reader is a friend of one
+of a document's two participants would have to look up a path built from that
+document's own data, which a list query cannot prove, so the whole query
+would fail. **The mirror's path names the owner**, so the rule's lookup comes
+from the path — the same shape as a comment's rule reaching its parent post.
+A friend can list it; a stranger and a pending relationship are denied, which
+is the "friends only" answer, not an error to show.
+
+**Writes use `getAfter`, not `get`.** An entry is allowed only where the
+friendship is accepted *after* the write lands, which is what lets the
+accepter write the acceptance and both halves of the mirror in one batch —
+`get` would refuse the very write that makes it true. Either party may write
+or delete either half, so unfriending and blocking clear the mirror in the
+same batch that clears the friendship. The delete rule reads only the path,
+never the document, so deleting a half that was never written is a no-op a
+declined request needs no branch for.
+
+Because both halves always move together, **"my half exists" means both
+exist** — which is what lets the launch reconcile
+(`reconcileFriendMirror`) be one query rather than one read per friend. It
+covers everything accepted before the mirror existed and anything a batch
+could not land, and it is idempotent.
+
+**The pair id must stay byte-identical** across `Friendship.pairId`,
+`pairId()` in `firestore.rules`, and the emulator test's own copy. A test
+writes with one and reads under another; if they drift, every friend list
+silently stops being readable.
+
+**A profile's posts need a composite index**: `authorUid` ASC + `audience`
+CONTAINS + `createdAt` DESC. The query is
+`where('authorUid').where('audience', arrayContains: me).orderBy('createdAt')`
+— the audience filter is what makes the read rule provable, so without it the
+profile does not show fewer posts, it errors. Type is split in Dart rather
+than in a second index, and counts come from that one bounded query (100,
+shown as "100+" at the cap): `count()` is server-only and would leave a cold
+profile with no figures.
+
 ## Build churn — do not commit
 
 Every `flutter pub get` / `flutter build` rewrites these. They are generated,

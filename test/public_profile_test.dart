@@ -34,7 +34,35 @@ Friendship _friendship(
   profiles: const {},
 );
 
+/// A publish target that remembers, and can be told to fail the way
+/// Firestore does: a cache read for a document the device does not hold
+/// THROWS, it does not come back empty.
+class _FakeTarget implements ProfilePublishTarget {
+  _FakeTarget({this.stored, this.readThrows = false});
+
+  PublicProfile? stored;
+  final bool readThrows;
+  final published = <PublicProfile>[];
+
+  @override
+  String get uid => 'me';
+
+  @override
+  Future<PublicProfile?> publishedCopy() async {
+    if (readThrows) throw StateError('Failed to get document from cache.');
+    return stored;
+  }
+
+  @override
+  Future<void> publish(PublicProfile profile) async {
+    published.add(profile);
+    stored = profile;
+  }
+}
+
 void main() {
+  setUp(resetPublishedProfileMemory);
+
   group('what gets published', () {
     test('whole hours across every task, rounded down', () {
       expect(wholeHoursOf([_task('a', seconds: 3599)]), 0);
@@ -123,6 +151,75 @@ void main() {
       expect(_published(displayName: 'ada').initial, 'A');
       expect(_published(displayName: '', handle: 'zoe').initial, 'Z');
       expect(_published(displayName: '', handle: '').initial, '');
+    });
+  });
+
+  group('publishing', () {
+    test('a first publish writes, because nothing is published yet', () async {
+      final target = _FakeTarget();
+      await publishTo(
+        target,
+        profile: _profile(),
+        tasks: [_task('a', seconds: 41 * 3600)],
+      );
+      expect(target.published, hasLength(1));
+      expect(target.published.single.handle, 'ada');
+      expect(target.published.single.hours, 41);
+    });
+
+    test('a published copy that cannot be READ is no copy at all', () async {
+      // The bug this pins. Firestore throws on a cache read for a document
+      // it does not hold — which is every account that has never published
+      // — and treating that as "already up to date" left them unpublished
+      // for good: no document, so no read, so no write, so no document.
+      final target = _FakeTarget(readThrows: true);
+      await publishTo(
+        target,
+        profile: _profile(),
+        tasks: [_task('a', seconds: 41 * 3600)],
+      );
+      expect(target.published, hasLength(1));
+    });
+
+    test('an unchanged figure writes nothing, however often it is asked', () async {
+      final target = _FakeTarget(stored: _published(hours: 41));
+      for (var i = 0; i < 3; i++) {
+        await publishTo(
+          target,
+          profile: _profile(),
+          tasks: [_task('a', seconds: 41 * 3600 + 59 * 60)],
+        );
+      }
+      expect(target.published, isEmpty);
+    });
+
+    test('a changed figure writes once, and then not again', () async {
+      final target = _FakeTarget(stored: _published(hours: 41));
+      Future<void> go() => publishTo(
+        target,
+        profile: _profile(),
+        tasks: [_task('a', seconds: 42 * 3600)],
+      );
+      await go();
+      await go();
+      await go();
+      expect(target.published, hasLength(1));
+      expect(target.published.single.hours, 42);
+    });
+
+    test('a guest with no handle publishes nothing at all', () async {
+      final target = _FakeTarget();
+      await publishTo(
+        target,
+        profile: _profile(username: ''),
+        tasks: [_task('a', seconds: 41 * 3600)],
+      );
+      await publishTo(
+        target,
+        profile: null,
+        tasks: [_task('a', seconds: 41 * 3600)],
+      );
+      expect(target.published, isEmpty);
     });
   });
 

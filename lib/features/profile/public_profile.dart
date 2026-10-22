@@ -69,11 +69,28 @@ class PublicProfile {
       other.hours == hours;
 }
 
+/// Where a published profile is read back and written.
+///
+/// An interface because the one thing that went wrong here is invisible
+/// without one: a cache read that throws instead of coming back empty. A
+/// fake can throw; Firestore cannot be asked to in a unit test.
+abstract interface class ProfilePublishTarget {
+  String get uid;
+
+  /// The published copy as this device last saw it, or null when there is
+  /// none — including when the cache cannot answer.
+  Future<PublicProfile?> publishedCopy();
+
+  Future<void> publish(PublicProfile profile);
+}
+
 /// Reads and writes `publicProfiles`.
-class PublicProfilesRepository {
+class PublicProfilesRepository implements ProfilePublishTarget {
   PublicProfilesRepository({required this.db, required this.uid});
 
   final FirebaseFirestore db;
+
+  @override
   final String uid;
 
   CollectionReference<Map<String, dynamic>> get _col =>
@@ -91,8 +108,25 @@ class PublicProfilesRepository {
     return PublicProfile.fromMap(ofUid, data);
   }
 
+  /// My published copy as this device last saw it.
+  ///
+  /// Null when there is none — and null, NOT an error, when the cache
+  /// cannot answer. Firestore THROWS `unavailable` on a cache read for a
+  /// document it does not hold, which is the case for every account that
+  /// has never published; letting that escape is what kept them
+  /// unpublished, because the failure looked like "nothing to do".
+  @override
+  Future<PublicProfile?> publishedCopy() async {
+    try {
+      return await fetch(uid, source: Source.cache);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Publish mine. Merged, so a field this build does not know about
   /// survives, and stamped so a stale copy can be told from a fresh one.
+  @override
   Future<void> publish(PublicProfile profile) => _col.doc(uid).set({
     ...profile.toMap(),
     'updatedAt': FieldValue.serverTimestamp(),
@@ -185,11 +219,8 @@ PublicProfile? profileToPublish({
 ///
 /// Called at launch, when the handle or name changes, when a session is
 /// logged, when a milestone is crossed, and when the app goes to the
-/// background — never per tick, because the guard below is what decides,
-/// not the caller: an unchanged figure writes nothing.
-///
-/// The comparison is against the published copy itself, read from the cache,
-/// so it survives a reinstall and needs nothing stored on the side.
+/// background — never per tick, because the guard is what decides, not the
+/// caller: an unchanged figure writes nothing.
 Future<void> publishMyPublicProfile(Ref ref) async {
   final repo = ref.read(publicProfilesRepositoryProvider);
   if (repo == null) return;
@@ -198,37 +229,53 @@ Future<void> publishMyPublicProfile(Ref ref) async {
     // Tasks are the only source of logged time, and they may still be
     // loading at launch — a published 0 would be worse than publishing late.
     final tasks = await ref.read(tasksProvider.future);
-    // Against what this process last published, then — only if that says
-    // nothing — against the published copy in the cache, which survives a
-    // relaunch and a reinstall and so needs nothing stored on the side.
-    var mine = profileToPublish(
-      uid: repo.uid,
-      profile: profile,
-      tasks: tasks,
-      published: _lastPublished,
-    );
-    if (mine == null) return;
-    mine = profileToPublish(
-      uid: repo.uid,
-      profile: profile,
-      tasks: tasks,
-      published: await repo.fetch(repo.uid, source: Source.cache),
-    );
-    if (mine == null) {
-      _lastPublished = PublicProfile(
-        uid: repo.uid,
-        handle: profile!.username,
-        displayName: profile.displayName,
-        hours: wholeHoursOf(tasks),
-      );
-      return;
-    }
-    await repo.publish(mine);
-    _lastPublished = mine;
+    await publishTo(repo, profile: profile, tasks: tasks);
   } catch (e) {
     // A profile nobody can see yet is not worth a visible failure.
     debugPrint('SONDR publish profile error: ${e.runtimeType}');
   }
+}
+
+/// The publish rule itself: compare, then write only if it would say
+/// something new. Against what this process last published first, because
+/// that costs nothing, then against the copy on the device.
+///
+/// A published copy that cannot be READ is treated as no copy at all. It is
+/// not the same thing as a copy that already says this — and treating the
+/// two alike is what left every account unpublished: a device with no
+/// document has nothing to read, so the comparison threw, the write was
+/// skipped, and the document stayed missing for good.
+Future<void> publishTo(
+  ProfilePublishTarget target, {
+  required Profile? profile,
+  required List<Task> tasks,
+}) async {
+  final mine = profileToPublish(
+    uid: target.uid,
+    profile: profile,
+    tasks: tasks,
+    published: _lastPublished,
+  );
+  if (mine == null) return;
+  PublicProfile? published;
+  try {
+    published = await target.publishedCopy();
+  } catch (_) {
+    published = null;
+  }
+  final against = profileToPublish(
+    uid: target.uid,
+    profile: profile,
+    tasks: tasks,
+    published: published,
+  );
+  // Already published, word for word: remember it so the next call is free.
+  if (against == null) {
+    _lastPublished = mine;
+    return;
+  }
+  await target.publish(against);
+  _lastPublished = against;
 }
 
 /// The last copy this process published, so repeated calls cost nothing.

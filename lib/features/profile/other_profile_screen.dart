@@ -786,12 +786,14 @@ class PostsGridScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(height: kSpacingSection * scale),
-              Text(
-                handle.isEmpty ? title : '$handle’s ${title.toLowerCase()}',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontSize: kProfileHeadingSize * scale,
-                  fontWeight: FontWeight.w700,
-                  color: tokens.textPrimary,
+              // You arrived by tapping the heading this grid is OF, so
+              // naming it again says nothing. The height stays, so the
+              // first row of photos does not move.
+              SizedBox(
+                height: lineHeightOf(
+                  context,
+                  theme.textTheme.titleLarge,
+                  kProfileHeadingSize,
                 ),
               ),
               SizedBox(height: kSpacingSection * scale),

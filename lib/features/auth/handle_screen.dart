@@ -100,7 +100,18 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SondrHeader(title: 'Choose a handle'),
+              // The word is gone, the space it occupied is not: the line
+              // below says what the screen is for, and the field under it
+              // is labelled "Handle". Kept as a maintained-size Visibility
+              // rather than a measured box, the way Blocked does it, so
+              // nothing moves if the header's type changes.
+              const Visibility(
+                visible: false,
+                maintainSize: true,
+                maintainAnimation: true,
+                maintainState: true,
+                child: SondrHeader(title: 'Choose a handle'),
+              ),
               SizedBox(height: kSpacingBase * scale),
               Text(
                 'This is how friends will find you. It can\'t be changed later.',

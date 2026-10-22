@@ -135,6 +135,41 @@ void expectNoOverflow(WidgetTester tester) {
 }
 
 void main() {
+  group('page titles', () {
+    testWidgets('their posts grid names nothing, and nothing moves', (
+      tester,
+    ) async {
+      _asThirteenPro(tester);
+      final before = photoImageProviderFactory;
+      photoImageProviderFactory = (_) => MemoryImage(tinyPng);
+      addTearDown(() => photoImageProviderFactory = before);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUidProvider.overrideWithValue(me),
+            profilePostsProvider.overrideWith(
+              (ref, uid) async => [_milestone(0)],
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const PostsGridScreen(
+              uid: them,
+              handle: 'cass',
+              title: 'Posts',
+              milestonesOnly: false,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('cass’s posts'), findsNothing);
+      // Measured with the title still there, on a 13 Pro.
+      expect(tester.getRect(find.byType(GridView)).top, closeTo(118.55, 0.5));
+    });
+  });
+
+
   Future<void> pumpTheirs(
     WidgetTester tester, {
     bool friends = true,

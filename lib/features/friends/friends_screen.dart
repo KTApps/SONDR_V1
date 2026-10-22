@@ -344,10 +344,11 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                         SondrAction(
                           label: 'Accept',
                           fontSize: kRowActionSize,
-                          onPressed: _busy
-                              ? null
-                              : () => _run((r) => r.accept(f.id),
-                                  success: 'You\u2019re now friends.'),
+                          // No notice: the row leaves Requests and joins
+                          // Friends, and the profile's status reads
+                          // Friends. Saying it a third time said nothing.
+                          onPressed:
+                              _busy ? null : () => _run((r) => r.accept(f.id)),
                         ),
                         SondrAction(
                           label: 'Decline',

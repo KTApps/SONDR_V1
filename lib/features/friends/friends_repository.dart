@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import '../profile/friend_mirror.dart';
 import 'content_prune.dart';
 import 'models/block.dart';
 import 'models/friendship.dart';
@@ -135,6 +136,9 @@ class FriendsRepository {
   }) async {
     final batch = db.batch();
     batch.delete(_friendships.doc(Friendship.pairId(uid, targetUid)));
+    // Their profile must stop listing us, and ours them, the moment the
+    // friendship goes — either party may clear either half.
+    removeFriendMirror(batch, db, uid, targetUid);
     batch.set(_blocks.doc(Block.idFor(uid, targetUid)), {
       'blocker': uid,
       'blocked': targetUid,
@@ -278,7 +282,11 @@ class FriendsRepository {
       throw const FriendException('That request is no longer available.');
     }
     try {
-      await _friendships.doc(pairId).update({
+      // One batch: the acceptance and both halves of the friend mirror. The
+      // rules allow a mirror entry only where the friendship is accepted
+      // AFTER the write lands (getAfter), which is exactly this.
+      final batch = db.batch();
+      batch.update(_friendships.doc(pairId), {
         'status': 'accepted',
         'acceptedAt': FieldValue.serverTimestamp(),
         'profiles.$uid': {
@@ -286,6 +294,8 @@ class FriendsRepository {
           'displayName': me.displayName,
         },
       });
+      if (other.isNotEmpty) addFriendMirror(batch, db, uid, other);
+      await batch.commit();
     } on FirebaseException catch (e) {
       // Denied means the rules refused the accept across a block in either
       // direction. Neutral wording: it does not say which.
@@ -309,8 +319,15 @@ class FriendsRepository {
   /// prunes too; the audiences simply contain nobody to remove, because a
   /// pending request was never in one.
   Future<void> remove(String pairId) async {
-    await _friendships.doc(pairId).delete();
     final other = Friendship.otherIn(pairId, uid);
+    final batch = db.batch();
+    batch.delete(_friendships.doc(pairId));
+    // A declined or cancelled REQUEST has no mirror halves; deleting what
+    // was never written is a no-op the rules allow, so this needs no branch.
+    if (other != null && other.isNotEmpty) {
+      removeFriendMirror(batch, db, uid, other);
+    }
+    await batch.commit();
     if (other != null) unawaited(pruner.pruneMyContentFor(other));
   }
 }

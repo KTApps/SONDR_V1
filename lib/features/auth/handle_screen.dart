@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,7 @@ import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_header.dart';
 import 'profile_repository.dart';
+import '../profile/public_profile.dart';
 
 /// Pick a unique handle. Validates format client-side, then claims it
 /// atomically via [ProfileRepository.claimHandle] (rejecting duplicates).
@@ -63,6 +66,9 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
         displayName: widget.suggestedDisplayName,
       );
       ref.invalidate(currentProfileProvider);
+      // The handle is what a profile is found by, and the rules check it
+      // against the usernames index — so publish it the moment it is ours.
+      unawaited(ref.read(publishPublicProfileProvider)());
       // Land on Home (the timer) after finishing sign-up + handle setup.
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } on HandleTakenException {

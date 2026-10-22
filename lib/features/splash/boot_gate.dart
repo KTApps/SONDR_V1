@@ -7,7 +7,9 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/cached_photo.dart';
 import '../friends/friends_repository.dart';
 import '../photos/photos_repository.dart';
+import '../profile/friend_mirror.dart';
 import '../profile/milestone_strip.dart';
+import '../profile/public_profile.dart';
 import '../habits/habits_providers.dart';
 import '../shell/main_shell.dart';
 import '../tasks/tasks_providers.dart';
@@ -59,7 +61,14 @@ class _BootGateState extends ConsumerState<BootGate> {
     // hold the splash up, and it is retried on every launch until the
     // server confirms it.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(ref.read(pendingPruneRunnerProvider)());
+      if (!mounted) return;
+      unawaited(ref.read(pendingPruneRunnerProvider)());
+      // What other people see of us, and the friend mirror their profiles
+      // are listed in. Both fire and forget, both idempotent, and both
+      // write nothing when there is nothing new to say — the splash must
+      // never wait on either.
+      unawaited(ref.read(publishPublicProfileProvider)());
+      unawaited(ref.read(friendMirrorReconcileProvider)());
     });
   }
 

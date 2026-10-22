@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/backend.dart';
 import 'package:sondr/core/theme/app_theme.dart';
+import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/posts_repository.dart';
 import 'package:sondr/features/feed/single_post_screen.dart';
@@ -540,6 +541,26 @@ void main() {
       await tester.tap(find.text('Remove'));
       await tester.pumpAndSettle();
       expect(acts.removed, [f.id]);
+    });
+
+    testWidgets('the rules sit inside the gutter, as they do on my own page', (
+      tester,
+    ) async {
+      await pump(tester, friendships: [_friendship()], posts: [_sessionPost(0)]);
+      final scale = figmaScale(
+        tester.element(find.byType(OtherProfileScreen)),
+      );
+      final width = tester.getSize(find.byType(OtherProfileScreen)).width;
+      final lines = find.byType(ProfileHairline);
+      expect(lines, findsWidgets);
+      // By index: every ProfileHairline is the same const instance, so
+      // byWidget finds them all at once.
+      for (var i = 0; i < lines.evaluate().length; i++) {
+        final rect = tester.getRect(lines.at(i));
+        expect(rect.left, closeTo(kProfileGutter * scale, 0.5));
+        expect(rect.right, closeTo(width - kProfileGutter * scale, 0.5));
+        expect(rect.height, 1, reason: 'a hairline is a hairline');
+      }
     });
 
     testWidgets('accepting fills the Friends section in, with no relaunch', (

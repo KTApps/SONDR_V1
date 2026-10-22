@@ -278,7 +278,7 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
               // A scroll away, like Sign out: the two things you would be
               // sorry to tap by accident.
               SizedBox(height: kProfileBreak * scale),
-              const ProfileHairline(),
+              const ProfileGutter(child: ProfileHairline()),
               SizedBox(height: kProfileUnderHairline * scale),
               if (status == FriendStatus.accepted)
                 Center(
@@ -549,7 +549,10 @@ class _Break extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(height: kProfileBreak * scale),
-        const ProfileHairline(),
+        // Inside the gutter, like every rule on the personal Profile: a
+        // line that runs to the screen's edge reads as a divider between
+        // two pages rather than a break between two sections.
+        const ProfileGutter(child: ProfileHairline()),
         SizedBox(height: kProfileUnderHairline * scale),
         child,
       ],

@@ -389,6 +389,108 @@ void main() {
       expect(find.text('Block'), findsNothing);
     });
 
+    testWidgets('a handle from the entry point stands in until one is published', (
+      tester,
+    ) async {
+      // Nothing published, no friendship: all the page has is what the
+      // byline that opened it knew. That is enough to be somebody.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUidProvider.overrideWithValue(me),
+            friendshipsProvider.overrideWith(
+              (ref) => Stream.value(const <Friendship>[]),
+            ),
+            blockedAccountsProvider.overrideWith(
+              (ref) => Stream.value(const <Block>[]),
+            ),
+            publicProfileProvider.overrideWith((ref, uid) async => null),
+            profilePostsProvider.overrideWith((ref, uid) async => const []),
+            friendUidsProvider.overrideWith((ref, uid) async => const []),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const OtherProfileScreen(
+              uid: them,
+              handle: 'cass',
+              displayName: 'Cass',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('cass'), findsOneWidget);
+      expect(find.text('Someone'), findsNothing);
+      // Their initial in the ring, from the name we were handed.
+      expect(find.text('C'), findsOneWidget);
+      // Hours are unknown, which is not zero: no figure at all.
+      expect(find.text('0'), findsNothing);
+      expect(find.text('hours'), findsNothing);
+    });
+
+    testWidgets('a page nobody could name says Someone, and no hours', (
+      tester,
+    ) async {
+      await pump(tester, published: null);
+      expect(find.text('Someone'), findsOneWidget);
+      expect(find.text('hours'), findsNothing);
+      expect(find.byType(ProfileStat), findsNothing);
+    });
+
+    testWidgets('a friendship names them when nothing is published', (
+      tester,
+    ) async {
+      await pump(tester, published: null, friendships: [_friendship()]);
+      expect(find.text('cass'), findsOneWidget);
+      expect(find.text('Someone'), findsNothing);
+      // A friend with no published copy: milestones still count, hours
+      // stay unknown.
+      expect(find.text('hours'), findsNothing);
+      expect(find.widgetWithText(ProfileStat, '0'), findsOneWidget,
+          reason: 'no shared milestones yet');
+      expect(find.text('milestones'), findsOneWidget);
+    });
+
+    testWidgets('a published handle wins over the one we were handed', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUidProvider.overrideWithValue(me),
+            friendshipsProvider.overrideWith(
+              (ref) => Stream.value(const <Friendship>[]),
+            ),
+            blockedAccountsProvider.overrideWith(
+              (ref) => Stream.value(const <Block>[]),
+            ),
+            publicProfileProvider.overrideWith(
+              (ref, uid) async => const PublicProfile(
+                uid: them,
+                handle: 'renamed',
+                displayName: 'Renamed',
+                hours: 12,
+              ),
+            ),
+            profilePostsProvider.overrideWith((ref, uid) async => const []),
+            friendUidsProvider.overrideWith((ref, uid) async => const []),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const OtherProfileScreen(
+              uid: them,
+              handle: 'stale',
+              displayName: 'Stale',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('renamed'), findsOneWidget);
+      expect(find.text('stale'), findsNothing);
+      expect(find.widgetWithText(ProfileStat, '12'), findsOneWidget);
+    });
+
     testWidgets('Add friend works on a profile that has published nothing', (
       tester,
     ) async {

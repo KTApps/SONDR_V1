@@ -48,6 +48,16 @@ class PostAuthorRow extends ConsumerWidget {
   final DateTime? createdAt;
   final bool onPhoto;
 
+  /// Their profile, told what this row already prints — so a profile whose
+  /// owner has published nothing still opens with a name in it.
+  void _open(BuildContext context, WidgetRef ref) => openProfile(
+    context,
+    ref,
+    authorUid,
+    handle: author.username,
+    displayName: author.displayName,
+  );
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
@@ -64,7 +74,7 @@ class PostAuthorRow extends ConsumerWidget {
       children: [
         GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => openProfile(context, ref, authorUid),
+          onTap: () => _open(context, ref),
           child: Row(
             children: [
               CircleAvatar(
@@ -86,7 +96,7 @@ class PostAuthorRow extends ConsumerWidget {
         Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => openProfile(context, ref, authorUid),
+            onTap: () => _open(context, ref),
             child: Text(
               author.label,
               maxLines: 1,

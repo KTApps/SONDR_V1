@@ -228,7 +228,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
             // The row itself is the way to their profile; Add stays where it
             // is, so a tap on the name and a tap on the action still mean
             // two different things.
-            onTap: () => openProfile(context, ref, m.uid),
+            onTap: () => openProfile(context, ref, m.uid, handle: m.handle),
             status: areFriends.contains(m.handle)
                 ? 'Friends'
                 : sent.contains(m.handle)
@@ -337,8 +337,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                   // A request is a decision, so both answers stay on the row.
                   _FriendRow(
                     identity: f.otherIdentity(uid ?? ''),
-                    onTap: () =>
-                        openProfile(context, ref, f.otherUid(uid ?? '')),
+                    onTap: () => _openOther(context, ref, f, uid),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -387,8 +386,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                     ],
                     child: _FriendRow(
                       identity: f.otherIdentity(uid ?? ''),
-                      onTap: () =>
-                          openProfile(context, ref, f.otherUid(uid ?? '')),
+                      onTap: () => _openOther(context, ref, f, uid),
                       status: 'Requested',
                     ),
                   ),
@@ -435,8 +433,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                   ],
                   child: _FriendRow(
                     identity: f.otherIdentity(uid ?? ''),
-                    onTap: () =>
-                        openProfile(context, ref, f.otherUid(uid ?? '')),
+                    onTap: () => _openOther(context, ref, f, uid),
                   ),
                 ),
             ],
@@ -503,6 +500,26 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       ],
     );
   }
+}
+
+/// The other participant's profile, told the identity the friendship has
+/// already denormalised — so it opens with their name in it whether or not
+/// they have published a profile of their own.
+void _openOther(
+  BuildContext context,
+  WidgetRef ref,
+  Friendship f,
+  String? myUid,
+) {
+  final me = myUid ?? '';
+  final identity = f.otherIdentity(me);
+  openProfile(
+    context,
+    ref,
+    f.otherUid(me),
+    handle: identity?.username ?? '',
+    displayName: identity?.displayName ?? '',
+  );
 }
 
 /// Which collapsible section is open. Friends is deliberately absent — it is

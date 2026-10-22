@@ -37,9 +37,21 @@ import 'public_profile.dart';
 /// their own business; a profile can only honestly show what they chose to
 /// put in front of people, and that is a post.
 class OtherProfileScreen extends ConsumerStatefulWidget {
-  const OtherProfileScreen({super.key, required this.uid});
+  const OtherProfileScreen({
+    super.key,
+    required this.uid,
+    this.handle = '',
+    this.displayName = '',
+  });
 
   final String uid;
+
+  /// What the entry point already knew about them — a post's byline, a
+  /// friendship's denormalised identity, a search result. Shown until (and
+  /// unless) their published profile says otherwise, so a profile whose
+  /// owner has published nothing is still somebody.
+  final String handle;
+  final String displayName;
 
   @override
   ConsumerState<OtherProfileScreen> createState() => _OtherProfileScreenState();
@@ -48,7 +60,13 @@ class OtherProfileScreen extends ConsumerStatefulWidget {
 /// Their profile, pushed. My own page is a tab, not a push — so a row for
 /// me (in their friends list, or a byline on my own post) switches to it
 /// rather than opening a second copy of it.
-void openProfile(BuildContext context, WidgetRef ref, String uid) {
+void openProfile(
+  BuildContext context,
+  WidgetRef ref,
+  String uid, {
+  String handle = '',
+  String displayName = '',
+}) {
   if (uid.isEmpty) return;
   if (uid == ref.read(currentUidProvider)) {
     ref.read(selectedTabProvider.notifier).set(kProfileTabIndex);
@@ -56,7 +74,13 @@ void openProfile(BuildContext context, WidgetRef ref, String uid) {
     return;
   }
   Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => OtherProfileScreen(uid: uid)),
+    MaterialPageRoute<void>(
+      builder: (_) => OtherProfileScreen(
+        uid: uid,
+        handle: handle,
+        displayName: displayName,
+      ),
+    ),
   );
 }
 
@@ -120,10 +144,21 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
         (!sees || (postsAsync.hasValue && friendsAsync.hasValue));
     if (!ready) return Scaffold(backgroundColor: tokens.background);
 
-    // Someone on an older build has published nothing. Their handle is
-    // still denormalised onto our friendship, so the page is not blank.
-    final them = publicAsync.value ??
-        _fromFriendship(widget.uid, myUid, friendships);
+    // Published first, then what the entry point handed us, then our
+    // friendship's own copy. Only a page that was told nothing by anyone
+    // has to say "Someone".
+    final published = publicAsync.value;
+    final them = profileIdentity(
+      uid: widget.uid,
+      published: published,
+      handle: widget.handle,
+      displayName: widget.displayName,
+      fromFriendship: friendshipWith(
+        myUid: myUid,
+        theirUid: widget.uid,
+        friendships: friendships,
+      )?.profiles[widget.uid],
+    );
     final posts = sees ? (postsAsync.value ?? const <Post>[]) : const <Post>[];
     final milestones = [
       for (final p in posts)
@@ -165,13 +200,17 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
                 ),
               ),
               SizedBox(height: kSpacingSection * scale),
-              ProfileGutter(
-                child: _Stats(
-                  hours: them.hours,
-                  milestones: sees ? milestones.length : null,
+              // Nothing published means their hours are unknown, not zero.
+              // A figure the page cannot stand behind is not shown.
+              if (published != null || sees) ...[
+                ProfileGutter(
+                  child: _Stats(
+                    hours: published?.hours,
+                    milestones: sees ? milestones.length : null,
+                  ),
                 ),
-              ),
-              SizedBox(height: kSpacingSection * scale),
+                SizedBox(height: kSpacingSection * scale),
+              ],
               Center(
                 child: SondrAction(
                   label: friendStatusLabel(status),
@@ -364,19 +403,39 @@ String blockBody(String handle) =>
     'to add you, and they are taken out of the posts and comments you have '
     'already written.';
 
-/// Their published profile is missing, so take what our friendship knows.
-PublicProfile _fromFriendship(
-  String uid,
-  String myUid,
-  List<Friendship> friendships,
-) {
-  final f = friendshipWith(myUid: myUid, theirUid: uid, friendships: friendships);
-  final identity = f?.profiles[uid];
+/// Who to say this is.
+///
+/// Their published profile if there is one; otherwise whatever the entry
+/// point already held — a post's byline, a search result, a friendship's
+/// denormalised identity. Every one of those knew a handle, which is why
+/// "Someone" should only ever appear for a page nobody could name.
+///
+/// The hours are the published copy's alone: a handle from a byline says
+/// nothing about how long they have worked, and 0 would be a claim.
+PublicProfile profileIdentity({
+  required String uid,
+  required PublicProfile? published,
+  required String handle,
+  required String displayName,
+  required FriendIdentity? fromFriendship,
+}) {
+  String first(List<String> candidates) => candidates.firstWhere(
+        (c) => c.isNotEmpty,
+        orElse: () => '',
+      );
   return PublicProfile(
     uid: uid,
-    handle: identity?.username ?? '',
-    displayName: identity?.displayName ?? '',
-    hours: 0,
+    handle: first([
+      published?.handle ?? '',
+      handle,
+      fromFriendship?.username ?? '',
+    ]),
+    displayName: first([
+      published?.displayName ?? '',
+      displayName,
+      fromFriendship?.displayName ?? '',
+    ]),
+    hours: published?.hours ?? 0,
   );
 }
 
@@ -449,7 +508,8 @@ class _Emblem extends StatelessWidget {
 class _Stats extends StatelessWidget {
   const _Stats({required this.hours, required this.milestones});
 
-  final int hours;
+  /// Null when they have published nothing — unknown, which is not zero.
+  final int? hours;
 
   /// Null for a stranger, who sees hours alone.
   final int? milestones;
@@ -457,12 +517,13 @@ class _Stats extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Expanded(
-        child: ProfileStat(
-          value: '$hours',
-          label: hours == 1 ? 'hour' : 'hours',
+      if (hours != null)
+        Expanded(
+          child: ProfileStat(
+            value: '$hours',
+            label: hours == 1 ? 'hour' : 'hours',
+          ),
         ),
-      ),
       if (milestones != null)
         Expanded(
           child: ProfileStat(
@@ -765,7 +826,13 @@ class _FriendOfRow extends ConsumerWidget {
     final them = ref.watch(publicProfileProvider(uid)).value;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => openProfile(context, ref, uid),
+      onTap: () => openProfile(
+        context,
+        ref,
+        uid,
+        handle: them?.handle ?? '',
+        displayName: them?.displayName ?? '',
+      ),
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: kProfileGutter * scale,

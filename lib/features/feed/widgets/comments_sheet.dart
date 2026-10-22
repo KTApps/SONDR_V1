@@ -351,7 +351,13 @@ class _CommentTile extends ConsumerWidget {
           // The avatar and the name are the way to whoever wrote this.
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => openProfile(context, ref, comment.authorUid),
+            onTap: () => openProfile(
+              context,
+              ref,
+              comment.authorUid,
+              handle: comment.author.username,
+              displayName: comment.author.displayName,
+            ),
             child: CircleAvatar(
             radius: kAvatarComment / 2 * scale,
             // Surface on a background-toned sheet, the same way a friend row
@@ -377,8 +383,13 @@ class _CommentTile extends ConsumerWidget {
                   children: [
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () =>
-                          openProfile(context, ref, comment.authorUid),
+                      onTap: () => openProfile(
+                        context,
+                        ref,
+                        comment.authorUid,
+                        handle: comment.author.username,
+                        displayName: comment.author.displayName,
+                      ),
                       child: Text(
                         comment.author.label,
                         style: theme.textTheme.bodyMedium?.copyWith(

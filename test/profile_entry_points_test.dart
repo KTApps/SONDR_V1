@@ -88,6 +88,9 @@ void main() {
       find.byType(OtherProfileScreen),
     );
     expect(screen.uid, them);
+    // And what the byline already knew, so the page is never nameless.
+    expect(screen.handle, 'cass');
+    expect(screen.displayName, 'Cass');
   });
 
   testWidgets('my own byline goes to my Profile tab, not a second copy', (
@@ -136,10 +139,11 @@ void main() {
 
     await tester.tap(find.text('Cass'));
     await tester.pumpAndSettle();
-    expect(
-      tester.widget<OtherProfileScreen>(find.byType(OtherProfileScreen)).uid,
-      them,
+    final screen = tester.widget<OtherProfileScreen>(
+      find.byType(OtherProfileScreen),
     );
+    expect(screen.uid, them);
+    expect(screen.handle, 'cass');
   });
 
   testWidgets('a search result carries the uid, not just the handle', (

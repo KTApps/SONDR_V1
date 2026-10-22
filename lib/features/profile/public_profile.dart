@@ -27,6 +27,7 @@ class PublicProfile {
     required this.handle,
     required this.displayName,
     required this.hours,
+    this.seconds,
     this.ringProgress = 0,
   });
 
@@ -35,7 +36,22 @@ class PublicProfile {
   final String displayName;
 
   /// Lifetime hours across every task, rounded down.
+  ///
+  /// Kept because a build that predates [seconds] reads this and nothing
+  /// else. Everything here floors it the same way, so the two never
+  /// disagree about what to print.
   final int hours;
+
+  /// The exact figure the hours are floored from.
+  ///
+  /// The published copy used to carry whole hours alone, so "19h 59m"
+  /// reached another person's page as a flat 19 with no way to tell it
+  /// from 19h 00m. The seconds are published now and floored where they
+  /// are shown; an older document has none, and [hours] answers for it.
+  final int? seconds;
+
+  /// Whole hours, from the exact figure when there is one.
+  int get wholeHours => seconds == null ? hours : seconds! ~/ 3600;
 
   /// How far through its current 20-hour band their nearest milestone is,
   /// 0..1 — the same figure the owner's own hero ring fills by, so the two
@@ -63,6 +79,7 @@ class PublicProfile {
     'handle': handle,
     'displayName': displayName,
     'hours': hours,
+    if (seconds != null) 'seconds': seconds,
     'ringProgress': ringProgress,
   };
 
@@ -72,6 +89,7 @@ class PublicProfile {
         handle: (map['handle'] as String?) ?? '',
         displayName: (map['displayName'] as String?) ?? '',
         hours: (map['hours'] as num?)?.toInt() ?? 0,
+        seconds: (map['seconds'] as num?)?.toInt(),
         ringProgress: ((map['ringProgress'] as num?)?.toDouble() ?? 0)
             .clamp(0.0, 1.0),
       );
@@ -82,6 +100,7 @@ class PublicProfile {
       other.handle == handle &&
       other.displayName == displayName &&
       other.hours == hours &&
+      other.seconds == seconds &&
       other.ringProgress == ringProgress;
 }
 
@@ -245,6 +264,7 @@ PublicProfile? profileToPublish({
     handle: profile.username,
     displayName: profile.displayName,
     hours: wholeHoursOf(tasks),
+    seconds: lifetimeSecondsOf(tasks),
     ringProgress: ringProgressOf(tasks),
   );
   return mine.sameAs(published) ? null : mine;
@@ -320,10 +340,13 @@ PublicProfile? _lastPublished;
 @visibleForTesting
 void resetPublishedProfileMemory() => _lastPublished = null;
 
-/// Lifetime whole hours across every task, archived ones included: the same
-/// figure [lifetimeDurationProvider] shows on my own Profile.
-int wholeHoursOf(List<Task> tasks) =>
-    tasks.fold<int>(0, (total, t) => total + t.totalSeconds) ~/ 3600;
+/// Lifetime seconds across every task, archived ones included: the same
+/// figure [lifetimeDurationProvider] sums on my own Profile.
+int lifetimeSecondsOf(List<Task> tasks) =>
+    tasks.fold<int>(0, (total, t) => total + t.totalSeconds);
+
+/// And the whole hours it floors to, which is what is printed.
+int wholeHoursOf(List<Task> tasks) => lifetimeSecondsOf(tasks) ~/ 3600;
 
 /// How full the hero ring is: the active task furthest through its current
 /// 20-hour band, 0..1.

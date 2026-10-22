@@ -19,12 +19,14 @@ PublicProfile _published({
   String handle = 'ada',
   String displayName = 'Ada',
   int hours = 20,
+  int? seconds,
   double ringProgress = 0,
 }) => PublicProfile(
   uid: 'me',
   handle: handle,
   displayName: displayName,
   hours: hours,
+  seconds: seconds,
   ringProgress: ringProgress,
 );
 
@@ -116,6 +118,7 @@ void main() {
         'handle': 'ada',
         'displayName': 'Ada',
         'hours': 20,
+        'seconds': 20 * 3600 + 60,
         'ringProgress': mine.ringProgress,
       });
     });
@@ -129,6 +132,7 @@ void main() {
             tasks: [_task('a', seconds: 20 * 3600 + 59 * 60)],
             published: _published(
               hours: 20,
+              seconds: 20 * 3600 + 59 * 60,
               ringProgress: ringProgressOf([
                 _task('a', seconds: 20 * 3600 + 59 * 60),
               ]),
@@ -200,7 +204,11 @@ void main() {
     test('an unchanged figure writes nothing, however often it is asked', () async {
       final tasks = [_task('a', seconds: 41 * 3600 + 59 * 60)];
       final target = _FakeTarget(
-        stored: _published(hours: 41, ringProgress: ringProgressOf(tasks)),
+        stored: _published(
+          hours: 41,
+          seconds: 41 * 3600 + 59 * 60,
+          ringProgress: ringProgressOf(tasks),
+        ),
       );
       for (var i = 0; i < 3; i++) {
         await publishTo(target, profile: _profile(), tasks: tasks);

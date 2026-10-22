@@ -32,7 +32,29 @@ final milestonesReachedProvider = Provider<int>((ref) {
 ///
 /// Null only when there is no active task at all, which is the hero's empty
 /// state (a bare grey track).
-typedef NextMilestone = ({Task task, double progress, int hoursRemaining});
+typedef NextMilestone = ({
+  Task task,
+  double progress,
+  int hoursRemaining,
+  int secondsRemaining,
+});
+
+/// How long is left, as the subtitle says it: "1h 12m", "45m", "2h" on the
+/// hour, and "<1m" in the last minute.
+///
+/// Rounded UP to the minute, so the line never promises a milestone sooner
+/// than it will arrive and never reads "0m" while there is still time on
+/// the clock — the same rule the hours figure followed before minutes were
+/// shown.
+String remainingLabel(int seconds) {
+  if (seconds < 60) return '<1m';
+  final minutes = (seconds / 60).ceil();
+  final h = minutes ~/ 60;
+  final m = minutes.remainder(60);
+  if (h == 0) return '${m}m';
+  if (m == 0) return '${h}h';
+  return '${h}h ${m}m';
+}
 
 final nextMilestoneProvider = Provider<NextMilestone?>((ref) {
   final tasks = ref.watch(activeTasksProvider);
@@ -48,5 +70,6 @@ final nextMilestoneProvider = Provider<NextMilestone?>((ref) {
     task: nearest,
     progress: nearest.milestoneProgress,
     hoursRemaining: (remaining / 3600).ceil(),
+    secondsRemaining: remaining,
   );
 });

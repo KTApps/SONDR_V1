@@ -475,7 +475,10 @@ class _HeroCaption extends ConsumerWidget {
                 ? [TextSpan(text: 'No task in progress.', style: quiet)]
                 : [
                     TextSpan(
-                      text: '${next.hoursRemaining}h',
+                      // The figure, in the page's own tone — now with the
+                      // minutes, because an hour is a long time to be told
+                      // the same number.
+                      text: remainingLabel(next.secondsRemaining),
                       style: quiet?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: tokens.textPrimary,
@@ -510,7 +513,10 @@ class _EffortSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hours = (lifetime.inMinutes / 60).round();
+    // FLOORED, not rounded. 19h 59m is 19 hours done, and a figure that
+    // claims the twentieth before it is logged is the one figure on this
+    // page the owner can check against the clock.
+    final hours = lifetime.inHours;
 
     return Row(
       children: [

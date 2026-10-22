@@ -764,8 +764,10 @@ void main() {
         'emblemToHandle': top(handle) - bottom(rings.first),
         'handleToSubline': top(subline) - bottom(handle),
         // Six tasks at 12.75h each is 76.5 lifetime hours, so the first
-        // figure reads 77 — and every figure starts at the row's top.
-        'sublineToStats': top(find.text('77')) - bottom(subline),
+        // figure reads 76: the figure FLOORS, because an hour you have
+        // not finished is not an hour. (It read 77 until the rounding was
+        // fixed.) Every figure starts at the row's top.
+        'sublineToStats': top(find.text('76')) - bottom(subline),
         'statsBottom': bottom(find.text('day streak')),
         'break1': top(lines.at(0)) - bottom(find.text('day streak')),
         'hl1ToFriends': top(find.text('Friends')) - bottom(lines.at(0)),
@@ -780,7 +782,7 @@ void main() {
         'inProgressToRings':
             top(rings.at(1)) - bottom(find.text('In progress')),
         'ringsBottom': bottom(find.text('Task 0')),
-        'statsTop': top(find.text('77')),
+        'statsTop': top(find.text('76')),
         'labelCentre': tester.getRect(find.text('Task 0')).center.dy,
         'homeCta': homeCtaCentreY(tester.element(find.byType(ProfileScreen))),
         'clearance': tabBarTop13 - bottom(find.text('Task 0')),
@@ -869,7 +871,7 @@ void main() {
       ('emblem', ringFinder(tester, 128)),
       ('handle', find.text('tanaka')),
       ('subtitle', find.textContaining('to your next milestone')),
-      ('stat figure', find.text('77')),
+      ('stat figure', find.text('76')),
       ('stat label', find.text('day streak')),
       ('Friends', find.text('Friends')),
       ('Milestones', find.text('Milestones')),
@@ -1489,9 +1491,10 @@ void main() {
           tester.getTopLeft(find.textContaining('to your next milestone')).dy -
           tester.getBottomLeft(find.text('tanaka')).dy;
       // And the flexible gap under the pair, which is where the slack goes.
-      // 45900s is 12.75 lifetime hours, so the first figure reads 13.
+      // 45900s is 12.75 lifetime hours, so the first figure reads 12: the
+      // figure floors. (It read 13 until the rounding was fixed.)
       final flexible =
-          tester.getTopLeft(find.text('13')).dy -
+          tester.getTopLeft(find.text('12')).dy -
           tester
               .getBottomLeft(find.textContaining('to your next milestone'))
               .dy;

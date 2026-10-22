@@ -20,18 +20,32 @@ class FriendException implements Exception {
 String normalizeHandle(String raw) =>
     raw.trim().toLowerCase().replaceFirst(RegExp(r'^@'), '');
 
+/// One person found by handle: what to show, and whose profile it is.
+///
+/// The uid matters as much as the handle now — a search result opens that
+/// person's profile, and `usernames/{handle}` is the only place the two are
+/// written down together.
+class HandleMatch {
+  const HandleMatch({required this.handle, required this.uid});
+
+  final String handle;
+  final String uid;
+}
+
 /// The handles in [candidates] (handle -> owner uid) that [blockedUids] does
 /// not cover, in order.
 ///
 /// Pure, so the filter is testable without Firestore. A candidate with no uid
-/// is dropped: a usernames entry with no owner is malformed and unusable.
-List<String> handlesNotBlocked(
+/// is dropped: a usernames entry with no owner is malformed and unusable —
+/// and now also unopenable, since a profile is addressed by uid.
+List<HandleMatch> handlesNotBlocked(
   Iterable<MapEntry<String, String?>> candidates,
   Set<String> blockedUids,
 ) =>
     [
       for (final c in candidates)
-        if (c.value != null && !blockedUids.contains(c.value)) c.key,
+        if (c.value != null && !blockedUids.contains(c.value))
+          HandleMatch(handle: c.key, uid: c.value!),
     ];
 
 /// Reads and mutates the `friendships` collection for the current [uid]. All
@@ -167,10 +181,13 @@ class FriendsRepository {
             snap.docs.map((d) => Friendship.fromMap(d.id, d.data())).toList());
   }
 
-  /// Handles starting with [prefix], alphabetical, excluding this user's own.
-  /// Handles are the `usernames` doc ids, so this is a doc-id range query —
-  /// no composite index needed.
-  Future<List<String>> searchHandles(String prefix, {int limit = 8}) async {
+  /// People whose handle starts with [prefix], alphabetical, excluding this
+  /// user's own. Handles are the `usernames` doc ids, so this is a doc-id
+  /// range query — no composite index needed.
+  Future<List<HandleMatch>> searchHandles(
+    String prefix, {
+    int limit = 8,
+  }) async {
     final h = normalizeHandle(prefix);
     if (h.isEmpty) return const [];
     final snap = await db

@@ -42,7 +42,11 @@ class SessionLogCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            PostAuthorRow(author: post.author, createdAt: post.createdAt),
+            PostAuthorRow(
+              author: post.author,
+              authorUid: post.authorUid,
+              createdAt: post.createdAt,
+            ),
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),

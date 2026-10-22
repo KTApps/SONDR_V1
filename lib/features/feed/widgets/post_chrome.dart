@@ -8,6 +8,7 @@ import '../../../core/utils/figma_scale.dart';
 import '../../../core/utils/relative_time.dart';
 import '../../../shared/cached_photo.dart';
 import '../../../shared/sondr_error.dart';
+import '../../profile/other_profile_screen.dart';
 import '../models/post.dart';
 import '../posts_repository.dart';
 import 'comments_sheet.dart';
@@ -26,20 +27,29 @@ ImageProvider postImageProvider(String url) =>
 
 /// Author avatar + name + relative time. [onPhoto] flips to light text with
 /// shadows for the photo-backdrop card.
-class PostAuthorRow extends StatelessWidget {
+///
+/// The avatar and the name are the way to that person's profile — which is
+/// why the row carries [authorUid] and not only the denormalised name it
+/// prints. The timestamp is not part of the tap target: it is information
+/// about the post, not about the person.
+class PostAuthorRow extends ConsumerWidget {
   const PostAuthorRow({
     super.key,
     required this.author,
+    required this.authorUid,
     required this.createdAt,
     this.onPhoto = false,
   });
 
   final PostAuthor author;
+
+  /// Whose post it is. Their profile; mine switches to the Profile tab.
+  final String authorUid;
   final DateTime? createdAt;
   final bool onPhoto;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);
@@ -52,29 +62,41 @@ class PostAuthorRow extends StatelessWidget {
 
     return Row(
       children: [
-        CircleAvatar(
-          radius: kAvatarPost / 2 * scale,
-          backgroundColor: onPhoto ? kOnPhotoFill : tokens.background,
-          child: Text(
-            initial,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontSize: 13 * scale,
-              fontWeight: FontWeight.w700,
-              color: primary,
-            ),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => openProfile(context, ref, authorUid),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: kAvatarPost / 2 * scale,
+                backgroundColor: onPhoto ? kOnPhotoFill : tokens.background,
+                child: Text(
+                  initial,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: 13 * scale,
+                    fontWeight: FontWeight.w700,
+                    color: primary,
+                  ),
+                ),
+              ),
+              SizedBox(width: kSpacingBase * scale),
+            ],
           ),
         ),
-        SizedBox(width: kSpacingBase * scale),
         Expanded(
-          child: Text(
-            author.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontSize: 15 * scale,
-              fontWeight: FontWeight.w700,
-              color: primary,
-              shadows: shadows,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => openProfile(context, ref, authorUid),
+            child: Text(
+              author.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 15 * scale,
+                fontWeight: FontWeight.w700,
+                color: primary,
+                shadows: shadows,
+              ),
             ),
           ),
         ),

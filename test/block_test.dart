@@ -66,11 +66,17 @@ void main() {
     ];
 
     test('drops the blocked person and keeps the rest, in order', () {
-      expect(handlesNotBlocked(candidates, {'uid-b'}), ['alice', 'carol']);
+      expect(
+        [for (final m in handlesNotBlocked(candidates, {'uid-b'})) m.handle],
+        ['alice', 'carol'],
+      );
     });
 
     test('no blocks: everyone is findable', () {
-      expect(handlesNotBlocked(candidates, {}), ['alice', 'bob', 'carol']);
+      expect(
+        [for (final m in handlesNotBlocked(candidates, {})) m.handle],
+        ['alice', 'bob', 'carol'],
+      );
     });
 
     test('FAILS OPEN — an empty set filters nothing, never everything', () {

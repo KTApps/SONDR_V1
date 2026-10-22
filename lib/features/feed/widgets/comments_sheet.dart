@@ -14,6 +14,7 @@ import '../../../shared/sondr_field.dart';
 import '../../../shared/sondr_loading.dart';
 import '../../../shared/sondr_swipe_row.dart';
 import '../../../core/utils/relative_time.dart';
+import '../../profile/other_profile_screen.dart';
 import '../models/comment.dart';
 import '../posts_repository.dart';
 
@@ -323,13 +324,13 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
   }
 }
 
-class _CommentTile extends StatelessWidget {
+class _CommentTile extends ConsumerWidget {
   const _CommentTile({required this.comment});
 
   final Comment comment;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
     final scale = figmaScale(context);
     final theme = Theme.of(context);
@@ -347,7 +348,11 @@ class _CommentTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
+          // The avatar and the name are the way to whoever wrote this.
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => openProfile(context, ref, comment.authorUid),
+            child: CircleAvatar(
             radius: kAvatarComment / 2 * scale,
             // Surface on a background-toned sheet, the same way a friend row
             // draws its placeholder — background-on-background left the
@@ -361,6 +366,7 @@ class _CommentTile extends StatelessWidget {
                 color: tokens.textSecondary,
               ),
             ),
+            ),
           ),
           SizedBox(width: kSpacingBase * scale),
           Expanded(
@@ -369,12 +375,17 @@ class _CommentTile extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      comment.author.label,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontSize: 15 * scale,
-                        fontWeight: FontWeight.w700,
-                        color: tokens.textPrimary,
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () =>
+                          openProfile(context, ref, comment.authorUid),
+                      child: Text(
+                        comment.author.label,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontSize: 15 * scale,
+                          fontWeight: FontWeight.w700,
+                          color: tokens.textPrimary,
+                        ),
                       ),
                     ),
                     SizedBox(width: kSpacingPair * scale),

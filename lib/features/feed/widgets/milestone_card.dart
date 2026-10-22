@@ -134,7 +134,11 @@ class MilestoneCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PostAuthorRow(author: post.author, createdAt: post.createdAt),
+          PostAuthorRow(
+            author: post.author,
+            authorUid: post.authorUid,
+            createdAt: post.createdAt,
+          ),
           const SizedBox(height: 16),
           _badge(context, onPhoto: false),
           const SizedBox(height: 16),
@@ -159,7 +163,11 @@ class MilestoneCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PostAuthorRow(author: post.author, createdAt: post.createdAt),
+          PostAuthorRow(
+            author: post.author,
+            authorUid: post.authorUid,
+            createdAt: post.createdAt,
+          ),
           const SizedBox(height: 16),
           _badge(context, onPhoto: false),
           const SizedBox(height: 16),
@@ -209,6 +217,7 @@ class MilestoneCard extends StatelessWidget {
               children: [
                 PostAuthorRow(
                   author: post.author,
+                  authorUid: post.authorUid,
                   createdAt: post.createdAt,
                   onPhoto: true,
                 ),

@@ -92,6 +92,14 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
   String? _notice;
   bool _busy = false;
 
+  /// What the page shows while the write is in flight.
+  ///
+  /// Add and Accept answer at once — the slot empties, the line reads
+  /// Requested or Friends — rather than waiting for the friendship to come
+  /// back down the stream. Cleared when the stream catches up, and put
+  /// back by the failure handler if it never does.
+  FriendStatus? _pending;
+
   void _say(String message) {
     if (mounted) setState(() => _notice = message);
   }
@@ -110,10 +118,12 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
       await action(acts);
     } on FriendException catch (e) {
       // Including the one a block raises, whose wording is identical to a
-      // handle that does not exist.
+      // handle that does not exist. The optimistic answer goes back.
+      _pending = null;
       _say(e.message);
     } catch (e) {
       debugPrint('SONDR profile action error: ${e.runtimeType}');
+      _pending = null;
       _say('Something went wrong. Please try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -127,12 +137,15 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
     final myUid = ref.watch(currentUidProvider) ?? '';
     final friendships =
         ref.watch(friendshipsProvider).value ?? const <Friendship>[];
-    final status = friendStatusOf(
+    final settled = friendStatusOf(
       myUid: myUid,
       theirUid: widget.uid,
       friendships: friendships,
       blockedUids: ref.watch(blockedUidsProvider),
     );
+    // The optimistic answer, until the friendship itself says the same.
+    if (_pending != null && _pending == settled) _pending = null;
+    final status = _pending ?? settled;
     final sees = friendStatusSeesContent(status);
 
     final publicAsync = ref.watch(publicProfileProvider(widget.uid));
@@ -205,13 +218,19 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
       // own content runs to the tab bar's.
       bottomNavigationBar: ProfileActionBar(
         slots: [
-          if (status == FriendStatus.accepted)
-            ProfileBarSlot(
-              label: 'Remove',
-              onTap: _busy ? null : () => _remove(them, friendships, myUid),
-            )
-          else
-            null,
+          // The friendship, as something to DO. Add and Accept act on the
+          // tap; Remove asks first, as it did before it came down here.
+          switch (friendActionLabel(status)) {
+            final String label => ProfileBarSlot(
+              label: label,
+              onTap: _busy
+                  ? null
+                  : () => status == FriendStatus.accepted
+                        ? _remove(them, friendships, myUid)
+                        : _act(status, them, friendships, myUid),
+            ),
+            _ => null,
+          },
           ProfileBarSlot(
             label: 'Back',
             onTap: () => Navigator.of(context).maybePop(),
@@ -299,7 +318,7 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
                         if (published != null || sees) ...[
                           ProfileGutter(
                             child: _Stats(
-                              hours: published?.hours,
+                              hours: published?.wholeHours,
                               milestones: sees ? milestones.length : null,
                             ),
                           ),
@@ -416,6 +435,11 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
         // By uid. The handle rides along for the wording and for the
         // pending row to print; it is not what this is addressed to, and a
         // profile whose owner has published nothing still adds.
+        //
+        // The page answers at once: the slot empties and the line reads
+        // Requested, rather than waiting for the friendship to come back
+        // down the stream.
+        setState(() => _pending = FriendStatus.requested);
         _run((acts) => acts.addFriend(widget.uid, handle: them.handle));
       case FriendStatus.incoming:
         final f = friendshipWith(
@@ -423,7 +447,9 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
           theirUid: widget.uid,
           friendships: friendships,
         );
-        if (f != null) _run((acts) => acts.acceptRequest(f.id));
+        if (f == null) return;
+        setState(() => _pending = FriendStatus.accepted);
+        _run((acts) => acts.acceptRequest(f.id));
       case FriendStatus.blockedByMe:
         _run((acts) => acts.unblock(widget.uid));
       case FriendStatus.requested:
@@ -520,6 +546,7 @@ PublicProfile profileIdentity({
       fromFriendship?.displayName ?? '',
     ]),
     hours: published?.hours ?? 0,
+    seconds: published?.seconds,
     ringProgress: published?.ringProgress ?? 0,
   );
 }
@@ -560,18 +587,20 @@ class _HeroCaption extends StatelessWidget {
     final theme = Theme.of(context);
     final scale = figmaScale(context);
     final actionable = friendStatusIsActionable(status) && !busy;
-
-    final line = Text(
-      friendStatusLabel(status),
-      textAlign: TextAlign.center,
-      style: theme.textTheme.bodyMedium?.copyWith(
-        fontSize: 13 * scale,
-        // The WEIGHT is the same either way, so an inert state does not
-        // change size and shift what sits under it. Tone carries it.
-        fontWeight: FontWeight.w700,
-        color: actionable ? tokens.textPrimary : tokens.textTertiary,
-      ),
+    final label = friendStatusLabel(status);
+    final style = theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 13 * scale,
+      // The WEIGHT is the same either way, so a statement does not change
+      // size and shift what sits under it. Tone carries it.
+      fontWeight: FontWeight.w700,
+      color: actionable ? tokens.textPrimary : tokens.textTertiary,
     );
+
+    // A page with nothing to report keeps the line's HEIGHT: the stats,
+    // the sections and the grid below them do not move as the state
+    // changes under them. An empty Text rather than a measured box, so
+    // the space is the line's own and cannot drift from it.
+    final Widget line = Text(label, textAlign: TextAlign.center, style: style);
 
     return Column(
       children: [

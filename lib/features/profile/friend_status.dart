@@ -61,20 +61,35 @@ Friendship? friendshipWith({
   return null;
 }
 
-/// The label the status action carries.
-String friendStatusLabel(FriendStatus status) => switch (status) {
-  FriendStatus.none => 'Add friend',
-  FriendStatus.requested => 'Requested',
+/// What the bar's left slot offers, or null where there is nothing to do.
+///
+/// The offer and the state are two different things and now sit in two
+/// different places: the thing you can DO is in the bar, under the thumb,
+/// and the thing that is TRUE is the line under the handle. Unblocking is
+/// the exception — it stays in the line, because a page with nothing of
+/// theirs on it should not put an action where Add sits on every other
+/// profile.
+String? friendActionLabel(FriendStatus status) => switch (status) {
+  FriendStatus.none => 'Add',
   FriendStatus.incoming => 'Accept',
-  FriendStatus.accepted => 'Friends',
-  FriendStatus.blockedByMe => 'Unblock',
+  FriendStatus.accepted => 'Remove',
+  FriendStatus.requested => null,
+  FriendStatus.blockedByMe => null,
 };
 
-/// Whether the action does anything when tapped. "Requested" and "Friends"
-/// are states, not offers.
+/// What the line under the handle says. Empty where there is nothing to
+/// report — the line keeps its height either way, so nothing below it
+/// moves as the state changes.
+String friendStatusLabel(FriendStatus status) => switch (status) {
+  FriendStatus.accepted => 'Friends',
+  FriendStatus.requested => 'Requested',
+  FriendStatus.incoming => 'Wants to be friends',
+  FriendStatus.blockedByMe => 'Unblock',
+  FriendStatus.none => '',
+};
+
+/// Whether that line is an action rather than a statement. Only one is.
 bool friendStatusIsActionable(FriendStatus status) =>
-    status == FriendStatus.none ||
-    status == FriendStatus.incoming ||
     status == FriendStatus.blockedByMe;
 
 /// Whether this profile shows what they have been doing. Only a friend sees

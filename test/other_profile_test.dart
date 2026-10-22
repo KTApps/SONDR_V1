@@ -143,21 +143,29 @@ void main() {
     });
 
     test('each state says and offers the right thing', () {
-      expect(friendStatusLabel(FriendStatus.none), 'Add friend');
+      // The line under the handle states what is TRUE...
+      expect(friendStatusLabel(FriendStatus.none), '');
       expect(friendStatusLabel(FriendStatus.requested), 'Requested');
-      expect(friendStatusLabel(FriendStatus.incoming), 'Accept');
+      expect(friendStatusLabel(FriendStatus.incoming), 'Wants to be friends');
       expect(friendStatusLabel(FriendStatus.accepted), 'Friends');
       expect(friendStatusLabel(FriendStatus.blockedByMe), 'Unblock');
 
-      // Requested and Friends are states, not offers.
-      expect(friendStatusIsActionable(FriendStatus.requested), isFalse);
-      expect(friendStatusIsActionable(FriendStatus.accepted), isFalse);
+      // ...and the bar's left slot offers what can be DONE.
+      expect(friendActionLabel(FriendStatus.none), 'Add');
+      expect(friendActionLabel(FriendStatus.incoming), 'Accept');
+      expect(friendActionLabel(FriendStatus.accepted), 'Remove');
+      expect(friendActionLabel(FriendStatus.requested), isNull);
+      expect(friendActionLabel(FriendStatus.blockedByMe), isNull);
+
+      // Only Unblock is an action in the line itself.
+      expect(friendStatusIsActionable(FriendStatus.blockedByMe), isTrue);
       for (final s in [
         FriendStatus.none,
+        FriendStatus.requested,
         FriendStatus.incoming,
-        FriendStatus.blockedByMe,
+        FriendStatus.accepted,
       ]) {
-        expect(friendStatusIsActionable(s), isTrue, reason: '$s');
+        expect(friendStatusIsActionable(s), isFalse, reason: '$s');
       }
 
       // Only a friend sees what they have been doing.
@@ -238,7 +246,7 @@ void main() {
       expect(find.text('cass'), findsOneWidget);
       expect(find.text('41'), findsOneWidget);
       expect(find.text('hours'), findsOneWidget);
-      expect(find.text('Add friend'), findsOneWidget);
+      expect(find.text('Add'), findsOneWidget);
       expect(
         find.text('Add each other as friends to see posts and milestones.'),
         findsOneWidget,
@@ -262,7 +270,7 @@ void main() {
       // What a block leaves behind: no friendship, and nothing in any
       // audience. The page must not differ from the stranger above.
       await pump(tester, friendships: const [], posts: const []);
-      expect(find.text('Add friend'), findsOneWidget);
+      expect(find.text('Add'), findsOneWidget);
       expect(
         find.text('Add each other as friends to see posts and milestones.'),
         findsOneWidget,
@@ -276,10 +284,11 @@ void main() {
     ) async {
       await pump(tester, friendships: [_friendship(accepted: false)]);
       // A state, not an offer: it sits in the subtitle's slot in the
-      // quiet tone and nothing takes a tap.
+      // quiet tone, and the bar's left slot is empty.
       final line = tester.widget<Text>(find.text('Requested'));
       expect(line.style?.color, const Color(0xFF6E6E6E));
-      expect(find.widgetWithText(SondrAction, 'Requested'), findsNothing);
+      expect(find.text('Add'), findsNothing);
+      expect(find.text('Accept'), findsNothing);
       expect(find.text('Milestones'), findsNothing);
     });
 
@@ -508,7 +517,7 @@ void main() {
       // the address.
       final acts = _FakeActions();
       await pump(tester, published: null, actions: acts);
-      await tester.tap(find.text('Add friend'));
+      await tester.tap(find.text('Add'));
       await tester.pumpAndSettle();
       expect(acts.added, hasLength(1));
       expect(acts.added.single.uid, them);
@@ -521,7 +530,7 @@ void main() {
     ) async {
       final acts = _FakeActions();
       await pump(tester, actions: acts);
-      await tester.tap(find.text('Add friend'));
+      await tester.tap(find.text('Add'));
       await tester.pumpAndSettle();
       expect(acts.added.single.uid, them);
       expect(acts.added.single.handle, 'cass');

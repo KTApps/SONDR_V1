@@ -19,7 +19,9 @@ import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/profile/milestone_strip.dart';
 import 'package:sondr/features/profile/other_profile_screen.dart';
 import 'package:sondr/features/profile/profile_action_bar.dart';
+import 'package:sondr/features/profile/profile_actions.dart';
 import 'package:sondr/features/profile/profile_metrics.dart';
+import 'package:sondr/features/timer/home_metrics.dart';
 import 'package:sondr/features/profile/profile_screen.dart';
 import 'package:sondr/features/profile/public_profile.dart';
 import 'package:sondr/features/shell/main_shell.dart';
@@ -59,10 +61,11 @@ Photo _photo(int i) => Photo(
   storagePath: 'p',
 );
 
-Friendship _friendship({bool accepted = true}) => Friendship(
+Friendship _friendship({bool accepted = true, String requestedBy = me}) =>
+    Friendship(
   id: Friendship.pairId(me, them),
   users: [me, them]..sort(),
-  requestedBy: me,
+  requestedBy: requestedBy,
   status: accepted ? FriendshipStatus.accepted : FriendshipStatus.pending,
   profiles: const {
     them: FriendIdentity(username: 'cass', displayName: 'Cass'),
@@ -175,6 +178,9 @@ void main() {
   Future<void> pumpTheirs(
     WidgetTester tester, {
     bool friends = true,
+    bool requested = false,
+    bool incoming = false,
+    _FakeActions? actions,
     List<Post> posts = const [],
     List<String> friendUids = const ['a', 'b'],
     List<Block> blocks = const [],
@@ -198,12 +204,21 @@ void main() {
         overrides: [
           currentUidProvider.overrideWithValue(me),
           friendshipsProvider.overrideWith(
-            (ref) => Stream.value(friends ? [_friendship()] : const []),
+            (ref) => Stream.value(
+              friends
+                  ? [_friendship()]
+                  : requested
+                  ? [_friendship(accepted: false)]
+                  : incoming
+                  ? [_friendship(accepted: false, requestedBy: them)]
+                  : const [],
+            ),
           ),
           blockedAccountsProvider.overrideWith((ref) => Stream.value(blocks)),
           publicProfileProvider.overrideWith((ref, uid) async => published),
           profilePostsProvider.overrideWith((ref, uid) async => posts),
           friendUidsProvider.overrideWith((ref, uid) async => friendUids),
+          if (actions != null) profileActionsProvider.overrideWithValue(actions),
         ],
         child: MaterialApp(
           theme: AppTheme.dark(),
@@ -221,7 +236,11 @@ void main() {
   }
 
   /// The personal Profile, pinned: one task and a strip, in the shell.
-  Future<void> pumpMine(WidgetTester tester, {double textScale = 1.0}) async {
+  Future<void> pumpMine(
+    WidgetTester tester, {
+    double textScale = 1.0,
+    int taskSeconds = 45900,
+  }) async {
     // Unmount anything a previous pump left behind: a ProviderScope
     // cannot change how many overrides it has.
     await tester.pumpWidget(const SizedBox.shrink());
@@ -234,7 +253,9 @@ void main() {
       ProviderScope(
         overrides: [
           currentUidProvider.overrideWithValue(me),
-          tasksRepositoryProvider.overrideWithValue(_FakeTasks([_task('Task 0')])),
+          tasksRepositoryProvider.overrideWithValue(
+            _FakeTasks([_task('Task 0', seconds: taskSeconds)]),
+          ),
           currentProfileProvider.overrideWith(
             (ref) async =>
                 const Profile(uid: me, username: 'tanaka', displayName: 'T'),
@@ -428,19 +449,15 @@ void main() {
       expect(text.style?.color, const Color(0xFF6E6E6E));
     });
 
-    testWidgets('an offer is white and tappable, a state is not', (
-      tester,
-    ) async {
+    testWidgets('the line states, and the bar offers', (tester) async {
       await pumpTheirs(tester, friends: false);
-      final add = tester.widget<Text>(find.text('Add friend'));
-      expect(add.style?.fontSize, isNotNull);
-      expect(add.style?.color, const Color(0xFFFAFAFA));
+      // Nothing to report about a stranger, so the line says nothing —
+      // and keeps its height, so nothing below it moves.
+      expect(find.text('Add'), findsOneWidget);
       expect(
-        find.ancestor(
-          of: find.text('Add friend'),
-          matching: find.byType(GestureDetector),
-        ),
-        findsWidgets,
+        tester.getRect(find.text('Add')).center.dy,
+        greaterThan(700),
+        reason: 'in the bar, not in the hero',
       );
     });
 
@@ -456,7 +473,6 @@ void main() {
       // has nothing to land on it.
       expect(find.byType(ProfileHeading), findsNothing);
       final handle = tester.getRect(find.text('cass'));
-      final status = tester.getRect(find.text('Add friend'));
       final emblem = tester.getRect(find.byType(ProgressRing));
       expect(
         handle.top - emblem.bottom,
@@ -469,7 +485,155 @@ void main() {
         find.text('Add each other as friends to see posts and milestones.'),
         findsOneWidget,
       );
-      expect(status.bottom, lessThan(fold13 / 2));
+      // The invitation sits in the top half: the slack is at the foot,
+      // not spread through the page.
+      expect(
+        tester
+            .getRect(
+              find.text('Add each other as friends to see posts and milestones.'),
+            )
+            .bottom,
+        lessThan(fold13 / 2),
+      );
+    });
+  });
+
+  group('the subtitle', () {
+    for (final ts in [0.824, 1.0, 1.235]) {
+      testWidgets('the longest realistic line stays one line at $ts', (
+        tester,
+      ) async {
+        // 19h 59m is the longest the figure can be before the next
+        // milestone arrives.
+        await pumpMine(tester, textScale: ts, taskSeconds: 1 * 60);
+        final line = find.textContaining('to your next milestone');
+        expect(line, findsOneWidget);
+        final rect = tester.getRect(line);
+        expect(find.textContaining('19h 59m'), findsOneWidget);
+        // One line: its height is a single line box, not two.
+        final context = tester.element(find.byType(ProfileScreen));
+        final oneLine = lineHeightOf(
+          context,
+          Theme.of(context).textTheme.bodyMedium,
+          13,
+        );
+        expect(rect.height, lessThan(oneLine * 1.6), reason: 'wrapped at $ts');
+        // And it is inside the gutter.
+        final scale = figmaScale(context);
+        expect(rect.left, greaterThanOrEqualTo(kProfileGutter * scale - 0.5));
+      });
+    }
+  });
+
+  group('the friendship, in the bar', () {
+    testWidgets('each state offers and says the right thing', (tester) async {
+      Future<void> check(
+        String? slot,
+        String line, {
+        bool friends = false,
+        bool requested = false,
+        bool incoming = false,
+        List<Block> blocks = const [],
+      }) async {
+        await pumpTheirs(
+          tester,
+          friends: friends,
+          requested: requested,
+          incoming: incoming,
+          blocks: blocks,
+        );
+        // The bar's three slots, left to right.
+        final bar = find.byType(ProfileActionBar);
+        for (final label in ['Add', 'Accept', 'Remove']) {
+          expect(
+            find.descendant(of: bar, matching: find.text(label)),
+            label == slot ? findsOneWidget : findsNothing,
+            reason: '$label for "$line"',
+          );
+        }
+        expect(find.text('Back'), findsOneWidget);
+        // And the line under the handle.
+        final hero = find.byType(ProgressRing);
+        expect(hero, findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(OtherProfileScreen),
+            matching: find.text(line),
+          ),
+          findsWidgets,
+          reason: 'the line should read "$line"',
+        );
+      }
+
+      await check('Add', '');
+      await check('Remove', 'Friends', friends: true);
+      await check(null, 'Requested', requested: true);
+      await check('Accept', 'Wants to be friends', incoming: true);
+      await check(
+        null,
+        'Unblock',
+        blocks: const [
+          Block(blocker: me, blocked: them, username: 'cass', displayName: 'Cass'),
+        ],
+      );
+    });
+
+    testWidgets('Add answers in place, and nothing moves', (tester) async {
+      final acts = _FakeActions();
+      await pumpTheirs(tester, friends: false, actions: acts);
+      final before = {
+        'handle': tester.getRect(find.text('cass')),
+        'stats': tester.getRect(find.byType(ProfileStat).first),
+        'back': tester.getRect(find.text('Back')),
+      };
+
+      await tester.tap(find.text('Add'));
+      await tester.pumpAndSettle();
+
+      // Sent by uid, once, with no confirm in the way.
+      expect(acts.added, hasLength(1));
+      expect(acts.added.single.uid, them);
+      // The slot empties and the line answers, in place.
+      expect(find.text('Add'), findsNothing);
+      expect(find.text('Requested'), findsOneWidget);
+      expect(tester.getRect(find.text('cass')), before['handle']);
+      expect(tester.getRect(find.byType(ProfileStat).first), before['stats']);
+      expect(tester.getRect(find.text('Back')), before['back']);
+    });
+
+    testWidgets('a double tap on Add sends one request', (tester) async {
+      final acts = _FakeActions();
+      await pumpTheirs(tester, friends: false, actions: acts);
+      final slot = tester.getRect(find.text('Add')).center;
+      await tester.tapAt(slot);
+      await tester.pump();
+      await tester.tapAt(slot);
+      await tester.pumpAndSettle();
+      expect(acts.added, hasLength(1));
+    });
+
+    testWidgets('Accept answers in place too', (tester) async {
+      final acts = _FakeActions();
+      await pumpTheirs(tester, friends: false, incoming: true, actions: acts);
+      final handle = tester.getRect(find.text('cass'));
+      await tester.tap(find.text('Accept'));
+      await tester.pumpAndSettle();
+      expect(acts.accepted, hasLength(1));
+      expect(find.text('Remove'), findsOneWidget);
+      expect(find.text('Friends'), findsWidgets);
+      expect(tester.getRect(find.text('cass')), handle);
+    });
+
+    testWidgets('Remove still asks first', (tester) async {
+      final acts = _FakeActions();
+      await pumpTheirs(tester, friends: true, actions: acts);
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+      expect(find.text('Remove cass?'), findsOneWidget);
+      expect(acts.removed, isEmpty);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(acts.removed, isEmpty);
     });
   });
 
@@ -613,12 +777,9 @@ void main() {
           // data, at this text size.
           final ordered = <(String, Rect)>[
             ('handle', tester.getRect(find.text('cass'))),
-            (
-              'status',
-              tester.getRect(
-                find.text(friends ? 'Friends' : 'Add friend').first,
-              ),
-            ),
+            // The line under the handle, which keeps its box even when it
+            // has nothing to say.
+            ('status', tester.getRect(find.text(friends ? 'Friends' : '').first)),
             // The stats block as one element — the figure and its label
             // are a unit, and the gap being guarded is the hero's.
             ('stats', tester.getRect(find.byType(ProfileStat).first)),
@@ -792,4 +953,28 @@ void main() {
     });
   });
 
+}
+
+/// What the profile asked for, without a Firestore in the way.
+class _FakeActions implements ProfileActions {
+  final added = <({String uid, String handle})>[];
+  final accepted = <String>[];
+  final removed = <String>[];
+  final blocked = <String>[];
+
+  @override
+  Future<void> addFriend(String uid, {String handle = ''}) async =>
+      added.add((uid: uid, handle: handle));
+  @override
+  Future<void> acceptRequest(String pairId) async => accepted.add(pairId);
+  @override
+  Future<void> removeFriend(String pairId) async => removed.add(pairId);
+  @override
+  Future<void> block({
+    required String uid,
+    required String handle,
+    required String displayName,
+  }) async => blocked.add(uid);
+  @override
+  Future<void> unblock(String uid) async {}
 }

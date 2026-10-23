@@ -379,6 +379,11 @@ void main() {
       await pump(tester, friendships: [_friendship()]);
       await tester.tap(find.text('Block'));
       await tester.pumpAndSettle();
+      // The slot asks which of the two first — reporting and blocking are
+      // both "this person is a problem".
+      expect(find.text('cass'), findsWidgets);
+      await tester.tap(find.text('Block').last);
+      await tester.pumpAndSettle();
       expect(find.text('Block cass?'), findsOneWidget);
       expect(
         find.text('They won\'t be able to see your profile or posts.'),
@@ -671,7 +676,9 @@ void main() {
         final slot = tester.getRect(find.text(label)).center;
         await tester.tapAt(slot);
         await tester.pumpAndSettle();
-        // The card's own action is nowhere near the slot that opened it.
+        // Whatever the slot opened — a confirm for Remove, the
+        // Report/Block sheet for Block — its own actions are nowhere
+        // near the slot that opened it.
         expect(
           tester.getRect(find.text(label).last).contains(slot),
           isFalse,
@@ -694,8 +701,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(acts.blocked, isEmpty);
 
+      // Slot → the Report/Block sheet → Block → the confirm → blocked.
       await tester.tap(find.text('Block'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Block').last);
+      await tester.pumpAndSettle();
+      expect(acts.blocked, isEmpty, reason: 'the confirm still asks');
       await tester.tap(find.text('Block').last);
       await tester.pumpAndSettle();
       expect(acts.blocked, [them]);

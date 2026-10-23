@@ -15,6 +15,8 @@ import '../../../shared/sondr_loading.dart';
 import '../../../shared/sondr_swipe_row.dart';
 import '../../../core/utils/relative_time.dart';
 import '../../profile/other_profile_screen.dart';
+import '../../reports/report.dart';
+import '../../reports/report_flow.dart';
 import '../models/comment.dart';
 import '../posts_repository.dart';
 
@@ -141,6 +143,34 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       if (mounted) setState(() => _error = 'Couldn’t post comment.');
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Report somebody else's comment: ask why, send, and let the thread
+  /// drop it. The sheet's own error line carries the answer either way —
+  /// a failure hides nothing.
+  Future<void> _report(Comment c) async {
+    SondrSwipeRow.close(context);
+    final outcome = await reportThing(
+      context,
+      ref,
+      type: ReportTarget.comment,
+      targetKey: reportTargetKey(
+        type: ReportTarget.comment,
+        id: c.id,
+        postId: widget.postId,
+      ),
+      targetOwnerUid: c.authorUid,
+      title: reportTitle(ReportTarget.comment),
+    );
+    if (!mounted) return;
+    switch (outcome) {
+      case ReportOutcome.cancelled:
+        break;
+      case ReportOutcome.sent:
+        setState(() => _error = kReportThanks);
+      case ReportOutcome.failed:
+        setState(() => _error = kReportFailed);
     }
   }
 
@@ -296,17 +326,20 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                       itemBuilder: (_, i) {
                         final c = list[i];
                         final tile = _CommentTile(comment: c);
-                        // Your own comment hides its Delete behind a swipe,
-                        // exactly as a friend row hides Remove and Block. An
-                        // affordance sitting on every one of your comments is
-                        // clutter on the common case.
-                        if (c.authorUid != uid) return tile;
+                        // The swipe hides the action, exactly as a friend
+                        // row hides Remove and Block: Delete on your own
+                        // comment, Report on somebody else's. An
+                        // affordance on every comment would be clutter on
+                        // the common case.
+                        final own = c.authorUid == uid;
                         return SondrSwipeRow(
                           actions: [
                             SondrAction(
-                              label: 'Delete',
+                              label: own ? 'Delete' : 'Report',
                               fontSize: kRowActionSize,
-                              onPressed: () => _delete(c.id),
+                              onPressed: own
+                                  ? () => _delete(c.id)
+                                  : () => _report(c),
                             ),
                           ],
                           child: tile,

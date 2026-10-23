@@ -9,6 +9,8 @@ import '../../../core/theme/spacing.dart';
 import '../../../core/utils/figma_scale.dart';
 import '../../../shared/sondr_action.dart';
 import '../../../shared/sondr_error.dart';
+import '../../reports/report.dart';
+import '../../reports/report_flow.dart';
 import '../models/post.dart';
 import '../posts_repository.dart';
 
@@ -27,9 +29,9 @@ final revealedPostIdProvider = NotifierProvider<RevealedPostId, String?>(
   RevealedPostId.new,
 );
 
-/// Wraps a feed [child] card with long-press-to-delete on the author's **own**
-/// posts only. Long-press an own post → blur THIS card and reveal Delete / Close;
-/// long-press someone else's post → nothing. Delete un-shares via
+/// Wraps a feed [child] card with a long-press: Delete on the author's
+/// **own** posts, Report on everybody else's. Long-press → blur THIS card
+/// and reveal the action and Close. Delete un-shares via
 /// [PostsRepository.deletePost] (the post doc + its posts-space photo copies —
 /// never the gallery original or logged time); the feed stream then drops the
 /// card. Close, or a tap on the blurred scrim, un-blurs. No confirm dialog — the
@@ -91,20 +93,23 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
     }
   }
 
+  /// Whose post this is, which decides what the long-press offers.
+  bool _own = false;
+
   @override
   Widget build(BuildContext context) {
     final uid = ref.watch(currentUidProvider);
-    final own = uid != null && widget.post.authorUid == uid;
+    _own = uid != null && widget.post.authorUid == uid;
     final revealed = ref.watch(revealedPostIdProvider) == widget.post.id;
 
     return GestureDetector(
       // Opaque so the long-press is caught across the whole card, including any
       // transparent regions; the card's own taps (like/comment) still win.
       behavior: HitTestBehavior.opaque,
-      onLongPress: own
-          ? () =>
-                ref.read(revealedPostIdProvider.notifier).reveal(widget.post.id)
-          : null,
+      // Every post answers a long-press now; what it offers depends on
+      // whose it is.
+      onLongPress: () =>
+          ref.read(revealedPostIdProvider.notifier).reveal(widget.post.id),
       child: Stack(
         children: [
           widget.child,
@@ -138,6 +143,31 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
     );
   }
 
+  /// Report someone else's post: ask why, send, and let the feed drop it.
+  Future<void> _report() async {
+    setState(() => _busy = true);
+    final outcome = await reportThing(
+      context,
+      ref,
+      type: ReportTarget.post,
+      targetKey: widget.post.id,
+      targetOwnerUid: widget.post.authorUid,
+      title: reportTitle(ReportTarget.post),
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    switch (outcome) {
+      case ReportOutcome.cancelled:
+        break;
+      case ReportOutcome.sent:
+        // The card goes with the hidden set; the overlay goes with it.
+        _clear();
+      case ReportOutcome.failed:
+        // Stay open, say so, hide nothing.
+        setState(() => _error = kReportFailed);
+    }
+  }
+
   Widget _actions(GreyscaleTokens tokens) {
     // Delete is summoned by the long-press, so it stays at full emphasis:
     // plain white text, no fill, no border, no glyph (see DESIGN.md). Close
@@ -150,10 +180,13 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
           SondrError(_error!, textAlign: TextAlign.center),
           const SizedBox(height: 8),
         ],
-        SondrAction(
-          label: _busy ? 'Deleting…' : 'Delete',
-          onPressed: _busy ? null : _delete,
-        ),
+        if (_own)
+          SondrAction(
+            label: _busy ? 'Deleting…' : 'Delete',
+            onPressed: _busy ? null : _delete,
+          )
+        else
+          SondrAction(label: 'Report', onPressed: _busy ? null : _report),
         SondrAction(
           label: 'Close',
           supporting: true,

@@ -56,7 +56,9 @@ void main() {
     expect(find.text('Close'), findsOneWidget);
   });
 
-  testWidgets("someone else's post: long-press does nothing", (tester) async {
+  testWidgets("someone else's post: long-press offers Report, not Delete", (
+    tester,
+  ) async {
     await _pump(
       tester,
       viewerUid: 'me',
@@ -65,7 +67,8 @@ void main() {
     await tester.longPress(find.byType(DeletablePostCard));
     await tester.pumpAndSettle();
     expect(find.text('Delete'), findsNothing);
-    expect(find.text('Close'), findsNothing);
+    expect(find.text('Report'), findsOneWidget);
+    expect(find.text('Close'), findsOneWidget);
   });
 
   testWidgets('no viewer uid (logged out): long-press does nothing', (

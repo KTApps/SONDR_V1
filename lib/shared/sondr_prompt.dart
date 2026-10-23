@@ -151,6 +151,67 @@ Future<bool> showSondrConfirm(
 /// Material only for the ink and text-selection machinery a TextField
 /// needs — elevation 0 and our own surface, so it casts nothing and tints
 /// nothing.
+/// A list of choices in the confirm's own card: a title, an optional
+/// line, then one action per choice with Cancel beneath them.
+///
+/// The same card, the same title, the same centred position as
+/// [showSondrConfirm] — it is the same question with more than two
+/// answers. Returns the chosen value, or null for Cancel and for a tap
+/// outside.
+///
+/// Every choice takes the page's full tone: none of them is the safe one.
+/// Cancel is the exit and takes the supporting tone, as it does
+/// everywhere else.
+Future<T?> showSondrChoice<T>(
+  BuildContext context, {
+  required String title,
+  String? body,
+  required List<({String label, T value})> choices,
+  String cancelLabel = 'Cancel',
+}) {
+  return showDialog<T>(
+    context: context,
+    builder: (context) {
+      final tokens = GreyscaleTokens.of(context);
+      final theme = Theme.of(context);
+      final scale = figmaScale(context);
+
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: kSpacingSection * scale),
+          child: _PromptCard(
+            children: [
+              _PromptTitle(title),
+              if (body != null) ...[
+                SizedBox(height: kSpacingBase * scale),
+                Text(
+                  body,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: 13 * scale,
+                    color: tokens.textSecondary,
+                  ),
+                ),
+              ],
+              SizedBox(height: kSpacingBase * scale),
+              for (final choice in choices)
+                SondrAction(
+                  label: choice.label,
+                  onPressed: () => Navigator.of(context).pop(choice.value),
+                ),
+              SondrAction(
+                label: cancelLabel,
+                supporting: true,
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class _PromptCard extends StatelessWidget {
   const _PromptCard({required this.children});
 

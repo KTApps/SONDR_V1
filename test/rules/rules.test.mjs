@@ -7,8 +7,8 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, limit,
-  orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  arrayRemove, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs,
+  limit, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
 /**
@@ -952,5 +952,107 @@ describe('the queries a leaving account runs', () => {
       collection(as(A), 'posts'),
       where('authorUid', '==', A),
     )));
+  });
+});
+
+describe('the prune, end to end', () => {
+  /**
+   * The prune's own query was refused by the rules, its failures are
+   * swallowed by design, and nothing noticed: a blocked person was never
+   * taken out of the audience of posts that already existed, so they kept
+   * seeing them. This is the whole flow against the real rules — the query
+   * that finds A's posts, the arrayRemove that prunes B out of them, and
+   * the proof that B can no longer read what they used to.
+   */
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/old1'), {
+        authorUid: A, audience: [A, B, C], createdAt: 1,
+      });
+      await setDoc(doc(db, 'posts/old2'), {
+        authorUid: A, audience: [A, B, C], createdAt: 2,
+      });
+      // Somebody else's post B is in, which A must not touch.
+      await setDoc(doc(db, 'posts/theirs'), {
+        authorUid: C, audience: [A, B, C], createdAt: 3,
+      });
+      // A's comment under C's post, which carries its own audience.
+      await setDoc(doc(db, 'posts/theirs/comments/mine'), {
+        authorUid: A, audience: [A, B, C], text: 'hi', createdAt: 4,
+      });
+    });
+  });
+
+  /** What B can see of A's posts, which is B's feed, filtered. */
+  async function feedOf(uid) {
+    const snap = await getDocs(query(
+      collection(as(uid), 'posts'),
+      where('audience', 'array-contains', uid),
+      orderBy('createdAt', 'desc'),
+    ));
+    return snap.docs.map((d) => d.id);
+  }
+
+  it('before: B sees both of A\'s posts', async () => {
+    assert.deepEqual(await feedOf(B), ['theirs', 'old2', 'old1']);
+  });
+
+  it('the prune finds A\'s posts and A\'s comments, and prunes B out', async () => {
+    // ONE instance: a batch and the references in it have to come from the
+    // same Firestore, which `as()` mints fresh on every call.
+    const db = as(A);
+    // Exactly what FirestoreAudiences.mine() runs.
+    const posts = await assertSucceeds(getDocs(query(
+      collection(db, 'posts'),
+      where('authorUid', '==', A),
+      where('audience', 'array-contains', A),
+      orderBy('createdAt', 'desc'),
+    )));
+    const comments = await assertSucceeds(getDocs(query(
+      collectionGroup(db, 'comments'),
+      where('authorUid', '==', A),
+    )));
+    const paths = [
+      ...posts.docs.map((d) => d.ref.path),
+      ...comments.docs.map((d) => d.ref.path),
+    ];
+    assert.deepEqual(paths.sort(),
+      ['posts/old1', 'posts/old2', 'posts/theirs/comments/mine']);
+
+    // And the write the pruner makes: one batch of arrayRemove.
+    const batch = writeBatch(db);
+    for (const path of paths) {
+      batch.update(doc(db, path), { audience: arrayRemove(B) });
+    }
+    await assertSucceeds(batch.commit());
+  });
+
+  it('after: B cannot read A\'s posts, and C still can', async () => {
+    assert.deepEqual(await feedOf(B), ['theirs']);
+    assert.deepEqual(await feedOf(C), ['theirs', 'old2', 'old1']);
+    // Not even one by one, which is the thing a feed query cannot prove.
+    await assertFails(getDoc(doc(as(B), 'posts/old1')));
+    await assertSucceeds(getDoc(doc(as(C), 'posts/old1')));
+  });
+
+  it('and B is out of A\'s comment under somebody else\'s post', async () => {
+    const snap = await getDoc(doc(as(A), 'posts/theirs/comments/mine'));
+    assert.equal(snap.data().audience.includes(B), false);
+    assert.equal(snap.data().audience.includes(C), true);
+  });
+
+  it('C\'s own post was left alone', async () => {
+    const snap = await getDoc(doc(as(C), 'posts/theirs'));
+    assert.deepEqual(snap.data().audience, [A, B, C]);
+  });
+
+  it('a prune run twice removes nothing more', async () => {
+    const db = as(A);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'posts/old1'), { audience: arrayRemove(B) });
+    await assertSucceeds(batch.commit());
+    const snap = await getDoc(doc(db, 'posts/old1'));
+    assert.deepEqual(snap.data().audience, [A, C]);
   });
 });

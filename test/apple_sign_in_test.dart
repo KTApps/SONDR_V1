@@ -159,6 +159,17 @@ class _FakeAuth implements AuthRepository {
       throw UnimplementedError();
   @override
   Future<void> signOut() async => throw UnimplementedError();
+  @override
+  Set<String> get providerIds => const {};
+  @override
+  Future<void> reauthenticateWithPassword(String password) async =>
+      throw UnimplementedError();
+  @override
+  Future<void> reauthenticateWithApple() async => throw UnimplementedError();
+  @override
+  Future<void> deleteCurrentUser() async => throw UnimplementedError();
+  @override
+  Future<void> signInAnonymously() async => throw UnimplementedError();
 }
 
 class _ThrowingProfiles implements ProfileRepository {

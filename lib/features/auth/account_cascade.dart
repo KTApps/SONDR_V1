@@ -68,6 +68,17 @@ class FirebaseAccountFiles implements AccountFiles {
   Future<void> delete(String path) => _storage.ref(path).delete();
 }
 
+/// Deleting everything an account leaves behind.
+///
+/// An interface so the flow above it can be tested without a Firestore —
+/// what that test is about is the ORDER of the flow's steps, and whether a
+/// cancelled re-authentication reaches this one at all.
+abstract interface class AccountErasure {
+  /// Returns the photo URLs the account owned, so their disk-cache entries
+  /// can be evicted once the data behind them is gone.
+  Future<Set<String>> run();
+}
+
 /// Everything an account leaves behind, deleted — as the account itself.
 ///
 /// There are no Cloud Functions in this project, so this runs on the client
@@ -95,7 +106,7 @@ class FirebaseAccountFiles implements AccountFiles {
 /// people wrote on a deleted post. The rules let a comment's author delete
 /// it and nobody else, and with the parent post gone the comment is
 /// unreadable to everyone — its read rule needs the post's audience.
-class AccountCascade {
+class AccountCascade implements AccountErasure {
   AccountCascade({
     required this.db,
     required this.files,
@@ -117,7 +128,8 @@ class AccountCascade {
   static const int batchLimit = 450;
 
   /// In the order it has to happen. See the step comments for why.
-  Future<void> run() async {
+  @override
+  Future<Set<String>> run() async {
     // Everything that has to be READ before it is deleted out from under
     // us: which posts are mine, where my comments are, the handle to give
     // back, and the Storage path of every file either of them names.
@@ -131,6 +143,7 @@ class AccountCascade {
         if (!_isPost(path)) path,
     ];
     final recordedFiles = await _recordedFiles(myPosts.docs);
+    final photoUrls = await _photoUrls(myPosts.docs);
     final handle = await _myHandle();
 
     // Likes first: a like on one of MY posts needs that post to still be
@@ -146,6 +159,33 @@ class AccountCascade {
     await _handleDoc(handle);
     // Last, because the handle above is read out of it.
     await _userSpace();
+    return photoUrls;
+  }
+
+  /// Every photo URL the account owned. Nothing is deleted by these — they
+  /// are what the device's image cache is keyed by.
+  Future<Set<String>> _photoUrls(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> myPosts,
+  ) async {
+    final urls = <String>{};
+    void add(Object? value) {
+      if (value is String && value.isNotEmpty) urls.add(value);
+    }
+
+    for (final post in myPosts) {
+      for (final photo in (post.data()['photos'] as List? ?? const [])) {
+        if (photo is Map) add(photo['url']);
+      }
+    }
+    final photos = await db
+        .collection('users')
+        .doc(uid)
+        .collection('photos')
+        .get();
+    for (final photo in photos.docs) {
+      add(photo.data()['photoUrl']);
+    }
+    return urls;
   }
 
   /// Every Storage object Firestore knows this account owns: the binary
@@ -393,7 +433,7 @@ class AccountCascade {
 }
 
 /// Null on the local backend and before a uid exists.
-final accountCascadeProvider = Provider<AccountCascade?>((ref) {
+final accountCascadeProvider = Provider<AccountErasure?>((ref) {
   final uid = ref.watch(currentUidProvider);
   if (!ref.watch(firebaseReadyProvider) || uid == null) return null;
   final db = FirebaseFirestore.instance;

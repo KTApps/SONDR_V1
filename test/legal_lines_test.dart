@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/debug_flags.dart';
@@ -110,16 +111,78 @@ void main() {
   const double contentWidth = kRefWidth - 48;
   const double contentRight = 24 + contentWidth;
 
+
+  /// The sentence's own paragraph.
+  RenderParagraph sentence(WidgetTester tester) =>
+      tester.renderObject<RenderParagraph>(
+        find.textContaining(TermsNotice.lead),
+      );
+
+  /// The type the paragraph actually renders: the style the sentence's words
+  /// resolve to, the style each linked phrase resolves to, and how many
+  /// placeholders (WidgetSpans) are in there.
+  ({TextStyle sentence, List<TextStyle> links, int placeholders}) typeOf(
+    WidgetTester tester,
+  ) {
+    TextStyle? plain;
+    final links = <TextStyle>[];
+    var placeholders = 0;
+    void walk(InlineSpan span, TextStyle? inherited) {
+      if (span is! TextSpan) {
+        placeholders++;
+        return;
+      }
+      final here = span.style ?? inherited;
+      if (span.text == TermsNotice.lead) plain = here;
+      if (span.text == TermsNotice.terms ||
+          span.text == TermsNotice.privacy) {
+        links.add(here!);
+      }
+      for (final kid in span.children ?? const <InlineSpan>[]) {
+        walk(kid, here);
+      }
+    }
+    walk(sentence(tester).text, null);
+    expect(plain, isNotNull, reason: 'the sentence was not found');
+    expect(links.length, 2, reason: 'both phrases were not found');
+    return (sentence: plain!, links: links, placeholders: placeholders);
+  }
+
+  /// The box the paragraph gives a phrase, as painted.
+  Size inkOf(WidgetTester tester, String phrase) {
+    final p = sentence(tester);
+    final i = p.text.toPlainText().indexOf(phrase);
+    expect(i, isNot(-1), reason: phrase);
+    final boxes = p.getBoxesForSelection(
+      TextSelection(baseOffset: i, extentOffset: i + phrase.length),
+    );
+    final rects = [for (final b in boxes) b.toRect()];
+    return Size(
+      rects.fold(0.0, (sum, r) => sum + r.width),
+      rects.map((r) => r.height).reduce((a, b) => a > b ? a : b),
+    );
+  }
+
+  /// What that phrase measures at the sentence's own style, scaled once.
+  double paintedWidth(WidgetTester tester, String phrase, TextStyle style) {
+    final context = tester.element(find.byType(TermsNotice));
+    final painter = TextPainter(
+      text: TextSpan(text: phrase, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    return painter.width;
+  }
+
   group('the terms line', () {
     testWidgets('says what creating an account agrees to', (tester) async {
       await pump(tester);
       expect(find.byType(TermsNotice), findsOneWidget);
       expect(
-        find.textContaining('By creating an account, you agree to the'),
-        findsOneWidget,
+        sentence(tester).text.toPlainText(),
+        'By creating an account, you agree to the terms and privacy '
+            'policy.',
       );
-      expect(find.text('terms'), findsOneWidget);
-      expect(find.text('privacy policy'), findsOneWidget);
     });
 
     testWidgets('12pt tertiary, with the two linked phrases a step brighter', (
@@ -128,33 +191,86 @@ void main() {
       await pump(tester);
       final context = tester.element(find.byType(TermsNotice));
       final tokens = GreyscaleTokens.of(context);
+      final type = typeOf(tester);
 
-      final sentence = tester.widget<Text>(
-        find.textContaining('By creating an account'),
-      );
-      final base = sentence.textSpan!.style!;
-      expect(base.fontSize, 12);
-      expect(base.color, tokens.textTertiary);
+      expect(type.sentence.fontSize, 12);
+      expect(type.sentence.color, tokens.textTertiary);
       expect(tokens.textTertiary, const Color(0xFF6E6E6E));
-
-      for (final word in ['terms', 'privacy policy']) {
-        final link = tester.widget<Text>(find.text(word));
-        expect(link.style!.fontSize, 12, reason: word);
-        expect(link.style!.color, tokens.textSecondary, reason: word);
+      for (final link in type.links) {
+        expect(link.color, tokens.textSecondary);
         // Tone alone says tappable — no underline, and no colour anywhere.
-        expect(link.style!.decoration, isNot(TextDecoration.underline));
+        expect(link.decoration, isNot(TextDecoration.underline));
       }
       expect(tokens.textSecondary, const Color(0xFFB0B0B0));
     });
 
+    /// The bug this group exists for.
+    ///
+    /// The linked phrases used to be WidgetSpans. The framework scales a
+    /// WidgetSpan's child by the text scale factor, and the Text inside it
+    /// applies the same MediaQuery scale again — so the words rendered at
+    /// 12 x scale^2: right at the default size, 18% small at 0.824 and 24%
+    /// large at 1.235. They are plain spans of the one paragraph now, which
+    /// is the only arrangement that cannot drift.
+    for (final ts in [0.824, 1.0, 1.235]) {
+      testWidgets('one run of type, differing only in colour, at $ts', (
+        tester,
+      ) async {
+        await pump(tester, textScale: ts);
+        final type = typeOf(tester);
+
+        // Nothing in the paragraph is a placeholder.
+        expect(type.placeholders, 0, reason: 'a WidgetSpan is back');
+
+        // Every declared field matches the sentence except the colour.
+        for (final link in type.links) {
+          expect(
+            link.copyWith(color: type.sentence.color),
+            type.sentence,
+            reason: 'a link differs from the sentence by more than colour',
+          );
+        }
+
+        // And as RENDERED: one line box for the whole sentence, and each
+        // phrase the width one scaling gives it.
+        final boxes = {
+          for (final phrase in ['account,', TermsNotice.terms, TermsNotice.privacy])
+            phrase: inkOf(tester, phrase),
+        };
+        final heights = {for (final b in boxes.values) b.height}.toList();
+        expect(
+          heights.reduce((a, b) => (a - b).abs() < 0.01 ? a : -1),
+          greaterThan(0),
+          reason: 'the phrases sit on different line boxes: $boxes',
+        );
+        for (final phrase in [TermsNotice.terms, TermsNotice.privacy]) {
+          final painted = paintedWidth(tester, phrase, type.sentence);
+          // 2%: the bug being guarded against was 18% small at 0.824 and
+          // 24% large at 1.235, and a phrase that wraps onto the second
+          // line measures a fraction of a point narrower than the painter
+          // gives it standing alone.
+          expect(
+            boxes[phrase]!.width,
+            closeTo(painted, painted * 0.02),
+            reason: '$phrase is not the size the sentence is',
+          );
+        }
+      });
+    }
+
     testWidgets('each phrase opens its own page', (tester) async {
       await pump(tester);
 
-      await tester.tap(find.text('terms'));
+      // Tapped as words inside the sentence, which is what they now are.
+      await tester.tapOnText(
+        find.textRange.ofSubstring(TermsNotice.terms),
+      );
       await tester.pump();
       expect(pages.opened, ['https://s-ndr.com/terms']);
 
-      await tester.tap(find.text('privacy policy'));
+      await tester.tapOnText(
+        find.textRange.ofSubstring(TermsNotice.privacy),
+      );
       await tester.pump();
       expect(pages.opened, [
         'https://s-ndr.com/terms',

@@ -20,12 +20,4 @@ abstract final class DurationFormat {
     if (h > 0) return '$h:${two(m)}:${two(s)}';
     return '$m:${two(s)}';
   }
-
-  /// Rounded whole-hours figure for the ring centre, e.g. "13 hrs".
-  /// Uses "hr" for exactly one hour.
-  static String hours(Duration d) {
-    final whole = d.inMinutes / 60.0;
-    final rounded = whole.round();
-    return rounded == 1 ? '1 hr' : '$rounded hrs';
-  }
 }

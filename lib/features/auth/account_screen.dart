@@ -13,6 +13,7 @@ import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
 import 'auth_screen.dart';
 import 'handle_screen.dart';
+import 'legal_lines.dart';
 import 'profile_repository.dart';
 import 'sign_out_action.dart';
 
@@ -98,6 +99,11 @@ class _GuestView extends StatelessWidget {
         ),
         SizedBox(height: kSpacingBase * scale),
         const AppleSignInButton(),
+        // What creating an account agrees to. LAST, under both buttons and
+        // the Apple one, because adding it had to move nothing: every
+        // element above it is exactly where it was.
+        SizedBox(height: kSpacingBase * scale),
+        const TermsNotice(),
         // Breathing room above the tab bar — the button sat jammed against it.
         SizedBox(height: kSpacingSection * scale),
       ],
@@ -156,31 +162,52 @@ class _SignedInView extends ConsumerWidget {
         // "Set your handle" action it renders 24 (the stacked-action floor).
         // Both on-tier, both the tightest the 44 tap target allows, and the
         // footer no longer jumps between the two handle states.
+        // A Wrap, not a Row. Sign out and the three support links fit one
+        // line at every text size a release build can be set to — but a
+        // DEBUG_TOOLS build adds "Debug" to the same line, and at 1.0 that
+        // is 25 too wide (81 at 1.235). A Row would paint the overflow
+        // stripes; this drops the links to a second line instead, and only
+        // in the QA build that caused it.
         Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: SupportLinks.gap * scale,
             children: [
-              // Starts a fresh guest session; AccountBody watches the auth
-              // stream and rebuilds itself into the guest view — nothing to
-              // pop now that this lives inside the Profile tab. Stops and
-              // credits a running session first, which is why it is its own
-              // widget: it has a busy state and an error to show.
-              const SignOutAction(),
-              // QA-only, and a plain word rather than the outlined pill it
-              // used to be up the page: a border around a dev entry made it
-              // the loudest control on the screen. kDebugTools is const-false
-              // in release builds, so this branch and DebugPanel with it
-              // tree-shake out entirely.
-              if (kDebugTools) ...[
-                SizedBox(width: SondrActionPair.gap * scale),
-                SondrAction(
-                  label: 'Debug',
-                  supporting: true,
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const DebugPanel()),
-                  ),
-                ),
-              ],
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Starts a fresh guest session; AccountBody watches the
+                  // auth stream and rebuilds itself into the guest view —
+                  // nothing to pop now that this lives inside the Profile
+                  // tab. Stops and credits a running session first, which is
+                  // why it is its own widget: it has a busy state and an
+                  // error to show.
+                  const SignOutAction(),
+                  // QA-only, and a plain word rather than the outlined pill
+                  // it used to be up the page: a border around a dev entry
+                  // made it the loudest control on the screen. kDebugTools is
+                  // const-false in release builds, so this branch and
+                  // DebugPanel with it tree-shake out entirely. It stays
+                  // welded to Sign out so the pair never splits across the
+                  // Wrap's two lines.
+                  if (kDebugTools) ...[
+                    SizedBox(width: SondrActionPair.gap * scale),
+                    SondrAction(
+                      label: 'Debug',
+                      supporting: true,
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const DebugPanel()),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              // Support, Privacy and Terms — the three pages the App Store
+              // wants reachable from inside the app. Beside Sign out rather
+              // than under it: this block is already the page's last row,
+              // and a line of its own would push it into the tab bar.
+              const SupportLinks(),
             ],
           ),
         ),

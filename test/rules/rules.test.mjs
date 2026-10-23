@@ -649,3 +649,149 @@ describe('hidden things', () => {
     );
   });
 });
+
+describe('giving up a handle', () => {
+  /**
+   * Deleting an account has to free its handle, and the client is the only
+   * thing that can do it — there are no Cloud Functions here. So the
+   * usernames index gained a delete rule, and this is the whole of what it
+   * may allow: the owner, and nobody else.
+   *
+   * It stays immutable: an update would let a handle be pointed at another
+   * uid in place, which is the theft the create rule exists to stop.
+   */
+  before(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'usernames/ada'), { uid: A });
+    });
+  });
+
+  it('the owner can give up their own handle', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'usernames/owned'), { uid: A });
+    });
+    await assertSucceeds(deleteDoc(doc(as(A), 'usernames/owned')));
+  });
+
+  it('nobody else can take it away from them', async () => {
+    await assertFails(deleteDoc(doc(as(B), 'usernames/ada')));
+    await assertFails(deleteDoc(doc(as(C), 'usernames/ada')));
+  });
+
+  it('a signed-out client cannot either', async () => {
+    const anon = env.unauthenticatedContext().firestore();
+    await assertFails(deleteDoc(doc(anon, 'usernames/ada')));
+  });
+
+  it('and it is still immutable — no update, by anyone', async () => {
+    await assertFails(updateDoc(doc(as(A), 'usernames/ada'), { uid: B }));
+    await assertFails(updateDoc(doc(as(B), 'usernames/ada'), { uid: B }));
+  });
+
+  it('once given up, somebody else can claim it', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'usernames/freed'), { uid: A });
+    });
+    // While A holds it, B cannot have it.
+    await assertFails(setDoc(doc(as(B), 'usernames/freed'), { uid: B }));
+    await assertSucceeds(deleteDoc(doc(as(A), 'usernames/freed')));
+    await assertSucceeds(setDoc(doc(as(B), 'usernames/freed'), { uid: B }));
+  });
+});
+
+describe('what a leaving account may delete', () => {
+  /**
+   * The cascade runs on the client as the departing user, so every delete
+   * it makes has to be one the rules already allow. These are those
+   * deletes, each as the leaving user — and each as somebody else, because
+   * a rule that lets anyone delete another person's post would be a far
+   * worse bug than a handle left behind.
+   *
+   * A is leaving. C is their friend and stays.
+   */
+  before(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'users/' + A + '/meta/profile'), { username: 'ada' });
+      await setDoc(doc(db, 'users/' + A + '/tasks/t1'), { name: 'Golf' });
+      await setDoc(doc(db, 'users/' + A + '/likes/p_c'), { at: 1 });
+      await setDoc(doc(db, 'publicProfiles/' + A), {
+        handle: 'ada', displayName: 'Ada', hours: 3,
+        updatedAt: serverTimestamp(),
+      });
+      await setDoc(doc(db, 'publicProfiles/' + A + '/friends/' + C), { since: 1 });
+      await setDoc(doc(db, 'publicProfiles/' + C + '/friends/' + A), { since: 1 });
+      await setDoc(doc(db, 'friendships/' + pairId(A, C)), {
+        users: [A, C], requestedBy: A, status: 'accepted',
+      });
+      await setDoc(doc(db, 'blocks/' + A + '__' + B), { blocker: A, blocked: B });
+      await setDoc(doc(db, 'blocks/' + B + '__' + A), { blocker: B, blocked: A });
+      await setDoc(doc(db, 'posts/mine'), {
+        authorUid: A, audience: [A, C], createdAt: serverTimestamp(),
+        likeCount: 0, commentCount: 1,
+      });
+      await setDoc(doc(db, 'posts/theirs'), {
+        authorUid: C, audience: [A, C], createdAt: serverTimestamp(),
+        likeCount: 1, commentCount: 1,
+      });
+      await setDoc(doc(db, 'posts/theirs/comments/mine'), {
+        authorUid: A, audience: [A, C], text: 'hi',
+        createdAt: serverTimestamp(),
+      });
+    });
+  });
+
+  it('their own space, whatever is under it', async () => {
+    const db = as(A);
+    await assertSucceeds(deleteDoc(doc(db, 'users/' + A + '/meta/profile')));
+    await assertSucceeds(deleteDoc(doc(db, 'users/' + A + '/tasks/t1')));
+    await assertSucceeds(deleteDoc(doc(db, 'users/' + A + '/likes/p_c')));
+  });
+
+  it('their public profile and both halves of the friend mirror', async () => {
+    const db = as(A);
+    await assertSucceeds(
+      deleteDoc(doc(db, 'publicProfiles/' + A + '/friends/' + C)),
+    );
+    // The half in the FRIEND's document — the one a stranger could never
+    // touch — because unfriending has always cleared both.
+    await assertSucceeds(
+      deleteDoc(doc(db, 'publicProfiles/' + C + '/friends/' + A)),
+    );
+    await assertSucceeds(deleteDoc(doc(db, 'publicProfiles/' + A)));
+  });
+
+  it('the friendship, from either side', async () => {
+    await assertSucceeds(
+      deleteDoc(doc(as(A), 'friendships/' + pairId(A, C))),
+    );
+  });
+
+  it('the blocks they placed, and NOT the ones placed on them', async () => {
+    const db = as(A);
+    await assertSucceeds(deleteDoc(doc(db, 'blocks/' + A + '__' + B)));
+    // Left behind by decision: B's block on A is B's, and deleting it would
+    // let a departing account clear itself off somebody else's list.
+    await assertFails(deleteDoc(doc(db, 'blocks/' + B + '__' + A)));
+  });
+
+  it('their own posts and their own comments, never anyone else\'s', async () => {
+    const db = as(A);
+    await assertSucceeds(deleteDoc(doc(db, 'posts/theirs/comments/mine')));
+    await assertSucceeds(deleteDoc(doc(db, 'posts/mine')));
+    await assertFails(deleteDoc(doc(db, 'posts/theirs')));
+  });
+
+  it('a stranger may delete none of it', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'publicProfiles/' + A), { handle: 'ada', hours: 1 });
+      await setDoc(doc(db, 'posts/again'), {
+        authorUid: A, audience: [A, C], createdAt: serverTimestamp(),
+        likeCount: 0, commentCount: 0,
+      });
+    });
+    const db = as(D);
+    await assertFails(deleteDoc(doc(db, 'publicProfiles/' + A)));
+    await assertFails(deleteDoc(doc(db, 'posts/again')));
+    await assertFails(deleteDoc(doc(db, 'users/' + A + '/meta/profile')));
+  });
+});

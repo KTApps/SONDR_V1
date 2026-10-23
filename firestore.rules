@@ -23,7 +23,18 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null
                     && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if false;
+
+      // Still immutable: an update would point an existing handle at
+      // another uid in place, which is the theft the create rule exists to
+      // stop.
+      allow update: if false;
+
+      // Deleting an account has to give its handle back, and the client is
+      // the only thing that can do it — there are no Cloud Functions here.
+      // Only the holder, so nobody can take a handle off anybody else, and
+      // a handle given up is claimable by whoever asks next.
+      allow delete: if request.auth != null
+                    && resource.data.uid == request.auth.uid;
     }
 
     // Friendships: one doc per pair, id = the two uids sorted and joined. Only

@@ -718,14 +718,58 @@ void main() {
       expect(acts.blocked, [them]);
     });
 
-    testWidgets('the slot offers Report as well as Block', (tester) async {
+    testWidgets('the slot offers Report, Block and Cancel — no title', (
+      tester,
+    ) async {
       await pump(tester, friendships: [_friendship()]);
+      final handlesBefore = find.text('cass').evaluate().length;
       await tester.tap(find.text('Block'));
       await tester.pumpAndSettle();
-      // Titled with the handle, so there is no doubt who this is about.
-      expect(find.text('cass'), findsWidgets);
-      expect(find.text('Report'), findsOneWidget);
-      expect(find.text('Cancel'), findsOneWidget);
+
+      // Three actions and nothing else. The card carries no heading: the
+      // handle is in the hero above it, and repeating it made the two
+      // answers read as a subheading of their name.
+      final card = find.ancestor(
+        of: find.text('Report'),
+        matching: find.byType(Material),
+      );
+      final labels = find
+          .descendant(of: card.last, matching: find.byType(Text))
+          .evaluate()
+          .map((e) => (e.widget as Text).data)
+          .toList();
+      expect(labels, ['Report', 'Block', 'Cancel']);
+      expect(
+        find.text('cass').evaluate().length,
+        handlesBefore,
+        reason: 'the handle was repeated on the card',
+      );
+    });
+
+    testWidgets('the sheet sits mid-screen, never under the slot', (
+      tester,
+    ) async {
+      await pump(tester, friendships: [_friendship()]);
+      final slot = tester.getRect(find.text('Block'));
+      await tester.tap(find.text('Block'));
+      await tester.pumpAndSettle();
+
+      final report = tester.getRect(find.text('Report'));
+      final screen = tester.getSize(find.byType(OtherProfileScreen));
+      // Centred: the three actions straddle the middle of the screen.
+      expect(report.center.dy, lessThan(screen.height / 2));
+      expect(
+        tester.getRect(find.text('Cancel')).center.dy,
+        greaterThan(screen.height / 2),
+      );
+      // And none of them is under the slot that opened the card.
+      for (final label in ['Report', 'Block', 'Cancel']) {
+        expect(
+          slot.contains(tester.getRect(find.text(label).last).center),
+          isFalse,
+          reason: '$label sits under the slot',
+        );
+      }
     });
 
     testWidgets('Report asks why, thanks quietly, and hides nothing', (

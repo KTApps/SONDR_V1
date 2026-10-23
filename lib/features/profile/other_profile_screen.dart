@@ -506,9 +506,11 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
   /// never under the slot that opened it, so a second tap cannot pick
   /// anything.
   Future<void> _blockOrReport(PublicProfile them, String myUid) async {
+    // No title. The slot was tapped on THEIR page, with their handle in
+    // the hero above it — repeating it on the card said nothing and made
+    // the two answers read as a subheading of their name.
     final choice = await showSondrChoice<String>(
       context,
-      title: them.handle.isEmpty ? 'This person' : them.handle,
       choices: const [
         (label: 'Report', value: 'report'),
         (label: 'Block', value: 'block'),

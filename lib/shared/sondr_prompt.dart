@@ -164,7 +164,7 @@ Future<bool> showSondrConfirm(
 /// everywhere else.
 Future<T?> showSondrChoice<T>(
   BuildContext context, {
-  required String title,
+  String? title,
   String? body,
   required List<({String label, T value})> choices,
   String cancelLabel = 'Cancel',
@@ -180,10 +180,15 @@ Future<T?> showSondrChoice<T>(
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: kSpacingSection * scale),
           child: _PromptCard(
+            // With nothing above them, the actions' own 12 of tap padding
+            // is half the inset, exactly as it is at the bottom — so the
+            // card's declared top comes down to 12 and the visible space
+            // stays the square 24 the titled card has.
+            tightTop: title == null && body == null,
             children: [
-              _PromptTitle(title),
+              if (title != null) _PromptTitle(title),
               if (body != null) ...[
-                SizedBox(height: kSpacingBase * scale),
+                if (title != null) SizedBox(height: kSpacingBase * scale),
                 Text(
                   body,
                   textAlign: TextAlign.center,
@@ -193,7 +198,8 @@ Future<T?> showSondrChoice<T>(
                   ),
                 ),
               ],
-              SizedBox(height: kSpacingBase * scale),
+              if (title != null || body != null)
+                SizedBox(height: kSpacingBase * scale),
               for (final choice in choices)
                 SondrAction(
                   label: choice.label,
@@ -213,9 +219,14 @@ Future<T?> showSondrChoice<T>(
 }
 
 class _PromptCard extends StatelessWidget {
-  const _PromptCard({required this.children});
+  const _PromptCard({required this.children, this.tightTop = false});
 
   final List<Widget> children;
+
+  /// True when the first child is an action rather than a heading, so the
+  /// declared top inset drops to a base unit — the action's own 12 of tap
+  /// padding makes up the rest.
+  final bool tightTop;
 
   @override
   Widget build(BuildContext context) {
@@ -232,7 +243,7 @@ class _PromptCard extends StatelessWidget {
         // inset is square. EdgeInsets.all(24) read as 36 underneath.
         padding: EdgeInsets.fromLTRB(
           kSpacingSection * scale,
-          kSpacingSection * scale,
+          (tightTop ? kSpacingBase : kSpacingSection) * scale,
           kSpacingSection * scale,
           kSpacingBase * scale,
         ),

@@ -80,15 +80,6 @@ List<Post> mockPosts() {
       milestoneHours: 100,
       totalHours: 101,
     ),
-    StreakPost(
-      id: 'mock-s1',
-      authorUid: 'u-amara',
-      author: _amara,
-      createdAt: now.subtract(const Duration(hours: 9)),
-      caption: 'Two weeks straight.',
-      streakDays: 14,
-      habits: ['6AM wake', 'Cold shower', 'Morning run', '50 press-ups'],
-    ),
     MilestonePost(
       id: 'mock-m2',
       authorUid: 'u-kenji',

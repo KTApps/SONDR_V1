@@ -5,7 +5,6 @@ import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
 import 'package:sondr/features/feed/widgets/post_collage.dart';
 import 'package:sondr/features/feed/widgets/session_log_card.dart';
-import 'package:sondr/features/feed/widgets/streak_card.dart';
 
 List<PostPhoto> _mockPhotos(int n) => [
   for (var i = 0; i < n; i++)
@@ -114,26 +113,6 @@ void main() {
   testWidgets('PostCollage at exactly 9 shows no overflow', (tester) async {
     await _pump(tester, MilestoneCard(post: _milestone(_mockPhotos(9))));
     expect(find.textContaining('+'), findsNothing);
-  });
-
-  testWidgets('StreakCard makes the streak number the hero', (tester) async {
-    await _pump(
-      tester,
-      StreakCard(
-        post: StreakPost(
-          id: 's',
-          authorUid: 'u',
-          author: _author,
-          createdAt: DateTime(2026, 6, 1),
-          caption: null,
-          streakDays: 14,
-          habits: const ['Run', 'Cold shower'],
-        ),
-      ),
-    );
-    expect(find.text('14'), findsOneWidget);
-    expect(find.text('day habit streak'), findsOneWidget);
-    expect(find.textContaining('Run'), findsOneWidget);
   });
 
   testWidgets('SessionLogCard (no photo) renders the slim middot line', (

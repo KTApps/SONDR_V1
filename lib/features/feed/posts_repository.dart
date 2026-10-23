@@ -277,19 +277,6 @@ class PostsRepository {
     photos: photos,
   );
 
-  // TODO(later): unused — no flow creates streak posts yet (see StreakPost).
-  Future<String> createStreakPost({
-    required int streakDays,
-    required List<String> habits,
-    String? caption,
-    List<PostPhoto> photos = const [],
-  }) => _create(
-    'streak',
-    {'streakDays': streakDays, 'habits': habits},
-    caption: caption,
-    photos: photos,
-  );
-
   Future<String> createSessionPost({
     required String taskName,
     required int sessionSeconds,

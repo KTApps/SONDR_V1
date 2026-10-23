@@ -1,10 +1,12 @@
-/// Feed posts. Three kinds give the feed its rhythm (big milestone cards,
-/// medium streak cards, tiny session logs); a sealed hierarchy parsed by `type`
-/// lets the feed switch on the kind cleanly. All share an author, timestamp,
+/// Feed posts. Two kinds give the feed its rhythm (big milestone cards and
+/// tiny session logs); a sealed hierarchy parsed by `type` lets the feed
+/// switch on the kind cleanly. A third, a habit streak, was carried here
+/// unbuilt for long enough to be worth removing — nothing ever created one,
+/// and a `type` the app does not write parses as a session log. All share an author, timestamp,
 /// optional caption and a list of attached [photos], and an `audience` (the
 /// author's accepted friends at post time + self) that scopes who can read it —
 /// see the friends-only feed rules.
-enum PostType { milestone, streak, session }
+enum PostType { milestone, session }
 
 /// Denormalized author identity stored on each post so the feed renders without
 /// extra profile reads (which the rules keep private).
@@ -116,21 +118,6 @@ sealed class Post {
           milestoneHours: _int(map['milestoneHours']),
           totalHours: _int(map['totalHours']),
         );
-      case 'streak':
-        return StreakPost(
-          id: id,
-          authorUid: authorUid,
-          author: author,
-          createdAt: createdAt,
-          caption: caption,
-          photos: photos,
-          likeCount: likeCount,
-          commentCount: commentCount,
-          streakDays: _int(map['streakDays']),
-          habits: ((map['habits'] as List?) ?? const [])
-              .map((e) => '$e')
-              .toList(),
-        );
       default:
         return SessionPost(
           id: id,
@@ -174,32 +161,6 @@ class MilestonePost extends Post {
 
   @override
   PostType get type => PostType.milestone;
-}
-
-/// Habit streak — the hero is the streak number, habit list as small print.
-///
-// TODO(later): StreakPost is not produced by any flow yet — there is no create
-// path wiring it (habit-streak posts are a planned stage). Kept in the sealed
-// hierarchy so the feed's exhaustive switch stays honest.
-class StreakPost extends Post {
-  const StreakPost({
-    required super.id,
-    required super.authorUid,
-    required super.author,
-    required super.createdAt,
-    required super.caption,
-    super.photos,
-    super.likeCount,
-    super.commentCount,
-    required this.streakDays,
-    required this.habits,
-  });
-
-  final int streakDays;
-  final List<String> habits;
-
-  @override
-  PostType get type => PostType.streak;
 }
 
 /// Session log — deliberately tiny ("logged 2h 15m · Spanish").

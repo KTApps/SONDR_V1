@@ -5,12 +5,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/debug_flags.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/theme/greyscale_tokens.dart';
+import 'package:sondr/features/auth/account_cascade.dart';
 import 'package:sondr/features/auth/account_screen.dart';
 import 'package:sondr/features/auth/auth_repository.dart';
 import 'package:sondr/features/auth/delete_account.dart';
 import 'package:sondr/features/auth/legal_lines.dart';
 import 'package:sondr/features/auth/more_sheet.dart';
 import 'package:sondr/features/debug/debug_panel.dart';
+import 'package:sondr/features/timer/live_activity.dart';
+import 'package:sondr/features/timer/session_clock.dart';
+import 'package:sondr/features/timer/session_store.dart';
 import 'package:sondr/shared/legal.dart';
 import 'package:sondr/shared/sondr_action.dart';
 
@@ -34,12 +38,55 @@ class _Auth implements AuthRepository {
   _Auth(this.user);
 
   final User? user;
+  int signedOut = 0;
 
   @override
   User? get currentUser => user;
 
   @override
   bool get isAnonymous => user?.isAnonymous ?? true;
+
+  /// Always an email account here: what the sheet's tests are about is
+  /// where each word leads, and a password is the path with a prompt on it.
+  @override
+  Set<String> get providerIds => const {'password'};
+
+  @override
+  Future<void> signOut() async => signedOut++;
+
+  @override
+  Future<void> reauthenticateWithPassword(String password) async =>
+      throw FirebaseAuthException(code: 'wrong-password');
+
+  @override
+  dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
+/// A cascade that cannot finish, for the failure line.
+class _FailingErasure implements AccountErasure {
+  int runs = 0;
+
+  @override
+  Future<Set<String>> run() async {
+    runs++;
+    throw FirebaseException(plugin: 'cloud_firestore', code: 'unavailable');
+  }
+}
+
+class _NoStore implements SessionStore {
+  @override
+  Future<SessionClock?> read() async => null;
+
+  @override
+  Future<void> write(SessionClock clock) async {}
+
+  @override
+  Future<void> clear() async {}
+}
+
+class _Card implements LiveActivity {
+  @override
+  Future<void> clear() async {}
 
   @override
   dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
@@ -64,17 +111,25 @@ void main() {
 
   setUp(() => pages = _RecordingPages());
 
+  late _Auth auth;
+
   Future<void> pump(
     WidgetTester tester, {
     double textScale = 1.0,
     User? user,
+    AccountErasure? erasure,
   }) async {
+    auth = _Auth(user);
     useReferenceViewport(tester);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authRepositoryProvider.overrideWithValue(_Auth(user)),
+          authRepositoryProvider.overrideWithValue(auth),
           legalPagesProvider.overrideWithValue(pages),
+          sessionStoreProvider.overrideWithValue(_NoStore()),
+          liveActivityProvider.overrideWithValue(_Card()),
+          if (erasure != null)
+            accountCascadeProvider.overrideWithValue(erasure),
         ],
         child: MaterialApp(
           theme: AppTheme.dark(),
@@ -327,6 +382,58 @@ void main() {
       if (!kDebugTools) {
         expect(find.byType(DebugPanel), findsNothing);
       }
+    });
+
+    testWidgets('Sign out reaches the sign-out flow, unchanged', (
+      tester,
+    ) async {
+      await pump(tester, user: _Account());
+      await openSheet(tester);
+      await tester.tap(find.text('Sign out'));
+      await tester.pumpAndSettle();
+
+      // No session, so no prompt — and it signed out, through the same
+      // function SignOutAction has always called.
+      expect(find.text('Stop your session?'), findsNothing);
+      expect(auth.signedOut, 1);
+    });
+
+    testWidgets('Delete account asks the question, under the word', (
+      tester,
+    ) async {
+      final erasure = _FailingErasure();
+      await pump(tester, user: _Account(), erasure: erasure);
+      await openSheet(tester);
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(kDeleteAccountTitle), findsOneWidget);
+      expect(find.text(kDeleteAccountBody), findsOneWidget);
+      expect(erasure.runs, 0, reason: 'it deleted before asking');
+    });
+
+    testWidgets('a deletion that fails leaves its line under More', (
+      tester,
+    ) async {
+      final erasure = _FailingErasure();
+      await pump(tester, user: _Account(), erasure: erasure);
+      await openSheet(tester);
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(kDeleteAccountConfirm));
+      await tester.pumpAndSettle();
+      // This fake refuses the password, so the cascade is never reached and
+      // the line still goes up: nothing was deleted, and the word that
+      // opened the sheet is what says so.
+      await tester.enterText(find.byType(TextField), 'pw');
+      await tester.tap(find.text(kDeleteAccountConfirm));
+      await tester.pumpAndSettle();
+
+      expect(erasure.runs, 0);
+      expect(find.text(kDeleteAccountFailed), findsOneWidget);
+      final line = tester.getRect(find.text(kDeleteAccountFailed));
+      final word = tester.getRect(find.text('More'));
+      expect(line.top, greaterThan(word.bottom));
     });
 
     test('the words themselves', () {

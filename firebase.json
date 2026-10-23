@@ -6,6 +6,26 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "hosting": {
+    "public": "site",
+    "cleanUrls": true,
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "/fonts/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      }
+    ]
+  },
   "flutter": {
     "platforms": {
       "android": {

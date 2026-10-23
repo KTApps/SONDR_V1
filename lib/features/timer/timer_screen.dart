@@ -12,6 +12,7 @@ import '../../core/utils/duration_format.dart';
 import '../../core/utils/figma_scale.dart';
 import '../debug/position_readout.dart';
 import 'home_metrics.dart';
+import 'home_notice.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../../shared/sondr_action.dart';
 import '../auth/guest_prompts.dart';
@@ -234,6 +235,18 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final now = DateTime.now();
+
+    // A line raised on another tab — deleting an account is the one that
+    // does this. Taken once, after the frame that read it, so saying it
+    // does not set state during a build.
+    final fromElsewhere = ref.watch(homeNoticeProvider);
+    if (fromElsewhere != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(homeNoticeProvider.notifier).taken();
+        _say(fromElsewhere);
+      });
+    }
 
     final tasks = ref.watch(tasksProvider).value ?? const <Task>[];
     final selectedId = ref.watch(selectedTaskIdProvider);

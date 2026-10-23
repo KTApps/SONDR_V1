@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/features/friends/content_prune.dart';
@@ -240,10 +241,12 @@ void main() {
       await db.collection('posts').doc('mine').set({
         'authorUid': me,
         'audience': [me, them],
+        'createdAt': Timestamp.fromDate(DateTime(2026, 10, 1)),
       });
       await db.collection('posts').doc('theirs').set({
         'authorUid': them,
         'audience': [me, them],
+        'createdAt': Timestamp.fromDate(DateTime(2026, 10, 2)),
       });
       await db.collection('posts').doc('theirs').collection('comments').doc('c1').set({
         'authorUid': me,
@@ -259,6 +262,34 @@ void main() {
       expect(
         found.toSet(),
         {'posts/mine', 'posts/theirs/comments/c1'},
+      );
+    });
+
+    /// The query asks for authorUid AND audience, because the posts read
+    /// rule grants on audience alone: a query that does not constrain it is
+    /// refused outright in production, which is why this prune has been
+    /// failing there since it shipped. A post of mine without me in its own
+    /// audience cannot exist — and is the one document that proves the
+    /// filter is being applied.
+    test('the posts query is audience-filtered', () async {
+      final db = FakeFirebaseFirestore();
+      await db.collection('posts').doc('mine').set({
+        'authorUid': me,
+        'audience': [me, them],
+        'createdAt': Timestamp.fromDate(DateTime(2026, 10, 1)),
+      });
+      await db.collection('posts').doc('impossible').set({
+        'authorUid': me,
+        'audience': [them],
+        'createdAt': Timestamp.fromDate(DateTime(2026, 10, 2)),
+      });
+
+      final found = await FirestoreAudiences(db: db, uid: me).mine();
+
+      expect(
+        found,
+        ['posts/mine'],
+        reason: 'the query ran without its audience filter',
       );
     });
 

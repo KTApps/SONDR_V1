@@ -8,6 +8,7 @@ import 'package:sondr/core/theme/greyscale_tokens.dart';
 import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/auth/account_screen.dart';
 import 'package:sondr/features/auth/models/profile.dart';
+import 'package:sondr/features/auth/auth_repository.dart';
 import 'package:sondr/features/auth/profile_repository.dart';
 import 'package:sondr/features/photos/models/collage.dart';
 import 'package:sondr/features/photos/models/photo.dart';
@@ -162,6 +163,7 @@ void main() {
       List<Photo> recent = const [],
       Profile? profile,
       bool inShell = false,
+      User? account,
       List<Photo> milestonePhotos = const [],
       double textScale = 1.0,
       List<Friendship> friendships = const [],
@@ -172,6 +174,11 @@ void main() {
           overrides: [
             currentUidProvider.overrideWithValue('me'),
             authUserProvider.overrideWith((ref) => const Stream<User?>.empty()),
+            // Always overridden: without it the account block reaches for
+            // FirebaseAuth and renders an error widget, so nothing inside
+            // it could be measured. Given an account it renders the
+            // signed-in face; given none, a guest's.
+            authRepositoryProvider.overrideWithValue(_Auth(account)),
             tasksRepositoryProvider.overrideWithValue(_FakeTasks(tasks)),
             currentProfileProvider.overrideWith((ref) async => profile),
             galleryPreviewProvider.overrideWith((ref) async => recent),
@@ -1583,5 +1590,107 @@ void main() {
       );
       expectNoOverflow(tester);
     });
+
+    group('the scroll end', () {
+      /// The account block's last line is one word now — More — and what sits
+      /// under it is the tab bar. The clearance is the word's own 12 of tap
+      /// padding plus the block's declared 12: the same 24 the terms line had
+      /// under it before the word was added.
+      for (final ts in [0.824, 1.0, 1.235]) {
+        testWidgets('a guest: 24 under the last line at $ts', (tester) async {
+          useReferenceViewport(tester);
+          await pumpProfile(
+            tester,
+            tasks: [_task('Spanish', seconds: 3600)],
+            profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+            inShell: true,
+            textScale: ts,
+          );
+          // All the way to the end.
+          await tester.drag(find.byType(ProfileScreen), const Offset(0, -2000));
+          await tester.pumpAndSettle();
+
+          final word = tester.getRect(find.text('More'));
+          final block = tester.getRect(find.byType(AccountBody));
+          expect(
+            block.bottom - word.bottom,
+            closeTo(24, 1),
+            reason: 'the clearance under the last line changed',
+          );
+          // And the end of the content is the end of the body: nothing of the
+          // block is left under the tab bar.
+          expect(block.bottom, lessThanOrEqualTo(refBodyHeight() + 0.5));
+          expectNoOverflow(tester);
+        });
+
+        testWidgets('signed in: the same 24 at $ts', (tester) async {
+          useReferenceViewport(tester);
+          await pumpProfile(
+            tester,
+            tasks: [_task('Spanish', seconds: 3600)],
+            profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+            inShell: true,
+            textScale: ts,
+            account: _Account(),
+          );
+          await tester.drag(find.byType(ProfileScreen), const Offset(0, -2000));
+          await tester.pumpAndSettle();
+
+          expect(find.text('Signed in'), findsOneWidget);
+          final word = tester.getRect(find.text('More'));
+          final block = tester.getRect(find.byType(AccountBody));
+          expect(block.bottom - word.bottom, closeTo(24, 1));
+          expect(block.bottom, lessThanOrEqualTo(refBodyHeight() + 0.5));
+          expectNoOverflow(tester);
+        });
+      }
+
+      testWidgets('the page is still longer than one screen', (tester) async {
+        useReferenceViewport(tester);
+        await pumpProfile(
+          tester,
+          tasks: [_task('Spanish', seconds: 3600)],
+          profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+          inShell: true,
+        );
+        // At rest the block is below the fold, as it has always been — the
+        // word replacing a row of five did not shorten the page into it.
+        expect(
+          tester.getTopLeft(find.byType(AccountBody)).dy,
+          greaterThanOrEqualTo(refBodyHeight()),
+        );
+      });
+    });
   });
+
+}
+
+/// Signed in, for the account block's signed-in face.
+class _Auth implements AuthRepository {
+  _Auth(this.user);
+
+  final User? user;
+
+  @override
+  User? get currentUser => user;
+
+  @override
+  bool get isAnonymous => user?.isAnonymous ?? true;
+
+  @override
+  dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
+class _Account implements User {
+  @override
+  bool get isAnonymous => false;
+
+  @override
+  String? get email => 'tanaka@example.com';
+
+  @override
+  String get uid => 'me';
+
+  @override
+  dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
 }

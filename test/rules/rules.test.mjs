@@ -7,8 +7,8 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query,
-  serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  arrayRemove, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs,
+  limit, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
 /**
@@ -409,7 +409,11 @@ describe('the posts on a profile', () => {
     assert.equal(snap.size, 0);
   });
 
-  it('the same query without the audience filter is denied outright', async () => {
+  it('a non-author querying by authorUid alone is denied outright', async () => {
+    // The audience clause has to be provable from the query. C is in every
+    // one of these posts, and it still fails — the rule grants on audience
+    // and the query does not constrain it, so the whole query goes rather
+    // than the rows that are allowed.
     await assertFails(getDocs(query(
       collection(as(C), 'posts'),
       where('authorUid', '==', A),
@@ -647,5 +651,408 @@ describe('hidden things', () => {
         hiddenAt: serverTimestamp(),
       }),
     );
+  });
+});
+
+describe('giving up a handle', () => {
+  /**
+   * Deleting an account has to free its handle, and the client is the only
+   * thing that can do it — there are no Cloud Functions here. So the
+   * usernames index gained a delete rule, and this is the whole of what it
+   * may allow: the owner, and nobody else.
+   *
+   * It stays immutable: an update would let a handle be pointed at another
+   * uid in place, which is the theft the create rule exists to stop.
+   */
+  before(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'usernames/ada'), { uid: A });
+    });
+  });
+
+  it('the owner can give up their own handle', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'usernames/owned'), { uid: A });
+    });
+    await assertSucceeds(deleteDoc(doc(as(A), 'usernames/owned')));
+  });
+
+  it('nobody else can take it away from them', async () => {
+    await assertFails(deleteDoc(doc(as(B), 'usernames/ada')));
+    await assertFails(deleteDoc(doc(as(C), 'usernames/ada')));
+  });
+
+  it('a signed-out client cannot either', async () => {
+    const anon = env.unauthenticatedContext().firestore();
+    await assertFails(deleteDoc(doc(anon, 'usernames/ada')));
+  });
+
+  it('and it is still immutable — no update, by anyone', async () => {
+    await assertFails(updateDoc(doc(as(A), 'usernames/ada'), { uid: B }));
+    await assertFails(updateDoc(doc(as(B), 'usernames/ada'), { uid: B }));
+  });
+
+  it('once given up, somebody else can claim it', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'usernames/freed'), { uid: A });
+    });
+    // While A holds it, B cannot have it.
+    await assertFails(setDoc(doc(as(B), 'usernames/freed'), { uid: B }));
+    await assertSucceeds(deleteDoc(doc(as(A), 'usernames/freed')));
+    await assertSucceeds(setDoc(doc(as(B), 'usernames/freed'), { uid: B }));
+  });
+});
+
+describe('what a leaving account may delete', () => {
+  /**
+   * The cascade runs on the client as the departing user, so every delete
+   * it makes has to be one the rules already allow. These are those
+   * deletes, each as the leaving user — and each as somebody else, because
+   * a rule that lets anyone delete another person's post would be a far
+   * worse bug than a handle left behind.
+   *
+   * A is leaving. C is their friend and stays.
+   */
+  before(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'users/' + A + '/meta/profile'), { username: 'ada' });
+      await setDoc(doc(db, 'users/' + A + '/tasks/t1'), { name: 'Golf' });
+      await setDoc(doc(db, 'users/' + A + '/likes/p_c'), { at: 1 });
+      await setDoc(doc(db, 'publicProfiles/' + A), {
+        handle: 'ada', displayName: 'Ada', hours: 3,
+        updatedAt: serverTimestamp(),
+      });
+      await setDoc(doc(db, 'publicProfiles/' + A + '/friends/' + C), { since: 1 });
+      await setDoc(doc(db, 'publicProfiles/' + C + '/friends/' + A), { since: 1 });
+      await setDoc(doc(db, 'friendships/' + pairId(A, C)), {
+        users: [A, C], requestedBy: A, status: 'accepted',
+      });
+      await setDoc(doc(db, 'blocks/' + A + '__' + B), { blocker: A, blocked: B });
+      await setDoc(doc(db, 'blocks/' + B + '__' + A), { blocker: B, blocked: A });
+      await setDoc(doc(db, 'posts/mine'), {
+        authorUid: A, audience: [A, C], createdAt: serverTimestamp(),
+        likeCount: 0, commentCount: 1,
+      });
+      await setDoc(doc(db, 'posts/theirs'), {
+        authorUid: C, audience: [A, C], createdAt: serverTimestamp(),
+        likeCount: 1, commentCount: 1,
+      });
+      await setDoc(doc(db, 'posts/theirs/comments/mine'), {
+        authorUid: A, audience: [A, C], text: 'hi',
+        createdAt: serverTimestamp(),
+      });
+    });
+  });
+
+  it('their own space, whatever is under it', async () => {
+    const db = as(A);
+    await assertSucceeds(deleteDoc(doc(db, 'users/' + A + '/meta/profile')));
+    await assertSucceeds(deleteDoc(doc(db, 'users/' + A + '/tasks/t1')));
+    await assertSucceeds(deleteDoc(doc(db, 'users/' + A + '/likes/p_c')));
+  });
+
+  it('their public profile and both halves of the friend mirror', async () => {
+    const db = as(A);
+    await assertSucceeds(
+      deleteDoc(doc(db, 'publicProfiles/' + A + '/friends/' + C)),
+    );
+    // The half in the FRIEND's document — the one a stranger could never
+    // touch — because unfriending has always cleared both.
+    await assertSucceeds(
+      deleteDoc(doc(db, 'publicProfiles/' + C + '/friends/' + A)),
+    );
+    await assertSucceeds(deleteDoc(doc(db, 'publicProfiles/' + A)));
+  });
+
+  it('the friendship, from either side', async () => {
+    await assertSucceeds(
+      deleteDoc(doc(as(A), 'friendships/' + pairId(A, C))),
+    );
+  });
+
+  it('the blocks they placed, and NOT the ones placed on them', async () => {
+    const db = as(A);
+    await assertSucceeds(deleteDoc(doc(db, 'blocks/' + A + '__' + B)));
+    // Left behind by decision: B's block on A is B's, and deleting it would
+    // let a departing account clear itself off somebody else's list.
+    await assertFails(deleteDoc(doc(db, 'blocks/' + B + '__' + A)));
+  });
+
+  it('their own posts and their own comments, never anyone else\'s', async () => {
+    const db = as(A);
+    await assertSucceeds(deleteDoc(doc(db, 'posts/theirs/comments/mine')));
+    await assertSucceeds(deleteDoc(doc(db, 'posts/mine')));
+    await assertFails(deleteDoc(doc(db, 'posts/theirs')));
+  });
+
+  it('a stranger may delete none of it', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'publicProfiles/' + A), { handle: 'ada', hours: 1 });
+      await setDoc(doc(db, 'posts/again'), {
+        authorUid: A, audience: [A, C], createdAt: serverTimestamp(),
+        likeCount: 0, commentCount: 0,
+      });
+    });
+    const db = as(D);
+    await assertFails(deleteDoc(doc(db, 'publicProfiles/' + A)));
+    await assertFails(deleteDoc(doc(db, 'posts/again')));
+    await assertFails(deleteDoc(doc(db, 'users/' + A + '/meta/profile')));
+  });
+});
+
+describe('the queries a leaving account runs', () => {
+  /**
+   * The deletes were tested and the QUERIES that find them were not, so a
+   * query the rules refuse outright went to a device: every deletion failed
+   * at the first statement, on a full account and an empty one alike.
+   *
+   * These are the cascade's own reads, run as the account that is leaving,
+   * against the real rules. The Dart suite drives a fake Firestore, which
+   * evaluates no rules at all, so this is the only place they can be
+   * checked.
+   *
+   * A is leaving. C is their friend.
+   */
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'users/' + A + '/likes/theirs'), { at: 1 });
+      await setDoc(doc(db, 'users/' + A + '/photos/ph1'), {
+        storagePath: 'users/' + A + '/photos/ph1.jpg',
+      });
+      await setDoc(doc(db, 'users/' + A + '/meta/profile'), { username: 'ada' });
+      await setDoc(doc(db, 'publicProfiles/' + A), { handle: 'ada', hours: 1 });
+      await setDoc(doc(db, 'publicProfiles/' + A + '/friends/' + C), { since: 1 });
+      await setDoc(doc(db, 'friendships/' + pairId(A, C)), {
+        users: [A, C], requestedBy: A, status: 'accepted',
+      });
+      await setDoc(doc(db, 'blocks/' + A + '__' + B), { blocker: A, blocked: B });
+      await setDoc(doc(db, 'posts/mine'), {
+        authorUid: A, audience: [A, C], createdAt: 1,
+        likeCount: 0, commentCount: 1,
+      });
+      await setDoc(doc(db, 'posts/theirs'), {
+        authorUid: C, audience: [A, C], createdAt: 2,
+        likeCount: 1, commentCount: 1,
+      });
+      await setDoc(doc(db, 'posts/theirs/comments/mine'), {
+        authorUid: A, audience: [A, C], text: 'hi', createdAt: 3,
+      });
+    });
+  });
+
+  /** AccountCascade.run's first statement, and FirestoreAudiences.mine's. */
+  function authoredPosts(uid) {
+    return query(
+      collection(as(uid), 'posts'),
+      where('authorUid', '==', uid),
+      where('audience', 'array-contains', uid),
+      orderBy('createdAt', 'desc'),
+    );
+  }
+
+  it('their own posts — authorUid AND audience', async () => {
+    const snap = await assertSucceeds(getDocs(authoredPosts(A)));
+    assert.deepEqual(snap.docs.map((d) => d.id), ['mine']);
+  });
+
+  it('the same query on an account with no posts at all', async () => {
+    // The shape is what the rules judge, not the result: a query they
+    // refuse fails just as hard when it would have returned nothing, which
+    // is why an empty brand-new account failed exactly like a full one.
+    const snap = await assertSucceeds(getDocs(authoredPosts(D)));
+    assert.equal(snap.size, 0);
+  });
+
+  it('their comments, wherever they are', async () => {
+    const snap = await assertSucceeds(getDocs(query(
+      collectionGroup(as(A), 'comments'),
+      where('authorUid', '==', A),
+    )));
+    assert.deepEqual(snap.docs.map((d) => d.ref.path),
+      ['posts/theirs/comments/mine']);
+  });
+
+  it('their likes', async () => {
+    const snap = await assertSucceeds(
+      getDocs(collection(as(A), 'users/' + A + '/likes')),
+    );
+    assert.deepEqual(snap.docs.map((d) => d.id), ['theirs']);
+  });
+
+  it('their photos, for the Storage paths', async () => {
+    const snap = await assertSucceeds(
+      getDocs(collection(as(A), 'users/' + A + '/photos')),
+    );
+    assert.equal(snap.size, 1);
+  });
+
+  it('the handle to give back', async () => {
+    const snap = await assertSucceeds(
+      getDoc(doc(as(A), 'users/' + A + '/meta/profile')),
+    );
+    assert.equal(snap.data().username, 'ada');
+  });
+
+  it('their own friend mirror', async () => {
+    const snap = await assertSucceeds(
+      getDocs(collection(as(A), 'publicProfiles/' + A + '/friends')),
+    );
+    assert.deepEqual(snap.docs.map((d) => d.id), [C]);
+  });
+
+  it('their friendships', async () => {
+    const snap = await assertSucceeds(getDocs(query(
+      collection(as(A), 'friendships'),
+      where('users', 'array-contains', A),
+    )));
+    assert.equal(snap.size, 1);
+  });
+
+  it('the blocks they placed', async () => {
+    const snap = await assertSucceeds(getDocs(query(
+      collection(as(A), 'blocks'),
+      where('blocker', '==', A),
+    )));
+    assert.deepEqual(snap.docs.map((d) => d.id), [A + '__' + B]);
+  });
+
+  it('every one of those on an account that has nothing', async () => {
+    // A brand-new account: the same reads, all of them empty, none of them
+    // refused. This is the case the device failed on.
+    await assertSucceeds(getDocs(authoredPosts(D)));
+    await assertSucceeds(getDocs(query(
+      collectionGroup(as(D), 'comments'),
+      where('authorUid', '==', D),
+    )));
+    await assertSucceeds(getDocs(collection(as(D), 'users/' + D + '/likes')));
+    await assertSucceeds(getDocs(collection(as(D), 'users/' + D + '/photos')));
+    await assertSucceeds(getDoc(doc(as(D), 'users/' + D + '/meta/profile')));
+    await assertSucceeds(
+      getDocs(collection(as(D), 'publicProfiles/' + D + '/friends')),
+    );
+    await assertSucceeds(getDocs(query(
+      collection(as(D), 'friendships'),
+      where('users', 'array-contains', D),
+    )));
+    await assertSucceeds(getDocs(query(
+      collection(as(D), 'blocks'),
+      where('blocker', '==', D),
+    )));
+  });
+
+  it('and the shape that was shipped is refused, for the author too', async () => {
+    // The bug, pinned: authorUid alone, asked by the author themself.
+    await assertFails(getDocs(query(
+      collection(as(A), 'posts'),
+      where('authorUid', '==', A),
+      orderBy('createdAt', 'desc'),
+    )));
+    await assertFails(getDocs(query(
+      collection(as(A), 'posts'),
+      where('authorUid', '==', A),
+    )));
+  });
+});
+
+describe('the prune, end to end', () => {
+  /**
+   * The prune's own query was refused by the rules, its failures are
+   * swallowed by design, and nothing noticed: a blocked person was never
+   * taken out of the audience of posts that already existed, so they kept
+   * seeing them. This is the whole flow against the real rules — the query
+   * that finds A's posts, the arrayRemove that prunes B out of them, and
+   * the proof that B can no longer read what they used to.
+   */
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/old1'), {
+        authorUid: A, audience: [A, B, C], createdAt: 1,
+      });
+      await setDoc(doc(db, 'posts/old2'), {
+        authorUid: A, audience: [A, B, C], createdAt: 2,
+      });
+      // Somebody else's post B is in, which A must not touch.
+      await setDoc(doc(db, 'posts/theirs'), {
+        authorUid: C, audience: [A, B, C], createdAt: 3,
+      });
+      // A's comment under C's post, which carries its own audience.
+      await setDoc(doc(db, 'posts/theirs/comments/mine'), {
+        authorUid: A, audience: [A, B, C], text: 'hi', createdAt: 4,
+      });
+    });
+  });
+
+  /** What B can see of A's posts, which is B's feed, filtered. */
+  async function feedOf(uid) {
+    const snap = await getDocs(query(
+      collection(as(uid), 'posts'),
+      where('audience', 'array-contains', uid),
+      orderBy('createdAt', 'desc'),
+    ));
+    return snap.docs.map((d) => d.id);
+  }
+
+  it('before: B sees both of A\'s posts', async () => {
+    assert.deepEqual(await feedOf(B), ['theirs', 'old2', 'old1']);
+  });
+
+  it('the prune finds A\'s posts and A\'s comments, and prunes B out', async () => {
+    // ONE instance: a batch and the references in it have to come from the
+    // same Firestore, which `as()` mints fresh on every call.
+    const db = as(A);
+    // Exactly what FirestoreAudiences.mine() runs.
+    const posts = await assertSucceeds(getDocs(query(
+      collection(db, 'posts'),
+      where('authorUid', '==', A),
+      where('audience', 'array-contains', A),
+      orderBy('createdAt', 'desc'),
+    )));
+    const comments = await assertSucceeds(getDocs(query(
+      collectionGroup(db, 'comments'),
+      where('authorUid', '==', A),
+    )));
+    const paths = [
+      ...posts.docs.map((d) => d.ref.path),
+      ...comments.docs.map((d) => d.ref.path),
+    ];
+    assert.deepEqual(paths.sort(),
+      ['posts/old1', 'posts/old2', 'posts/theirs/comments/mine']);
+
+    // And the write the pruner makes: one batch of arrayRemove.
+    const batch = writeBatch(db);
+    for (const path of paths) {
+      batch.update(doc(db, path), { audience: arrayRemove(B) });
+    }
+    await assertSucceeds(batch.commit());
+  });
+
+  it('after: B cannot read A\'s posts, and C still can', async () => {
+    assert.deepEqual(await feedOf(B), ['theirs']);
+    assert.deepEqual(await feedOf(C), ['theirs', 'old2', 'old1']);
+    // Not even one by one, which is the thing a feed query cannot prove.
+    await assertFails(getDoc(doc(as(B), 'posts/old1')));
+    await assertSucceeds(getDoc(doc(as(C), 'posts/old1')));
+  });
+
+  it('and B is out of A\'s comment under somebody else\'s post', async () => {
+    const snap = await getDoc(doc(as(A), 'posts/theirs/comments/mine'));
+    assert.equal(snap.data().audience.includes(B), false);
+    assert.equal(snap.data().audience.includes(C), true);
+  });
+
+  it('C\'s own post was left alone', async () => {
+    const snap = await getDoc(doc(as(C), 'posts/theirs'));
+    assert.deepEqual(snap.data().audience, [A, B, C]);
+  });
+
+  it('a prune run twice removes nothing more', async () => {
+    const db = as(A);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'posts/old1'), { audience: arrayRemove(B) });
+    await assertSucceeds(batch.commit());
+    const snap = await getDoc(doc(db, 'posts/old1'));
+    assert.deepEqual(snap.data().audience, [A, C]);
   });
 });

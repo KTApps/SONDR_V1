@@ -61,10 +61,19 @@ class AppleStepException implements Exception {
 
 /// One authorization from Apple, and the name it carried.
 class _AppleAuthorization {
-  const _AppleAuthorization({required this.credential, this.displayName});
+  const _AppleAuthorization({
+    required this.credential,
+    this.displayName,
+    this.authorizationCode,
+  });
 
   final AuthCredential credential;
   final String? displayName;
+
+  /// Apple's one-shot code from THIS trip through the sheet. Deleting an
+  /// account has to hand it to Apple's revocation endpoint, and Apple
+  /// accepts only a fresh one.
+  final String? authorizationCode;
 }
 
 /// Wraps FirebaseAuth so the rest of the app never talks to it directly. Two
@@ -216,6 +225,7 @@ class AuthRepository {
         appleCredential.givenName,
         appleCredential.familyName,
       ),
+      authorizationCode: appleCredential.authorizationCode,
     );
   }
 
@@ -239,6 +249,72 @@ class AuthRepository {
         .map((p) => p!.trim());
     final name = parts.join(' ');
     return name.isEmpty ? null : name;
+  }
+
+  /// How this account signs in: `password`, `apple.com`, or neither for a
+  /// guest. Deleting an account has to prove who is asking, and the two
+  /// providers prove it in completely different ways.
+  Set<String> get providerIds => {
+    for (final info in _auth.currentUser?.providerData ?? const [])
+      info.providerId,
+  };
+
+  /// Prove it is still them, with the password they signed in with.
+  ///
+  /// Firebase requires a recent sign-in before `delete()`, and a session
+  /// that has been open for weeks is not recent. A wrong password throws,
+  /// which is what the caller shows — and nothing has been deleted yet.
+  Future<void> reauthenticateWithPassword(String password) async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+    if (user == null || email == null || email.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'no-email',
+        message: 'This account has no password to check.',
+      );
+    }
+    await user.reauthenticateWithCredential(
+      EmailAuthProvider.credential(email: email, password: password),
+    );
+  }
+
+  /// Prove it is still them, through Apple's sheet — and then tell Apple to
+  /// forget us.
+  ///
+  /// Apple requires an app that deletes accounts to revoke the token it was
+  /// issued (App Store 5.1.1(v)), and revocation needs the authorization
+  /// code from THIS trip through the sheet: the code is one-shot, so the one
+  /// kept from the original sign-in is long spent. Hence one fresh
+  /// authorization serving both purposes, in that order — re-authenticate
+  /// first, because a revoked token cannot re-authenticate anything.
+  ///
+  /// Cancelling the sheet throws out of the plugin, exactly as it does
+  /// everywhere else the Apple button is used, and nothing is deleted.
+  Future<void> reauthenticateWithApple() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(code: 'no-current-user');
+    }
+    final fresh = await _authorizeWithApple();
+    await user.reauthenticateWithCredential(fresh.credential);
+    final code = fresh.authorizationCode;
+    if (code == null || code.isEmpty) return;
+    await _auth.revokeTokenWithAuthorizationCode(code);
+  }
+
+  /// Delete the signed-in user. The LAST thing a deletion does: until this
+  /// returns there is still an account to retry as.
+  Future<void> deleteCurrentUser() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    await user.delete();
+  }
+
+  /// A fresh guest, so the app always has a uid. The same thing sign-out
+  /// does, minus the sign-out — by this point there is nothing to sign out
+  /// of.
+  Future<void> signInAnonymously() async {
+    await _auth.signInAnonymously();
   }
 
   /// Sign out, then immediately start a fresh guest session so the app always

@@ -2,20 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
-import '../../core/debug_flags.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../shared/sondr_action.dart';
+import '../../shared/sondr_error.dart';
 import '../../shared/sondr_loading.dart';
 import '../../core/utils/figma_scale.dart';
-import '../debug/debug_panel.dart';
 import 'apple_sign_in_button.dart';
 import 'auth_repository.dart';
 import 'auth_screen.dart';
 import 'handle_screen.dart';
 import 'legal_lines.dart';
 import 'profile_repository.dart';
-import 'sign_out_action.dart';
+import 'more_sheet.dart';
 
 /// Account management — sign-in/out, the email, and the handle. For a guest it
 /// offers creating an account or signing in; for a permanent account it shows
@@ -104,8 +103,68 @@ class _GuestView extends StatelessWidget {
         // element above it is exactly where it was.
         SizedBox(height: kSpacingBase * scale),
         const TermsNotice(),
+        // A guest's More: the three pages and nothing else. Below the
+        // sentence, so every row above it is exactly where it was.
+        const Center(child: _MoreWord(signedIn: false)),
         // Breathing room above the tab bar — the button sat jammed against it.
-        SizedBox(height: kSpacingSection * scale),
+        SizedBox(height: kSpacingBase * scale),
+      ],
+    );
+  }
+}
+
+/// The account block's one action.
+///
+/// Stateful for one reason: the sheet behind it can come back with
+/// something to say — a sign-out that could not save the session, a
+/// deletion that stopped partway — and that line belongs under the word
+/// that opened it, not on a floating surface.
+class _MoreWord extends ConsumerStatefulWidget {
+  const _MoreWord({required this.signedIn});
+
+  final bool signedIn;
+
+  @override
+  ConsumerState<_MoreWord> createState() => _MoreWordState();
+}
+
+class _MoreWordState extends ConsumerState<_MoreWord> {
+  String? _error;
+  bool _busy = false;
+
+  Future<void> _open() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final said = await showMoreSheet(
+      context,
+      ref,
+      signedIn: widget.signedIn,
+    );
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = said;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = figmaScale(context);
+    final error = _error;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SondrAction(
+          label: 'More',
+          supporting: true,
+          onPressed: _busy ? null : _open,
+        ),
+        if (error != null) ...[
+          SizedBox(height: kSpacingPair * scale),
+          SondrError(error, textAlign: TextAlign.center),
+        ],
       ],
     );
   }
@@ -162,55 +221,12 @@ class _SignedInView extends ConsumerWidget {
         // "Set your handle" action it renders 24 (the stacked-action floor).
         // Both on-tier, both the tightest the 44 tap target allows, and the
         // footer no longer jumps between the two handle states.
-        // A Wrap, not a Row. Sign out and the three support links fit one
-        // line at every text size a release build can be set to — but a
-        // DEBUG_TOOLS build adds "Debug" to the same line, and at 1.0 that
-        // is 25 too wide (81 at 1.235). A Row would paint the overflow
-        // stripes; this drops the links to a second line instead, and only
-        // in the QA build that caused it.
-        Center(
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: SupportLinks.gap * scale,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Starts a fresh guest session; AccountBody watches the
-                  // auth stream and rebuilds itself into the guest view —
-                  // nothing to pop now that this lives inside the Profile
-                  // tab. Stops and credits a running session first, which is
-                  // why it is its own widget: it has a busy state and an
-                  // error to show.
-                  const SignOutAction(),
-                  // QA-only, and a plain word rather than the outlined pill
-                  // it used to be up the page: a border around a dev entry
-                  // made it the loudest control on the screen. kDebugTools is
-                  // const-false in release builds, so this branch and
-                  // DebugPanel with it tree-shake out entirely. It stays
-                  // welded to Sign out so the pair never splits across the
-                  // Wrap's two lines.
-                  if (kDebugTools) ...[
-                    SizedBox(width: SondrActionPair.gap * scale),
-                    SondrAction(
-                      label: 'Debug',
-                      supporting: true,
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const DebugPanel()),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              // Support, Privacy and Terms — the three pages the App Store
-              // wants reachable from inside the app. Beside Sign out rather
-              // than under it: this block is already the page's last row,
-              // and a line of its own would push it into the tab bar.
-              const SupportLinks(),
-            ],
-          ),
-        ),
+        //
+        // ONE word now, where Sign out used to be and in its style. Sign
+        // out, the three pages and Debug all moved behind it: five words in
+        // a row needed 372 of the 345 this block has at the default text
+        // size, and a sixth was about to be asked for.
+        const Center(child: _MoreWord(signedIn: true)),
         // The footer's own bottom margin, clearing the tab bar. The page no
         // longer adds padding here — this is the one thing setting it. Base
         // tier rather than a section break: the tab bar's own 40 already

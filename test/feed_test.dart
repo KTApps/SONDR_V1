@@ -30,18 +30,6 @@ void main() {
       expect(m.createdAt, DateTime.fromMillisecondsSinceEpoch(1700000000000));
     });
 
-    test('parses a streak post', () {
-      final post = Post.fromMap('p2', {
-        ..._base('streak'),
-        'streakDays': 12,
-        'habits': ['Run', 'Cold shower'],
-      });
-      expect(post, isA<StreakPost>());
-      final s = post as StreakPost;
-      expect(s.streakDays, 12);
-      expect(s.habits, ['Run', 'Cold shower']);
-    });
-
     test('parses a session post', () {
       final post = Post.fromMap('p3', {
         ..._base('session'),
@@ -83,9 +71,9 @@ void main() {
 
       // Older posts written before counters existed read as 0.
       final legacy = Post.fromMap('p6', {
-        ..._base('streak'),
-        'streakDays': 5,
-        'habits': const ['Run'],
+        ..._base('session'),
+        'taskName': 'Piano',
+        'sessionSeconds': 60,
       });
       expect(legacy.likeCount, 0);
       expect(legacy.commentCount, 0);

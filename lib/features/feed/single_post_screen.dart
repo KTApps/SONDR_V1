@@ -6,7 +6,6 @@ import '../../shared/sondr_action.dart';
 import 'models/post.dart';
 import 'widgets/milestone_card.dart';
 import 'widgets/session_log_card.dart';
-import 'widgets/streak_card.dart';
 
 /// One post, on its own page: the card the feed would show, with its Like
 /// and Comments where they always are — the cards carry both themselves, so
@@ -25,7 +24,6 @@ class SinglePostScreen extends StatelessWidget {
     final scale = figmaScale(context);
     final Widget card = switch (post) {
       final MilestonePost p => MilestoneCard(post: p),
-      final StreakPost p => StreakCard(post: p),
       final SessionPost p => SessionLogCard(post: p),
     };
     return Scaffold(

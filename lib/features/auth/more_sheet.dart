@@ -94,9 +94,11 @@ Future<String?> showMoreSheet(
       return result.error;
     case MoreChoice.deleteAccount:
       final outcome = await deleteAccount(context, ref);
-      return outcome == DeleteAccountOutcome.failed
-          ? kDeleteAccountFailed
-          : null;
+      if (outcome != DeleteAccountOutcome.failed) return null;
+      // The line the flow composed: the step and the code in a DEBUG_TOOLS
+      // build, "That password isn't right." in every build, and the plain
+      // sentence otherwise.
+      return lastDeleteError ?? kDeleteAccountFailed;
     case MoreChoice.debug:
       await Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const DebugPanel()),

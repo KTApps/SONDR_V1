@@ -430,8 +430,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(erasure.runs, 0);
-      expect(find.text(kDeleteAccountFailed), findsOneWidget);
-      final line = tester.getRect(find.text(kDeleteAccountFailed));
+      // This fake refuses the password, so the line is the one named in
+      // every build rather than the generic sentence.
+      expect(find.text(kWrongPassword), findsOneWidget);
+      final line = tester.getRect(find.text(kWrongPassword));
       final word = tester.getRect(find.text('More'));
       expect(line.top, greaterThan(word.bottom));
     });

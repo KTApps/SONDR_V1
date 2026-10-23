@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:sondr/core/debug_flags.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/auth/account_cascade.dart';
 import 'package:sondr/features/auth/auth_repository.dart';
@@ -27,11 +28,17 @@ class _Steps {
 }
 
 class _Auth implements AuthRepository {
-  _Auth(this.steps, {required this.providers, this.reauthThrows = false});
+  _Auth(
+    this.steps, {
+    required this.providers,
+    this.reauthThrows = false,
+    this.reauthCode = 'wrong-password',
+  });
 
   final _Steps steps;
   final Set<String> providers;
   final bool reauthThrows;
+  final String reauthCode;
   final List<String> passwords = [];
 
   @override
@@ -42,7 +49,7 @@ class _Auth implements AuthRepository {
     passwords.add(password);
     steps.order.add('reauth:password');
     if (reauthThrows) {
-      throw FirebaseAuthException(code: 'wrong-password');
+      throw FirebaseAuthException(code: reauthCode);
     }
   }
 
@@ -50,7 +57,7 @@ class _Auth implements AuthRepository {
   Future<void> reauthenticateWithApple() async {
     steps.order.add('reauth:apple');
     if (reauthThrows) {
-      throw FirebaseAuthException(code: 'cancelled');
+      throw FirebaseAuthException(code: reauthCode);
     }
   }
 
@@ -135,10 +142,16 @@ void main() {
     WidgetTester tester, {
     Set<String> providers = const {'password'},
     bool reauthThrows = false,
+    String reauthCode = 'wrong-password',
     bool cascadeThrows = false,
   }) async {
     steps = _Steps();
-    auth = _Auth(steps, providers: providers, reauthThrows: reauthThrows);
+    auth = _Auth(
+      steps,
+      providers: providers,
+      reauthThrows: reauthThrows,
+      reauthCode: reauthCode,
+    );
     erasure = _Erasure(steps, throws: cascadeThrows);
     caches = _Caches(steps);
     outcome = null;
@@ -328,6 +341,102 @@ void main() {
       );
       expect(outcome, DeleteAccountOutcome.failed);
       expect(container.read(homeNoticeProvider), isNull);
+    });
+  });
+
+  group('what the screen is told', () {
+    /// The first device test of this flow reported "Couldn't delete your
+    /// account" and nothing else, and the failing step — a query the rules
+    /// refused — went to a console the phone does not have. The step and
+    /// the code go on the screen in a DEBUG_TOOLS build now, the same
+    /// arrangement the Apple button uses.
+    test('a release build says the sentence and nothing else', () {
+      expect(
+        deleteErrorText(kDeleteAccountFailed, 'cascade: permission-denied',
+            withCode: false),
+        kDeleteAccountFailed,
+      );
+    });
+
+    test('a debug build names the step and the code', () {
+      expect(
+        deleteErrorText(kDeleteAccountFailed, 'cascade: permission-denied',
+            withCode: true),
+        "Couldn't delete your account. Try again. "
+            '(cascade: permission-denied)',
+      );
+      // Nothing to append is nothing appended.
+      expect(
+        deleteErrorText(kDeleteAccountFailed, null, withCode: true),
+        kDeleteAccountFailed,
+      );
+      expect(
+        deleteErrorText(kDeleteAccountFailed, '', withCode: true),
+        kDeleteAccountFailed,
+      );
+    });
+
+    test('the provider\'s own code is what gets appended', () {
+      expect(
+        deleteErrorCode(
+          FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied'),
+        ),
+        'permission-denied',
+      );
+      expect(
+        deleteErrorCode(FirebaseAuthException(code: 'requires-recent-login')),
+        'requires-recent-login',
+      );
+      expect(deleteErrorCode(StateError('no code')), isNull);
+    });
+
+    testWidgets('a wrong password is named in EVERY build', (tester) async {
+      await pump(tester, reauthThrows: true);
+      await throughIt(tester, password: 'wrong');
+      expect(lastDeleteError, kWrongPassword);
+      expect(kWrongPassword, "That password isn't right.");
+    });
+
+    testWidgets('and so is the same mistake under its newer code', (
+      tester,
+    ) async {
+      await pump(tester, reauthThrows: true, reauthCode: 'invalid-credential');
+      await throughIt(tester, password: 'wrong');
+      expect(lastDeleteError, kWrongPassword);
+    });
+
+    testWidgets('any other re-auth failure carries its step and code', (
+      tester,
+    ) async {
+      await pump(tester, reauthThrows: true, reauthCode: 'network-error');
+      await throughIt(tester, password: 'pw');
+      expect(lastDeleteError, contains(kDeleteAccountFailed));
+      // kDebugTools is false in a plain test run, so the code is withheld
+      // exactly as a release build withholds it.
+      expect(
+        lastDeleteError,
+        kDebugTools
+            ? contains('reauth: network-error')
+            : kDeleteAccountFailed,
+      );
+    });
+
+    testWidgets('a cascade that fails names the cascade', (tester) async {
+      await pump(tester, cascadeThrows: true);
+      await throughIt(tester);
+      expect(
+        lastDeleteError,
+        kDebugTools
+            ? "Couldn't delete your account. Try again. "
+                  '(cascade: unavailable)'
+            : kDeleteAccountFailed,
+      );
+    });
+
+    testWidgets('a deletion that works leaves no line behind', (tester) async {
+      await pump(tester);
+      await throughIt(tester);
+      expect(lastDeleteError, isNull);
     });
   });
 

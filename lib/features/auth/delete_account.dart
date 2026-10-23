@@ -1,7 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/debug_flags.dart';
 import '../../shared/sondr_prompt.dart';
 import '../friends/content_prune.dart';
 import '../timer/home_notice.dart';
@@ -27,8 +29,64 @@ const String kPasswordPrompt = 'Enter your password to confirm';
 const String kDeleteAccountFailed =
     "Couldn't delete your account. Try again.";
 
+/// The one failure worth naming in every build: it is the person's own
+/// mistake and the fix is obvious.
+const String kWrongPassword = "That password isn't right.";
+
+/// The user-facing line with the failing step and the provider's own code
+/// appended, for us.
+///
+/// [withCode] defaults to [kDebugTools], so a release build shows the
+/// sentence and nothing else — the same arrangement the Apple button uses
+/// (see appleErrorText). Exposed because a test cannot change a const.
+///
+/// This exists because a deletion that stopped said one sentence and sent
+/// the step and the code to the console, where a phone has no console: the
+/// first device test reported "Couldn't delete your account" and nothing
+/// that said WHICH step, and the cause took a session of reading to find.
+@visibleForTesting
+String deleteErrorText(
+  String message,
+  String? detail, {
+  bool withCode = kDebugTools,
+}) => (withCode && detail != null && detail.isNotEmpty)
+    ? '$message ($detail)'
+    : message;
+
+/// The step a deletion stopped on, named for the message.
+enum DeleteStep {
+  reauth,
+  session,
+  cascade,
+  deleteUser,
+  signIn,
+  caches;
+
+  String get label => name;
+}
+
+/// What a failed deletion carries back: the line to show, already composed.
+///
+/// A record rather than an exception: the caller's job is to put a line on
+/// the screen, and every path that fails has a different one.
+typedef DeleteFailure = ({DeleteStep step, String? code, String message});
+
+/// The provider's own code, where the error has one.
+String? deleteErrorCode(Object error) {
+  if (error is FirebaseAuthException) return error.code;
+  if (error is FirebaseException) return error.code;
+  return null;
+}
+
 /// Said once, on Home, by the fresh guest session that replaces them.
 const String kAccountDeleted = 'Your account has been deleted.';
+
+/// The line a failed deletion left behind, or null when nothing failed.
+///
+/// Read by the caller after [deleteAccount] returns [DeleteAccountOutcome.failed].
+/// A single value rather than a return type change, because the outcome is
+/// what every caller switches on.
+String? lastDeleteError;
 
 enum DeleteAccountOutcome {
   /// They changed their mind, or could not prove who they were. Nothing
@@ -108,7 +166,14 @@ Future<DeleteAccountOutcome> deleteAccount(
 ) async {
   final auth = ref.read(authRepositoryProvider);
   final erasure = ref.read(accountCascadeProvider);
-  if (erasure == null) return DeleteAccountOutcome.failed;
+  if (erasure == null) {
+    lastDeleteError = deleteErrorText(
+      kDeleteAccountFailed,
+      '${DeleteStep.cascade.label}: no-backend',
+    );
+    return DeleteAccountOutcome.failed;
+  }
+  lastDeleteError = null;
 
   final yes = await showSondrConfirm(
     context,
@@ -129,6 +194,9 @@ Future<DeleteAccountOutcome> deleteAccount(
       break;
   }
 
+  // Which step is running, so a failure can name it. Nothing else needs
+  // to know, which is why it is a local rather than a field.
+  var step = DeleteStep.session;
   try {
     // Step 3. The card first, because discard() takes it down itself only
     // when there is a session to discard.
@@ -136,15 +204,25 @@ Future<DeleteAccountOutcome> deleteAccount(
     await ref.read(timerControllerProvider.notifier).discard();
 
     // Step 4, then 5, then 6.
+    step = DeleteStep.cascade;
     final photoUrls = await erasure.run();
+    step = DeleteStep.deleteUser;
     await auth.deleteCurrentUser();
+    step = DeleteStep.signIn;
     await auth.signInAnonymously();
+    step = DeleteStep.caches;
     await ref.read(localCachesProvider).clear(photoUrls);
 
+    lastDeleteError = null;
     ref.read(homeNoticeProvider.notifier).say(kAccountDeleted);
     return DeleteAccountOutcome.deleted;
   } catch (e) {
-    debugPrint('SONDR delete account failed: ${e.runtimeType} :: $e');
+    final code = deleteErrorCode(e) ?? '${e.runtimeType}';
+    debugPrint('SONDR delete account failed at ${step.label}: $code');
+    lastDeleteError = deleteErrorText(
+      kDeleteAccountFailed,
+      '${step.label}: $code',
+    );
     return DeleteAccountOutcome.failed;
   }
 }
@@ -166,7 +244,16 @@ Future<_Proof> _prove(BuildContext context, AuthRepository auth) async {
       await auth.reauthenticateWithPassword(password);
       return _Proof.ok;
     } catch (e) {
-      debugPrint('SONDR delete re-auth failed: ${e.runtimeType}');
+      final code = deleteErrorCode(e) ?? '${e.runtimeType}';
+      debugPrint('SONDR delete re-auth failed: $code');
+      // A wrong password is the person's own mistake and the fix is
+      // obvious, so it is named in every build. Anything else is ours.
+      lastDeleteError = _wrongPassword(code)
+          ? kWrongPassword
+          : deleteErrorText(
+              kDeleteAccountFailed,
+              '${DeleteStep.reauth.label}: $code',
+            );
       return _Proof.failed;
     }
   }
@@ -181,7 +268,12 @@ Future<_Proof> _prove(BuildContext context, AuthRepository auth) async {
       // reaching into the plugin's exception, and either way nothing has
       // been deleted. Treated as a failure so the screen says something:
       // silence after a sheet that did nothing reads as a bug.
-      debugPrint('SONDR delete Apple re-auth failed: ${e.runtimeType}');
+      final code = deleteErrorCode(e) ?? '${e.runtimeType}';
+      debugPrint('SONDR delete Apple re-auth failed: $code');
+      lastDeleteError = deleteErrorText(
+        kDeleteAccountFailed,
+        '${DeleteStep.reauth.label}: $code',
+      );
       return _Proof.failed;
     }
   }
@@ -189,5 +281,23 @@ Future<_Proof> _prove(BuildContext context, AuthRepository auth) async {
   // No provider to prove anything with. A guest has nothing to delete and
   // never sees the action; an account with neither provider cannot be
   // re-authenticated, and deleting it without proof is not on offer.
+  lastDeleteError = deleteErrorText(
+    kDeleteAccountFailed,
+    '${DeleteStep.reauth.label}: no-provider',
+  );
   return _Proof.failed;
 }
+
+
+/// Firebase's codes for "that is not the password".
+///
+/// `wrong-password` is the old one; current SDKs fold it into
+/// `invalid-credential`, and a mistyped email on a re-auth comes back as
+/// `invalid-email`. All three mean the same thing to the person holding the
+/// phone.
+bool _wrongPassword(String code) => const {
+  'wrong-password',
+  'invalid-credential',
+  'invalid-login-credentials',
+  'invalid-email',
+}.contains(code);

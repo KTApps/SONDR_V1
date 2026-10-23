@@ -7,8 +7,8 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query,
-  serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, limit,
+  orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
 /**
@@ -409,7 +409,11 @@ describe('the posts on a profile', () => {
     assert.equal(snap.size, 0);
   });
 
-  it('the same query without the audience filter is denied outright', async () => {
+  it('a non-author querying by authorUid alone is denied outright', async () => {
+    // The audience clause has to be provable from the query. C is in every
+    // one of these posts, and it still fails — the rule grants on audience
+    // and the query does not constrain it, so the whole query goes rather
+    // than the rows that are allowed.
     await assertFails(getDocs(query(
       collection(as(C), 'posts'),
       where('authorUid', '==', A),
@@ -793,5 +797,160 @@ describe('what a leaving account may delete', () => {
     await assertFails(deleteDoc(doc(db, 'publicProfiles/' + A)));
     await assertFails(deleteDoc(doc(db, 'posts/again')));
     await assertFails(deleteDoc(doc(db, 'users/' + A + '/meta/profile')));
+  });
+});
+
+describe('the queries a leaving account runs', () => {
+  /**
+   * The deletes were tested and the QUERIES that find them were not, so a
+   * query the rules refuse outright went to a device: every deletion failed
+   * at the first statement, on a full account and an empty one alike.
+   *
+   * These are the cascade's own reads, run as the account that is leaving,
+   * against the real rules. The Dart suite drives a fake Firestore, which
+   * evaluates no rules at all, so this is the only place they can be
+   * checked.
+   *
+   * A is leaving. C is their friend.
+   */
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'users/' + A + '/likes/theirs'), { at: 1 });
+      await setDoc(doc(db, 'users/' + A + '/photos/ph1'), {
+        storagePath: 'users/' + A + '/photos/ph1.jpg',
+      });
+      await setDoc(doc(db, 'users/' + A + '/meta/profile'), { username: 'ada' });
+      await setDoc(doc(db, 'publicProfiles/' + A), { handle: 'ada', hours: 1 });
+      await setDoc(doc(db, 'publicProfiles/' + A + '/friends/' + C), { since: 1 });
+      await setDoc(doc(db, 'friendships/' + pairId(A, C)), {
+        users: [A, C], requestedBy: A, status: 'accepted',
+      });
+      await setDoc(doc(db, 'blocks/' + A + '__' + B), { blocker: A, blocked: B });
+      await setDoc(doc(db, 'posts/mine'), {
+        authorUid: A, audience: [A, C], createdAt: 1,
+        likeCount: 0, commentCount: 1,
+      });
+      await setDoc(doc(db, 'posts/theirs'), {
+        authorUid: C, audience: [A, C], createdAt: 2,
+        likeCount: 1, commentCount: 1,
+      });
+      await setDoc(doc(db, 'posts/theirs/comments/mine'), {
+        authorUid: A, audience: [A, C], text: 'hi', createdAt: 3,
+      });
+    });
+  });
+
+  /** AccountCascade.run's first statement, and FirestoreAudiences.mine's. */
+  function authoredPosts(uid) {
+    return query(
+      collection(as(uid), 'posts'),
+      where('authorUid', '==', uid),
+      where('audience', 'array-contains', uid),
+      orderBy('createdAt', 'desc'),
+    );
+  }
+
+  it('their own posts — authorUid AND audience', async () => {
+    const snap = await assertSucceeds(getDocs(authoredPosts(A)));
+    assert.deepEqual(snap.docs.map((d) => d.id), ['mine']);
+  });
+
+  it('the same query on an account with no posts at all', async () => {
+    // The shape is what the rules judge, not the result: a query they
+    // refuse fails just as hard when it would have returned nothing, which
+    // is why an empty brand-new account failed exactly like a full one.
+    const snap = await assertSucceeds(getDocs(authoredPosts(D)));
+    assert.equal(snap.size, 0);
+  });
+
+  it('their comments, wherever they are', async () => {
+    const snap = await assertSucceeds(getDocs(query(
+      collectionGroup(as(A), 'comments'),
+      where('authorUid', '==', A),
+    )));
+    assert.deepEqual(snap.docs.map((d) => d.ref.path),
+      ['posts/theirs/comments/mine']);
+  });
+
+  it('their likes', async () => {
+    const snap = await assertSucceeds(
+      getDocs(collection(as(A), 'users/' + A + '/likes')),
+    );
+    assert.deepEqual(snap.docs.map((d) => d.id), ['theirs']);
+  });
+
+  it('their photos, for the Storage paths', async () => {
+    const snap = await assertSucceeds(
+      getDocs(collection(as(A), 'users/' + A + '/photos')),
+    );
+    assert.equal(snap.size, 1);
+  });
+
+  it('the handle to give back', async () => {
+    const snap = await assertSucceeds(
+      getDoc(doc(as(A), 'users/' + A + '/meta/profile')),
+    );
+    assert.equal(snap.data().username, 'ada');
+  });
+
+  it('their own friend mirror', async () => {
+    const snap = await assertSucceeds(
+      getDocs(collection(as(A), 'publicProfiles/' + A + '/friends')),
+    );
+    assert.deepEqual(snap.docs.map((d) => d.id), [C]);
+  });
+
+  it('their friendships', async () => {
+    const snap = await assertSucceeds(getDocs(query(
+      collection(as(A), 'friendships'),
+      where('users', 'array-contains', A),
+    )));
+    assert.equal(snap.size, 1);
+  });
+
+  it('the blocks they placed', async () => {
+    const snap = await assertSucceeds(getDocs(query(
+      collection(as(A), 'blocks'),
+      where('blocker', '==', A),
+    )));
+    assert.deepEqual(snap.docs.map((d) => d.id), [A + '__' + B]);
+  });
+
+  it('every one of those on an account that has nothing', async () => {
+    // A brand-new account: the same reads, all of them empty, none of them
+    // refused. This is the case the device failed on.
+    await assertSucceeds(getDocs(authoredPosts(D)));
+    await assertSucceeds(getDocs(query(
+      collectionGroup(as(D), 'comments'),
+      where('authorUid', '==', D),
+    )));
+    await assertSucceeds(getDocs(collection(as(D), 'users/' + D + '/likes')));
+    await assertSucceeds(getDocs(collection(as(D), 'users/' + D + '/photos')));
+    await assertSucceeds(getDoc(doc(as(D), 'users/' + D + '/meta/profile')));
+    await assertSucceeds(
+      getDocs(collection(as(D), 'publicProfiles/' + D + '/friends')),
+    );
+    await assertSucceeds(getDocs(query(
+      collection(as(D), 'friendships'),
+      where('users', 'array-contains', D),
+    )));
+    await assertSucceeds(getDocs(query(
+      collection(as(D), 'blocks'),
+      where('blocker', '==', D),
+    )));
+  });
+
+  it('and the shape that was shipped is refused, for the author too', async () => {
+    // The bug, pinned: authorUid alone, asked by the author themself.
+    await assertFails(getDocs(query(
+      collection(as(A), 'posts'),
+      where('authorUid', '==', A),
+      orderBy('createdAt', 'desc'),
+    )));
+    await assertFails(getDocs(query(
+      collection(as(A), 'posts'),
+      where('authorUid', '==', A),
+    )));
   });
 });

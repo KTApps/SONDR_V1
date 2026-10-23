@@ -99,8 +99,18 @@ class FirestoreAudiences implements PrunableAudiences {
 
   @override
   Future<List<String>> mine() async {
-    final posts =
-        await db.collection('posts').where('authorUid', isEqualTo: uid).get();
+    // The audience filter is not a nicety. The posts read rule grants on
+    // `audience` alone, so a query constraining only authorUid is refused
+    // outright rather than returning rows — which is what this did, in
+    // production, for every prune since it shipped. The author is always in
+    // their own audience (every create seeds it, and removeFrom below never
+    // takes the author out), so nothing of theirs is hidden by it.
+    final posts = await db
+        .collection('posts')
+        .where('authorUid', isEqualTo: uid)
+        .where('audience', arrayContains: uid)
+        .orderBy('createdAt', descending: true)
+        .get();
     // A collection group, because a comment of mine lives under someone
     // else's post. The rules allow exactly this query and no wider one.
     final comments = await db

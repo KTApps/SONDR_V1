@@ -133,9 +133,23 @@ class AccountCascade implements AccountErasure {
     // Everything that has to be READ before it is deleted out from under
     // us: which posts are mine, where my comments are, the handle to give
     // back, and the Storage path of every file either of them names.
+    // BOTH filters, and the order the composite index carries: the posts
+    // read rule grants on `audience` and nothing else, so a query that does
+    // not constrain it cannot be proved safe for every document it might
+    // match — and Firestore refuses the whole query, even when the result
+    // would be empty. This is the exact shape a profile's own posts query
+    // uses (PostsRepository.postsByAuthor), served by the live
+    // (authorUid, audience, createdAt) index.
+    //
+    // Nothing of theirs can be missed by filtering on it: every version of
+    // the create path seeds the audience with the author's own uid, and the
+    // only thing that ever removes a uid from an audience refuses to remove
+    // the author's own.
     final myPosts = await db
         .collection('posts')
         .where('authorUid', isEqualTo: uid)
+        .where('audience', arrayContains: uid)
+        .orderBy('createdAt', descending: true)
         .get();
     final myPostIds = {for (final post in myPosts.docs) post.id};
     final myComments = [

@@ -131,6 +131,7 @@ Future<void> seed(FirebaseFirestore db) async {
   await db.doc('posts/mine').set({
     'authorUid': me,
     'audience': [me, them],
+    'createdAt': Timestamp.fromDate(DateTime(2026, 10, 2)),
     'photos': [
       {'url': 'u', 'storagePath': 'users/$me/posts/mine.jpg'},
     ],
@@ -152,6 +153,7 @@ Future<void> seed(FirebaseFirestore db) async {
   await db.doc('posts/theirs').set({
     'authorUid': them,
     'audience': [me, them],
+    'createdAt': Timestamp.fromDate(DateTime(2026, 10, 1)),
     'photos': [
       {'url': 'u', 'storagePath': 'users/$them/posts/theirs.jpg'},
     ],
@@ -290,6 +292,34 @@ void main() {
         expect(snap.docs, isEmpty, reason: name);
       }
       expect((await db.doc('users/$me').get()).exists, isFalse);
+    });
+
+    /// The query that finds their posts asks for BOTH authorUid and
+    /// audience, because the read rule grants on audience alone and a query
+    /// that does not constrain it is refused outright in production — which
+    /// is what made every deletion fail on the device.
+    ///
+    /// Nothing can be missed by that filter: every version of the create
+    /// path has seeded the audience with the author's own uid. A post
+    /// without its own author in the audience cannot exist, and this is
+    /// what proves the filter is being applied — it is the one document
+    /// the cascade will walk past.
+    test('the authored-posts query is audience-filtered', () async {
+      await db.doc('posts/impossible').set({
+        'authorUid': me,
+        'audience': [them],
+        'createdAt': Timestamp.fromDate(DateTime(2026, 10, 3)),
+        'likeCount': 0,
+        'commentCount': 0,
+      });
+      await cascade.run();
+      expect(
+        (await db.doc('posts/impossible').get()).exists,
+        isTrue,
+        reason: 'the query ran without its audience filter',
+      );
+      // And the real ones still went.
+      expect((await db.doc('posts/mine').get()).exists, isFalse);
     });
 
     test('the handle is free for somebody else', () async {

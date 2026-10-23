@@ -349,6 +349,11 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                         // the common case.
                         final own = c.authorUid == uid;
                         return SondrSwipeRow(
+                          // The composer's own horizontal inset, so the
+                          // action a swipe reveals has its right edge
+                          // exactly where Post's is — the two are the only
+                          // controls on this sheet, one above the other.
+                          trayInset: kSpacingPair,
                           actions: [
                             SondrAction(
                               label: own ? 'Delete' : 'Report',

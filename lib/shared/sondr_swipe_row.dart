@@ -31,7 +31,16 @@ class SondrSwipeRow extends StatefulWidget {
     required this.child,
     required this.actions,
     this.side = SondrSwipeSide.trailing,
+    this.trayInset = defaultTrayInset,
   });
+
+  /// The tray's own outer inset, on the edge it is uncovered from.
+  ///
+  /// The default is what the friend and habit rows use. A row whose actions
+  /// have to line up with a control elsewhere on the screen passes the
+  /// inset of THAT control instead — the comments sheet passes its
+  /// composer's, so the action a swipe reveals sits exactly under Post.
+  static const double defaultTrayInset = 24;
 
   final Widget child;
 
@@ -41,6 +50,9 @@ class SondrSwipeRow extends StatefulWidget {
 
   /// Most severe LAST, so the outermost action is the gravest one.
   final List<Widget> actions;
+
+  /// Points on the reference canvas, scaled like everything else.
+  final double trayInset;
 
   @override
   State<SondrSwipeRow> createState() => _SondrSwipeRowState();
@@ -144,8 +156,8 @@ class _SondrSwipeRowState extends State<SondrSwipeRow>
                   child: Padding(
                     key: _trayKey,
                     padding: leading
-                        ? EdgeInsets.only(left: 24 * scale)
-                        : EdgeInsets.only(right: 24 * scale),
+                        ? EdgeInsets.only(left: widget.trayInset * scale)
+                        : EdgeInsets.only(right: widget.trayInset * scale),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: widget.actions,

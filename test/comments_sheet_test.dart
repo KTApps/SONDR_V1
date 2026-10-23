@@ -244,6 +244,32 @@ void main() {
       expect(find.text('Delete'), findsNothing);
     });
 
+    /// The tray used to carry SondrSwipeRow's default 24 inset while the
+    /// composer sits on 6, so the revealed action stopped 17.83 short of
+    /// Post on a 13 Pro — close enough to look like a mistake rather than a
+    /// margin. Delete and Report are the same slot, so one number fixes
+    /// both, and both are checked.
+    for (final (author, label) in [('them', 'Report'), ('me', 'Delete')]) {
+      testWidgets('$label lines up with Post', (tester) async {
+        await openSheet(
+          tester,
+          keyboard: false,
+          comments: [comment('c1', author)],
+        );
+        // The composer carries a hidden second Post to centre the field;
+        // the real one is the hit-testable one.
+        final post = tester.getRect(find.text('Post').hitTestable());
+        await reveal(tester, 'a comment by $author');
+        final action = tester.getRect(find.text(label));
+        expect(
+          action.right,
+          closeTo(post.right, 0.5),
+          reason: '$label is ${(post.right - action.right).toStringAsFixed(2)} '
+              'off Post',
+        );
+      });
+    }
+
     testWidgets('Report asks why, then thanks on the sheet\'s own line', (
       tester,
     ) async {

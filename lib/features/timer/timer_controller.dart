@@ -352,7 +352,11 @@ class TimerController extends Notifier<TimerState> {
           .firstOrNull;
       final after = updated?.milestonesReached ?? before;
       totalSeconds = updated?.totalSeconds ?? 0;
-      totalHours = (totalSeconds / 3600).round();
+      // FLOORED, like every other hours figure in the app. Rounded, a
+      // milestone post written at 19h 59m recorded 20 hours on the task —
+      // an hour that had not been logged. Posts already written keep what
+      // they were given; nothing reads the field back to correct it.
+      totalHours = totalSeconds ~/ 3600;
       if (after > before) {
         milestoneHours = after * Task.milestoneStepHours;
         wasFirst = before == 0;

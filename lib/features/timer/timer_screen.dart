@@ -321,28 +321,43 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
                 habitStates: habitStates,
                 size: 260 * scale,
                 onInnerRingTap: () => showHabitsScreen(context),
+                // The centre answers a tap as well as a swipe — the dots
+                // that hinted the swipe are gone, and a figure that
+                // changes when you touch it is its own affordance. The
+                // hit area is the centre column's own bounds, floored at
+                // a thumb's width so the smallest text size is still
+                // reachable; it comes nowhere near the inner ring's band,
+                // which keeps Habits.
                 center: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onHorizontalDragEnd: (_) =>
-                      ref.read(centrePeriodProvider.notifier).toggle(),
-                  child: _DialCentre(
-                    tasks: tasks,
-                    selectedTask: selectedTask,
-                    isCollective: isCollective,
-                    timer: timer,
-                    period: period,
-                    now: now,
+                  onTap: tasks.isEmpty
+                      ? null
+                      : () => ref.read(centrePeriodProvider.notifier).toggle(),
+                  onHorizontalDragEnd: tasks.isEmpty
+                      ? null
+                      : (_) =>
+                            ref.read(centrePeriodProvider.notifier).toggle(),
+                  child: Padding(
+                    // Symmetric, so the column stays exactly where it was
+                    // — this only widens what the thumb can hit. A Center
+                    // or a minimum-size box would have taken the whole
+                    // dial and swallowed the inner ring's tap with it.
+                    padding: EdgeInsets.symmetric(
+                      vertical: kDialCentrePadY * scale,
+                      horizontal: kDialCentrePadX * scale,
+                    ),
+                    child: _DialCentre(
+                      tasks: tasks,
+                      selectedTask: selectedTask,
+                      isCollective: isCollective,
+                      timer: timer,
+                      period: period,
+                      now: now,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          // Period dots (today⟷month swipe affordance).
-          Positioned(
-            top: 421 * scale,
-            left: 0,
-            right: 0,
-            child: Center(child: _PeriodDots(period: period)),
           ),
           // Control: collective hint, or the running/paused timer controls.
           // 448 rather than the measured 444: the plain-text control is
@@ -564,6 +579,22 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
   }
 }
 
+/// What the dial centre's tap target adds around the column.
+///
+/// The column is 38 tall at the smallest text size — a figure and a word —
+/// which is under a thumb, so the target is padded out to 50. Symmetric,
+/// so nothing moves; small, so the target comes nowhere near the inner
+/// ring's band at 70 from the centre, which keeps Habits.
+const double kDialCentrePadY = 6;
+const double kDialCentrePadX = 8;
+
+/// What that target is aiming to clear.
+const double kDialCentreTarget = 44;
+
+/// How long the centre takes to change windows. Both halves of the
+/// cross-fade run together, so this is the whole of it.
+const Duration kDialCentreFade = Duration(milliseconds: 200);
+
 /// Centre of the dial. While a specific task's session runs, the live stopwatch
 /// is the hero; otherwise the figure is the chosen window (today / this month)
 /// — for the selected task, or the total across all tasks in collective mode.
@@ -593,7 +624,7 @@ class _DialCentre extends StatelessWidget {
     final String label = period == CentrePeriod.today ? 'today' : 'this month';
 
     if (tasks.isEmpty) {
-      return _centreColumn(theme, tokens, '—', 'add a task');
+      return _fade(_centreColumn(theme, tokens, '—', 'add a task'), 'empty');
     }
 
     // Seconds for the active window.
@@ -624,8 +655,22 @@ class _DialCentre extends StatelessWidget {
         ? DurationFormat.stopwatch(duration)
         : DurationFormat.hm(duration);
 
-    return _centreColumn(theme, tokens, value, label);
+    return _fade(_centreColumn(theme, tokens, value, label), period.name);
   }
+
+  /// A quick cross-fade between the two windows: the old figure and its
+  /// word go out as the new ones come in, in place, with nothing moving.
+  ///
+  /// Keyed by the WINDOW, not the figure, so a running stopwatch keeps
+  /// ticking in place — a new second is the same child, not a new one.
+  /// Tapping again mid-fade reverses it: the switcher has one child at a
+  /// time and the one on its way out is replaced, so nothing stacks.
+  static Widget _fade(Widget child, String key) => AnimatedSwitcher(
+    duration: kDialCentreFade,
+    switchInCurve: Curves.easeInOut,
+    switchOutCurve: Curves.easeInOut,
+    child: KeyedSubtree(key: ValueKey(key), child: child),
+  );
 
   Widget _centreColumn(
     ThemeData theme,
@@ -657,32 +702,7 @@ class _DialCentre extends StatelessWidget {
   }
 }
 
-/// Two-dot affordance under the dial hinting the today⟷month centre swipe.
-class _PeriodDots extends StatelessWidget {
-  const _PeriodDots({required this.period});
-  final CentrePeriod period;
 
-  @override
-  Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    Widget dot(bool active) => Container(
-      width: 6,
-      height: 6,
-      margin: const EdgeInsets.symmetric(horizontal: 3),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: active ? tokens.ringFillOuter : tokens.ringTrack,
-      ),
-    );
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        dot(period == CentrePeriod.today),
-        dot(period == CentrePeriod.month),
-      ],
-    );
-  }
-}
 
 /// Shown in collective mode, where there is no session to run.
 class _CollectiveHint extends StatelessWidget {

@@ -74,6 +74,27 @@ void main() async {
     expect(outcome.totalHours, 20);
   });
 
+  test('the hours a post records are FLOORED, not rounded', () async {
+    // 19h 59m on the task, and a second of session on top. Rounded, the
+    // post recorded 20 hours on a task that had logged 19.
+    Future<int> hoursAfterStopping(int seeded) async {
+      final c = _containerWith(
+        Task(id: 't', name: 'Spanish', secondsByDay: {today: seeded}),
+      );
+      await c.read(tasksProvider.future);
+      c.read(selectedTaskIdProvider.notifier).select('t');
+      final controller = c.read(timerControllerProvider.notifier);
+      await controller.start();
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      final outcome = await controller.stop();
+      return outcome.totalHours;
+    }
+
+    expect(await hoursAfterStopping(19 * 3600 + 59 * 60), 19);
+    expect(await hoursAfterStopping(20 * 3600 - 1), 20);
+    expect(await hoursAfterStopping(20 * 3600 + 59 * 60 + 57), 20);
+  });
+
   test('stopping without crossing a boundary reports no milestone', () async {
     final seed = Task(id: 't', name: 'Piano', secondsByDay: {today: 3600});
     final c = _containerWith(seed);

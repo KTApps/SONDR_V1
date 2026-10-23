@@ -17,9 +17,13 @@ import 'package:sondr/features/profile/other_profile_screen.dart';
 import 'package:sondr/features/profile/profile_actions.dart';
 import 'package:sondr/features/profile/profile_metrics.dart';
 import 'package:sondr/features/profile/public_profile.dart';
+import 'package:sondr/features/reports/report.dart';
+import 'package:sondr/features/reports/report_flow.dart';
 import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/shared/ring/progress_ring.dart';
 import 'package:sondr/shared/sondr_action.dart';
+import 'package:sondr/shared/sondr_error.dart';
+import 'package:sondr/shared/sondr_notice.dart';
 
 import 'tiny_png.dart';
 
@@ -205,6 +209,7 @@ void main() {
       List<String> friendUids = const [],
       List<Block> blocks = const [],
       _FakeActions? actions,
+      Reports? reports,
       PublicProfile? published = const PublicProfile(
         uid: them,
         handle: 'cass',
@@ -229,6 +234,7 @@ void main() {
             friendUidsProvider.overrideWith((ref, uid) async => friendUids),
             if (actions != null)
               profileActionsProvider.overrideWithValue(actions),
+            if (reports != null) reportsProvider.overrideWithValue(reports),
           ],
           child: MaterialApp(
             theme: AppTheme.dark(),
@@ -712,6 +718,79 @@ void main() {
       expect(acts.blocked, [them]);
     });
 
+    testWidgets('the slot offers Report as well as Block', (tester) async {
+      await pump(tester, friendships: [_friendship()]);
+      await tester.tap(find.text('Block'));
+      await tester.pumpAndSettle();
+      // Titled with the handle, so there is no doubt who this is about.
+      expect(find.text('cass'), findsWidgets);
+      expect(find.text('Report'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+    });
+
+    testWidgets('Report asks why, thanks quietly, and hides nothing', (
+      tester,
+    ) async {
+      final reports = _Reports();
+      final acts = _FakeActions();
+      await pump(
+        tester,
+        friendships: [_friendship()],
+        actions: acts,
+        reports: reports,
+      );
+      await tester.tap(find.text('Block'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Report'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Report cass'), findsOneWidget);
+      await tester.tap(find.text('Something else'));
+      await tester.pumpAndSettle();
+
+      expect(reports.sent, ['user|$them|$them|other']);
+      // Reporting a person hides nothing of theirs — blocking does that,
+      // and it is a separate decision they did not make.
+      expect(reports.hidden, isEmpty);
+      expect(acts.blocked, isEmpty);
+
+      // The thank-you, in the quiet tone rather than the error style.
+      expect(find.text(kReportThanks), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(SondrNotice),
+          matching: find.text(kReportThanks),
+        ),
+        findsOneWidget,
+      );
+      // And it goes on its own.
+      await tester.pump(const Duration(milliseconds: 2600));
+      await tester.pumpAndSettle();
+      expect(find.text(kReportThanks), findsNothing);
+    });
+
+    testWidgets('a report that fails says so in the error style', (
+      tester,
+    ) async {
+      final reports = _Reports(sends: false);
+      await pump(tester, friendships: [_friendship()], reports: reports);
+      await tester.tap(find.text('Block'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Report'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Spam'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(kReportFailed), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(SondrError),
+          matching: find.text(kReportFailed),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('nothing is painted until everything is known', (tester) async {
       final factoryBefore = photoImageProviderFactory;
       photoImageProviderFactory = (_) => MemoryImage(tinyPng);
@@ -819,4 +898,31 @@ void main() {
       expect(find.text('Back'), findsOneWidget);
     });
   });
+}
+
+/// A report we can inspect, so the page's tests never reach Firestore.
+class _Reports implements Reports {
+  _Reports({this.sends = true});
+
+  final bool sends;
+  final List<String> sent = [];
+  final List<String> hidden = [];
+
+  @override
+  Future<bool> send({
+    required ReportTarget type,
+    required String targetKey,
+    required String targetOwnerUid,
+    required ReportReason reason,
+  }) async {
+    if (!sends) return false;
+    sent.add('${type.wire}|$targetKey|$targetOwnerUid|${reason.wire}');
+    return true;
+  }
+
+  @override
+  Future<void> hide(ReportTarget type, String targetKey) async {
+    if (type == ReportTarget.user) return;
+    hidden.add(hiddenKey(type, targetKey));
+  }
 }

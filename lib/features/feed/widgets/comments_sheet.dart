@@ -12,6 +12,7 @@ import '../../../shared/sondr_action.dart';
 import '../../../shared/sondr_error.dart';
 import '../../../shared/sondr_field.dart';
 import '../../../shared/sondr_loading.dart';
+import '../../../shared/sondr_notice.dart';
 import '../../../shared/sondr_swipe_row.dart';
 import '../../../core/utils/relative_time.dart';
 import '../../profile/other_profile_screen.dart';
@@ -81,6 +82,10 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
   bool _hasText = false;
   String? _error;
 
+  /// Whether the line under the composer is a thank-you rather than a
+  /// failure. One tone each: see [SondrNotice].
+  bool _noticeIsQuiet = false;
+
   /// Guards the FIRST emission only.
   ///
   /// `snapshots()` promises no event within any time bound: offline with
@@ -112,6 +117,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
         setState(() {
           _hasText = has;
           _error = null;
+          _noticeIsQuiet = false;
         });
       }
     });
@@ -131,6 +137,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
     setState(() {
       _busy = true;
       _error = null;
+      _noticeIsQuiet = false;
     });
     try {
       await repo.addComment(widget.postId, text);
@@ -168,9 +175,15 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       case ReportOutcome.cancelled:
         break;
       case ReportOutcome.sent:
-        setState(() => _error = kReportThanks);
+        setState(() {
+          _error = kReportThanks;
+          _noticeIsQuiet = true;
+        });
       case ReportOutcome.failed:
-        setState(() => _error = kReportFailed);
+        setState(() {
+          _error = kReportFailed;
+          _noticeIsQuiet = false;
+        });
     }
   }
 
@@ -304,7 +317,10 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
               // until the next keystroke — no floating surface, no timeout.
               if (_error != null) ...[
                 SizedBox(height: kSpacingPair * scale),
-                SondrError(_error!, textAlign: TextAlign.center),
+                if (_noticeIsQuiet)
+                  SondrNotice(_error!, textAlign: TextAlign.center)
+                else
+                  SondrError(_error!, textAlign: TextAlign.center),
               ],
               SizedBox(height: _kComposerGap * scale),
               Expanded(

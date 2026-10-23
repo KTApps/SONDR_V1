@@ -75,8 +75,19 @@ abstract interface class Reports {
   Future<void> hide(ReportTarget type, String targetKey);
 }
 
-class _FirestoreReports implements Reports {
-  _FirestoreReports({required this.db, required this.uid});
+/// Whether a refused write means we already hold this report.
+///
+/// The create rule names the document id it will accept, so the SECOND
+/// create of the same report is refused as a rule violation rather than
+/// reported as a duplicate. From where the reporter stands that is not a
+/// failure — we have the report. Any other code is a real failure.
+bool reportAlreadyHeld(FirebaseException e) => e.code == 'permission-denied';
+
+/// The real one. Public only so a test can drive it with a fake Firestore;
+/// everything in the app reads [reportsProvider].
+@visibleForTesting
+class FirestoreReports implements Reports {
+  FirestoreReports({required this.db, required this.uid});
 
   final FirebaseFirestore db;
   final String uid;
@@ -100,9 +111,7 @@ class _FirestoreReports implements Reports {
       });
       return true;
     } on FirebaseException catch (e) {
-      // The id already exists, so the create was refused: we have this
-      // report. Nothing else about a refusal is the reporter's problem.
-      if (e.code == 'permission-denied') return true;
+      if (reportAlreadyHeld(e)) return true;
       debugPrint('SONDR report error: ${e.code}');
       return false;
     }
@@ -124,7 +133,7 @@ class _FirestoreReports implements Reports {
 final reportsProvider = Provider<Reports?>((ref) {
   final uid = ref.watch(currentUidProvider);
   if (!ref.watch(firebaseReadyProvider) || uid == null) return null;
-  return _FirestoreReports(db: FirebaseFirestore.instance, uid: uid);
+  return FirestoreReports(db: FirebaseFirestore.instance, uid: uid);
 });
 
 /// What this reader has hidden, live, so a reported post leaves the screen

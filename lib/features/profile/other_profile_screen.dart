@@ -10,6 +10,7 @@ import '../../shared/ring/progress_ring.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
+import '../../shared/sondr_notice.dart';
 import '../../shared/sondr_prompt.dart';
 import '../auth/guest_prompts.dart';
 import '../feed/models/post.dart';
@@ -356,16 +357,9 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
                             // "we have it", the error style for "we
                             // haven't".
                             child: _noticeIsQuiet
-                                ? Text(
+                                ? SondrNotice(
                                     _notice!,
                                     textAlign: TextAlign.center,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          fontSize: 13 * scale,
-                                          color: tokens.textSecondary,
-                                        ),
                                   )
                                 : SondrError(
                                     _notice!,

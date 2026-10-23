@@ -4,9 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/backend.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/feed/models/comment.dart';
+import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/posts_repository.dart';
 import 'package:sondr/features/feed/widgets/comments_sheet.dart';
+import 'package:sondr/features/reports/report.dart';
+import 'package:sondr/features/reports/report_flow.dart';
+import 'package:sondr/shared/sondr_error.dart';
 import 'package:sondr/shared/sondr_field.dart';
+import 'package:sondr/shared/sondr_notice.dart';
 
 /// The comments sheet, measured on an iPhone 13 Pro in both keyboard states.
 ///
@@ -38,6 +43,7 @@ void main() {
     WidgetTester tester, {
     required bool keyboard,
     List<Comment> comments = const [],
+    Reports? reports,
   }) async {
     tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -58,6 +64,7 @@ void main() {
           postCommentsProvider.overrideWith(
             (ref, postId) => AsyncValue.data(comments),
           ),
+          if (reports != null) reportsProvider.overrideWithValue(reports),
         ],
         child: MaterialApp(
           theme: AppTheme.dark(),
@@ -199,4 +206,126 @@ void main() {
       }
     });
   });
+
+  group('reporting a comment', () {
+    Comment comment(String id, String author) => Comment(
+      id: id,
+      authorUid: author,
+      author: PostAuthor(username: author, displayName: author),
+      text: 'a comment by $author',
+      createdAt: DateTime(2026, 10, 1),
+    );
+
+    /// The tray behind one comment, once it has been swiped open.
+    Future<void> reveal(WidgetTester tester, String text) async {
+      await tester.drag(find.text(text), const Offset(-200, 0));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('your own comment offers Delete, not Report', (tester) async {
+      await openSheet(
+        tester,
+        keyboard: false,
+        comments: [comment('c1', 'me')],
+      );
+      await reveal(tester, 'a comment by me');
+      expect(find.text('Delete'), findsOneWidget);
+      expect(find.text('Report'), findsNothing);
+    });
+
+    testWidgets("somebody else's offers Report, not Delete", (tester) async {
+      await openSheet(
+        tester,
+        keyboard: false,
+        comments: [comment('c1', 'them')],
+      );
+      await reveal(tester, 'a comment by them');
+      expect(find.text('Report'), findsOneWidget);
+      expect(find.text('Delete'), findsNothing);
+    });
+
+    testWidgets('Report asks why, then thanks on the sheet\'s own line', (
+      tester,
+    ) async {
+      final reports = _Reports();
+      await openSheet(
+        tester,
+        keyboard: false,
+        comments: [comment('c1', 'them')],
+        reports: reports,
+      );
+      await reveal(tester, 'a comment by them');
+      await tester.tap(find.text('Report'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Report comment'), findsOneWidget);
+      await tester.tap(find.text('Spam'));
+      await tester.pumpAndSettle();
+
+      // The post id and the comment id, which is where a moderator looks.
+      expect(reports.sent, ['comment|p1/c1|them|spam']);
+      expect(reports.hidden, ['comment__p1_c1']);
+      // A thank-you is not a failure: the quiet tone, not the error style.
+      expect(
+        find.descendant(
+          of: find.byType(SondrNotice),
+          matching: find.text(kReportThanks),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a report that fails says so and hides nothing', (
+      tester,
+    ) async {
+      final reports = _Reports(sends: false);
+      await openSheet(
+        tester,
+        keyboard: false,
+        comments: [comment('c1', 'them')],
+        reports: reports,
+      );
+      await reveal(tester, 'a comment by them');
+      await tester.tap(find.text('Report'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Spam'));
+      await tester.pumpAndSettle();
+
+      expect(reports.hidden, isEmpty);
+      expect(
+        find.descendant(
+          of: find.byType(SondrError),
+          matching: find.text(kReportFailed),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+}
+
+/// A report we can inspect, so the sheet's tests never reach Firestore.
+class _Reports implements Reports {
+  _Reports({this.sends = true});
+
+  final bool sends;
+  final List<String> sent = [];
+  final List<String> hidden = [];
+
+  @override
+  Future<bool> send({
+    required ReportTarget type,
+    required String targetKey,
+    required String targetOwnerUid,
+    required ReportReason reason,
+  }) async {
+    if (!sends) return false;
+    sent.add('${type.wire}|$targetKey|$targetOwnerUid|${reason.wire}');
+    return true;
+  }
+
+  @override
+  Future<void> hide(ReportTarget type, String targetKey) async {
+    if (type == ReportTarget.user) return;
+    hidden.add(hiddenKey(type, targetKey));
+  }
 }

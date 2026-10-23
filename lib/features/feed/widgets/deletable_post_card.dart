@@ -9,6 +9,7 @@ import '../../../core/theme/spacing.dart';
 import '../../../core/utils/figma_scale.dart';
 import '../../../shared/sondr_action.dart';
 import '../../../shared/sondr_error.dart';
+import '../../../shared/sondr_notice.dart';
 import '../../reports/report.dart';
 import '../../reports/report_flow.dart';
 import '../models/post.dart';
@@ -57,6 +58,11 @@ class DeletablePostCard extends ConsumerStatefulWidget {
 class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
   bool _busy = false;
   String? _error;
+
+  /// Set once the report is in. The overlay stays, carrying the thank-you,
+  /// and the card itself leaves when the hidden set catches up — so the
+  /// promise is read rather than inferred from a card vanishing.
+  bool _thanked = false;
 
   /// Match the wrapped card's corner radius so the blur clips to its shape.
   double get _radius => widget.post is SessionPost ? 16 : 24;
@@ -130,13 +136,23 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
           onTap: _busy ? null : _clear,
           child: Container(
             color: Colors.black.withValues(alpha: 0.4),
-            alignment: Alignment.center,
             // Tight: a slim session card has barely room for two stacked
             // actions, and the actions carry their own tap padding already.
             padding: EdgeInsets.all(kSpacingPair * figmaScale(context)),
-            // The actions STAY while the delete runs — only the label and
-            // the tone move, so the overlay does not jump.
-            child: _actions(tokens),
+            // Centred when it fits, scrolling when it does not. A session
+            // card is 80 tall and two stacked actions nearly fill it, so a
+            // line of words on top of them — "couldn't send that report",
+            // the thank-you — overflowed by 13 and clipped the way out.
+            child: LayoutBuilder(
+              builder: (context, box) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: box.maxHeight),
+                  // The actions STAY while the delete runs — only the label
+                  // and the tone move, so the overlay does not jump.
+                  child: Center(child: _actions(tokens)),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -160,8 +176,9 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
       case ReportOutcome.cancelled:
         break;
       case ReportOutcome.sent:
-        // The card goes with the hidden set; the overlay goes with it.
-        _clear();
+        // The card goes with the hidden set, and takes the overlay with
+        // it. Until then the thank-you is what the overlay says.
+        setState(() => _thanked = true);
       case ReportOutcome.failed:
         // Stay open, say so, hide nothing.
         setState(() => _error = kReportFailed);
@@ -173,6 +190,16 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
     // plain white text, no fill, no border, no glyph (see DESIGN.md). Close
     // is the exit and takes the supporting tone, stacked beneath rather than
     // beside so the two never read as a pair of equals.
+    if (_thanked) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SondrNotice(kReportThanks, textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          SondrAction(label: 'Close', supporting: true, onPressed: _clear),
+        ],
+      );
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [

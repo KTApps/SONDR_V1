@@ -28,6 +28,16 @@ service firebase.storage {
     // create/update carry an incoming file, so they're size/type-checked; delete
     // has no `request.resource`, so it's gated on ownership alone (folding the
     // size/type checks into a blanket `write` would deny every delete).
+    // LISTING is checked against the prefix being listed, which neither
+    // per-file match covers — `users/{uid}/posts` is one segment short of
+    // `users/{uid}/posts/{file}`. Deleting an account has to find every
+    // object it owns, including one whose Firestore document never landed,
+    // so the owner may list their own prefixes. Names only: reading the
+    // bytes is still governed by the matches above.
+    match /users/{uid}/{prefix} {
+      allow list: if request.auth != null && request.auth.uid == uid;
+    }
+
     match /users/{uid}/photos/{file} {
       allow read: if request.auth != null
                   && request.auth.uid == uid;

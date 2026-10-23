@@ -2,7 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
@@ -49,9 +49,6 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
   /// closes Pending and the other way round, as TTM does. Friends is not in
   /// this at all — it is always shown.
   _OpenSection _open = _OpenSection.none;
-
-  /// Copy-link feedback for the invite action, cleared after a moment.
-  bool _copied = false;
 
   /// Live handle search. [_matchesFor] is the query [_matches] answer, so an
   /// empty result only shows once a search for the CURRENT text has landed —
@@ -250,19 +247,27 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     );
   }
 
+  /// What the invite says. The link is still TestFlight; it becomes the
+  /// App Store page when there is one.
+  static const String inviteText =
+      'Join me on sondr — https://testflight.apple.com/join/XgqKWR4E';
+
   Future<void> _invite() async {
-    // No OS share sheet in this app and no package for one, so the link goes
-    // to the clipboard with a confirmation instead.
-    await Clipboard.setData(
-      const ClipboardData(
-        text: 'Join me on sondr — https://testflight.apple.com/join/XgqKWR4E',
+    // The OS share sheet, so the invite can go wherever the person
+    // already talks to their friends. Copying to the clipboard made them
+    // find somewhere to paste it.
+    //
+    // The sheet needs an anchor on iPad; on a phone it is ignored, and
+    // the button's own rectangle is the honest one to give it.
+    final box = context.findRenderObject() as RenderBox?;
+    await SharePlus.instance.share(
+      ShareParams(
+        text: inviteText,
+        sharePositionOrigin: box == null
+            ? null
+            : box.localToGlobal(Offset.zero) & box.size,
       ),
     );
-    if (!mounted) return;
-    setState(() => _copied = true);
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _copied = false);
-    });
   }
 
   Widget _list() {
@@ -464,7 +469,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         SizedBox(height: _kInviteTopGap * scale),
         Center(
           child: SondrAction(
-            label: _copied ? 'Copied' : 'Invite your friends to sondr',
+            label: 'Invite your friends to sondr',
             onPressed: _invite,
           ),
         ),

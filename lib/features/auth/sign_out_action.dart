@@ -83,67 +83,101 @@ class _SignOutActionState extends ConsumerState<SignOutAction> {
   }
 
   Future<void> _signOut() async {
-    final timer = ref.read(timerControllerProvider.notifier);
-    // The card may have been paused from the Lock Screen since this
-    // process last looked.
-    await timer.sync();
-    if (!mounted) return;
-
-    final clock = timer.clock;
-    if (clock == null) {
-      // No session — but a card can still be left over from a launch that
-      // was killed mid-session, and it names a task belonging to whoever
-      // is leaving. Otherwise: sign out exactly as it always did.
-      await ref.read(liveActivityProvider).clear();
-      await _signOutNow();
-      return;
-    }
-
-    final now = ref.read(nowProvider)();
-    final stop = await showSondrConfirm(
+    final result = await runSignOut(
       context,
-      title: 'Stop your session?',
-      body: signOutPromptBody(clock, now),
-      confirmLabel: 'Stop and sign out',
+      ref,
+      busy: (busy) {
+        if (!mounted) return;
+        setState(() {
+          _busy = busy;
+          if (busy) _error = null;
+        });
+      },
     );
-    if (!stop || !mounted) return;
-
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      // Credit it to the account that earned it, and wait to be told the
-      // server has it. No camera, no celebration, no notice — this is a
-      // sign-out, not the end of a session someone is standing over.
-      final outcome = await timer
-          .commitKeepingSession()
-          .timeout(kSignOutSaveTimeout);
-      if (!mounted) return;
-      if (outcome.reachedMilestone && outcome.taskId != null) {
-        unawaited(
-          autoComposeCollage(ref, outcome.taskId!, outcome.milestoneHours!),
-        );
-      }
-      // Only now: the time is safe, so the session can go. discard()
-      // takes the card down itself, which is why the card is not cleared
-      // again here.
-      await timer.discard();
-      if (!mounted) return;
-      await _signOutNow();
-    } catch (e) {
-      debugPrint('SONDR sign-out save error: ${e.runtimeType} :: $e');
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error =
-            "Couldn't save your session. Check your connection and try again.";
-      });
-    }
+    if (!mounted) return;
+    setState(() => _error = result.error);
   }
 
-  /// As it has always worked: a fresh guest session, and AccountBody
-  /// rebuilds itself into the guest view.
-  Future<void> _signOutNow() =>
+}
+
+/// What a sign-out ended as.
+///
+/// A declined prompt is neither: nothing happened and there is nothing to
+/// say about it.
+typedef SignOutResult = ({bool signedOut, String? error});
+
+/// The sign-out flow, in one place.
+///
+/// Extracted from [SignOutAction] when sign-out moved into the More sheet,
+/// where there is no widget to hold a busy label — and deliberately not
+/// changed in the move: the order below is the reason this exists at all,
+/// and [SignOutAction]'s own tests still drive it through the widget.
+///
+/// The time has to be known to have reached the server BEFORE anything is
+/// thrown away, because once signed out there is no retrying it. If it
+/// cannot be confirmed, nothing happens at all — not the sign-out, not the
+/// clearing — and the caller is given the line to show.
+///
+/// [busy] is called with true when the save starts and false if it fails;
+/// a caller with a label to change uses it, and one without passes nothing.
+Future<SignOutResult> runSignOut(
+  BuildContext context,
+  WidgetRef ref, {
+  void Function(bool busy)? busy,
+}) async {
+  final timer = ref.read(timerControllerProvider.notifier);
+  // The card may have been paused from the Lock Screen since this
+  // process last looked.
+  await timer.sync();
+  if (!context.mounted) return (signedOut: false, error: null);
+
+  Future<void> signOutNow() =>
       ref.read(authRepositoryProvider).signOut();
+
+  final clock = timer.clock;
+  if (clock == null) {
+    // No session — but a card can still be left over from a launch that
+    // was killed mid-session, and it names a task belonging to whoever
+    // is leaving. Otherwise: sign out exactly as it always did.
+    await ref.read(liveActivityProvider).clear();
+    await signOutNow();
+    return (signedOut: true, error: null);
+  }
+
+  final now = ref.read(nowProvider)();
+  final stop = await showSondrConfirm(
+    context,
+    title: 'Stop your session?',
+    body: signOutPromptBody(clock, now),
+    confirmLabel: 'Stop and sign out',
+  );
+  if (!stop || !context.mounted) return (signedOut: false, error: null);
+
+  busy?.call(true);
+  try {
+    // Credit it to the account that earned it, and wait to be told the
+    // server has it. No camera, no celebration, no notice — this is a
+    // sign-out, not the end of a session someone is standing over.
+    final outcome = await timer
+        .commitKeepingSession()
+        .timeout(kSignOutSaveTimeout);
+    if (outcome.reachedMilestone && outcome.taskId != null) {
+      unawaited(
+        autoComposeCollage(ref, outcome.taskId!, outcome.milestoneHours!),
+      );
+    }
+    // Only now: the time is safe, so the session can go. discard()
+    // takes the card down itself, which is why the card is not cleared
+    // again here.
+    await timer.discard();
+    await signOutNow();
+    return (signedOut: true, error: null);
+  } catch (e) {
+    debugPrint('SONDR sign-out save error: ${e.runtimeType} :: $e');
+    busy?.call(false);
+    return (
+      signedOut: false,
+      error: "Couldn't save your session. Check your connection and try again.",
+    );
+  }
 }

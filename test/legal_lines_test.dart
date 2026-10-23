@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sondr/core/debug_flags.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/theme/greyscale_tokens.dart';
 import 'package:sondr/features/auth/account_screen.dart';
@@ -11,7 +10,6 @@ import 'package:sondr/features/auth/apple_sign_in_button.dart';
 import 'package:sondr/features/auth/auth_repository.dart';
 import 'package:sondr/features/auth/auth_screen.dart';
 import 'package:sondr/features/auth/legal_lines.dart';
-import 'package:sondr/features/auth/sign_out_action.dart';
 import 'package:sondr/shared/legal.dart';
 
 import 'support/app_viewport.dart';
@@ -47,22 +45,6 @@ class _Auth implements AuthRepository {
 
   @override
   bool get isAnonymous => user?.isAnonymous ?? true;
-
-  @override
-  dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
-}
-
-/// A permanent account, which is what puts Sign out and the support links on
-/// the screen. Only the two fields the view reads are real.
-class _Account implements User {
-  @override
-  bool get isAnonymous => false;
-
-  @override
-  String? get email => 'tanaka@example.com';
-
-  @override
-  String get uid => 'me';
 
   @override
   dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
@@ -335,72 +317,4 @@ void main() {
     });
   });
 
-  group('the support links', () {
-    testWidgets('three words beside Sign out, each opening its page', (
-      tester,
-    ) async {
-      await pump(tester, user: _Account());
-      expect(find.text('Sign out'), findsOneWidget);
-      expect(find.byType(SupportLinks), findsOneWidget);
-
-      for (final (label, url) in [
-        ('Support', 'https://s-ndr.com/support'),
-        ('Privacy', 'https://s-ndr.com/privacy'),
-        ('Terms', 'https://s-ndr.com/terms'),
-      ]) {
-        expect(find.text(label), findsOneWidget);
-        await tester.tap(find.text(label));
-        await tester.pump();
-        expect(pages.opened.last, url, reason: label);
-      }
-      expect(pages.opened.length, 3);
-    });
-
-    testWidgets('plain grey, not actions', (tester) async {
-      await pump(tester, user: _Account());
-      final context = tester.element(find.byType(SupportLinks));
-      final tokens = GreyscaleTokens.of(context);
-      for (final label in ['Support', 'Privacy', 'Terms']) {
-        final word = tester.widget<Text>(find.text(label));
-        expect(word.style!.fontSize, SupportLinks.fontSize, reason: label);
-        expect(word.style!.fontWeight, FontWeight.w400, reason: label);
-        expect(word.style!.color, tokens.textSecondary, reason: label);
-      }
-    });
-
-    for (final ts in [0.824, 1.0, 1.235]) {
-      testWidgets('fit beside Sign out, one line, at $ts', (tester) async {
-        await pump(tester, textScale: ts, user: _Account());
-
-        final links = tester.getRect(find.byType(SupportLinks));
-        final signOut = tester.getRect(find.byType(SignOutAction));
-
-        // Inside the gutter, never over the edge — a Row would have painted
-        // the overflow stripes instead of failing.
-        expect(tester.takeException(), isNull);
-        expect(links.right, lessThanOrEqualTo(contentRight + 0.5));
-        expect(links.left, greaterThanOrEqualTo(23.5));
-
-        // The three words are on one line as each other, always.
-        final tops = ['Support', 'Privacy', 'Terms']
-            .map((l) => tester.getRect(find.text(l)).top)
-            .toSet();
-        expect(tops.length, 1, reason: 'the words broke across lines');
-
-        if (!kDebugTools) {
-          // The release build: beside Sign out, sharing its line.
-          expect(
-            links.center.dy,
-            closeTo(signOut.center.dy, 1),
-            reason: 'the links fell below Sign out at $ts',
-          );
-          expect(links.left, greaterThan(signOut.right - 0.5));
-        } else {
-          // A DEBUG_TOOLS build adds "Debug" to the line, which at 1.0 is 25
-          // too wide. The links drop to their own line rather than overflow.
-          expect(links.top, greaterThanOrEqualTo(signOut.top - 0.5));
-        }
-      });
-    }
-  });
 }

@@ -151,10 +151,82 @@ Future<bool> showSondrConfirm(
 /// Material only for the ink and text-selection machinery a TextField
 /// needs — elevation 0 and our own surface, so it casts nothing and tints
 /// nothing.
+/// A list of choices in the confirm's own card: a title, an optional
+/// line, then one action per choice with Cancel beneath them.
+///
+/// The same card, the same title, the same centred position as
+/// [showSondrConfirm] — it is the same question with more than two
+/// answers. Returns the chosen value, or null for Cancel and for a tap
+/// outside.
+///
+/// Every choice takes the page's full tone: none of them is the safe one.
+/// Cancel is the exit and takes the supporting tone, as it does
+/// everywhere else.
+Future<T?> showSondrChoice<T>(
+  BuildContext context, {
+  String? title,
+  String? body,
+  required List<({String label, T value})> choices,
+  String cancelLabel = 'Cancel',
+}) {
+  return showDialog<T>(
+    context: context,
+    builder: (context) {
+      final tokens = GreyscaleTokens.of(context);
+      final theme = Theme.of(context);
+      final scale = figmaScale(context);
+
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: kSpacingSection * scale),
+          child: _PromptCard(
+            // With nothing above them, the actions' own 12 of tap padding
+            // is half the inset, exactly as it is at the bottom — so the
+            // card's declared top comes down to 12 and the visible space
+            // stays the square 24 the titled card has.
+            tightTop: title == null && body == null,
+            children: [
+              if (title != null) _PromptTitle(title),
+              if (body != null) ...[
+                if (title != null) SizedBox(height: kSpacingBase * scale),
+                Text(
+                  body,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: 13 * scale,
+                    color: tokens.textSecondary,
+                  ),
+                ),
+              ],
+              if (title != null || body != null)
+                SizedBox(height: kSpacingBase * scale),
+              for (final choice in choices)
+                SondrAction(
+                  label: choice.label,
+                  onPressed: () => Navigator.of(context).pop(choice.value),
+                ),
+              SondrAction(
+                label: cancelLabel,
+                supporting: true,
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class _PromptCard extends StatelessWidget {
-  const _PromptCard({required this.children});
+  const _PromptCard({required this.children, this.tightTop = false});
 
   final List<Widget> children;
+
+  /// True when the first child is an action rather than a heading, so the
+  /// declared top inset drops to a base unit — the action's own 12 of tap
+  /// padding makes up the rest.
+  final bool tightTop;
 
   @override
   Widget build(BuildContext context) {
@@ -171,7 +243,7 @@ class _PromptCard extends StatelessWidget {
         // inset is square. EdgeInsets.all(24) read as 36 underneath.
         padding: EdgeInsets.fromLTRB(
           kSpacingSection * scale,
-          kSpacingSection * scale,
+          (tightTop ? kSpacingBase : kSpacingSection) * scale,
           kSpacingSection * scale,
           kSpacingBase * scale,
         ),

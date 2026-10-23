@@ -10,6 +10,7 @@ import '../../shared/ring/progress_ring.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
+import '../../shared/sondr_notice.dart';
 import '../../shared/sondr_prompt.dart';
 import '../auth/guest_prompts.dart';
 import '../feed/models/post.dart';
@@ -19,6 +20,8 @@ import '../friends/friends_repository.dart';
 import '../friends/models/friendship.dart';
 import '../shell/main_shell.dart';
 import '../timer/home_metrics.dart';
+import '../reports/report.dart';
+import '../reports/report_flow.dart';
 import 'friend_status.dart';
 import 'profile_action_bar.dart';
 import 'profile_actions.dart';
@@ -90,6 +93,9 @@ const int kProfileTabIndex = 2;
 
 class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
   String? _notice;
+
+  /// Whether the line is a thank-you rather than a failure.
+  bool _noticeIsQuiet = false;
   bool _busy = false;
 
   /// What the page shows while the write is in flight.
@@ -101,7 +107,12 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
   FriendStatus? _pending;
 
   void _say(String message) {
-    if (mounted) setState(() => _notice = message);
+    if (mounted) {
+      setState(() {
+        _notice = message;
+        _noticeIsQuiet = false;
+      });
+    }
   }
 
   Future<void> _run(Future<void> Function(ProfileActions acts) action) async {
@@ -240,7 +251,7 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
           else
             ProfileBarSlot(
               label: 'Block',
-              onTap: _busy ? null : () => _block(them, myUid),
+              onTap: _busy ? null : () => _blockOrReport(them, myUid),
             ),
         ],
       ),
@@ -341,10 +352,19 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
                         if (_notice != null) ...[
                           SizedBox(height: kSpacingBase * scale),
                           ProfileGutter(
-                            child: SondrError(
-                              _notice!,
-                              textAlign: TextAlign.center,
-                            ),
+                            // A thank-you is not an error, and the page
+                            // has one tone for each: the quiet grey for
+                            // "we have it", the error style for "we
+                            // haven't".
+                            child: _noticeIsQuiet
+                                ? SondrNotice(
+                                    _notice!,
+                                    textAlign: TextAlign.center,
+                                  )
+                                : SondrError(
+                                    _notice!,
+                                    textAlign: TextAlign.center,
+                                  ),
                           ),
                         ],
                         if (sees) ...[
@@ -478,6 +498,65 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
     if (!yes || !mounted) return;
     await _run((acts) => acts.removeFriend(f.id));
   }
+
+  /// The bar's right slot: reporting and blocking are both "this person
+  /// is a problem", and asking which keeps the bar at three slots.
+  ///
+  /// The sheet is the confirms' own card, in the middle of the screen —
+  /// never under the slot that opened it, so a second tap cannot pick
+  /// anything.
+  Future<void> _blockOrReport(PublicProfile them, String myUid) async {
+    // No title. The slot was tapped on THEIR page, with their handle in
+    // the hero above it — repeating it on the card said nothing and made
+    // the two answers read as a subheading of their name.
+    final choice = await showSondrChoice<String>(
+      context,
+      choices: const [
+        (label: 'Report', value: 'report'),
+        (label: 'Block', value: 'block'),
+      ],
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'block') {
+      await _block(them, myUid);
+      return;
+    }
+    final outcome = await reportThing(
+      context,
+      ref,
+      type: ReportTarget.user,
+      targetKey: widget.uid,
+      targetOwnerUid: widget.uid,
+      title: reportTitle(ReportTarget.user, handle: them.handle),
+    );
+    if (!mounted) return;
+    switch (outcome) {
+      case ReportOutcome.cancelled:
+        break;
+      case ReportOutcome.sent:
+        // Reporting a person hides nothing — blocking is the thing that
+        // does that, and it is a different decision.
+        _thanks();
+      case ReportOutcome.failed:
+        _say(kReportFailed);
+    }
+  }
+
+  /// The thank-you, in the status line, for a moment.
+  void _thanks() {
+    if (!mounted) return;
+    final token = ++_noticeToken;
+    setState(() {
+      _notice = kReportThanks;
+      _noticeIsQuiet = true;
+    });
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (mounted && _noticeToken == token) setState(() => _notice = null);
+    });
+  }
+
+  /// Which notice is current, so an older one cannot clear a newer.
+  int _noticeToken = 0;
 
   Future<void> _block(PublicProfile them, String myUid) async {
     final yes = await showSondrConfirm(

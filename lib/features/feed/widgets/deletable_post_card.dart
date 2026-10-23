@@ -9,6 +9,9 @@ import '../../../core/theme/spacing.dart';
 import '../../../core/utils/figma_scale.dart';
 import '../../../shared/sondr_action.dart';
 import '../../../shared/sondr_error.dart';
+import '../../../shared/sondr_notice.dart';
+import '../../reports/report.dart';
+import '../../reports/report_flow.dart';
 import '../models/post.dart';
 import '../posts_repository.dart';
 
@@ -27,9 +30,9 @@ final revealedPostIdProvider = NotifierProvider<RevealedPostId, String?>(
   RevealedPostId.new,
 );
 
-/// Wraps a feed [child] card with long-press-to-delete on the author's **own**
-/// posts only. Long-press an own post → blur THIS card and reveal Delete / Close;
-/// long-press someone else's post → nothing. Delete un-shares via
+/// Wraps a feed [child] card with a long-press: Delete on the author's
+/// **own** posts, Report on everybody else's. Long-press → blur THIS card
+/// and reveal the action and Close. Delete un-shares via
 /// [PostsRepository.deletePost] (the post doc + its posts-space photo copies —
 /// never the gallery original or logged time); the feed stream then drops the
 /// card. Close, or a tap on the blurred scrim, un-blurs. No confirm dialog — the
@@ -55,6 +58,11 @@ class DeletablePostCard extends ConsumerStatefulWidget {
 class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
   bool _busy = false;
   String? _error;
+
+  /// Set once the report is in. The overlay stays, carrying the thank-you,
+  /// and the card itself leaves when the hidden set catches up — so the
+  /// promise is read rather than inferred from a card vanishing.
+  bool _thanked = false;
 
   /// Match the wrapped card's corner radius so the blur clips to its shape.
   double get _radius => widget.post is SessionPost ? 16 : 24;
@@ -91,20 +99,23 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
     }
   }
 
+  /// Whose post this is, which decides what the long-press offers.
+  bool _own = false;
+
   @override
   Widget build(BuildContext context) {
     final uid = ref.watch(currentUidProvider);
-    final own = uid != null && widget.post.authorUid == uid;
+    _own = uid != null && widget.post.authorUid == uid;
     final revealed = ref.watch(revealedPostIdProvider) == widget.post.id;
 
     return GestureDetector(
       // Opaque so the long-press is caught across the whole card, including any
       // transparent regions; the card's own taps (like/comment) still win.
       behavior: HitTestBehavior.opaque,
-      onLongPress: own
-          ? () =>
-                ref.read(revealedPostIdProvider.notifier).reveal(widget.post.id)
-          : null,
+      // Every post answers a long-press now; what it offers depends on
+      // whose it is.
+      onLongPress: () =>
+          ref.read(revealedPostIdProvider.notifier).reveal(widget.post.id),
       child: Stack(
         children: [
           widget.child,
@@ -125,17 +136,53 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
           onTap: _busy ? null : _clear,
           child: Container(
             color: Colors.black.withValues(alpha: 0.4),
-            alignment: Alignment.center,
             // Tight: a slim session card has barely room for two stacked
             // actions, and the actions carry their own tap padding already.
             padding: EdgeInsets.all(kSpacingPair * figmaScale(context)),
-            // The actions STAY while the delete runs — only the label and
-            // the tone move, so the overlay does not jump.
-            child: _actions(tokens),
+            // Centred when it fits, scrolling when it does not. A session
+            // card is 80 tall and two stacked actions nearly fill it, so a
+            // line of words on top of them — "couldn't send that report",
+            // the thank-you — overflowed by 13 and clipped the way out.
+            child: LayoutBuilder(
+              builder: (context, box) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: box.maxHeight),
+                  // The actions STAY while the delete runs — only the label
+                  // and the tone move, so the overlay does not jump.
+                  child: Center(child: _actions(tokens)),
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
+  }
+
+  /// Report someone else's post: ask why, send, and let the feed drop it.
+  Future<void> _report() async {
+    setState(() => _busy = true);
+    final outcome = await reportThing(
+      context,
+      ref,
+      type: ReportTarget.post,
+      targetKey: widget.post.id,
+      targetOwnerUid: widget.post.authorUid,
+      title: reportTitle(ReportTarget.post),
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    switch (outcome) {
+      case ReportOutcome.cancelled:
+        break;
+      case ReportOutcome.sent:
+        // The card goes with the hidden set, and takes the overlay with
+        // it. Until then the thank-you is what the overlay says.
+        setState(() => _thanked = true);
+      case ReportOutcome.failed:
+        // Stay open, say so, hide nothing.
+        setState(() => _error = kReportFailed);
+    }
   }
 
   Widget _actions(GreyscaleTokens tokens) {
@@ -143,6 +190,16 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
     // plain white text, no fill, no border, no glyph (see DESIGN.md). Close
     // is the exit and takes the supporting tone, stacked beneath rather than
     // beside so the two never read as a pair of equals.
+    if (_thanked) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SondrNotice(kReportThanks, textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          SondrAction(label: 'Close', supporting: true, onPressed: _clear),
+        ],
+      );
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -150,10 +207,13 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
           SondrError(_error!, textAlign: TextAlign.center),
           const SizedBox(height: 8),
         ],
-        SondrAction(
-          label: _busy ? 'Deleting…' : 'Delete',
-          onPressed: _busy ? null : _delete,
-        ),
+        if (_own)
+          SondrAction(
+            label: _busy ? 'Deleting…' : 'Delete',
+            onPressed: _busy ? null : _delete,
+          )
+        else
+          SondrAction(label: 'Report', onPressed: _busy ? null : _report),
         SondrAction(
           label: 'Close',
           supporting: true,

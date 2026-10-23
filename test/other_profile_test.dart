@@ -17,9 +17,13 @@ import 'package:sondr/features/profile/other_profile_screen.dart';
 import 'package:sondr/features/profile/profile_actions.dart';
 import 'package:sondr/features/profile/profile_metrics.dart';
 import 'package:sondr/features/profile/public_profile.dart';
+import 'package:sondr/features/reports/report.dart';
+import 'package:sondr/features/reports/report_flow.dart';
 import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/shared/ring/progress_ring.dart';
 import 'package:sondr/shared/sondr_action.dart';
+import 'package:sondr/shared/sondr_error.dart';
+import 'package:sondr/shared/sondr_notice.dart';
 
 import 'tiny_png.dart';
 
@@ -205,6 +209,7 @@ void main() {
       List<String> friendUids = const [],
       List<Block> blocks = const [],
       _FakeActions? actions,
+      Reports? reports,
       PublicProfile? published = const PublicProfile(
         uid: them,
         handle: 'cass',
@@ -229,6 +234,7 @@ void main() {
             friendUidsProvider.overrideWith((ref, uid) async => friendUids),
             if (actions != null)
               profileActionsProvider.overrideWithValue(actions),
+            if (reports != null) reportsProvider.overrideWithValue(reports),
           ],
           child: MaterialApp(
             theme: AppTheme.dark(),
@@ -378,6 +384,11 @@ void main() {
     testWidgets('Block asks first, naming what it does', (tester) async {
       await pump(tester, friendships: [_friendship()]);
       await tester.tap(find.text('Block'));
+      await tester.pumpAndSettle();
+      // The slot asks which of the two first — reporting and blocking are
+      // both "this person is a problem".
+      expect(find.text('cass'), findsWidgets);
+      await tester.tap(find.text('Block').last);
       await tester.pumpAndSettle();
       expect(find.text('Block cass?'), findsOneWidget);
       expect(
@@ -671,7 +682,9 @@ void main() {
         final slot = tester.getRect(find.text(label)).center;
         await tester.tapAt(slot);
         await tester.pumpAndSettle();
-        // The card's own action is nowhere near the slot that opened it.
+        // Whatever the slot opened — a confirm for Remove, the
+        // Report/Block sheet for Block — its own actions are nowhere
+        // near the slot that opened it.
         expect(
           tester.getRect(find.text(label).last).contains(slot),
           isFalse,
@@ -694,11 +707,132 @@ void main() {
       await tester.pumpAndSettle();
       expect(acts.blocked, isEmpty);
 
+      // Slot → the Report/Block sheet → Block → the confirm → blocked.
       await tester.tap(find.text('Block'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Block').last);
       await tester.pumpAndSettle();
+      expect(acts.blocked, isEmpty, reason: 'the confirm still asks');
+      await tester.tap(find.text('Block').last);
+      await tester.pumpAndSettle();
       expect(acts.blocked, [them]);
+    });
+
+    testWidgets('the slot offers Report, Block and Cancel — no title', (
+      tester,
+    ) async {
+      await pump(tester, friendships: [_friendship()]);
+      final handlesBefore = find.text('cass').evaluate().length;
+      await tester.tap(find.text('Block'));
+      await tester.pumpAndSettle();
+
+      // Three actions and nothing else. The card carries no heading: the
+      // handle is in the hero above it, and repeating it made the two
+      // answers read as a subheading of their name.
+      final card = find.ancestor(
+        of: find.text('Report'),
+        matching: find.byType(Material),
+      );
+      final labels = find
+          .descendant(of: card.last, matching: find.byType(Text))
+          .evaluate()
+          .map((e) => (e.widget as Text).data)
+          .toList();
+      expect(labels, ['Report', 'Block', 'Cancel']);
+      expect(
+        find.text('cass').evaluate().length,
+        handlesBefore,
+        reason: 'the handle was repeated on the card',
+      );
+    });
+
+    testWidgets('the sheet sits mid-screen, never under the slot', (
+      tester,
+    ) async {
+      await pump(tester, friendships: [_friendship()]);
+      final slot = tester.getRect(find.text('Block'));
+      await tester.tap(find.text('Block'));
+      await tester.pumpAndSettle();
+
+      final report = tester.getRect(find.text('Report'));
+      final screen = tester.getSize(find.byType(OtherProfileScreen));
+      // Centred: the three actions straddle the middle of the screen.
+      expect(report.center.dy, lessThan(screen.height / 2));
+      expect(
+        tester.getRect(find.text('Cancel')).center.dy,
+        greaterThan(screen.height / 2),
+      );
+      // And none of them is under the slot that opened the card.
+      for (final label in ['Report', 'Block', 'Cancel']) {
+        expect(
+          slot.contains(tester.getRect(find.text(label).last).center),
+          isFalse,
+          reason: '$label sits under the slot',
+        );
+      }
+    });
+
+    testWidgets('Report asks why, thanks quietly, and hides nothing', (
+      tester,
+    ) async {
+      final reports = _Reports();
+      final acts = _FakeActions();
+      await pump(
+        tester,
+        friendships: [_friendship()],
+        actions: acts,
+        reports: reports,
+      );
+      await tester.tap(find.text('Block'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Report'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Report cass'), findsOneWidget);
+      await tester.tap(find.text('Something else'));
+      await tester.pumpAndSettle();
+
+      expect(reports.sent, ['user|$them|$them|other']);
+      // Reporting a person hides nothing of theirs — blocking does that,
+      // and it is a separate decision they did not make.
+      expect(reports.hidden, isEmpty);
+      expect(acts.blocked, isEmpty);
+
+      // The thank-you, in the quiet tone rather than the error style.
+      expect(find.text(kReportThanks), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(SondrNotice),
+          matching: find.text(kReportThanks),
+        ),
+        findsOneWidget,
+      );
+      // And it goes on its own.
+      await tester.pump(const Duration(milliseconds: 2600));
+      await tester.pumpAndSettle();
+      expect(find.text(kReportThanks), findsNothing);
+    });
+
+    testWidgets('a report that fails says so in the error style', (
+      tester,
+    ) async {
+      final reports = _Reports(sends: false);
+      await pump(tester, friendships: [_friendship()], reports: reports);
+      await tester.tap(find.text('Block'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Report'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Spam'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(kReportFailed), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(SondrError),
+          matching: find.text(kReportFailed),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('nothing is painted until everything is known', (tester) async {
@@ -808,4 +942,31 @@ void main() {
       expect(find.text('Back'), findsOneWidget);
     });
   });
+}
+
+/// A report we can inspect, so the page's tests never reach Firestore.
+class _Reports implements Reports {
+  _Reports({this.sends = true});
+
+  final bool sends;
+  final List<String> sent = [];
+  final List<String> hidden = [];
+
+  @override
+  Future<bool> send({
+    required ReportTarget type,
+    required String targetKey,
+    required String targetOwnerUid,
+    required ReportReason reason,
+  }) async {
+    if (!sends) return false;
+    sent.add('${type.wire}|$targetKey|$targetOwnerUid|${reason.wire}');
+    return true;
+  }
+
+  @override
+  Future<void> hide(ReportTarget type, String targetKey) async {
+    if (type == ReportTarget.user) return;
+    hidden.add(hiddenKey(type, targetKey));
+  }
 }

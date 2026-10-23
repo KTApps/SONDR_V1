@@ -9,6 +9,7 @@ import '../../core/backend.dart';
 import '../photos/local_first.dart';
 import 'models/comment.dart';
 import '../friends/friends_repository.dart';
+import '../reports/report.dart';
 import 'models/post.dart';
 
 /// Reads the friends-only feed and creates posts. Posts live in a top-level
@@ -337,8 +338,13 @@ final _feedStreamProvider = StreamProvider<List<Post>>((ref) {
 /// never touched — your uid cannot be in your own blocked set.
 final feedProvider = Provider<AsyncValue<List<Post>>>((ref) {
   final blocked = ref.watch(blockedUidsProvider);
+  final hidden = ref.watch(hiddenKeysProvider);
   return ref.watch(_feedStreamProvider).whenData(
-        (posts) => withoutBlockedAuthors(posts, blocked, (p) => p.authorUid),
+        (posts) => withoutHidden(
+          withoutBlockedAuthors(posts, blocked, (p) => p.authorUid),
+          hidden,
+          (p) => hiddenKey(ReportTarget.post, p.id),
+        ),
       );
 });
 
@@ -366,8 +372,13 @@ final _postCommentsStreamProvider =
 final postCommentsProvider =
     Provider.family<AsyncValue<List<Comment>>, String>((ref, postId) {
   final blocked = ref.watch(blockedUidsProvider);
+  final hidden = ref.watch(hiddenKeysProvider);
   return ref.watch(_postCommentsStreamProvider(postId)).whenData(
-        (list) => withoutBlockedAuthors(list, blocked, (c) => c.authorUid),
+        (list) => withoutHidden(
+          withoutBlockedAuthors(list, blocked, (c) => c.authorUid),
+          hidden,
+          (c) => hiddenKey(ReportTarget.comment, '$postId/${c.id}'),
+        ),
       );
 });
 
@@ -382,13 +393,19 @@ final profilePostsProvider =
     FutureProvider.autoDispose.family<List<Post>, String>((ref, authorUid) async {
   final repo = ref.watch(postsRepositoryProvider);
   if (repo == null) return const [];
+  final hidden = ref.watch(hiddenKeysProvider);
   ref.keepAlive();
   try {
-    return await localFirst<List<Post>>(
+    final posts = await localFirst<List<Post>>(
       ref,
       read: (source) => repo.postsByAuthor(authorUid, source: source),
       isEmpty: (list) => list.isEmpty,
       same: (a, b) => sameIds([for (final p in a) p.id], [for (final p in b) p.id]),
+    );
+    return withoutHidden(
+      posts,
+      hidden,
+      (p) => hiddenKey(ReportTarget.post, p.id),
     );
   } on FirebaseException catch (e) {
     debugPrint('SONDR profile posts error: ${e.code}');

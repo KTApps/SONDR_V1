@@ -131,6 +131,50 @@ service cloud.firestore {
                   && resource.data.authorUid == request.auth.uid;
     }
 
+    // Reports.
+    //
+    // Write-only, from the client's side: a report is a message to us, and
+    // nothing in the app ever reads one back. No read, no update, no
+    // delete — not even by the person who sent it — so a report cannot be
+    // withdrawn, edited, or counted by anyone holding a phone.
+    //
+    // The id is derived — "<reporter>__<type>__<key>" — which is what
+    // makes a second report of the same target by the same person fail on
+    // create rather than pile up. The client treats that failure as
+    // success, because from the reporter's point of view it is: they have
+    // already told us.
+    //
+    // A comment's key is "<postId>/<commentId>", because that is where a
+    // moderator has to look and the slash says so. A slash cannot be in a
+    // document id, so the id swaps it for an underscore — the key itself
+    // keeps the readable form.
+    match /reports/{reportId} {
+      allow read, update, delete: if false;
+
+      allow create: if request.auth != null
+                    && request.resource.data.reporterUid == request.auth.uid
+                    && reportId == request.auth.uid + '__'
+                                   + request.resource.data.targetType + '__'
+                                   + request.resource.data.targetKey
+                                       .split('/').join('_')
+                    && request.resource.data.keys().hasOnly([
+                         'reporterUid', 'targetType', 'targetKey',
+                         'targetOwnerUid', 'reason', 'createdAt',
+                       ])
+                    && request.resource.data.keys().hasAll([
+                         'reporterUid', 'targetType', 'targetKey',
+                         'targetOwnerUid', 'reason', 'createdAt',
+                       ])
+                    && request.resource.data.targetType in
+                         ['post', 'comment', 'user']
+                    && request.resource.data.reason in
+                         ['spam', 'sexual', 'hate', 'violence', 'other']
+                    && request.resource.data.targetKey is string
+                    && request.resource.data.targetKey.size() > 0
+                    && request.resource.data.targetOwnerUid is string
+                    && request.resource.data.createdAt == request.time;
+    }
+
     // What a profile for OTHER people can show.
     //
     // `users/{uid}/**` is owner-only, so nothing about another person is

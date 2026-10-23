@@ -7,8 +7,8 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, setDoc,
-  updateDoc, where, writeBatch,
+  collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query,
+  serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
 /**
@@ -461,5 +461,191 @@ describe('a profile gives a block away nowhere', () => {
 
   it('the block document itself stays invisible to the person blocked', async () => {
     await assertFails(getDoc(doc(as(B), 'blocks/' + A + '__' + B)));
+  });
+});
+
+/**
+ * Reports.
+ *
+ * A report is a message to us: the client writes one and can never read,
+ * change or withdraw it. The id is derived from the reporter and the
+ * target, so telling us twice about the same thing is refused by the
+ * rules rather than counted twice — which the app treats as success,
+ * because the person has already told us.
+ */
+describe('reports', () => {
+  const ok = {
+    reporterUid: A,
+    targetType: 'post',
+    targetKey: 'p1',
+    targetOwnerUid: C,
+    reason: 'spam',
+  };
+  // A comment's key carries a slash; the id cannot, so it swaps it.
+  const id = (uid, type, key) =>
+    `${uid}__${type}__${key.split('/').join('_')}`;
+
+  before(async () => {
+    await env.clearFirestore();
+  });
+
+  it('a signed-in user can report a post, a comment and a person', async () => {
+    const db = as(A);
+    await assertSucceeds(
+      setDoc(doc(db, 'reports/' + id(A, 'post', 'p1')), {
+        ...ok,
+        createdAt: serverTimestamp(),
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(db, 'reports/' + id(A, 'comment', 'p1/c1')), {
+        ...ok,
+        targetType: 'comment',
+        targetKey: 'p1/c1',
+        reason: 'hate',
+        createdAt: serverTimestamp(),
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(db, 'reports/' + id(A, 'user', C)), {
+        ...ok,
+        targetType: 'user',
+        targetKey: C,
+        reason: 'other',
+        createdAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  it('telling us the same thing twice is refused', async () => {
+    // The app reads this as "already reported" and says thank you anyway.
+    await assertFails(
+      setDoc(doc(as(A), 'reports/' + id(A, 'post', 'p1')), {
+        ...ok,
+        reason: 'violence',
+        createdAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  it('a report cannot be filed in someone else\'s name', async () => {
+    await assertFails(
+      setDoc(doc(as(B), 'reports/' + id(A, 'post', 'p9')), {
+        ...ok,
+        targetKey: 'p9',
+        createdAt: serverTimestamp(),
+      }),
+    );
+    // Nor under an id that does not match what it says.
+    await assertFails(
+      setDoc(doc(as(B), 'reports/' + id(B, 'post', 'p9')), {
+        ...ok,
+        reporterUid: B,
+        targetKey: 'somethingelse',
+        createdAt: serverTimestamp(),
+      }),
+    );
+    // And not at their OWN id while naming somebody else as the reporter,
+    // which is the way round the id alone does not catch.
+    await assertFails(
+      setDoc(doc(as(B), 'reports/' + id(B, 'post', 'p9')), {
+        ...ok,
+        reporterUid: A,
+        targetKey: 'p9',
+        createdAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  it('the type and the reason have to be ones we know', async () => {
+    await assertFails(
+      setDoc(doc(as(B), 'reports/' + id(B, 'photo', 'p1')), {
+        ...ok,
+        reporterUid: B,
+        targetType: 'photo',
+        createdAt: serverTimestamp(),
+      }),
+    );
+    await assertFails(
+      setDoc(doc(as(B), 'reports/' + id(B, 'post', 'p1')), {
+        ...ok,
+        reporterUid: B,
+        reason: 'boring',
+        createdAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  it('nothing may be smuggled in alongside, and nothing left out', async () => {
+    await assertFails(
+      setDoc(doc(as(B), 'reports/' + id(B, 'post', 'p2')), {
+        ...ok,
+        reporterUid: B,
+        targetKey: 'p2',
+        createdAt: serverTimestamp(),
+        note: 'an extra field',
+      }),
+    );
+    await assertFails(
+      setDoc(doc(as(B), 'reports/' + id(B, 'post', 'p3')), {
+        reporterUid: B,
+        targetType: 'post',
+        targetKey: 'p3',
+        createdAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  it('the time is the server\'s, not the phone\'s', async () => {
+    await assertFails(
+      setDoc(doc(as(B), 'reports/' + id(B, 'post', 'p4')), {
+        ...ok,
+        reporterUid: B,
+        targetKey: 'p4',
+        createdAt: new Date(2000, 0, 1),
+      }),
+    );
+  });
+
+  it('nobody reads a report back — not even the person who sent it', async () => {
+    await assertFails(getDoc(doc(as(A), 'reports/' + id(A, 'post', 'p1'))));
+    await assertFails(getDocs(collection(as(A), 'reports')));
+    await assertFails(
+      updateDoc(doc(as(A), 'reports/' + id(A, 'post', 'p1')), {
+        reason: 'other',
+      }),
+    );
+    await assertFails(deleteDoc(doc(as(A), 'reports/' + id(A, 'post', 'p1'))));
+  });
+});
+
+/**
+ * What the reporter stops seeing.
+ *
+ * Hiding is the reporter's own business and lives under their own
+ * document, which the owner-only rule already covers — this pins that it
+ * really is only theirs.
+ */
+describe('hidden things', () => {
+  before(async () => {
+    await env.clearFirestore();
+  });
+
+  it('a person hides something for themselves', async () => {
+    await assertSucceeds(
+      setDoc(doc(as(A), `users/${A}/hidden/post__p1`), {
+        hiddenAt: serverTimestamp(),
+      }),
+    );
+    await assertSucceeds(getDocs(collection(as(A), `users/${A}/hidden`)));
+  });
+
+  it('and nobody else can see or touch it', async () => {
+    await assertFails(getDocs(collection(as(B), `users/${A}/hidden`)));
+    await assertFails(
+      setDoc(doc(as(B), `users/${A}/hidden/post__p2`), {
+        hiddenAt: serverTimestamp(),
+      }),
+    );
   });
 });

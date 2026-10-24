@@ -10,6 +10,7 @@ import 'package:sondr/features/timer/session_clock.dart';
 import 'package:sondr/features/timer/session_store.dart';
 import 'package:sondr/features/widget/widget_bridge.dart';
 import 'package:sondr/features/widget/widget_publisher.dart';
+import 'package:sondr/features/widget/widget_selection.dart';
 import 'package:sondr/features/widget/widget_snapshot.dart';
 
 /// What the Home Screen widget is told, and when.
@@ -222,7 +223,7 @@ void main() {
     test('when the selection changes', () async {
       final c = await boot();
       final before = bridge.published.length;
-      c.read(selectedTaskIdProvider.notifier).state = 'Golf';
+      c.read(selectedTaskIdProvider.notifier).select('Golf');
       await Future<void>.delayed(Duration.zero);
       expect(bridge.published.length, before + 1);
       expect(bridge.published.last.selectedTaskId, 'Golf');
@@ -255,4 +256,69 @@ void main() {
       );
     });
   });
+
+  group('a selection the widget made while the app was shut', () {
+    test('is taken once, and applied', () async {
+      final inbox = _Inbox('Golf');
+      final c = ProviderContainer(
+        overrides: [
+          widgetSelectionInboxProvider.overrideWithValue(inbox),
+          tasksRepositoryProvider.overrideWithValue(
+            _Tasks([_task('Golf'), _task('Run')]),
+          ),
+        ],
+      );
+      addTearDown(c.dispose);
+
+      await c.read(applyWidgetSelectionProvider)();
+      expect(c.read(selectedTaskIdProvider), 'Golf');
+      expect(inbox.taken, 1);
+
+      // Taken once: a second launch does not override what the person
+      // has chosen since.
+      c.read(selectedTaskIdProvider.notifier).select('Run');
+      await c.read(applyWidgetSelectionProvider)();
+      expect(c.read(selectedTaskIdProvider), 'Run');
+    });
+
+    test('a task deleted since is ignored', () async {
+      final c = ProviderContainer(
+        overrides: [
+          widgetSelectionInboxProvider.overrideWithValue(_Inbox('Gone')),
+          tasksRepositoryProvider.overrideWithValue(_Tasks([_task('Golf')])),
+        ],
+      );
+      addTearDown(c.dispose);
+      await c.read(applyWidgetSelectionProvider)();
+      expect(c.read(selectedTaskIdProvider), isNull);
+    });
+
+    test('nothing left is nothing done', () async {
+      final c = ProviderContainer(
+        overrides: [
+          widgetSelectionInboxProvider.overrideWithValue(_Inbox(null)),
+          tasksRepositoryProvider.overrideWithValue(_Tasks([_task('Golf')])),
+        ],
+      );
+      addTearDown(c.dispose);
+      await c.read(applyWidgetSelectionProvider)();
+      expect(c.read(selectedTaskIdProvider), isNull);
+    });
+  });
+}
+
+/// What the widget left behind.
+class _Inbox implements WidgetSelectionInbox {
+  _Inbox(this._id);
+
+  String? _id;
+  int taken = 0;
+
+  @override
+  Future<String?> take() async {
+    taken++;
+    final id = _id;
+    _id = null;
+    return id;
+  }
 }

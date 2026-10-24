@@ -13,6 +13,7 @@ import '../profile/public_profile.dart';
 import '../habits/habits_providers.dart';
 import '../links/invite_link_listener.dart';
 import '../widget/widget_publisher.dart';
+import '../widget/widget_selection.dart';
 import '../shell/main_shell.dart';
 import '../tasks/tasks_providers.dart';
 
@@ -75,6 +76,10 @@ class _BootGateState extends ConsumerState<BootGate> {
       // of the app: anything that changes a task, the selection or the
       // habits writes a new snapshot and asks WidgetKit to redraw.
       ref.listenManual(widgetPublisherProvider, (_, _) {});
+      // And anything the widget chose while the app was shut. Taken
+      // once, before the publisher's first write settles, so Home opens
+      // on the task the Home Screen was last showing.
+      unawaited(ref.read(applyWidgetSelectionProvider)());
     });
   }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +33,38 @@ class _Lookup implements HandleLookup {
     if (throws) throw StateError('no network');
     return uids[handle];
   }
+}
+
+/// Both sources, driven by the test. [initial] is what the plugin would
+/// report as the link that launched the process.
+class _Source implements IncomingLinks {
+  _Source(this.live, {this.launchedWith});
+
+  final Stream<Uri> live;
+  final Uri? launchedWith;
+  int initialAsked = 0;
+
+  @override
+  Future<Uri?> initial() async {
+    initialAsked++;
+    return launchedWith;
+  }
+
+  @override
+  Stream<Uri> stream() => live;
+}
+
+/// Outlives a launch, as the real one does.
+class _LastLaunch implements LastLaunchLink {
+  _LastLaunch([this.held]);
+
+  String? held;
+
+  @override
+  Future<String?> read() async => held;
+
+  @override
+  Future<void> write(String link) async => held = link;
 }
 
 class _Inviter implements PendingInviter {
@@ -96,12 +129,40 @@ void main() {
     test('a link round-trips through the parser', () {
       expect(inviteHandleFrom(Uri.parse(inviteUrlFor('tanaka'))), 'tanaka');
     });
+
+    /// app_links observes every URL the app receives, including the Lock
+    /// Screen card's own. It never claims one — its handler returns false
+    /// by default, so Flutter's scene delegate carries on down the chain
+    /// to SessionActivityChannel — but it does report them to Dart, and
+    /// this is the line that keeps them from being acted on twice.
+    ///
+    /// Derived from the Swift the widget actually uses, so a fifth card
+    /// URL is covered the day it is added.
+    test("the Live Activity's own links are not invites", () {
+      final swift = File(
+        'ios/SondrWidgets/SondrSessionActivity.swift',
+      ).readAsStringSync();
+      final urls = RegExp(r'sondr://[a-z]+')
+          .allMatches(swift)
+          .map((m) => m.group(0)!)
+          .toSet();
+      expect(
+        urls,
+        {'sondr://home', 'sondr://stop', 'sondr://pause', 'sondr://resume'},
+        reason: 'the card speaks a URL this test has not seen',
+      );
+      for (final url in urls) {
+        expect(inviteHandleFrom(Uri.parse(url)), isNull, reason: url);
+      }
+    });
   });
 
   group('where a link goes', () {
     late StreamController<Uri> links;
     late _Lookup lookup;
     late _Inviter inviter;
+    late _Source source;
+    late _LastLaunch lastLaunched;
     late ProviderContainer container;
 
     setUp(() {
@@ -120,7 +181,14 @@ void main() {
       Uri? cold,
       String myHandle = 'tanaka',
       bool guest = false,
+      _LastLaunch? lastLaunch,
     }) async {
+      source = _Source(links.stream, launchedWith: cold);
+      lastLaunched = lastLaunch ?? _LastLaunch();
+      // A launch is a fresh tree: without this the second pump updates the
+      // first one in place and keeps its navigator stack, so a route
+      // pushed by the previous launch would still be standing.
+      await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -137,12 +205,8 @@ void main() {
                       displayName: 'Me',
                     ),
             ),
-            incomingLinksProvider.overrideWith(
-              (ref) async* {
-                if (cold != null) yield cold;
-                yield* links.stream;
-              },
-            ),
+            incomingLinksSourceProvider.overrideWithValue(source),
+            lastLaunchLinkProvider.overrideWithValue(lastLaunched),
           ],
           child: MaterialApp(
             theme: AppTheme.dark(),
@@ -173,6 +237,85 @@ void main() {
     testWidgets('somebody else: their profile, cold', (tester) async {
       await pump(tester, cold: Uri.parse('https://s-ndr.com/u/cass'));
       expect(find.byType(OtherProfileScreen), findsOneWidget);
+    });
+
+    testWidgets('the same launch link, a second launch, does nothing', (
+      tester,
+    ) async {
+      final remembered = _LastLaunch();
+      // First launch: the link opens the profile and is remembered.
+      await pump(
+        tester,
+        cold: Uri.parse('https://s-ndr.com/u/cass'),
+        lastLaunch: remembered,
+      );
+      expect(find.byType(OtherProfileScreen), findsOneWidget);
+      expect(remembered.held, 'https://s-ndr.com/u/cass');
+
+      // Second launch, same restored activity, nothing tapped. This is the
+      // bug: a launch from the Home Screen used to land on the inviter's
+      // profile.
+      await pump(
+        tester,
+        cold: Uri.parse('https://s-ndr.com/u/cass'),
+        lastLaunch: remembered,
+      );
+      expect(
+        find.byType(OtherProfileScreen),
+        findsNothing,
+        reason: 'a normal launch replayed the last link',
+      );
+      expect(container.read(homeNoticeProvider), isNull);
+    });
+
+    testWidgets('a different launch link still routes', (tester) async {
+      final remembered = _LastLaunch('https://s-ndr.com/u/cass');
+      await pump(
+        tester,
+        cold: Uri.parse('https://s-ndr.com/u/tanaka2'),
+        lastLaunch: remembered,
+      );
+      // tanaka2 is not in the lookup, so the line goes up — which is proof
+      // the link was acted on rather than skipped.
+      expect(container.read(homeNoticeProvider), kHandleNotFound);
+      expect(remembered.held, 'https://s-ndr.com/u/tanaka2');
+    });
+
+    testWidgets('a live link routes even when it is the remembered one', (
+      tester,
+    ) async {
+      final remembered = _LastLaunch('https://s-ndr.com/u/cass');
+      await pump(tester, lastLaunch: remembered);
+      // Nothing on launch...
+      expect(find.byType(OtherProfileScreen), findsNothing);
+      // ...and tapping that very link still works, because somebody just
+      // tapped it.
+      await send(tester, 'https://s-ndr.com/u/cass');
+      expect(find.byType(OtherProfileScreen), findsOneWidget);
+    });
+
+    testWidgets('no link at all lands on Home', (tester) async {
+      await pump(tester);
+      expect(find.byType(OtherProfileScreen), findsNothing);
+      expect(container.read(homeNoticeProvider), isNull);
+      expect(container.read(selectedTabProvider), 0);
+      expect(lastLaunched.held, isNull);
+    });
+
+    testWidgets("the card's own links never spend the launch slot", (
+      tester,
+    ) async {
+      // A cold start from a Lock Screen tap: app_links reports sondr://stop
+      // as the launch link, and it is not ours to remember.
+      await pump(tester, cold: Uri.parse('sondr://stop'));
+      expect(lastLaunched.held, isNull);
+      expect(find.byType(OtherProfileScreen), findsNothing);
+    });
+
+    testWidgets('the launch link is asked for once', (tester) async {
+      await pump(tester, cold: Uri.parse('https://s-ndr.com/u/cass'));
+      await tester.pumpAndSettle();
+      expect(source.initialAsked, 1);
     });
 
     testWidgets('my own handle: the Profile tab, no push', (tester) async {
@@ -214,7 +357,12 @@ void main() {
       for (final url in [
         'https://s-ndr.com/u/ab',
         'https://example.com/u/cass',
+        // Every link the Lock Screen card sends, which app_links reports
+        // to Dart as well as to the channel that acts on it.
         'sondr://stop',
+        'sondr://pause',
+        'sondr://resume',
+        'sondr://home',
         'https://s-ndr.com/privacy',
       ]) {
         await send(tester, url);

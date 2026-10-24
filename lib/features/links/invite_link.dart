@@ -39,17 +39,113 @@ String inviteUrlFor(String handle) =>
 /// What the share sheet sends.
 String inviteText(String handle) => 'Join me on sondr: ${inviteUrlFor(handle)}';
 
-/// Links arriving from outside the app, cold and warm.
+/// Where links come from, as a seam.
 ///
-/// `getInitialLink` is the one that launched the app and `uriLinkStream` is
-/// everything after it, so the two together are every link there is. A
-/// provider so a test can push URIs without a platform channel.
-final incomingLinksProvider = StreamProvider<Uri>((ref) async* {
-  final links = AppLinks();
-  final first = await links.getInitialLink();
-  if (first != null) yield first;
-  yield* links.uriLinkStream;
+/// The two sources are not the same thing and must not be merged: one is
+/// "the link this process was launched with", which iOS can hand over
+/// again on a later launch, and the other is "a link that just arrived",
+/// which is always somebody tapping something now.
+abstract interface class IncomingLinks {
+  /// The link that launched this process, if any.
+  Future<Uri?> initial();
+
+  /// Links arriving while the app runs.
+  Stream<Uri> stream();
+}
+
+class PluginIncomingLinks implements IncomingLinks {
+  final AppLinks _links = AppLinks();
+
+  @override
+  Future<Uri?> initial() => _links.getInitialLink();
+
+  @override
+  Stream<Uri> stream() => _links.uriLinkStream;
+}
+
+final incomingLinksSourceProvider = Provider<IncomingLinks>(
+  (ref) => PluginIncomingLinks(),
+);
+
+/// The link this launch should act on, or null.
+///
+/// iOS keeps a scene session when an app is swiped away and can hand its
+/// browsing activity back on the next launch, and the plugin cannot tell
+/// that from a fresh tap — which is how a normal launch from the Home
+/// Screen opened somebody's profile. So a launch link is acted on once,
+/// ever: the value is remembered, and an identical one next time is
+/// nothing.
+///
+/// Kept alive for the life of the app. A provider that can be disposed and
+/// re-created would ask the plugin again mid-process and get the same link
+/// a second time.
+final launchLinkProvider = FutureProvider<Uri?>((ref) async {
+  ref.keepAlive();
+  final first = await ref.read(incomingLinksSourceProvider).initial();
+  // Only ours is worth remembering. The Lock Screen card's own sondr://
+  // links arrive here too, and must not spend the one slot.
+  if (first == null || inviteHandleFrom(first) == null) return null;
+
+  final store = ref.read(lastLaunchLinkProvider);
+  if (await store.read() == first.toString()) return null;
+  await store.write(first.toString());
+  return first;
 });
+
+/// Links that arrive while the app is running.
+///
+/// Always acted on, including one identical to the last: tapping the same
+/// invite twice is somebody asking twice.
+final liveLinksProvider = StreamProvider<Uri>((ref) {
+  ref.keepAlive();
+  return ref.read(incomingLinksSourceProvider).stream();
+});
+
+/// The launch link already acted on, so it is not acted on again.
+abstract interface class LastLaunchLink {
+  Future<String?> read();
+  Future<void> write(String link);
+}
+
+class PrefsLastLaunchLink implements LastLaunchLink {
+  PrefsLastLaunchLink({SharedPreferencesAsync? prefs})
+    : _prefs =
+          prefs ??
+          SharedPreferencesAsync(
+            options: SharedPreferencesAsyncFoundationOptions(
+              suiteName: kSessionAppGroup,
+            ),
+          );
+
+  static const String key = 'sondr.lastLaunchLink';
+
+  final SharedPreferencesAsync _prefs;
+
+  @override
+  Future<String?> read() async {
+    try {
+      return await _prefs.getString(key);
+    } catch (e) {
+      debugPrint('SONDR last launch link read error: ${e.runtimeType}');
+      // Unreadable means unknown, and unknown must not replay a link: the
+      // launch is treated as one that has already been acted on.
+      return null;
+    }
+  }
+
+  @override
+  Future<void> write(String link) async {
+    try {
+      await _prefs.setString(key, link);
+    } catch (e) {
+      debugPrint('SONDR last launch link write error: ${e.runtimeType}');
+    }
+  }
+}
+
+final lastLaunchLinkProvider = Provider<LastLaunchLink>(
+  (ref) => PrefsLastLaunchLink(),
+);
 
 /// The handle of whoever invited this device, kept until the account that
 /// arrives is asked about it.

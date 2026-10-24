@@ -76,8 +76,22 @@ class _InviteLinkListenerState extends ConsumerState<InviteLinkListener> {
   bool _busy = false;
 
   @override
+  void initState() {
+    super.initState();
+    // The launch link, asked for ONCE. Awaited rather than listened to, so
+    // a rebuild cannot act on it twice, and after the frame so the
+    // navigator is there to push onto.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final launched = await ref.read(launchLinkProvider.future);
+      if (launched != null && mounted) await _open(launched);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    ref.listen<AsyncValue<Uri>>(incomingLinksProvider, (_, next) {
+    // And everything that arrives while the app is running.
+    ref.listen<AsyncValue<Uri>>(liveLinksProvider, (_, next) {
       final uri = next.value;
       if (uri != null) unawaited(_open(uri));
     });

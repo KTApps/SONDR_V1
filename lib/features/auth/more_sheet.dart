@@ -77,8 +77,6 @@ Future<String?> showMoreSheet(
     // The two that act on the account, and Debug with them: the supporting
     // tone at full weight, against the three pages' white.
     quiet: {MoreChoice.signOut, MoreChoice.deleteAccount, MoreChoice.debug},
-    // Parting the pages from the account actions.
-    ruleAbove: signedIn ? MoreChoice.signOut : null,
   );
   if (chosen == null || !context.mounted) return null;
 

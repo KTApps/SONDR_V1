@@ -137,10 +137,12 @@ void main() {
     /// this is the line that keeps them from being acted on twice.
     ///
     /// Derived from the Swift the widget actually uses, so a fifth card
-    /// URL is covered the day it is added.
+    /// URL is covered the day it is added. The list lives beside the
+    /// activity's attributes because the Home Screen widget links back
+    /// into the app too.
     test("the Live Activity's own links are not invites", () {
       final swift = File(
-        'ios/SondrWidgets/SondrSessionActivity.swift',
+        'ios/SondrWidgets/SondrActivityAttributes.swift',
       ).readAsStringSync();
       final urls = RegExp(r'sondr://[a-z]+')
           .allMatches(swift)

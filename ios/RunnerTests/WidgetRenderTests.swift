@@ -186,8 +186,52 @@ final class WidgetRenderTests: XCTestCase {
     return renderer.cgImage
   }
 
-  /// Top and bottom of everything drawn inside a band of columns, in
-  /// points. Nothing but the background counts as nothing.
+  /// Everything drawn inside a box, in points. Nothing but the
+  /// background counts as nothing.
+  private func inkBox(
+    _ image: CGImage,
+    page: CGSize,
+    x: ClosedRange<CGFloat>,
+    y: ClosedRange<CGFloat>
+  ) -> (top: CGFloat, bottom: CGFloat, left: CGFloat, right: CGFloat)? {
+    let w = image.width, h = image.height
+    var bytes = [UInt8](repeating: 0, count: w * h * 4)
+    guard
+      let context = CGContext(
+        data: &bytes, width: w, height: h, bitsPerComponent: 8,
+        bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      )
+    else { return nil }
+    context.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+
+    let scale = CGFloat(w) / page.width
+    let x0 = max(0, Int(x.lowerBound * scale))
+    let x1 = min(w, Int(x.upperBound * scale))
+    let y0 = max(0, Int(y.lowerBound * scale))
+    let y1 = min(h, Int(y.upperBound * scale))
+    var top = -1, bottom = -1, left = w, right = -1
+    for row in y0 ..< max(y0, y1) {
+      for col in x0 ..< max(x0, x1) {
+        let i = (row * w + col) * 4
+        // The ground is #0A0A0A; anything brighter is drawn.
+        guard Int(bytes[i]) + Int(bytes[i + 1]) + Int(bytes[i + 2]) > 0x3C
+        else { continue }
+        if top < 0 { top = row }
+        bottom = row
+        left = min(left, col)
+        right = max(right, col)
+      }
+    }
+    guard top >= 0 else { return nil }
+    return (
+      CGFloat(top) / scale, CGFloat(bottom + 1) / scale,
+      CGFloat(left) / scale, CGFloat(right + 1) / scale
+    )
+  }
+
+  /// Top and bottom of everything drawn inside a band of columns of the
+  /// medium page, in points.
   private func ink(
     _ image: CGImage, from left: CGFloat, to right: CGFloat
   ) -> (top: CGFloat, bottom: CGFloat)? {
@@ -307,6 +351,62 @@ final class WidgetRenderTests: XCTestCase {
     else { return XCTFail("no dial") }
     XCTAssertEqual(
       (dial.top + dial.bottom) / 2, Self.contentCentre, accuracy: 0.5
+    )
+  }
+
+
+  // MARK: - what the session changes
+
+  /// Stop is only there while there is a session to stop, and it is in
+  /// the small widget's top right corner when it is.
+  @MainActor
+  func testStopIsOnlyThereWithASession() {
+    let corner: ClosedRange<CGFloat> =
+      (Self.small.width / 2 + 10) ... (Self.small.width - Self.margin)
+    let top: ClosedRange<CGFloat> = Self.margin ... (Self.margin + 24)
+
+    let idle = image(
+      SmallWidgetView(entry: entry(threeTasks, selected: "a")), Self.small
+    )
+    XCTAssertNil(
+      inkBox(idle!, page: Self.small, x: corner, y: top),
+      "something is drawn where Stop goes, with no session"
+    )
+
+    let going = image(
+      SmallWidgetView(entry: entry(threeTasks, selected: "a", session: running)),
+      Self.small
+    )
+    XCTAssertNotNil(
+      inkBox(going!, page: Self.small, x: corner, y: top),
+      "Stop is missing while a session runs"
+    )
+  }
+
+  /// The ticking clock sits in the middle of the dial.
+  ///
+  /// `Text(timerInterval:)` reserves room for the widest reading it
+  /// could show and draws the digits at the leading edge of that, so
+  /// left alone it sits off centre and runs into the ring. The box
+  /// measured here is well inside the inner band, so only the centre
+  /// text is in it.
+  @MainActor
+  func testTheRunningClockIsCentredInTheDial() {
+    let e = entry(threeTasks, selected: "a", session: running)
+    guard let image = image(MediumWidgetView(entry: e), Self.medium)
+    else { return XCTFail("nothing drawn") }
+
+    let centreX = Self.margin + Self.dialExtent / 2
+    let box = inkBox(
+      image,
+      page: Self.medium,
+      x: (centreX - 30) ... (centreX + 30),
+      y: (Self.contentCentre - 14) ... (Self.contentCentre + 14)
+    )
+    guard let box else { return XCTFail("no clock in the dial") }
+    XCTAssertEqual(
+      (box.left + box.right) / 2, centreX, accuracy: 0.5,
+      "the clock reads from \(box.left)pt to \(box.right)pt"
     )
   }
 

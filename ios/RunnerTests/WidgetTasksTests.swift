@@ -245,4 +245,19 @@ final class WidgetTasksTests: XCTestCase {
     XCTAssertEqual(DialBand.starts(weights: [900], slit: 0), [0])
     XCTAssertEqual(DialBand.sweeps(weights: [900], slit: 0), [1])
   }
+
+  // MARK: - The words on the controls
+
+  func testThePrimarySaysOneWordPerState() {
+    XCTAssertEqual(PrimaryWord.label(hasSession: false, isPaused: false), "Start")
+    XCTAssertEqual(PrimaryWord.label(hasSession: true, isPaused: false), "Pause")
+    XCTAssertEqual(PrimaryWord.label(hasSession: true, isPaused: true), "Start")
+  }
+
+  func testGoingAgainIsSpokenResume() {
+    XCTAssertEqual(PrimaryWord.spoken(hasSession: true, isPaused: true), "Resume")
+    // Everywhere else the spoken word is the written one.
+    XCTAssertEqual(PrimaryWord.spoken(hasSession: false, isPaused: false), "Start")
+    XCTAssertEqual(PrimaryWord.spoken(hasSession: true, isPaused: false), "Pause")
+  }
 }

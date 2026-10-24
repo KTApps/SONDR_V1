@@ -168,4 +168,81 @@ final class WidgetTasksTests: XCTestCase {
     XCTAssertNil(WidgetList.next(after: "a", in: list))
     XCTAssertNil(WidgetList.next(after: "a", in: []))
   }
+
+  // MARK: - The dial's band
+
+  /// The same numbers Home's dial_geometry_test.dart asserts, in turns.
+  private func snapshot(_ seconds: [Int], selected: String) -> WidgetSnapshot {
+    WidgetSnapshot(
+      tasks: seconds.indices.map {
+        WidgetTask(id: "t\($0)", name: "T\($0)", today: seconds[$0])
+      },
+      segments: seconds,
+      selectedTaskId: selected
+    )
+  }
+
+  func testSlicesAreTheSharesLeftAfterTheSlits() {
+    let starts = DialBand.starts(weights: [1, 1, 2], slit: 0.01)
+    // Three slits take 0.03 of the turn; 0.97 is split 1/4, 1/4, 1/2.
+    XCTAssertEqual(starts[0], 0, accuracy: 1e-9)
+    XCTAssertEqual(starts[1], 0.97 * 0.25 + 0.01, accuracy: 1e-9)
+    XCTAssertEqual(starts[2], 0.97 * 0.5 + 0.02, accuracy: 1e-9)
+    XCTAssertEqual(DialBand.sweeps(weights: [1, 1, 2], slit: 0.01).reduce(0, +),
+                   0.97, accuracy: 1e-9)
+  }
+
+  func testTheSelectedSliceOpensAtTwelve() {
+    for count in 1 ... 5 {
+      let weights = (1 ... count).map { Double($0) * 600 }
+      let slit = count > 1 ? 0.01 : 0
+      let starts = DialBand.starts(weights: weights, slit: slit)
+      for selected in 0 ..< count {
+        let turn = DialBand.rotation(starts: starts, selected: selected)
+        // What the band is drawn from, for the selected slice.
+        let opening = (starts[selected] - turn)
+          .truncatingRemainder(dividingBy: 1)
+        XCTAssertEqual(opening, 0, accuracy: 1e-9,
+                       "\(count) tasks, slice \(selected)")
+      }
+    }
+  }
+
+  func testTurningKeepsEveryOtherSliceInOrder() {
+    let weights: [Double] = [600, 1800, 3600]
+    let starts = DialBand.starts(weights: weights, slit: 0.01)
+    let turn = DialBand.rotation(starts: starts, selected: 2)
+    let turned = starts.map { start -> Double in
+      let x = (start - turn).truncatingRemainder(dividingBy: 1)
+      return x < 0 ? x + 1 : x
+    }
+    // The selected one is at 12 and the two before it have wrapped round
+    // to the end, in their own order — not reordered.
+    XCTAssertEqual(turned[2], 0, accuracy: 1e-9)
+    XCTAssertTrue(turned[0] < turned[1], "order kept: \(turned)")
+    XCTAssertTrue(turned[2] < turned[0], "the selected one leads")
+  }
+
+  func testOnlyTasksWithTimeTodayGetASlice() {
+    let snap = snapshot([3600, 0, 1200], selected: "t2")
+    let entries = DialBand.entries(snap)
+    XCTAssertEqual(entries.map(\.index), [0, 2])
+    XCTAssertEqual(entries.map(\.seconds), [3600, 1200])
+  }
+
+  func testASelectedTaskWithNoTimeTodayDoesNotTurnTheBand() {
+    let snap = snapshot([3600, 0, 1200], selected: "t1")
+    let entries = DialBand.entries(snap)
+    let selected = entries.firstIndex { snap.tasks[$0.index].id == "t1" }
+    XCTAssertNil(selected)
+    let starts = DialBand.starts(
+      weights: entries.map { Double($0.seconds) }, slit: 0.01
+    )
+    XCTAssertEqual(DialBand.rotation(starts: starts, selected: selected), 0)
+  }
+
+  func testOneSliceIsTheWholeRing() {
+    XCTAssertEqual(DialBand.starts(weights: [900], slit: 0), [0])
+    XCTAssertEqual(DialBand.sweeps(weights: [900], slit: 0), [1])
+  }
 }

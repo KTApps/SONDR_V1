@@ -1,3 +1,4 @@
+import CoreGraphics
 import CoreText
 import SwiftUI
 import UIKit
@@ -64,7 +65,7 @@ final class WidgetRenderTests: XCTestCase {
     [
       task("a", "Golf", today: 5_400, total: 61_200, progress: 0.85),
       task("b", "Spanish", today: 1_500, total: 18_000, progress: 0.25),
-      task("c", "Guitar", today: 0, total: 7_200, progress: 0.1),
+      task("c", "Guitar", today: 900, total: 7_200, progress: 0.1),
     ]
   }
 
@@ -152,8 +153,160 @@ final class WidgetRenderTests: XCTestCase {
     )
     shoot("medium-empty", Self.medium, EmptyWidgetView())
     shoot(
+      "medium-three", Self.medium,
+      MediumWidgetView(entry: entry(three, selected: "b"))
+    )
+    shoot(
       "medium-five", Self.medium,
       MediumWidgetView(entry: entry(fiveTasks, selected: "b"))
+    )
+  }
+
+
+  // MARK: - measuring what was drawn
+
+  /// The medium widget's content box, in points: the page less the
+  /// margin WidgetKit keeps, the dial, and the gap before the rows.
+  static let contentTop: CGFloat = margin
+  static let contentHeight: CGFloat = medium.height - margin * 2
+  static let dialExtent: CGFloat = min(
+    medium.height - margin * 2, (medium.width - margin * 2) * 0.42
+  )
+  static let rowsLeft: CGFloat = margin + dialExtent + 14
+  static var contentCentre: CGFloat { contentTop + contentHeight / 2 }
+
+  @MainActor
+  private func image(_ content: some View, _ size: CGSize) -> CGImage? {
+    let page = content
+      .padding(Self.margin)
+      .frame(width: size.width, height: size.height)
+      .background(Ink.background)
+    let renderer = ImageRenderer(content: page)
+    renderer.scale = 3
+    return renderer.cgImage
+  }
+
+  /// Top and bottom of everything drawn inside a band of columns, in
+  /// points. Nothing but the background counts as nothing.
+  private func ink(
+    _ image: CGImage, from left: CGFloat, to right: CGFloat
+  ) -> (top: CGFloat, bottom: CGFloat)? {
+    let w = image.width, h = image.height
+    var bytes = [UInt8](repeating: 0, count: w * h * 4)
+    guard
+      let context = CGContext(
+        data: &bytes, width: w, height: h, bitsPerComponent: 8,
+        bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      )
+    else { return nil }
+    context.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+
+    let scale = CGFloat(w) / Self.medium.width
+    let x0 = max(0, Int(left * scale)), x1 = min(w, Int(right * scale))
+    var top = -1, bottom = -1
+    for y in 0 ..< h {
+      var lit = false
+      for x in x0 ..< x1 {
+        let i = (y * w + x) * 4
+        // The ground is #0A0A0A; anything brighter is drawn.
+        if Int(bytes[i]) + Int(bytes[i + 1]) + Int(bytes[i + 2]) > 0x3C {
+          lit = true
+          break
+        }
+      }
+      if lit {
+        if top < 0 { top = y }
+        bottom = y
+      }
+    }
+    guard top >= 0 else { return nil }
+    return (CGFloat(top) / scale, CGFloat(bottom + 1) / scale)
+  }
+
+  /// The same rows, centred in the same column by SwiftUI itself
+  /// rather than by the code under test.
+  ///
+  /// Comparing against this rather than against the middle of the box
+  /// is what makes the measurement honest: a descender in the last name
+  /// pushes the drawn ink lower than the row's layout box, and it does
+  /// so identically in both renders, so the difference cancels.
+  @MainActor
+  private func centredControl(_ entry: TaskEntry) -> (top: CGFloat, bottom: CGFloat)? {
+    let control = HStack(spacing: 14) {
+      Color.clear.frame(width: Self.dialExtent, height: Self.dialExtent)
+      VStack(alignment: .leading, spacing: 0) {
+        ForEach(entry.list) { task in
+          MediumWidgetView.Row(entry: entry, task: task)
+        }
+      }
+      .frame(
+        width: Self.medium.width - Self.margin * 2 - Self.dialExtent - 14,
+        height: Self.contentHeight,
+        alignment: .leading
+      )
+    }
+    guard let image = image(control, Self.medium) else { return nil }
+    return ink(image, from: Self.rowsLeft, to: Self.medium.width)
+  }
+
+  /// The row block sits on the dial's centre line, for one row up to
+  /// five: the space above the first row is the space below the last.
+  @MainActor
+  func testTheRowBlockIsCentredOnTheDial() {
+    var measured: [String] = []
+    for count in 1 ... 5 {
+      let tasks = Array(fiveTasks.prefix(count))
+      let e = entry(tasks, selected: tasks[0].id)
+      guard
+        let image = image(MediumWidgetView(entry: e), Self.medium),
+        let rows = ink(image, from: Self.rowsLeft, to: Self.medium.width),
+        let dial = ink(image, from: Self.margin, to: Self.margin + Self.dialExtent),
+        let centred = centredControl(e)
+      else { return XCTFail("nothing drawn for \(count) rows") }
+
+      XCTAssertEqual(rows.top, centred.top, accuracy: 0.5, "\(count) rows, top")
+      XCTAssertEqual(
+        rows.bottom, centred.bottom, accuracy: 0.5, "\(count) rows, bottom"
+      )
+      // And what the owner sees: the same space above the block as
+      // below it, measured against the dial's own edges.
+      let above = rows.top - dial.top
+      let below = dial.bottom - rows.bottom
+      measured.append(
+        "\(count) row(s): above \(round(above * 100) / 100)pt, "
+          + "below \(round(below * 100) / 100)pt"
+      )
+    }
+    // Left for the owner next to the shots, since a test's own output
+    // never reaches the terminal that ran it.
+    //
+    // These are ink, not layout: a descender in the last name ("Spanish",
+    // "Reading") draws about 2pt below its row, so the gap under the
+    // block reads smaller even though the block is centred. Centring on
+    // ink instead would move the whole list whenever a task was renamed,
+    // so the rows are centred on their text boxes — which is what the
+    // assertions above measure.
+    measured.append(
+      "(ink, not layout: a descender in the last name draws ~2pt lower)"
+    )
+    try? measured.joined(separator: "\n").write(
+      to: Self.out.appendingPathComponent("centring.txt"),
+      atomically: true, encoding: .utf8
+    )
+  }
+
+  /// The dial itself is centred, which is what makes the line above the
+  /// one the owner can see.
+  @MainActor
+  func testTheDialIsOnTheContentCentre() {
+    let e = entry(threeTasks, selected: "a")
+    guard
+      let image = image(MediumWidgetView(entry: e), Self.medium),
+      let dial = ink(image, from: Self.margin, to: Self.margin + Self.dialExtent)
+    else { return XCTFail("no dial") }
+    XCTAssertEqual(
+      (dial.top + dial.bottom) / 2, Self.contentCentre, accuracy: 0.5
     )
   }
 

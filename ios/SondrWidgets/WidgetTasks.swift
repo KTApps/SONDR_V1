@@ -160,3 +160,56 @@ enum WidgetList {
     return list[(index + 1) % list.count]
   }
 }
+
+/// The outer band of Home's dial: which tasks get a slice, where each
+/// slice begins, and the turn that brings the selected one to 12.
+///
+/// Home's own arithmetic, from lib/shared/ring/dial_geometry.dart, said
+/// in turns rather than radians (one turn is 2π, which is the unit
+/// SwiftUI trims in). The slits come out of the circle first and what is
+/// left is split by weight; then the whole band is turned by the
+/// selected slice's own start, so that slice opens at 12 and every
+/// boundary behind it is pinned rather than sliding backwards while a
+/// session runs.
+enum DialBand {
+  /// The tasks with time today, keeping the place they have in the
+  /// snapshot. A task with nothing today has no slice at all — Home
+  /// drops it rather than drawing a slice of zero.
+  static func entries(_ snapshot: WidgetSnapshot) -> [(index: Int, seconds: Int)] {
+    snapshot.tasks.indices.compactMap { i in
+      let seconds = i < snapshot.segments.count ? snapshot.segments[i] : 0
+      return seconds > 0 ? (index: i, seconds: seconds) : nil
+    }
+  }
+
+  /// Where each slice begins, clockwise from 12, as a fraction of a
+  /// turn. `slit` is the gap between slices in the same unit.
+  static func starts(weights: [Double], slit: Double) -> [Double] {
+    guard !weights.isEmpty else { return [] }
+    let total = weights.reduce(0, +)
+    guard total > 0 else { return Array(repeating: 0, count: weights.count) }
+    let available = 1 - slit * Double(weights.count)
+    var cursor = 0.0
+    var out: [Double] = []
+    for weight in weights {
+      out.append(cursor)
+      cursor += (weight / total) * available + slit
+    }
+    return out
+  }
+
+  /// How much of a slice there is to draw, in turns.
+  static func sweeps(weights: [Double], slit: Double) -> [Double] {
+    let total = weights.reduce(0, +)
+    guard total > 0 else { return Array(repeating: 0, count: weights.count) }
+    let available = 1 - slit * Double(weights.count)
+    return weights.map { ($0 / total) * available }
+  }
+
+  /// The turn that puts `selected` at 12. Nothing when it has no slice,
+  /// which is Home's answer too (`_targetRotation` returns 0).
+  static func rotation(starts: [Double], selected: Int?) -> Double {
+    guard let selected, selected >= 0, selected < starts.count else { return 0 }
+    return starts[selected]
+  }
+}

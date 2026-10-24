@@ -211,13 +211,17 @@ struct MediumWidgetView: View {
         let dial = min(geo.size.height, geo.size.width * 0.42)
         DayDial(entry: entry, extent: dial)
           .frame(width: dial, height: dial)
+        // Centred on the dial, not hung from the top: one task sits
+        // level with the dial's centre and more rows grow outward from
+        // there, so the space above the first and below the last is the
+        // same. The dial is centred by the HStack, so both blocks share
+        // the one centre line.
         VStack(alignment: .leading, spacing: 0) {
           ForEach(Array(entry.list.enumerated()), id: \.element.id) { _, task in
             Row(entry: entry, task: task)
           }
-          Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
       }
     }
   }
@@ -376,8 +380,10 @@ struct DayDial: View {
     ZStack {
       band(
         diameter: extent * Self.outerRatio,
-        segments: outerSegments
+        segments: slices,
+        selected: selectedSlice
       )
+      // The habit band never turns, as on Home.
       band(
         diameter: extent * Self.innerRatio,
         segments: innerSegments
@@ -389,45 +395,65 @@ struct DayDial: View {
 
   /// Today's split, with the selected task bright. No time at all is one
   /// empty ring rather than a ring of nothing.
-  private var outerSegments: [(Double, Color)] {
-    let total = entry.snapshot.segments.reduce(0, +)
-    guard total > 0 else { return [(1, Ink.ringTrack)] }
-    return entry.snapshot.tasks.enumerated().map { index, task in
-      let seconds = index < entry.snapshot.segments.count
-        ? entry.snapshot.segments[index]
-        : 0
-      let selected = task.id == entry.current?.id
+  ///
+  /// Only tasks with time today get a slice, as on Home.
+  private var slices: [(weight: Double, colour: Color)] {
+    DialBand.entries(entry.snapshot).map { item in
+      let task = entry.snapshot.tasks[item.index]
       return (
-        Double(seconds) / Double(total),
-        selected ? Ink.primary : Ink.ringFill
+        Double(item.seconds),
+        task.id == entry.current?.id ? Ink.primary : Ink.ringFill
       )
     }
   }
 
-  private var innerSegments: [(Double, Color)] {
-    let total = entry.snapshot.habitsTotal
-    guard total > 0 else { return [(1, Ink.ringTrack)] }
-    return (0 ..< total).map { i in
-      (1 / Double(total), i < entry.snapshot.habitsDone ? Ink.ringFill : Ink.ringTrack)
+  /// Which slice the selected task has, if it has one.
+  private var selectedSlice: Int? {
+    DialBand.entries(entry.snapshot).firstIndex {
+      entry.snapshot.tasks[$0.index].id == entry.current?.id
     }
   }
 
+  private var innerSegments: [(weight: Double, colour: Color)] {
+    let total = entry.snapshot.habitsTotal
+    guard total > 0 else { return [(1, Ink.ringTrack)] }
+    return (0 ..< total).map { i in
+      (1, i < entry.snapshot.habitsDone ? Ink.ringFill : Ink.ringTrack)
+    }
+  }
+
+  /// One band. The slices are laid out by Home's rule and then turned so
+  /// the selected one opens at 12; a slice pushed past the top is drawn
+  /// in two pieces, because a trim cannot wrap.
   private func band(
     diameter: CGFloat,
-    segments: [(Double, Color)]
+    segments: [(weight: Double, colour: Color)],
+    selected: Int? = nil
   ) -> some View {
-    let slit = extent * Self.slitRatio
-    // The slit is an angle, and how wide an angle depends on the radius.
-    let gap = segments.count > 1
-      ? Double(slit / (.pi * diameter))
+    let slices = segments.isEmpty ? [(weight: 1.0, colour: Ink.ringTrack)] : segments
+    // A slit is a fixed length of band, so how much of a turn it takes
+    // depends on the radius.
+    let slit = slices.count > 1
+      ? Double(extent * Self.slitRatio / (.pi * diameter))
       : 0
-    var start = 0.0
+    let weights = slices.map(\.weight)
+    let starts = DialBand.starts(weights: weights, slit: slit)
+    let sweeps = DialBand.sweeps(weights: weights, slit: slit)
+    let turn = DialBand.rotation(starts: starts, selected: selected)
+
     var arcs: [(Double, Double, Color)] = []
-    for (fraction, colour) in segments where fraction > 0 {
-      let end = start + fraction
-      arcs.append((start + gap / 2, max(start + gap / 2, end - gap / 2), colour))
-      start = end
+    for (i, slice) in slices.enumerated() {
+      let from = (starts[i] + slit / 2 - turn).truncatingRemainder(dividingBy: 1)
+      let begin = from < 0 ? from + 1 : from
+      let end = begin + sweeps[i]
+      if end <= 1 {
+        arcs.append((begin, end, slice.colour))
+      } else {
+        arcs.append((begin, 1, slice.colour))
+        arcs.append((0, end - 1, slice.colour))
+      }
     }
+
     return ZStack {
       ForEach(Array(arcs.enumerated()), id: \.offset) { _, arc in
         Circle()

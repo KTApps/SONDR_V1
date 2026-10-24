@@ -136,10 +136,10 @@ const double kProfileHeadingToRings = 20;
 const double kProfileHeadingSize = 20;
 const double kProfileCountSize = 14;
 
-/// The hairline. Darker than [GreyscaleTokens.ringTrack], which is a RING
-/// tone: a rule between sections should part them without being read as one
-/// more thing on the page.
-const Color kProfileHairline = Color(0xFF242424);
+/// The hairline, from the shared tokens. Kept as a name here because the
+/// Profile's own metrics read as one list; the value lives with the other
+/// colours.
+const Color kProfileHairline = kHairline;
 
 /// Photo tints — the near-raw whisper the day-detail thumbnails use, so
 /// every photo surface sits in the same family.

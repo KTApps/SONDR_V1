@@ -14,8 +14,8 @@ abstract final class RingPalette {
     int count, {
     bool onPhoto = false,
   }) {
-    final bright = onPhoto ? const Color(0xFFFFFFFF) : tokens.ringFillOuter;
-    final dim = onPhoto ? const Color(0xFFB4B4B4) : tokens.ringFillInner;
+    final bright = onPhoto ? kOnPhoto : tokens.ringFillOuter;
+    final dim = onPhoto ? kOnPhotoRingDim : tokens.ringFillInner;
     if (count <= 1) return [bright];
     return [
       for (var i = 0; i < count; i++)

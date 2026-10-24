@@ -22,6 +22,35 @@ const Color kOnPhotoDim = Color(0xB3FFFFFF);
 /// A translucent chip or avatar backing over a photo.
 const Color kOnPhotoFill = Color(0x3DFFFFFF);
 
+/// The rule between sections.
+///
+/// Darker than [GreyscaleTokens.ringTrack], which is a RING tone: a line
+/// parting two sections should do it without being read as one more thing
+/// on the page. Lives here rather than beside the Profile that first drew
+/// one, because the prompt cards use it too.
+///
+/// A const and not a themed token, like the on-photo tones below: it is one
+/// measured value, and the inverted ladder has no answer for it that anyone
+/// has looked at. The app runs dark.
+const Color kHairline = Color(0xFF242424);
+
+/// Home's dial, segment by segment: a day's recorded effort against the
+/// empty remainder.
+///
+/// Exact Figma values, and the only two tones the dial draws that are not
+/// on the brightness ladder — they sit between the surface and the track so
+/// the ring reads as a ring rather than as a card edge.
+const Color kDialFilled = Color(0xFF777777);
+const Color kDialEmpty = Color(0xFF232323);
+
+/// The ring drawn OVER a photo, which is not on the ladder (see [kOnPhoto]).
+///
+/// The inner band's fill, and the dim end of the multi-task ramp. Both are
+/// a step down from [kOnPhoto] so the bands stay told apart by brightness
+/// over any image.
+const Color kOnPhotoRingFill = Color(0xFFE6E6E6);
+const Color kOnPhotoRingDim = Color(0xFFB4B4B4);
+
 /// Avatar diameters. One scale, three contexts: the Friends list, a feed
 /// post's author row, and a comment. Circular everywhere.
 const double kAvatarList = 36;

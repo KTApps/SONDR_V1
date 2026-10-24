@@ -96,7 +96,7 @@ class RingDial extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final track =
         onPhoto ? Colors.white.withValues(alpha: 0.30) : tokens.ringTrack;
-    final innerFill = onPhoto ? const Color(0xFFE6E6E6) : tokens.ringFillInner;
+    final innerFill = onPhoto ? kOnPhotoRingFill : tokens.ringFillInner;
 
     final count = taskSegments.length;
     final colors = highlightedSegment != null

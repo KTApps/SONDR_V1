@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/greyscale_tokens.dart';
+
 import 'dial_geometry.dart';
 
 import 'ring_metrics.dart';
@@ -70,9 +72,9 @@ class SegmentedDial extends StatefulWidget {
   /// Tapped on the inner (habit) ring band.
   final VoidCallback? onInnerRingTap;
 
-  // Exact Figma values: recorded/filled and empty/no-data.
-  static const Color _filled = Color(0xFF777777);
-  static const Color _empty = Color(0xFF232323);
+  // Recorded/filled and empty/no-data, from the shared tokens.
+  static const Color _filled = kDialFilled;
+  static const Color _empty = kDialEmpty;
 
   // Both proportion sets scale fully with the box, so stroke, gap and slit all
   // shrink together and the circles look proportionally identical at any size:

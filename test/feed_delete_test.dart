@@ -5,8 +5,8 @@ import 'package:sondr/core/backend.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/deletable_post_card.dart';
+import 'package:sondr/shared/blur_sheet.dart';
 import 'package:sondr/features/reports/report.dart';
-import 'package:sondr/features/reports/report_flow.dart';
 
 const _author = PostAuthor(username: 'x', displayName: 'X');
 
@@ -52,31 +52,35 @@ Future<void> _pump(
 );
 
 void main() {
-  testWidgets('own post: long-press reveals Delete + Close', (tester) async {
-    await _pump(
-      tester,
-      viewerUid: 'me',
-      post: _post(authorUid: 'me'),
-    );
-    await tester.longPress(find.byType(DeletablePostCard));
-    await tester.pumpAndSettle();
-    expect(find.text('Delete'), findsOneWidget);
-    expect(find.text('Close'), findsOneWidget);
-  });
-
-  testWidgets("someone else's post: long-press offers Report, not Delete", (
+  testWidgets('own post: a long-press asks whether to delete it', (
     tester,
   ) async {
+    await _pump(tester, viewerUid: 'me', post: _post(authorUid: 'me'));
+    await tester.longPress(find.byType(DeletablePostCard));
+    await tester.pumpAndSettle();
+    // The app's frosted question, not a panel over the card.
+    expect(find.byType(BlurSheet), findsOneWidget);
+    expect(find.text('Delete this post?'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Report'), findsNothing);
+  });
+
+  testWidgets("someone else's post: a long-press asks why", (tester) async {
     await _pump(
       tester,
       viewerUid: 'me',
       post: _post(authorUid: 'not-me'),
+      reports: _Reports(),
     );
     await tester.longPress(find.byType(DeletablePostCard));
     await tester.pumpAndSettle();
+    // Straight to the reasons: there is only one thing a long-press on
+    // somebody else's post can mean.
+    expect(find.text('Why are you reporting this?'), findsOneWidget);
+    expect(find.text('Report post'), findsOneWidget);
+    expect(find.text('Spam'), findsOneWidget);
     expect(find.text('Delete'), findsNothing);
-    expect(find.text('Report'), findsOneWidget);
-    expect(find.text('Close'), findsOneWidget);
   });
 
   testWidgets('no viewer uid (logged out): long-press does nothing', (
@@ -85,42 +89,55 @@ void main() {
     await _pump(tester, viewerUid: null, post: _post(authorUid: 'me'));
     await tester.longPress(find.byType(DeletablePostCard));
     await tester.pumpAndSettle();
-    expect(find.text('Delete'), findsNothing);
+    // Not ours, so it is reported rather than deleted — and with no
+    // backend behind it the reasons still open and go nowhere.
+    expect(find.text('Delete this post?'), findsNothing);
   });
 
-  testWidgets('Delete invokes deletePost with the post (un-share path)', (
-    tester,
-  ) async {
-    final post = _post(authorUid: 'me');
+  testWidgets('Delete invokes deletePost with the post', (tester) async {
     Post? deleted;
     await _pump(
       tester,
       viewerUid: 'me',
-      post: post,
+      post: _post(authorUid: 'me'),
       onDelete: (p) async => deleted = p,
     );
     await tester.longPress(find.byType(DeletablePostCard));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
-    expect(deleted, same(post));
+    expect(deleted?.id, 'p1');
+    expect(find.byType(BlurSheet), findsNothing);
   });
 
-  testWidgets('Close un-reveals the overlay', (tester) async {
+  testWidgets('Cancel deletes nothing', (tester) async {
+    Post? deleted;
     await _pump(
       tester,
       viewerUid: 'me',
       post: _post(authorUid: 'me'),
+      onDelete: (p) async => deleted = p,
     );
     await tester.longPress(find.byType(DeletablePostCard));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Close'));
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(find.text('Delete'), findsNothing);
+    expect(deleted, isNull);
+    expect(find.byType(BlurSheet), findsNothing);
+  });
+
+  testWidgets('the question is never where the finger was', (tester) async {
+    await _pump(tester, viewerUid: 'me', post: _post(authorUid: 'me'));
+    final card = tester.getRect(find.byType(DeletablePostCard));
+    await tester.longPress(find.byType(DeletablePostCard));
+    await tester.pumpAndSettle();
+    // The card sits at the top of this harness; the answer is in the
+    // middle of the screen, where no long-press on it could have landed.
+    expect(tester.getRect(find.text('Delete')).top, greaterThan(card.bottom));
   });
 
   group("reporting somebody else's post", () {
-    testWidgets('Report asks why, then thanks and waits to be dismissed', (
+    testWidgets('a reason writes the report and hides the post', (
       tester,
     ) async {
       final reports = _Reports();
@@ -132,25 +149,15 @@ void main() {
       );
       await tester.longPress(find.byType(DeletablePostCard));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Report'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Report post'), findsOneWidget);
-      expect(find.text('Hate or harassment'), findsOneWidget);
       await tester.tap(find.text('Hate or harassment'));
       await tester.pumpAndSettle();
 
       expect(reports.sent, ['post|p1|not-me|hate']);
       expect(reports.hidden, ['post__p1']);
-      // The card itself goes when the hidden set arrives, which no test
-      // can stream in here; until then the overlay carries the promise.
-      expect(find.text(kReportThanks), findsOneWidget);
-      expect(find.text('Report'), findsNothing);
+      expect(find.byType(BlurSheet), findsNothing);
     });
 
-    testWidgets('a report that fails says so, and hides nothing', (
-      tester,
-    ) async {
+    testWidgets('a report that fails hides nothing', (tester) async {
       final reports = _Reports(sends: false);
       await _pump(
         tester,
@@ -160,18 +167,12 @@ void main() {
       );
       await tester.longPress(find.byType(DeletablePostCard));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Report'));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Spam'));
       await tester.pumpAndSettle();
-
       expect(reports.hidden, isEmpty);
-      expect(find.text(kReportFailed), findsOneWidget);
-      // Still offered, so it can be tried again.
-      expect(find.text('Report'), findsOneWidget);
     });
 
-    testWidgets('Cancel leaves the card exactly as it was', (tester) async {
+    testWidgets('Cancel writes nothing', (tester) async {
       final reports = _Reports();
       await _pump(
         tester,
@@ -181,15 +182,10 @@ void main() {
       );
       await tester.longPress(find.byType(DeletablePostCard));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Report'));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
-
       expect(reports.sent, isEmpty);
       expect(reports.hidden, isEmpty);
-      expect(find.text('Report'), findsOneWidget);
-      expect(find.text(kReportThanks), findsNothing);
     });
   });
 }

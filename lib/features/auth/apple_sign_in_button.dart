@@ -123,6 +123,7 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
           Navigator.of(context).pushReplacement(MaterialPageRoute(
             builder: (_) => HandleScreen(
               suggestedDisplayName: result.displayName,
+              afterSignUp: true,
             ),
           ));
         } else {

@@ -74,7 +74,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         if (!mounted) return;
         // A brand-new account never has a handle yet → straight to setup.
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HandleScreen()),
+          MaterialPageRoute(builder: (_) => const HandleScreen(afterSignUp: true)),
         );
       } else {
         await auth.signInWithEmail(_email.text, _password.text);

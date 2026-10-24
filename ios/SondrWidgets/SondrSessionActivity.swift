@@ -3,21 +3,6 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
-/// Where a tap on the card goes.
-///
-/// The extension cannot run the app's code, so every control is a link back
-/// into it. The app registers `sondr` as a URL scheme and routes these.
-enum SondrLink {
-  static let home = URL(string: "sondr://home")!
-  static let stop = URL(string: "sondr://stop")!
-
-  /// Pause and Resume are buttons now, handled in place by an intent.
-  /// These stay registered and handled by the app as the fallback route —
-  /// nothing on the card uses them.
-  static let pause = URL(string: "sondr://pause")!
-  static let resume = URL(string: "sondr://resume")!
-}
-
 /// The running session, on the Lock Screen and in the Dynamic Island.
 struct SondrSessionActivity: Widget {
   var body: some WidgetConfiguration {
@@ -60,7 +45,7 @@ struct SondrSessionActivity: Widget {
               .lineLimit(1)
               .truncationMode(.tail)
             HStack(spacing: 48) {
-              Actions(isPaused: session.isPaused)
+              Actions(isPaused: session.isPaused, sideBySide: true)
             }
           }
           .frame(maxWidth: .infinity)
@@ -121,14 +106,40 @@ private struct LockScreenCard: View {
 private struct Actions: View {
   let isPaused: Bool
 
-  var body: some View {
-    if isPaused {
-      Button(intent: ResumeSessionIntent()) { Primary(word: "Resume") }
-        .buttonStyle(.plain)
+  /// Side by side, Stop comes first: the primary is always the
+  /// right-hand control, here as on the widget and on Home. Stacked, it
+  /// stays under the primary — there is no left and right in a column.
+  var sideBySide: Bool = false
+
+  @ViewBuilder var body: some View {
+    if sideBySide {
+      stop
+      primary
     } else {
-      Button(intent: PauseSessionIntent()) { Primary(word: "Pause") }
-        .buttonStyle(.plain)
+      primary
+      stop
     }
+  }
+
+  @ViewBuilder private var primary: some View {
+    if isPaused {
+      // "Start", the same word the app and the widget use for going
+      // again; "Resume" is what VoiceOver says, because that is what it
+      // does.
+      Button(intent: ResumeSessionIntent()) {
+        Primary(word: PrimaryWord.label(hasSession: true, isPaused: true))
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(PrimaryWord.resumeSpoken)
+    } else {
+      Button(intent: PauseSessionIntent()) {
+        Primary(word: PrimaryWord.label(hasSession: true, isPaused: false))
+      }
+      .buttonStyle(.plain)
+    }
+  }
+
+  private var stop: some View {
     Link(destination: SondrLink.stop) {
       Text("Stop")
         .font(.inter(14, .regular))

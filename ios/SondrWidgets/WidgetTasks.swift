@@ -213,3 +213,28 @@ enum DialBand {
     return starts[selected]
   }
 }
+
+/// What the primary control says, and what a screen reader hears.
+///
+/// One definition for the Home Screen widget, the Lock Screen card and
+/// the Dynamic Island, so the three cannot drift apart. The app says the
+/// same words in lib/features/timer/timer_screen.dart, and a test reads
+/// both files to keep it that way.
+enum PrimaryWord {
+  static let start = "Start"
+  static let pause = "Pause"
+
+  /// Going again after a pause reads "Start" — that is the word for it —
+  /// and is spoken "Resume", because that is what it does.
+  static let resumeSpoken = "Resume"
+
+  static func label(hasSession: Bool, isPaused: Bool) -> String {
+    hasSession && !isPaused ? pause : start
+  }
+
+  static func spoken(hasSession: Bool, isPaused: Bool) -> String {
+    hasSession && isPaused
+      ? resumeSpoken
+      : label(hasSession: hasSession, isPaused: isPaused)
+  }
+}

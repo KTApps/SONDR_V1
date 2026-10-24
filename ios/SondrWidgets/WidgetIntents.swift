@@ -75,11 +75,17 @@ enum WidgetSelection {
   /// and a small separate key the app reads at launch, because the app
   /// rewrites the whole snapshot whenever anything changes and must not
   /// race with this.
+  ///
+  /// Refused while a session is on. The task being tracked is the task
+  /// shown, everywhere, until it ends — so cycling a small widget and
+  /// tapping a medium's row do nothing, and the gate is here rather than
+  /// in the two intents so nothing can get past it. Starting a session
+  /// selects its own task first, before the session is written down.
   static func set(
     _ taskId: String,
     defaults: UserDefaults? = UserDefaults(suiteName: WidgetSnapshot.appGroup)
   ) {
-    guard let defaults else { return }
+    guard let defaults, SessionBox.read(from: defaults) == nil else { return }
     defaults.set(taskId, forKey: key)
     guard
       let json = defaults.string(forKey: WidgetSnapshot.key),
@@ -241,8 +247,10 @@ enum SessionStart {
       taskSecondsBefore: task.total,
       startedAt: now
     )
-    guard SessionBox.write(session, to: defaults) else { return false }
+    // The selection first: once the session is written down nothing may
+    // change which task is shown, this included.
     WidgetSelection.set(task.id, defaults: defaults)
+    guard SessionBox.write(session, to: defaults) else { return false }
 
     guard requestCard else { return true }
     WidgetCenter.shared.reloadAllTimelines()

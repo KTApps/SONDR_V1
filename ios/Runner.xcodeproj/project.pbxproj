@@ -55,6 +55,17 @@
 		F1C9AED4C8A28708F4E40600 /* SondrWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 678AEAC8B66358CA9DD273D0 /* SondrWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F4570C3FC8374E21368CDA89 /* SessionControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */; };
 		F67260029DD4B86A833692E6 /* SondrRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07F985F35E6610D3F20811A /* SondrRing.swift */; };
+		A2152D504C97C783FDE7A251 /* WidgetTasks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70ADCF34DFB4DB9B053E699C /* WidgetTasks.swift */; };
+		F6A24914536A079490610046 /* WidgetTasks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70ADCF34DFB4DB9B053E699C /* WidgetTasks.swift */; };
+		DB6FA0FDB12099E650B8343C /* WidgetTasks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70ADCF34DFB4DB9B053E699C /* WidgetTasks.swift */; };
+		7ACBC57C86BDA55798A69D2E /* WidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24890E1C26EDBDE4C38051F3 /* WidgetIntents.swift */; };
+		7A379BDEE7AE8FFC37EA070B /* WidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24890E1C26EDBDE4C38051F3 /* WidgetIntents.swift */; };
+		952AE31B24D4F3B9754487DB /* WidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24890E1C26EDBDE4C38051F3 /* WidgetIntents.swift */; };
+		6E4D88CBB772CDEA930ADBAA /* SondrTaskWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D042D2E529B497E24666F417 /* SondrTaskWidget.swift */; };
+		73A8B6395EFDE53000A46086 /* WidgetTasksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5303012E6E4C9521ADE41857 /* WidgetTasksTests.swift */; };
+		1792F2B5B8D4C456E10A5D4A /* WidgetIntentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7D4720DD972FE23D3ADB1EF /* WidgetIntentsTests.swift */; };
+		47DA4752E9A4191A781982D7 /* WidgetRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68713E66446AE90DDB0228F9 /* WidgetRenderTests.swift */; };
+		592CA602CE85D05858AFEF3C /* SondrTaskWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D042D2E529B497E24666F417 /* SondrTaskWidget.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -153,6 +164,12 @@
 		DD48CB76E2CF104BD8998E2C /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F003505FA35B3C38C0A396BF /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F4289A4D59B0660757AE4EAD /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		70ADCF34DFB4DB9B053E699C /* WidgetTasks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTasks.swift; sourceTree = "<group>"; };
+		24890E1C26EDBDE4C38051F3 /* WidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetIntents.swift; sourceTree = "<group>"; };
+		D042D2E529B497E24666F417 /* SondrTaskWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SondrTaskWidget.swift; sourceTree = "<group>"; };
+		5303012E6E4C9521ADE41857 /* WidgetTasksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTasksTests.swift; sourceTree = "<group>"; };
+		A7D4720DD972FE23D3ADB1EF /* WidgetIntentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetIntentsTests.swift; sourceTree = "<group>"; };
+		68713E66446AE90DDB0228F9 /* WidgetRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRenderTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -195,6 +212,9 @@
 				09BC50D37A5ABABD5276CF7B /* SessionControlTests.swift */,
 				11142AB3CDD95AD4D37334DA /* SharedFixtureTests.swift */,
 				B5C21D663B62D7BE11632980 /* sessions.json */,
+				68713E66446AE90DDB0228F9 /* WidgetRenderTests.swift */,
+				A7D4720DD972FE23D3ADB1EF /* WidgetIntentsTests.swift */,
+				5303012E6E4C9521ADE41857 /* WidgetTasksTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -286,6 +306,9 @@
 				321192FF6E879C02EC1E5F1E /* SessionMutation.swift */,
 				4A53A9F23C61867C485DF16F /* SondrIntents.swift */,
 				A1B2C3D40000000000000003 /* PrivacyInfo.xcprivacy */,
+				D042D2E529B497E24666F417 /* SondrTaskWidget.swift */,
+				24890E1C26EDBDE4C38051F3 /* WidgetIntents.swift */,
+				70ADCF34DFB4DB9B053E699C /* WidgetTasks.swift */,
 			);
 			name = SondrWidgets;
 			path = SondrWidgets;
@@ -561,6 +584,12 @@
 				F4570C3FC8374E21368CDA89 /* SessionControlTests.swift in Sources */,
 				92EA64FF843CD7FD61B008F0 /* SondrActivityAttributes.swift in Sources */,
 				0F760EACAE9781AE5B60FEDF /* SharedFixtureTests.swift in Sources */,
+				DB6FA0FDB12099E650B8343C /* WidgetTasks.swift in Sources */,
+				952AE31B24D4F3B9754487DB /* WidgetIntents.swift in Sources */,
+				73A8B6395EFDE53000A46086 /* WidgetTasksTests.swift in Sources */,
+				1792F2B5B8D4C456E10A5D4A /* WidgetIntentsTests.swift in Sources */,
+				47DA4752E9A4191A781982D7 /* WidgetRenderTests.swift in Sources */,
+				592CA602CE85D05858AFEF3C /* SondrTaskWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -578,6 +607,9 @@
 				87F24DD4D72A02C554332605 /* MilestoneDisplay.swift in Sources */,
 				0B8DFF424E8FD8DDEB311B98 /* SessionMutation.swift in Sources */,
 				311DEA9F38484E0253310527 /* SondrIntents.swift in Sources */,
+				A2152D504C97C783FDE7A251 /* WidgetTasks.swift in Sources */,
+				7ACBC57C86BDA55798A69D2E /* WidgetIntents.swift in Sources */,
+				6E4D88CBB772CDEA930ADBAA /* SondrTaskWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -594,6 +626,8 @@
 				93C687036C0A5B7294D731A0 /* ScheduledUpdate.swift in Sources */,
 				3DCA1D35ADA88ABCD140861F /* SessionMutation.swift in Sources */,
 				9A5AD02011EE67BB11B787FC /* SondrIntents.swift in Sources */,
+				F6A24914536A079490610046 /* WidgetTasks.swift in Sources */,
+				7A379BDEE7AE8FFC37EA070B /* WidgetIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

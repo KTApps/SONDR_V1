@@ -1,6 +1,7 @@
 import ActivityKit
 import Flutter
 import Foundation
+import WidgetKit
 import UIKit
 
 /// The app's end of the Lock Screen card.
@@ -51,6 +52,16 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
     switch call.method {
     case "supported":
       result(Self.canShowCards)
+
+    case "reloadWidgets":
+      // WidgetKit, not ActivityKit — but the same framework and the same
+      // one channel, rather than a second one carrying a single call.
+      // The app has just written the Home Screen widget's document into
+      // the App Group; this is what makes the widget read it.
+      if #available(iOS 14.0, *) {
+        WidgetCenter.shared.reloadAllTimelines()
+      }
+      result(nil)
 
     case "ready":
       listening = true

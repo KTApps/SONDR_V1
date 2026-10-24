@@ -3,12 +3,15 @@ import WidgetKit
 
 /// Everything this extension offers the system.
 ///
-/// It exists for one thing: the running timer, on the Lock Screen and in the
-/// Dynamic Island. There are no home-screen widgets — the app has nothing to
-/// say when a session is not running.
+/// Two things: the running timer on the Lock Screen and in the Dynamic
+/// Island, and the Home Screen widget — what you are tracking, and one
+/// tap to start it.
 @main
 struct SondrWidgetsBundle: WidgetBundle {
   var body: some Widget {
     SondrSessionActivity()
+    if #available(iOS 17.0, *) {
+      SondrTaskWidget()
+    }
   }
 }

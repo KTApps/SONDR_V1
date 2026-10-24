@@ -400,7 +400,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
                   ],
                   isCollective
                   ? _CollectiveHint(hasTasks: tasks.isNotEmpty)
-                  : TimerControls(
+                  : _TimerControls(
                       timer: timer,
                       choosing: _choosing,
                       onBeginChoice: () => setState(() => _choosing = true),
@@ -742,14 +742,8 @@ class _CollectiveHint extends StatelessWidget {
   }
 }
 
-/// The timer's control, in every state it has.
-///
-/// Public so its three states can be laid out side by side in a test:
-/// the right-hand control has to stay in one place as the words change,
-/// and that is a thing only a rendered layout can be asked about.
-class TimerControls extends StatelessWidget {
-  const TimerControls({
-    super.key,
+class _TimerControls extends StatelessWidget {
+  const _TimerControls({
     required this.timer,
     required this.choosing,
     required this.onBeginChoice,
@@ -778,11 +772,6 @@ class TimerControls extends StatelessWidget {
   final VoidCallback onPause;
   final VoidCallback onStop;
 
-  /// The two places every state is laid out in, named by the words that
-  /// made them. The right-hand control is always the one that gets the
-  /// session going, and it never moves; Stop is always on the left.
-  static const (String, String) places = ('Focus', 'Start');
-
   @override
   Widget build(BuildContext context) {
     switch (timer.status) {
@@ -798,27 +787,20 @@ class TimerControls extends StatelessWidget {
           onFirst: onFocus,
           secondLabel: 'Start',
           onSecond: onStart,
-          slots: places,
         );
       case TimerStatus.running:
         return SondrActionPair(
-          firstLabel: 'Stop',
-          onFirst: onStop,
-          secondLabel: 'Pause',
-          onSecond: onPause,
-          slots: places,
+          firstLabel: 'Pause',
+          onFirst: onPause,
+          secondLabel: 'Stop',
+          onSecond: onStop,
         );
       case TimerStatus.paused:
-        // "Start", because that is the word for going again — and it
-        // goes again: the same session, nothing credited, nothing new
-        // begun. VoiceOver says "Resume".
         return SondrActionPair(
-          firstLabel: 'Stop',
-          onFirst: onStop,
-          secondLabel: 'Start',
-          onSecond: onResume,
-          secondSemanticLabel: 'Resume',
-          slots: places,
+          firstLabel: 'Resume',
+          onFirst: onResume,
+          secondLabel: 'Stop',
+          onSecond: onStop,
         );
     }
   }

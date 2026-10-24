@@ -20,18 +20,23 @@ abstract interface class WidgetSelectionInbox {
 }
 
 class PrefsWidgetSelectionInbox implements WidgetSelectionInbox {
-  PrefsWidgetSelectionInbox({SharedPreferencesAsync? prefs})
-    : _prefs =
-          prefs ??
-          SharedPreferencesAsync(
-            options: SharedPreferencesAsyncFoundationOptions(
-              suiteName: kSessionAppGroup,
-            ),
-          );
+  PrefsWidgetSelectionInbox({SharedPreferencesAsync? prefs}) : _given = prefs;
 
   static const String key = 'sondr.widgetSelection';
 
-  final SharedPreferencesAsync _prefs;
+  final SharedPreferencesAsync? _given;
+
+  /// Built on first use rather than in the constructor. Making it in the
+  /// constructor throws where the platform is not registered, and this
+  /// is read from the boot gate: a missing inbox must leave the launch
+  /// alone, not fail it.
+  late final SharedPreferencesAsync _prefs =
+      _given ??
+      SharedPreferencesAsync(
+        options: SharedPreferencesAsyncFoundationOptions(
+          suiteName: kSessionAppGroup,
+        ),
+      );
 
   @override
   Future<String?> take() async {

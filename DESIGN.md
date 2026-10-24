@@ -146,6 +146,14 @@ its tap target, so a declared 24 above one renders as 36 — over the ceiling.
 Subtract the component's padding when setting the gap, and note that two
 stacked actions already meet at 24 with nothing between them.
 
+**COUNT `SondrAction`'s 12, never match it.** The padding is invisible and it
+is already the gap: a declared 12 beside an action renders as 24, and two
+stacked actions render as 24 with no gap declared at all. Adding a matching
+`SizedBox` to "balance" one is how a 24 becomes a 36. The same applies to
+anything else carrying a tap target — `SondrField` is the counter-example
+worth knowing, as it reserves nothing beyond its own capsule (14 either side,
+and only when `filled`).
+
 **A pinned footer sets its own bottom margin.** Where a block is pinned to the
 bottom of the safe area, the page stops adding padding beneath it and the
 footer's own trailing space is the single thing setting that distance — two
@@ -153,6 +161,35 @@ sources for one gap is how it drifts.
 
 Panels fit their contents. A fixed-height container with a void in it — and a
 control stranded at the bottom — is the failure mode to avoid.
+
+## Deliberate exceptions
+
+Profile is the one screen whose vertical rhythm is not built from 6 / 12 / 24,
+and the reason is that it is pinned: its ring labels have to land on the same
+line as Home's "View your progress", and its first screen has to end where the
+other profile's does. Everything between those two fixed points is arithmetic,
+not taste.
+
+These values are **approved and must not be normalised.** Changing one does not
+move one gap — it moves the pin, and the two screens stop lining up.
+
+| Value | | Holds in place |
+|---|---|---|
+| `kProfileTopMargin` | 46 | Air above the emblem: the top of the chain the pin is measured down from. |
+| `kProfileHeroGap` | 18 | Emblem to handle where there is no pin to satisfy — between the floor and the ceiling, and fixed, because with nothing to line up with there is no reason to stretch. |
+| `kProfileHeroGapMin` / `Max` | 16 / 32 | The two hero gaps absorb the difference between the fixed chain and the pin. The ceiling is deliberately past 24: it is a bounded stretch with somewhere to put the slack, not an inflated gap. |
+| `kProfileBreak` | 22 | Above a section hairline. |
+| `kProfileUnderHairline` | 14 | Below it. Unequal on purpose, so a heading hugs what it introduces instead of floating between two sections. |
+| `kProfileHeadingToPhotos` | 26 | A heading to the strip under it. |
+| `kProfileHeadingToRings` | 20 | The same heading to a ring row, which is six tighter because a ring tile carries its own label gap. |
+| `kProfileTabClearance` | 16 | What the last thing on a first screen clears the foot by — the number that lands both profiles on the same line. |
+| `kProfileHandleToSubline` | 4 | Handle to the line under it: tighter than pairing, because they are one thing read as one line. |
+| `kProfileStatGap` | 5 | A stat's figure to its label, for the same reason. |
+| `kProfileRingLabelGap` / `kProfileStripGap` | 8 | Inside a tile, between the thing and its caption. |
+
+The pin itself is `profileFirstScreenHeight`, read downward from the ring
+label's centre; `homeCtaCentreY` is the other end of it. Both are measured, not
+assumed, and the layout tests assert the two centres agree.
 
 ## One type system
 

@@ -1,25 +1,6 @@
 import ActivityKit
 import Foundation
 
-/// Where a tap on the card or the widget goes.
-///
-/// The extension cannot run the app's code, so every control that needs
-/// the app is a link back into it. The app registers `sondr` as a URL
-/// scheme and routes these.
-///
-/// Here rather than beside the card because the Home Screen widget and
-/// the tests need them too, and one list of them is the point.
-enum SondrLink {
-  static let home = URL(string: "sondr://home")!
-  static let stop = URL(string: "sondr://stop")!
-
-  /// Pause and Resume are buttons now, handled in place by an intent.
-  /// These stay registered and handled by the app as the fallback route —
-  /// nothing on the card uses them.
-  static let pause = URL(string: "sondr://pause")!
-  static let resume = URL(string: "sondr://resume")!
-}
-
 /// What the Live Activity is told about a session.
 ///
 /// Compiled into both the app, which starts and updates the activity, and the

@@ -32,24 +32,11 @@ struct TaskEntry: TimelineEntry {
   let list: [WidgetTask]
   let session: SessionSnapshot?
 
-  /// The task this widget is showing.
-  ///
-  /// A session outranks the selection: while one is on, the task being
-  /// tracked is the task on screen, and nothing on the widget changes
-  /// that until it ends.
+  /// The task this widget is showing: the app's selection when it is in
+  /// this widget's list, otherwise the first of the list.
   var current: WidgetTask? {
-    if let id = session?.taskId, let running = list.first(where: { $0.id == id }) {
-      return running
-    }
-    return list.first { $0.id == snapshot.selectedTaskId } ?? list.first
+    list.first { $0.id == snapshot.selectedTaskId } ?? list.first
   }
-
-  /// Whether there is a session at all. Stop and Pause belong to the
-  /// session rather than to the task on screen, so this — not
-  /// `runningHere` — is what decides whether they are offered.
-  var hasSession: Bool { session != nil }
-
-  var isPaused: Bool { session?.isPaused ?? false }
 
   var isRunning: Bool { session != nil }
 
@@ -131,7 +118,7 @@ struct EmptyWidgetView: View {
       Spacer()
     }
     .frame(maxWidth: .infinity)
-    .widgetURL(SondrLink.home)
+    .widgetURL(URL(string: "sondr://home"))
   }
 }
 
@@ -146,26 +133,21 @@ struct SmallWidgetView: View {
     GeometryReader { geo in
       let ring = min(geo.size.width, geo.size.height) * 0.52
       VStack(alignment: .leading, spacing: 0) {
-        // Stop is the session's control, not the task's: top right,
-        // level with the top of the ring, and only there while there is
-        // a session to stop.
-        HStack(alignment: .top) {
+        HStack {
           MilestoneRing(
             progress: task?.progress ?? 0,
             complete: task?.isMilestoneComplete ?? false,
             diameter: ring
           )
           Spacer()
-          if entry.hasSession { StopAction(size: 14) }
         }
         Spacer(minLength: 8)
         name
         Spacer(minLength: 2)
-        // The primary keeps one place whatever it says.
         HStack(alignment: .firstTextBaseline) {
           today
           Spacer(minLength: 4)
-          PrimaryAction(entry: entry, task: task, size: 14)
+          action
         }
         if entry.list.count > 1 {
           Spacer(minLength: 6)
@@ -182,17 +164,12 @@ struct SmallWidgetView: View {
   /// Tapping the name moves to the next task in this widget's list — and
   /// tells the app, so the two always agree about what is selected. A
   /// list of one has nowhere to go, so it opens the app instead.
-  ///
-  /// While a session is on it is not a control at all: the task being
-  /// tracked is the task shown, until it ends.
   @ViewBuilder private var name: some View {
     let label = Text(task?.name ?? "")
       .font(.inter(13, .semibold))
       .foregroundStyle(Ink.secondary)
       .lineLimit(1)
-    if entry.hasSession {
-      label
-    } else if entry.list.count > 1 {
+    if entry.list.count > 1 {
       Button(
         intent: CycleTaskIntent(
           ids: entry.list.map(\.id),
@@ -201,7 +178,7 @@ struct SmallWidgetView: View {
       ) { label }
         .buttonStyle(.plain)
     } else {
-      Link(destination: SondrLink.home) { label }
+      Link(destination: URL(string: "sondr://home")!) { label }
     }
   }
 
@@ -218,6 +195,9 @@ struct SmallWidgetView: View {
     }
   }
 
+  private var action: some View {
+    WidgetAction(entry: entry, task: task, size: 14)
+  }
 }
 
 /// Home's dial, and the list beside it.
@@ -255,73 +235,48 @@ struct MediumWidgetView: View {
 
     private var isSelected: Bool { task.id == entry.current?.id }
 
-    @ViewBuilder var body: some View {
-      let line = HStack(spacing: 6) {
-        Text(task.name)
-          .font(.inter(13, .semibold))
-          .foregroundStyle(isSelected ? Ink.primary : Ink.tertiary)
-          .lineLimit(1)
-        Spacer(minLength: 4)
-        if isSelected {
-          // Stop first, the primary last: the right-hand control is
-          // always the one that gets the session going.
-          HStack(spacing: 14) {
-            if entry.hasSession { StopAction(size: 13) }
-            PrimaryAction(entry: entry, task: task, size: 13)
+    var body: some View {
+      Button(intent: SelectTaskIntent(id: task.id)) {
+        HStack(spacing: 6) {
+          Text(task.name)
+            .font(.inter(13, .semibold))
+            .foregroundStyle(isSelected ? Ink.primary : Ink.tertiary)
+            .lineLimit(1)
+          Spacer(minLength: 4)
+          if isSelected {
+            WidgetAction(entry: entry, task: task, size: 13)
+          } else {
+            Text(Clock.hm(task.today))
+              .font(.inter(12, .regular))
+              .monospacedDigit()
+              .foregroundStyle(Ink.tertiary)
           }
-        } else {
-          Text(Clock.hm(task.today))
-            .font(.inter(12, .regular))
-            .monospacedDigit()
-            .foregroundStyle(Ink.tertiary)
         }
+        .padding(.vertical, 3)
       }
-      .padding(.vertical, 3)
-
-      // A row chooses a task, and nothing chooses while a session is on.
-      if entry.hasSession {
-        line
-      } else {
-        Button(intent: SelectTaskIntent(id: task.id)) { line }
-          .buttonStyle(.plain)
-      }
+      .buttonStyle(.plain)
     }
   }
 }
 
-/// The primary: Start, Pause, or Start again after a pause.
-///
-/// One word in one place. It belongs to the session when there is one —
-/// pausing and going again are the session's business, and both run in
-/// place through the intents the Lock Screen card already uses, so the
-/// app is never opened for them.
+/// Start, Stop or Resume — whichever the session makes true.
 @available(iOS 17.0, *)
-struct PrimaryAction: View {
+struct WidgetAction: View {
   let entry: TaskEntry
   let task: WidgetTask?
   let size: CGFloat
 
-  @ViewBuilder var body: some View {
-    if entry.hasSession {
-      if entry.isPaused {
-        // It says "Start", because that is the word for going again.
-        // VoiceOver hears "Resume", because that is what it does.
-        Button(intent: ResumeSessionIntent()) {
-          word(PrimaryWord.label(hasSession: true, isPaused: true))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(PrimaryWord.resumeSpoken)
-      } else {
-        Button(intent: PauseSessionIntent()) {
-          word(PrimaryWord.label(hasSession: true, isPaused: false))
-        }
-        .buttonStyle(.plain)
+  var body: some View {
+    if entry.runningHere, let session = entry.session {
+      // Stopping is the end of a session: the camera, the milestone, the
+      // post. That belongs in the app, and sondr://stop is how the Lock
+      // Screen card asks for it too.
+      Link(destination: URL(string: "sondr://stop")!) {
+        word(session.isPaused ? "Resume" : "Stop")
       }
     } else if let task {
-      Button(intent: StartSessionIntent(id: task.id)) {
-        word(PrimaryWord.label(hasSession: false, isPaused: false))
-      }
-      .buttonStyle(.plain)
+      Button(intent: StartSessionIntent(id: task.id)) { word("Start") }
+        .buttonStyle(.plain)
     }
   }
 
@@ -329,36 +284,6 @@ struct PrimaryAction: View {
     Text(text)
       .font(.inter(size, .bold))
       .foregroundStyle(Ink.primary)
-  }
-}
-
-/// Stop — only while there is a session, and quieter than the primary:
-/// the grey and weight the Lock Screen card gives it.
-///
-/// Stopping is the end of a session: the camera, the milestone, the
-/// post. That belongs in the app, so this opens sondr://stop.
-///
-/// A Button where there can be one, because a widget gives a Link its
-/// own styling — a blue capsule, on iOS 26 — and every control here is
-/// plain text in our own colours. `OpenURLIntent` is iOS 18, so a 17
-/// phone keeps the Link it has always had.
-@available(iOS 17.0, *)
-struct StopAction: View {
-  let size: CGFloat
-
-  @ViewBuilder var body: some View {
-    if #available(iOS 18.0, *) {
-      Button(intent: OpenURLIntent(SondrLink.stop)) { word }
-        .buttonStyle(.plain)
-    } else {
-      Link(destination: SondrLink.stop) { word }
-    }
-  }
-
-  private var word: some View {
-    Text("Stop")
-      .font(.inter(size, .regular))
-      .foregroundStyle(Ink.secondary)
   }
 }
 
@@ -381,7 +306,7 @@ struct RunningTime: View {
     }
     .font(.inter(size, .bold))
     .monospacedDigit()
-    .foregroundStyle(session.isPaused ? Ink.tertiary : Ink.primary)
+    .foregroundStyle(Ink.primary)
   }
 }
 
@@ -543,10 +468,6 @@ struct DayDial: View {
 
   /// What Home shows in the middle when a task is selected: its time
   /// today, and the word for what that is.
-  /// Fixed width and centred, because `Text(timerInterval:)` reserves
-  /// room for the widest reading it could show and draws the digits at
-  /// the leading edge of it — left to itself the ticking clock sits off
-  /// centre and runs into the ring.
   private var centre: some View {
     VStack(spacing: 0) {
       if entry.runningHere, let session = entry.session {
@@ -561,8 +482,6 @@ struct DayDial: View {
         .font(.inter(10, .semibold))
         .foregroundStyle(Ink.secondary)
     }
-    .frame(width: extent * Self.innerRatio - stroke * 2)
-    .multilineTextAlignment(.center)
   }
 }
 

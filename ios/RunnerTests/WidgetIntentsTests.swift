@@ -158,40 +158,4 @@ final class WidgetIntentsTests: XCTestCase {
     XCTAssertTrue(session?.isPaused ?? false)
     XCTAssertEqual(session?.elapsed(at: now.addingTimeInterval(600)), 60)
   }
-
-  // MARK: - Locked to the running task
-
-  /// Nothing on a widget changes which task is shown while a session is
-  /// on: cycling a small widget and tapping a medium's row both go
-  /// through `WidgetSelection.set`, and it refuses.
-  func testCyclingAndRowTapsDoNothingDuringASession() async {
-    writeSnapshot(selected: "a")
-    _ = await SessionStart.begin(
-      taskId: "a", defaults: defaults, requestCard: false
-    )
-    XCTAssertEqual(WidgetSnapshot.read(from: defaults)?.selectedTaskId, "a")
-    // The app took what start left for it; a refused selection must not
-    // put anything back.
-    WidgetSelection.clear(defaults: defaults)
-
-    WidgetSelection.set("b", defaults: defaults)
-
-    XCTAssertEqual(
-      WidgetSnapshot.read(from: defaults)?.selectedTaskId, "a",
-      "a widget changed the task mid-session"
-    )
-    XCTAssertNil(WidgetSelection.pending(defaults: defaults))
-  }
-
-  /// And the lock lifts with the session.
-  func testSelectingWorksAgainOnceTheSessionIsGone() async {
-    writeSnapshot(selected: "a")
-    _ = await SessionStart.begin(
-      taskId: "a", defaults: defaults, requestCard: false
-    )
-    defaults.removeObject(forKey: SessionSnapshot.key)
-
-    WidgetSelection.set("b", defaults: defaults)
-    XCTAssertEqual(WidgetSnapshot.read(from: defaults)?.selectedTaskId, "b")
-  }
 }

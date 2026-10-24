@@ -33,7 +33,16 @@ void main() {
     // clock say what this is without restating it.
     expect(find.text('FOCUS'), findsNothing);
     expect(find.text('Stop'), findsOneWidget);
-    // Idle by default → the resume affordance is shown, not pause.
-    expect(find.text('Resume'), findsOneWidget);
+    // Idle by default → the going-again affordance is shown, not pause.
+    // It reads "Start", as it does on Home and on the widget, and a
+    // screen reader is told what it really does.
+    expect(find.text('Start'), findsOneWidget);
+    expect(find.text('Resume'), findsNothing);
+    expect(tester.widget<Text>(find.text('Start')).semanticsLabel, 'Resume');
+    // Stop on the left, the primary on the right.
+    expect(
+      tester.getCenter(find.text('Stop')).dx,
+      lessThan(tester.getCenter(find.text('Start')).dx),
+    );
   });
 }

@@ -28,10 +28,19 @@ class SondrAction extends StatelessWidget {
     this.supporting = false,
     this.weight,
     this.fontSize = 15,
+    this.semanticLabel,
   });
 
   final String label;
   final VoidCallback? onPressed;
+
+  /// What a screen reader says, where that is not the label.
+  ///
+  /// The paused timer reads "Start" — the word for going again — but it
+  /// resumes a session that is already there, and "Resume" is what
+  /// VoiceOver should say. The same split as the widget and the Lock
+  /// Screen card.
+  final String? semanticLabel;
 
   /// An exit or low-priority action — Sign out, and later Remove / Block /
   /// Delete. Grey and regular weight so it sits below the primary actions,
@@ -79,6 +88,7 @@ class SondrAction extends StatelessWidget {
         ),
         child: Text(
           label,
+          semanticsLabel: semanticLabel,
           style: theme.textTheme.bodyMedium?.copyWith(
             fontSize: fontSize * scale,
             fontWeight:
@@ -110,6 +120,8 @@ class SondrActionPair extends StatelessWidget {
     required this.onFirst,
     required this.secondLabel,
     required this.onSecond,
+    this.secondSemanticLabel,
+    this.slots,
   });
 
   final String firstLabel;
@@ -117,25 +129,84 @@ class SondrActionPair extends StatelessWidget {
   final String secondLabel;
   final VoidCallback? onSecond;
 
+  /// What a screen reader says for the second action. See
+  /// [SondrAction.semanticLabel].
+  final String? secondSemanticLabel;
+
+  /// Two labels whose widths fix the two places, whatever is put in
+  /// them.
+  ///
+  /// The timer's control changes its words three times — Focus / Start,
+  /// Stop / Pause, Stop / Start — and without this each pair is laid out
+  /// on its own widths, so the right-hand control moves under the finger
+  /// as the state changes. Given the idle pair, every state is laid out
+  /// in the idle pair's places and the right-hand control never moves.
+  ///
+  /// A label wider than its place overhangs it rather than widening it:
+  /// the places are the thing that must not move. Null is the plain
+  /// behaviour — the two actions side by side, centred.
+  final (String, String)? slots;
+
   /// Extra space between the pair, over and above each action's own padding.
   /// Public so a pair that cannot use this widget — one whose two actions
   /// are not equals — still sits at the same distance.
   static const double gap = 16;
 
+  /// How wide a [SondrAction] with this label is: the text as it will be
+  /// drawn, plus the padding that makes the tap target.
+  static double placeFor(BuildContext context, String label) {
+    final scale = figmaScale(context);
+    final painter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          fontSize: 15 * scale,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    return painter.width + 40 * scale;
+  }
+
   @override
   Widget build(BuildContext context) {
     final scale = figmaScale(context);
+    final places = slots;
+
+    final first = SondrAction(label: firstLabel, onPressed: onFirst);
+    final second = SondrAction(
+      label: secondLabel,
+      onPressed: onSecond,
+      semanticLabel: secondSemanticLabel,
+    );
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        SondrAction(label: firstLabel, onPressed: onFirst),
+        if (places == null) first else _place(context, places.$1, first),
         // On top of each action's own 20 of padding, so the labels sit 56
         // apart — enough to read as two buttons with nothing drawn between.
         SizedBox(width: gap * scale),
-        SondrAction(label: secondLabel, onPressed: onSecond),
+        if (places == null) second else _place(context, places.$2, second),
       ],
+    );
+  }
+
+  /// One fixed place, with the action centred in it. [OverflowBox] so a
+  /// longer word spills over the edges instead of pushing the other
+  /// control along.
+  Widget _place(BuildContext context, String label, Widget child) {
+    return SizedBox(
+      width: placeFor(context, label),
+      child: OverflowBox(
+        minWidth: 0,
+        maxWidth: double.infinity,
+        alignment: Alignment.center,
+        child: child,
+      ),
     );
   }
 }

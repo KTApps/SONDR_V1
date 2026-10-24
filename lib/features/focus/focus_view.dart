@@ -98,11 +98,16 @@ class FocusView extends ConsumerWidget {
                 ),
                 gap,
 
+                // Stop on the left, the primary on the right — the same
+                // order as Home, the widget and the Lock Screen card.
+                // Paused says "Start" and means resume; VoiceOver says
+                // so.
                 SondrActionPair(
-                  firstLabel: isRunning ? 'Pause' : 'Resume',
-                  onFirst: isRunning ? controller.pause : controller.start,
-                  secondLabel: 'Stop',
-                  onSecond: onStop,
+                  firstLabel: 'Stop',
+                  onFirst: onStop,
+                  secondLabel: isRunning ? 'Pause' : 'Start',
+                  onSecond: isRunning ? controller.pause : controller.start,
+                  secondSemanticLabel: isRunning ? null : 'Resume',
                 ),
               ],
             ),

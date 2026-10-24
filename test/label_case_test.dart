@@ -114,4 +114,76 @@ void main() {
       expect(profile, contains(unit), reason: '$unit should be lowercase');
     }
   });
+
+  /// The timer's own words, in three languages.
+  ///
+  /// Home is Dart, the Home Screen widget and the Lock Screen card are
+  /// Swift, and nothing but this links them. The owner's rule: the
+  /// control that gets a session going is always the right-hand one and
+  /// always reads "Start" — even when it is going again after a pause —
+  /// and a screen reader is told "Resume" there, because that is what it
+  /// does.
+  group('the timer says the same words everywhere', () {
+    test('the paused control reads "Start" and is spoken "Resume"', () {
+      final dart = File(
+        'lib/features/timer/timer_screen.dart',
+      ).readAsStringSync();
+      expect(dart, contains("secondLabel: 'Start',"));
+      expect(dart, contains("secondSemanticLabel: 'Resume',"));
+      expect(
+        dart.contains("firstLabel: 'Resume'"),
+        isFalse,
+        reason: 'the paused control went back to saying Resume',
+      );
+
+      final words = File(
+        'ios/SondrWidgets/WidgetTasks.swift',
+      ).readAsStringSync();
+      expect(words, contains('static let start = "Start"'));
+      expect(words, contains('static let pause = "Pause"'));
+      expect(words, contains('static let resumeSpoken = "Resume"'));
+
+      for (final path in const [
+        'ios/SondrWidgets/SondrTaskWidget.swift',
+        'ios/SondrWidgets/SondrSessionActivity.swift',
+      ]) {
+        final src = File(path).readAsStringSync();
+        expect(
+          src,
+          contains('.accessibilityLabel(PrimaryWord.resumeSpoken)'),
+          reason: '$path does not say what it does',
+        );
+        expect(
+          src.contains('word: "Resume"') || src.contains('word("Resume")'),
+          isFalse,
+          reason: '$path writes Resume where it should say Start',
+        );
+      }
+    });
+
+    test('Stop is the quiet one, and the primary is not', () {
+      final src = File(
+        'ios/SondrWidgets/SondrTaskWidget.swift',
+      ).readAsStringSync();
+      // The same grey and weight the Lock Screen card gives Stop.
+      expect(src, contains('.font(.inter(size, .regular))'));
+      expect(src, contains('.foregroundStyle(Ink.secondary)'));
+      expect(src, contains('.font(.inter(size, .bold))'));
+    });
+
+    test('every control on the widget is plain text', () {
+      final src = File(
+        'ios/SondrWidgets/SondrTaskWidget.swift',
+      ).readAsStringSync();
+      final buttons = 'Button('.allMatches(src).length;
+      final plain = '.buttonStyle(.plain)'.allMatches(src).length;
+      expect(
+        plain,
+        buttons,
+        reason:
+            'a widget Button without a plain style is drawn by the system '
+            'as a tinted capsule',
+      );
+    });
+  });
 }

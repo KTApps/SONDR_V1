@@ -9,6 +9,7 @@ import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../../shared/sondr_action.dart';
+import '../../shared/blur_sheet.dart';
 import '../../shared/sondr_error.dart';
 import '../../shared/sondr_notice.dart';
 import '../../shared/sondr_prompt.dart';
@@ -506,27 +507,49 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
   /// never under the slot that opened it, so a second tap cannot pick
   /// anything.
   Future<void> _blockOrReport(PublicProfile them, String myUid) async {
-    // No title. The slot was tapped on THEIR page, with their handle in
-    // the hero above it — repeating it on the card said nothing and made
-    // the two answers read as a subheading of their name.
-    final choice = await showSondrChoice<String>(
-      context,
-      choices: const [
-        (label: 'Report', value: 'report'),
-        (label: 'Block', value: 'block'),
-      ],
-    );
+    // ONE sheet for the whole flow. Report and Block each lead somewhere,
+    // and that somewhere cross-fades in place: the blur never lifts
+    // between two halves of one question, and a second one is never
+    // stacked over the first.
+    String? choice;
+    await showBlurSheet(context, (handle) {
+      // No title. The slot was tapped on THEIR page, with their handle in
+      // the hero above it — repeating it said nothing and made the two
+      // answers read as a subheading of their name.
+      return BlurView(
+        items: [
+          BlurItem(
+            label: 'Report',
+            onTap: () async {
+              choice = 'report';
+              await _reportThem(them, within: handle);
+            },
+          ),
+          BlurItem(
+            label: 'Block',
+            onTap: () async {
+              choice = 'block';
+              await _block(them, myUid, within: handle);
+            },
+          ),
+        ],
+      );
+    });
     if (!mounted || choice == null) return;
-    if (choice == 'block') {
-      await _block(them, myUid);
-      return;
-    }
+  }
+
+  /// Reporting them, from inside the sheet the slot opened.
+  Future<void> _reportThem(
+    PublicProfile them, {
+    required BlurSheetHandle within,
+  }) async {
     final outcome = await reportThing(
       context,
       ref,
       type: ReportTarget.user,
       targetKey: widget.uid,
       targetOwnerUid: widget.uid,
+      within: within,
       title: reportTitle(ReportTarget.user, handle: them.handle),
     );
     if (!mounted) return;
@@ -558,14 +581,20 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
   /// Which notice is current, so an older one cannot clear a newer.
   int _noticeToken = 0;
 
-  Future<void> _block(PublicProfile them, String myUid) async {
+  Future<void> _block(
+    PublicProfile them,
+    String myUid, {
+    BlurSheetHandle? within,
+  }) async {
     final yes = await showSondrConfirm(
       context,
       title: blockTitle(them.handle),
       body: blockBody(them.handle),
       confirmLabel: 'Block',
+      within: within,
     );
     if (!yes || !mounted) return;
+    within?.close();
     await _run((acts) => acts.block(
           uid: widget.uid,
           handle: them.handle,

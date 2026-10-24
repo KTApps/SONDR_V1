@@ -1,9 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/theme/greyscale_tokens.dart';
-import '../features/profile/profile_metrics.dart' show kProfileHairline;
 import '../core/theme/spacing.dart';
 import '../core/utils/figma_scale.dart';
+import 'blur_sheet.dart';
 import 'sondr_action.dart';
 import 'sondr_field.dart';
 
@@ -135,77 +137,175 @@ class _TextPromptState extends State<_TextPrompt> {
   }
 }
 
-/// Asks a yes/no question, in the app's own language.
+/// Asks a yes/no question, over a blurred app.
 ///
-/// Shares a surface with the prompt above — the same card, the same
-/// heading, the same pair of actions. What differs is what sits between
-/// them: a field there, a sentence here. And this one is centred, because
-/// there is no keyboard for it to sit above.
+/// The same frosted view the Habits page is: the question on Home's title
+/// line, the consequence in one quiet line under it, the answer where a
+/// habit name would be, and the way out where "Add habit" is. It replaced
+/// a centred card — a card is a surface, and a question is not.
 ///
-/// Returns true only when the primary action is tapped. Cancelling, or
-/// dismissing it by tapping outside, is a no.
+/// Returns true only when the answer is tapped. Cancelling, tapping the
+/// blur, or swiping down is a no.
 Future<bool> showSondrConfirm(
   BuildContext context, {
   required String title,
   required String body,
   required String confirmLabel,
   String cancelLabel = 'Cancel',
+  BlurSheetHandle? within,
 }) async {
-  final said = await showDialog<bool>(
-    context: context,
-    builder: (context) {
-      final tokens = GreyscaleTokens.of(context);
-      final theme = Theme.of(context);
-      final scale = figmaScale(context);
-
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: kSpacingSection * scale),
-          child: _PromptCard(
-            children: [
-              _PromptTitle(title),
-              SizedBox(height: kSpacingBase * scale),
-              Text(
-                body,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontSize: 13 * scale,
-                  color: tokens.textSecondary,
-                ),
-              ),
-              // No SizedBox: the action row's own 12 of tap padding is the
-              // other half of the gap above it.
-              _PromptActions(
-                confirmLabel: confirmLabel,
-                cancelLabel: cancelLabel,
-                onConfirm: () => Navigator.of(context).pop(true),
-                onCancel: () => Navigator.of(context).pop(false),
-              ),
-            ],
-          ),
-        ),
+  BlurView view(BlurSheetHandle handle, void Function(bool) answer) =>
+      BlurView(
+        title: title,
+        explanation: body,
+        items: [BlurItem(label: confirmLabel, onTap: () => answer(true))],
+        cancelLabel: cancelLabel,
       );
-    },
+
+  // Asked inside a sheet that is already open: cross-fade to it rather
+  // than open a second one over the first.
+  if (within != null) return _askWithin(within, view);
+
+  var said = false;
+  await showBlurSheet(
+    context,
+    (handle) => view(handle, (yes) {
+      said = yes;
+      handle.close();
+    }),
   );
-  return said ?? false;
+  return said;
 }
 
-/// The card both prompts are drawn on.
+/// Asks for a password over the blur, with the field where the answers
+/// would be.
 ///
-/// Material only for the ink and text-selection machinery a TextField
-/// needs — elevation 0 and our own surface, so it casts nothing and tints
-/// nothing.
-/// A list of choices in the confirm's own card: a title, an optional
-/// line, then one action per choice with Cancel beneath them.
+/// The one question in the app that needs typing and still belongs on
+/// this surface: it is the middle of a flow that started on it, and
+/// dropping to a card halfway through would read as two apps. The field
+/// keeps its ordinary style; the blur lifts by whatever the keyboard
+/// covers of the exit, and by nothing when there is no keyboard.
 ///
-/// The same card, the same title, the same centred position as
-/// [showSondrConfirm] — it is the same question with more than two
-/// answers. Returns the chosen value, or null for Cancel and for a tap
-/// outside.
+/// Returns what was typed, or null if it was dismissed. Whitespace-only
+/// returns null, so callers need not re-check.
+Future<String?> showBlurPassword(
+  BuildContext context, {
+  required String title,
+  required String confirmLabel,
+  BlurSheetHandle? within,
+}) async {
+  final answered = Completer<String?>();
+  // The text, as typed. Held here rather than in a controller this
+  // function owns: a controller disposed when the function returns is
+  // still being rebuilt by the closing animation — the bug the prompt
+  // card had, and the reason its field lives in a widget of its own.
+  var typed = '';
+
+  void answer() {
+    if (!answered.isCompleted) {
+      final trimmed = typed.trim();
+      answered.complete(trimmed.isEmpty ? null : trimmed);
+    }
+  }
+
+  BlurView view(BlurSheetHandle handle) => BlurView(
+    title: title,
+    body: _BlurPasswordField(
+      onChanged: (value) => typed = value,
+      onSubmitted: () {
+        answer();
+        if (within == null) handle.close();
+      },
+    ),
+    items: [
+      BlurItem(
+        label: confirmLabel,
+        quiet: true,
+        onTap: () {
+          answer();
+          if (within == null) handle.close();
+        },
+      ),
+    ],
+  );
+
+  if (within != null) {
+    within.show(view(within));
+    within.closed.then((_) {
+      if (!answered.isCompleted) answered.complete(null);
+    });
+    return answered.future;
+  }
+  await showBlurSheet(context, view);
+  if (!answered.isCompleted) answered.complete(null);
+  return answered.future;
+}
+
+/// The field itself, owning its controller for exactly as long as it is
+/// on screen.
+class _BlurPasswordField extends StatefulWidget {
+  const _BlurPasswordField({required this.onChanged, required this.onSubmitted});
+
+  final ValueChanged<String> onChanged;
+  final VoidCallback onSubmitted;
+
+  @override
+  State<_BlurPasswordField> createState() => _BlurPasswordFieldState();
+}
+
+class _BlurPasswordFieldState extends State<_BlurPasswordField> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SondrField(
+    controller: _controller,
+    filled: false,
+    centered: true,
+    autofocus: true,
+    obscureText: true,
+    autocorrect: false,
+    textCapitalization: TextCapitalization.none,
+    textInputAction: TextInputAction.done,
+    onChanged: widget.onChanged,
+    onSubmitted: (_) => widget.onSubmitted(),
+  );
+}
+
+/// Show [view] in an open sheet and wait for its answer, or for the sheet
+/// to go without one.
 ///
-/// Every choice takes the page's full tone: none of them is the safe one.
-/// Cancel is the exit and takes the supporting tone, as it does
-/// everywhere else.
+/// A view shown inside an open sheet does NOT close it when answered: the
+/// flow that asked may have another view to cross-fade to, and only the
+/// flow knows when it is finished. Cancelling still closes, because
+/// Cancel is the sheet's own exit.
+Future<bool> _askWithin(
+  BlurSheetHandle handle,
+  BlurView Function(BlurSheetHandle, void Function(bool)) view,
+) {
+  final answered = Completer<bool>();
+  handle.show(view(handle, (yes) {
+    if (!answered.isCompleted) answered.complete(yes);
+  }));
+  handle.closed.then((_) {
+    if (!answered.isCompleted) answered.complete(false);
+  });
+  return answered.future;
+}
+
+/// A list of answers in the same frosted view.
+///
+/// The same question with more than two answers, so the same surface:
+/// each answer is a habit name, Cancel is "Add habit". Returns the chosen
+/// value, or null for Cancel and for a tap on the blur.
+///
+/// [quiet] names the values that take the not-done grey — the ones that
+/// act on the account rather than moving around it.
 Future<T?> showSondrChoice<T>(
   BuildContext context, {
   String? title,
@@ -213,82 +313,48 @@ Future<T?> showSondrChoice<T>(
   required List<({String label, T value})> choices,
   String cancelLabel = 'Cancel',
   Set<T> quiet = const {},
-  T? ruleAbove,
-}) {
-  return showDialog<T>(
-    context: context,
-    builder: (context) {
-      final tokens = GreyscaleTokens.of(context);
-      final theme = Theme.of(context);
-      final scale = figmaScale(context);
-
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: kSpacingSection * scale),
-          child: _PromptCard(
-            // With nothing above them, the actions' own 12 of tap padding
-            // is half the inset, exactly as it is at the bottom — so the
-            // card's declared top comes down to 12 and the visible space
-            // stays the square 24 the titled card has.
-            tightTop: title == null && body == null,
-            children: [
-              if (title != null) _PromptTitle(title),
-              if (body != null) ...[
-                if (title != null) SizedBox(height: kSpacingBase * scale),
-                Text(
-                  body,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontSize: 13 * scale,
-                    color: tokens.textSecondary,
-                  ),
-                ),
-              ],
-              if (title != null || body != null)
-                SizedBox(height: kSpacingBase * scale),
-              for (final choice in choices) ...[
-                // One line between two groups of choices, the same rule the
-                // Profile parts its sections with. No declared gap either
-                // side: the actions above and below each bring 12 of their
-                // own tap padding, which is the 12/12 every other break on
-                // that page uses.
-                if (ruleAbove != null && choice.value == ruleAbove)
-                  const SizedBox(
-                    height: 1,
-                    child: ColoredBox(color: kProfileHairline),
-                  ),
-                SondrAction(
-                  label: choice.label,
-                  // A choice that acts on the account rather than opening a
-                  // page: the supporting tone, but the full weight, so it
-                  // reads as an equal answer rather than a cancel.
-                  supporting: quiet.contains(choice.value),
-                  weight: FontWeight.w700,
-                  onPressed: () => Navigator.of(context).pop(choice.value),
-                ),
-              ],
-              SondrAction(
-                label: cancelLabel,
-                supporting: true,
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
+  BlurSheetHandle? within,
+}) async {
+  BlurView view(void Function(T) answer) => BlurView(
+    title: title,
+    explanation: body,
+    items: [
+      for (final choice in choices)
+        BlurItem(
+          label: choice.label,
+          quiet: quiet.contains(choice.value),
+          onTap: () => answer(choice.value),
         ),
-      );
-    },
+    ],
+    cancelLabel: cancelLabel,
   );
+
+  if (within != null) {
+    final answered = Completer<T?>();
+    within.show(view((value) {
+      if (!answered.isCompleted) answered.complete(value);
+    }));
+    within.closed.then((_) {
+      if (!answered.isCompleted) answered.complete(null);
+    });
+    return answered.future;
+  }
+
+  T? picked;
+  await showBlurSheet(
+    context,
+    (handle) => view((value) {
+      picked = value;
+      handle.close();
+    }),
+  );
+  return picked;
 }
 
 class _PromptCard extends StatelessWidget {
-  const _PromptCard({required this.children, this.tightTop = false});
+  const _PromptCard({required this.children});
 
   final List<Widget> children;
-
-  /// True when the first child is an action rather than a heading, so the
-  /// declared top inset drops to a base unit — the action's own 12 of tap
-  /// padding makes up the rest.
-  final bool tightTop;
 
   @override
   Widget build(BuildContext context) {
@@ -305,7 +371,7 @@ class _PromptCard extends StatelessWidget {
         // inset is square. EdgeInsets.all(24) read as 36 underneath.
         padding: EdgeInsets.fromLTRB(
           kSpacingSection * scale,
-          (tightTop ? kSpacingBase : kSpacingSection) * scale,
+          kSpacingSection * scale,
           kSpacingSection * scale,
           kSpacingBase * scale,
         ),

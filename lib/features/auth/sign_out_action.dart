@@ -7,6 +7,7 @@ import '../../core/theme/spacing.dart';
 import '../../core/utils/duration_format.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/sondr_action.dart';
+import '../../shared/blur_sheet.dart';
 import '../../shared/sondr_error.dart';
 import '../../shared/sondr_prompt.dart';
 import '../photos/auto_collage.dart';
@@ -124,6 +125,7 @@ Future<SignOutResult> runSignOut(
   BuildContext context,
   WidgetRef ref, {
   void Function(bool busy)? busy,
+  BlurSheetHandle? within,
 }) async {
   final timer = ref.read(timerControllerProvider.notifier);
   // The card may have been paused from the Lock Screen since this
@@ -150,8 +152,11 @@ Future<SignOutResult> runSignOut(
     title: 'Stop your session?',
     body: signOutPromptBody(clock, now),
     confirmLabel: 'Stop and sign out',
+    within: within,
   );
   if (!stop || !context.mounted) return (signedOut: false, error: null);
+  // Said yes: the blur goes, and the save happens behind it.
+  within?.close();
 
   busy?.call(true);
   try {

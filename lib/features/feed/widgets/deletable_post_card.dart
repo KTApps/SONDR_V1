@@ -1,42 +1,23 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/backend.dart';
-import '../../../core/theme/greyscale_tokens.dart';
-import '../../../core/theme/spacing.dart';
-import '../../../core/utils/figma_scale.dart';
-import '../../../shared/sondr_action.dart';
-import '../../../shared/sondr_error.dart';
-import '../../../shared/sondr_notice.dart';
+import '../../../shared/sondr_prompt.dart';
 import '../../reports/report.dart';
 import '../../reports/report_flow.dart';
 import '../models/post.dart';
 import '../posts_repository.dart';
 
-/// The post id whose delete overlay is currently revealed (null = none). A
-/// provider so only ONE card is revealed at a time — long-pressing another card
-/// moves the reveal to it.
-class RevealedPostId extends Notifier<String?> {
-  @override
-  String? build() => null;
-
-  void reveal(String id) => state = id;
-  void clear() => state = null;
-}
-
-final revealedPostIdProvider = NotifierProvider<RevealedPostId, String?>(
-  RevealedPostId.new,
-);
-
-/// Wraps a feed [child] card with a long-press: Delete on the author's
-/// **own** posts, Report on everybody else's. Long-press → blur THIS card
-/// and reveal the action and Close. Delete un-shares via
-/// [PostsRepository.deletePost] (the post doc + its posts-space photo copies —
-/// never the gallery original or logged time); the feed stream then drops the
-/// card. Close, or a tap on the blurred scrim, un-blurs. No confirm dialog — the
-/// long-press plus a deliberate tap is the confirmation.
+/// A feed card that answers a long-press.
+///
+/// Your own post asks whether to delete it; somebody else's goes straight
+/// to the reasons for reporting it — a list of two answers to choose
+/// between "report" and nothing was a step that answered itself.
+///
+/// The question is the app's frosted view rather than a panel over the
+/// card. A card-sized overlay could not hold a sentence without
+/// overflowing a slim session card, and an answer to "delete this?"
+/// should not land where the finger that asked it was.
 class DeletablePostCard extends ConsumerStatefulWidget {
   const DeletablePostCard({
     super.key,
@@ -57,17 +38,24 @@ class DeletablePostCard extends ConsumerStatefulWidget {
 
 class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
   bool _busy = false;
-  String? _error;
 
-  /// Set once the report is in. The overlay stays, carrying the thank-you,
-  /// and the card itself leaves when the hidden set catches up — so the
-  /// promise is read rather than inferred from a card vanishing.
-  bool _thanked = false;
+  /// What the question says. Truthful about what deleting actually
+  /// reaches: the post and the copies of its photos that went out with
+  /// it, and nothing in the gallery or the hours.
+  static const String kDeletePostTitle = 'Delete this post?';
+  static const String kDeletePostBody =
+      'It will be removed from your friends\' feeds. Your photos and your '
+      "logged time stay. This can't be undone.";
 
-  /// Match the wrapped card's corner radius so the blur clips to its shape.
-  double get _radius => widget.post is SessionPost ? 16 : 24;
-
-  void _clear() => ref.read(revealedPostIdProvider.notifier).clear();
+  Future<void> _confirmDelete() async {
+    final yes = await showSondrConfirm(
+      context,
+      title: kDeletePostTitle,
+      body: kDeletePostBody,
+      confirmLabel: 'Delete',
+    );
+    if (yes && mounted) await _delete();
+  }
 
   Future<void> _delete() async {
     setState(() => _busy = true);
@@ -80,22 +68,13 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
             await repo.deletePost(p);
           };
       await del(widget.post);
-      // Success: the feed stream drops this post and the widget unmounts. Clear
-      // the revealed id (and un-busy) if we're somehow still mounted.
-      if (mounted) {
-        setState(() => _busy = false);
-        _clear();
-      }
+      // Success: the feed stream drops this post and the widget unmounts.
+      if (mounted) setState(() => _busy = false);
     } catch (e) {
       debugPrint('SONDR delete post error: $e');
-      if (mounted) {
-        // Stay open on failure: the overlay is where the action was, and
-        // closing it would take the message with it.
-        setState(() {
-          _busy = false;
-          _error = 'Couldn’t delete the post. Please try again.';
-        });
-      }
+      // There is no panel to hold a line any more, and a card that is
+      // still there IS the message: the post did not go.
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -106,63 +85,29 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
   Widget build(BuildContext context) {
     final uid = ref.watch(currentUidProvider);
     _own = uid != null && widget.post.authorUid == uid;
-    final revealed = ref.watch(revealedPostIdProvider) == widget.post.id;
 
     return GestureDetector(
-      // Opaque so the long-press is caught across the whole card, including any
-      // transparent regions; the card's own taps (like/comment) still win.
+      // Opaque so the long-press is caught across the whole card, including
+      // any transparent regions; the card's own taps (like/comment) still
+      // win.
       behavior: HitTestBehavior.opaque,
-      // Every post answers a long-press now; what it offers depends on
-      // whose it is.
-      onLongPress: () =>
-          ref.read(revealedPostIdProvider.notifier).reveal(widget.post.id),
-      child: Stack(
-        children: [
-          widget.child,
-          if (revealed) Positioned.fill(child: _overlay(context)),
-        ],
-      ),
-    );
-  }
-
-  Widget _overlay(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(_radius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: GestureDetector(
-          // Tap the scrim (outside the buttons) to close.
-          onTap: _busy ? null : _clear,
-          child: Container(
-            color: Colors.black.withValues(alpha: 0.4),
-            // Tight: a slim session card has barely room for two stacked
-            // actions, and the actions carry their own tap padding already.
-            padding: EdgeInsets.all(kSpacingPair * figmaScale(context)),
-            // Centred when it fits, scrolling when it does not. A session
-            // card is 80 tall and two stacked actions nearly fill it, so a
-            // line of words on top of them — "couldn't send that report",
-            // the thank-you — overflowed by 13 and clipped the way out.
-            child: LayoutBuilder(
-              builder: (context, box) => SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: box.maxHeight),
-                  // The actions STAY while the delete runs — only the label
-                  // and the tone move, so the overlay does not jump.
-                  child: Center(child: _actions(tokens)),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+      // Every post answers a long-press; what it asks depends on whose it
+      // is. The question is the frosted view the whole app asks on now,
+      // not a panel over the card: a card-sized overlay could not hold a
+      // sentence without overflowing a slim session card, and the answer
+      // to "delete this?" belongs nowhere near the thing it is about.
+      onLongPress: _busy ? null : (_own ? _confirmDelete : _report),
+      child: widget.child,
     );
   }
 
   /// Report someone else's post: ask why, send, and let the feed drop it.
+  /// Straight to the reasons: a long-press on somebody else's post has
+  /// one thing it can mean, and a list of two answers to say it with was
+  /// a step that answered itself.
   Future<void> _report() async {
     setState(() => _busy = true);
-    final outcome = await reportThing(
+    await reportThing(
       context,
       ref,
       type: ReportTarget.post,
@@ -170,56 +115,8 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
       targetOwnerUid: widget.post.authorUid,
       title: reportTitle(ReportTarget.post),
     );
-    if (!mounted) return;
-    setState(() => _busy = false);
-    switch (outcome) {
-      case ReportOutcome.cancelled:
-        break;
-      case ReportOutcome.sent:
-        // The card goes with the hidden set, and takes the overlay with
-        // it. Until then the thank-you is what the overlay says.
-        setState(() => _thanked = true);
-      case ReportOutcome.failed:
-        // Stay open, say so, hide nothing.
-        setState(() => _error = kReportFailed);
-    }
+    if (mounted) setState(() => _busy = false);
   }
 
-  Widget _actions(GreyscaleTokens tokens) {
-    // Delete is summoned by the long-press, so it stays at full emphasis:
-    // plain white text, no fill, no border, no glyph (see DESIGN.md). Close
-    // is the exit and takes the supporting tone, stacked beneath rather than
-    // beside so the two never read as a pair of equals.
-    if (_thanked) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SondrNotice(kReportThanks, textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-          SondrAction(label: 'Close', supporting: true, onPressed: _clear),
-        ],
-      );
-    }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (_error != null) ...[
-          SondrError(_error!, textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-        ],
-        if (_own)
-          SondrAction(
-            label: _busy ? 'Deleting…' : 'Delete',
-            onPressed: _busy ? null : _delete,
-          )
-        else
-          SondrAction(label: 'Report', onPressed: _busy ? null : _report),
-        SondrAction(
-          label: 'Close',
-          supporting: true,
-          onPressed: _busy ? null : _clear,
-        ),
-      ],
-    );
-  }
+
 }

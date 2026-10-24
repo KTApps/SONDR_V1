@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/debug_flags.dart';
+import '../../shared/blur_sheet.dart';
 import '../../shared/sondr_prompt.dart';
 import '../friends/content_prune.dart';
 import '../timer/home_notice.dart';
@@ -162,8 +163,9 @@ final localCachesProvider = Provider<LocalCaches>(
 /// Returns what happened so the caller can leave its own error line up.
 Future<DeleteAccountOutcome> deleteAccount(
   BuildContext context,
-  WidgetRef ref,
-) async {
+  WidgetRef ref, {
+  BlurSheetHandle? within,
+}) async {
   final auth = ref.read(authRepositoryProvider);
   final erasure = ref.read(accountCascadeProvider);
   if (erasure == null) {
@@ -180,11 +182,12 @@ Future<DeleteAccountOutcome> deleteAccount(
     title: kDeleteAccountTitle,
     body: kDeleteAccountBody,
     confirmLabel: kDeleteAccountConfirm,
+    within: within,
   );
   if (!yes || !context.mounted) return DeleteAccountOutcome.cancelled;
 
   // Step 2. Nothing below this line has run yet.
-  final proved = await _prove(context, auth);
+  final proved = await _prove(context, auth, within: within);
   switch (proved) {
     case _Proof.cancelled:
       return DeleteAccountOutcome.cancelled;
@@ -193,6 +196,8 @@ Future<DeleteAccountOutcome> deleteAccount(
     case _Proof.ok:
       break;
   }
+  // Proved. The blur has nothing left to show, and what follows is work.
+  within?.close();
 
   // Which step is running, so a failure can name it. Nothing else needs
   // to know, which is why it is a local rather than a field.
@@ -229,15 +234,21 @@ Future<DeleteAccountOutcome> deleteAccount(
 
 enum _Proof { ok, cancelled, failed }
 
-Future<_Proof> _prove(BuildContext context, AuthRepository auth) async {
+Future<_Proof> _prove(
+  BuildContext context,
+  AuthRepository auth, {
+  BlurSheetHandle? within,
+}) async {
   final providers = auth.providerIds;
 
   if (providers.contains('password')) {
-    final password = await showSondrPrompt(
+    // The same blur the question was asked on, with the field where the
+    // answers were — not a card dropped over a flow that began here.
+    final password = await showBlurPassword(
       context,
       title: kPasswordPrompt,
       confirmLabel: kDeleteAccountConfirm,
-      obscure: true,
+      within: within,
     );
     if (password == null) return _Proof.cancelled;
     try {

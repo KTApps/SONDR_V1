@@ -15,6 +15,7 @@ import 'package:sondr/features/debug/debug_panel.dart';
 import 'package:sondr/features/timer/live_activity.dart';
 import 'package:sondr/features/timer/session_clock.dart';
 import 'package:sondr/features/timer/session_store.dart';
+import 'package:sondr/shared/blur_sheet.dart';
 import 'package:sondr/shared/legal.dart';
 import 'package:sondr/shared/sondr_action.dart';
 
@@ -156,14 +157,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// Every label on the card, top to bottom.
+  /// Every label in the view, top to bottom.
   List<String> sheetLabels(WidgetTester tester) {
-    final card = find
-        .ancestor(of: find.text('Support'), matching: find.byType(Material))
-        .last;
-    final labels = find.descendant(of: card, matching: find.byType(Text));
+    final labels = find.descendant(
+      of: find.byType(BlurSheet),
+      matching: find.byType(Text),
+    );
     return [
-      for (final element in labels.evaluate()) (element.widget as Text).data!,
+      for (final element in labels.evaluate())
+        if ((element.widget as Text).data != null)
+          (element.widget as Text).data!,
     ];
   }
 
@@ -218,7 +221,7 @@ void main() {
   });
 
   group('the sheet', () {
-    testWidgets('signed in: three pages, a rule, then the account itself', (
+    testWidgets('signed in: the three pages, then the account itself', (
       tester,
     ) async {
       await pump(tester, user: _Account());
@@ -232,22 +235,16 @@ void main() {
         if (kDebugTools) 'Debug',
         'Cancel',
       ]);
-      // One rule, between the pages and the account actions.
-      final rule = find.descendant(
-        of: find.ancestor(
-          of: find.text('Support'),
-          matching: find.byType(Material),
-        ).last,
-        matching: find.byType(ColoredBox),
-      );
-      expect(rule, findsOneWidget);
+      // No rule any more: the view is a blur with nothing drawn on it,
+      // and the grey tone is what parts the pages from the two answers
+      // that act on the account.
       expect(
-        tester.getRect(rule).top,
-        greaterThan(tester.getRect(find.text('Terms')).bottom),
-      );
-      expect(
-        tester.getRect(rule).bottom,
-        lessThan(tester.getRect(find.text('Sign out')).top),
+        find.descendant(
+          of: find.byType(BlurSheet),
+          matching: find.byType(ColoredBox),
+        ),
+        findsOneWidget,
+        reason: 'the only ColoredBox should be the scrim',
       );
     });
 
@@ -278,30 +275,27 @@ void main() {
       );
     });
 
-    testWidgets('the tones: pages white, account actions grey, both bold', (
+    testWidgets('the tones: pages white, account actions grey', (
       tester,
     ) async {
       await pump(tester, user: _Account());
       await openSheet(tester);
       final tokens = GreyscaleTokens.of(
-        tester.element(find.byType(AccountBody)),
+        tester.element(find.byType(BlurSheet)),
       );
       for (final page in ['Support', 'Privacy', 'Terms']) {
         final text = tester.widget<Text>(find.text(page));
         expect(text.style!.color, tokens.textPrimary, reason: page);
-        expect(text.style!.fontWeight, FontWeight.w700, reason: page);
+        expect(text.style!.fontWeight, FontWeight.w600, reason: page);
       }
+      // The not-done grey, which is what a habit nobody has done wears.
       for (final action in ['Sign out', 'Delete account']) {
         final text = tester.widget<Text>(find.text(action));
-        expect(text.style!.color, tokens.textSecondary, reason: action);
-        expect(text.style!.fontWeight, FontWeight.w700, reason: action);
+        expect(text.style!.color, tokens.textTertiary, reason: action);
+        expect(text.style!.fontWeight, FontWeight.w600, reason: action);
       }
-      // Cancel is the exit: the same grey, regular weight.
-      final cancel = tester.widget<Text>(find.text('Cancel'));
-      expect(cancel.style!.color, tokens.textSecondary);
-      expect(cancel.style!.fontWeight, FontWeight.w400);
       expect(tokens.textPrimary, const Color(0xFFFAFAFA));
-      expect(tokens.textSecondary, const Color(0xFFB0B0B0));
+      expect(tokens.textTertiary, const Color(0xFF6E6E6E));
     });
 
     testWidgets('mid-screen, never under the word that opened it', (
@@ -425,8 +419,13 @@ void main() {
       // This fake refuses the password, so the cascade is never reached and
       // the line still goes up: nothing was deleted, and the word that
       // opened the sheet is what says so.
+      expect(find.text(kPasswordPrompt), findsOneWidget);
+      expect(find.text(kDeleteAccountConfirm), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'pw');
-      await tester.tap(find.text(kDeleteAccountConfirm));
+      // Submitted from the keyboard. Tapping the answer works the same
+      // way — both call the same thing — but a focused field in a test
+      // puts a selection toolbar over everything below it.
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
       expect(erasure.runs, 0);

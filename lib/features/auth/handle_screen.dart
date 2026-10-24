@@ -12,17 +12,41 @@ import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_header.dart';
+import 'invited_screen.dart';
 import 'profile_repository.dart';
 import '../profile/public_profile.dart';
+
+/// What the handle screen says under its header.
+///
+/// Public because the screen that follows it reserves exactly this much
+/// space for its own, shorter line — the two are one moment in one flow,
+/// and nothing may shift between them.
+const String kHandlePrompt =
+    'This is how friends will find you. It can\'t be changed later.';
 
 /// Pick a unique handle. Validates format client-side, then claims it
 /// atomically via [ProfileRepository.claimHandle] (rejecting duplicates).
 class HandleScreen extends ConsumerStatefulWidget {
-  const HandleScreen({super.key, this.suggestedDisplayName});
+  const HandleScreen({
+    super.key,
+    this.suggestedDisplayName,
+    this.afterSignUp = false,
+  });
 
   /// Pre-fills the profile display name (e.g. the name Apple returned on first
   /// sign-in). The handle itself is always chosen by the user.
   final String? suggestedDisplayName;
+
+  /// True on the two paths that reach here straight from a sign-up, and
+  /// only those: the account is new, so it is asked once who invited it.
+  /// Pushed from Profile or the friends gate this is false — an account
+  /// that has been around long enough to go looking for this screen is not
+  /// being asked.
+  ///
+  /// "New" means an account arriving without a handle through the sign-up
+  /// flow. An existing Apple account signing in on a fresh device with no
+  /// handle ever claimed is, by every measure the app has, the same thing.
+  final bool afterSignUp;
 
   @override
   ConsumerState<HandleScreen> createState() => _HandleScreenState();
@@ -69,8 +93,17 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
       // The handle is what a profile is found by, and the rules check it
       // against the usernames index — so publish it the moment it is ours.
       unawaited(ref.read(publishPublicProfileProvider)());
+      if (!mounted) return;
+      if (widget.afterSignUp) {
+        // One more question, asked once, while the account is new. It
+        // lands on Home itself, whichever way it is answered.
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const InvitedScreen()),
+        );
+        return;
+      }
       // Land on Home (the timer) after finishing sign-up + handle setup.
-      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } on HandleTakenException {
       setState(() => _error = 'That handle is taken. Try another.');
     } catch (_) {
@@ -114,7 +147,7 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
               ),
               SizedBox(height: kSpacingBase * scale),
               Text(
-                'This is how friends will find you. It can\'t be changed later.',
+                kHandlePrompt,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontSize: 13 * scale,
                   color: tokens.textSecondary,

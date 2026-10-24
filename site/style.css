@@ -108,3 +108,21 @@ footer a:hover { color: var(--secondary); }
   .lead { font-size: 17px; }
   h1 { font-size: 24px; }
 }
+
+/* The invitation page. The handle is the one bright thing in the line,
+   which is how the app writes a handle too. */
+.lead strong { color: var(--text); font-weight: 700; }
+
+/* The app has no filled buttons, so neither does this: a word at full
+   tone with room around it, and a hairline to say it is a target. */
+.button {
+  display: inline-block;
+  margin-top: 24px;
+  padding: 12px 24px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+.button:hover { border-color: var(--secondary); color: var(--text); }

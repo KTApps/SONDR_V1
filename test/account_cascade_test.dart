@@ -125,6 +125,18 @@ Future<void> seed(FirebaseFirestore db) async {
   });
 
   await db.doc('blocks/${me}__other').set({'blocker': me, 'blocked': 'other'});
+  // Who invited them, and somebody else's invite naming them — the second
+  // is the other person's document and stays.
+  await db.doc('invites/$me').set({
+    'invitedBy': them,
+    'invitedByHandle': 'cass',
+    'at': Timestamp.fromDate(DateTime(2026, 9, 1)),
+  });
+  await db.doc('invites/$them').set({
+    'invitedBy': me,
+    'invitedByHandle': 'ada',
+    'at': Timestamp.fromDate(DateTime(2026, 9, 2)),
+  });
   await db.doc('blocks/${them}__$me').set({'blocker': them, 'blocked': me});
 
   // My post, with a photo, liked by them and commented on by both of us.
@@ -220,6 +232,7 @@ void main() {
     'publicProfiles/$them/friends/$me',
     'friendships/${me}__$them',
     'blocks/${me}__other',
+    'invites/$me',
     'posts/mine',
     'posts/mine/comments/by-me',
     'posts/theirs/comments/by-me-1',
@@ -233,6 +246,9 @@ void main() {
     'usernames/cass',
     'publicProfiles/$them',
     'posts/theirs',
+    // Their own invite, which happens to name the leaving account: their
+    // document, their record of how they arrived.
+    'invites/$them',
     // The two leftovers, both of them somebody else's document.
     'blocks/${them}__$me',
     'posts/mine/comments/by-them',

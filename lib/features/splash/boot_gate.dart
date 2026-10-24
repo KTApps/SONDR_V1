@@ -11,6 +11,7 @@ import '../profile/friend_mirror.dart';
 import '../profile/milestone_strip.dart';
 import '../profile/public_profile.dart';
 import '../habits/habits_providers.dart';
+import '../links/invite_link_listener.dart';
 import '../shell/main_shell.dart';
 import '../tasks/tasks_providers.dart';
 
@@ -137,8 +138,14 @@ class _BootGateState extends ConsumerState<BootGate> {
 
     return AnimatedSwitcher(
       duration: _fade,
+      // The link listener wraps the shell rather than living inside it, so
+      // it starts only once there is a navigator to push onto. A link that
+      // launched the app is delivered the moment the splash lifts.
       child: _ready
-          ? const MainShell(key: ValueKey('shell'))
+          ? const InviteLinkListener(
+              key: ValueKey('shell'),
+              child: MainShell(),
+            )
           : const _SplashScreen(key: ValueKey('splash')),
     );
   }

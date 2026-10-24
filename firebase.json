@@ -11,7 +11,7 @@
     "cleanUrls": true,
     "ignore": [
       "firebase.json",
-      "**/.*",
+      "**/.DS_Store",
       "**/node_modules/**"
     ],
     "headers": [
@@ -23,6 +23,21 @@
             "value": "public, max-age=31536000, immutable"
           }
         ]
+      },
+      {
+        "source": "/.well-known/apple-app-site-association",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/u/**",
+        "destination": "/u.html"
       }
     ]
   },

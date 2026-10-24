@@ -1056,3 +1056,102 @@ describe('the prune, end to end', () => {
     assert.deepEqual(snap.data().audience, [A, C]);
   });
 });
+
+describe('who invited whom', () => {
+  /**
+   * One document per invited account, written once by that account.
+   *
+   * The handle travels with the uid so the pair can be read back without a
+   * second lookup, and the rule checks the two against the usernames index
+   * — an invite cannot credit somebody who does not hold that handle.
+   */
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'usernames/ada'), { uid: A });
+      await setDoc(doc(db, 'usernames/cass'), { uid: C });
+    });
+  });
+
+  /** What the app writes when B says A invited them. */
+  function invite(fields = {}) {
+    return {
+      invitedBy: A,
+      invitedByHandle: 'ada',
+      at: serverTimestamp(),
+      ...fields,
+    };
+  }
+
+  it('the invited account writes its own, once', async () => {
+    await assertSucceeds(setDoc(doc(as(B), 'invites/' + B), invite()));
+    // And only the once: it is a fact about how they arrived, not a
+    // setting. A second create is an update of an existing document.
+    await assertFails(setDoc(doc(as(B), 'invites/' + B), invite({
+      invitedBy: C, invitedByHandle: 'cass',
+    })));
+    await assertFails(
+      updateDoc(doc(as(B), 'invites/' + B), { invitedBy: C }),
+    );
+  });
+
+  it('and reads it back; nobody else can', async () => {
+    await assertSucceeds(getDoc(doc(as(B), 'invites/' + B)));
+    await assertFails(getDoc(doc(as(A), 'invites/' + B)));
+    await assertFails(getDoc(doc(as(D), 'invites/' + B)));
+  });
+
+  it('nobody can write an invite for somebody else', async () => {
+    await assertFails(setDoc(doc(as(A), 'invites/' + D), invite()));
+  });
+
+  it('a guest cannot: there is no account for it to belong to', async () => {
+    const guest = env
+      .authenticatedContext(D, { firebase: { sign_in_provider: 'anonymous' } })
+      .firestore();
+    await assertFails(setDoc(doc(guest, 'invites/' + D), invite()));
+  });
+
+  it('the handle and the uid have to be the same person', async () => {
+    // cass's handle, ada's uid.
+    await assertFails(setDoc(doc(as(D), 'invites/' + D), invite({
+      invitedByHandle: 'cass',
+    })));
+    // A handle nobody holds.
+    await assertFails(setDoc(doc(as(D), 'invites/' + D), invite({
+      invitedByHandle: 'nobody',
+    })));
+  });
+
+  it('you cannot have invited yourself', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'usernames/dee'), { uid: D });
+    });
+    await assertFails(setDoc(doc(as(D), 'invites/' + D), invite({
+      invitedBy: D, invitedByHandle: 'dee',
+    })));
+  });
+
+  it('exactly those three fields, and the server\'s own clock', async () => {
+    await assertFails(setDoc(doc(as(D), 'invites/' + D), invite({
+      extra: 'no',
+    })));
+    await assertFails(setDoc(doc(as(D), 'invites/' + D), {
+      invitedBy: A,
+      at: serverTimestamp(),
+    }));
+    await assertFails(setDoc(doc(as(D), 'invites/' + D), invite({
+      at: new Date(2000, 1, 1),
+    })));
+  });
+
+  it('and deleting it is theirs alone — which is what leaving does', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'invites/' + C), {
+        invitedBy: A, invitedByHandle: 'ada', at: new Date(),
+      });
+    });
+    await assertFails(deleteDoc(doc(as(A), 'invites/' + C)));
+    await assertSucceeds(deleteDoc(doc(as(C), 'invites/' + C)));
+  });
+});

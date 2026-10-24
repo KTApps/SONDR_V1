@@ -10,6 +10,7 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/sondr_action.dart';
+import '../links/invite_link.dart';
 import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_swipe_row.dart';
@@ -247,10 +248,15 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     );
   }
 
-  /// What the invite says. The link is still TestFlight; it becomes the
-  /// App Store page when there is one.
-  static const String inviteText =
-      'Join me on sondr — https://testflight.apple.com/join/XgqKWR4E';
+  /// What the invite says.
+  ///
+  /// It carries this account's own link, so whoever follows it lands on a
+  /// page naming the person who sent it and the app can credit them. With
+  /// no handle claimed there is nobody to credit, and it points at the
+  /// site itself — see [inviteUrlFor].
+  String _inviteText() => inviteText(
+    ref.read(currentProfileProvider).value?.username ?? '',
+  );
 
   Future<void> _invite() async {
     // The OS share sheet, so the invite can go wherever the person
@@ -262,7 +268,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     final box = context.findRenderObject() as RenderBox?;
     await SharePlus.instance.share(
       ShareParams(
-        text: inviteText,
+        text: _inviteText(),
         sharePositionOrigin: box == null
             ? null
             : box.localToGlobal(Offset.zero) & box.size,

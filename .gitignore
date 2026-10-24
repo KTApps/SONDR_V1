@@ -28,3 +28,6 @@ test/rules/node_modules/
 test/rules/package-lock.json
 firestore-debug.log
 firebase-debug.log
+
+# Firebase Hosting's deploy cache, written by `firebase deploy`.
+.firebase/

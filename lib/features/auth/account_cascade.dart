@@ -170,6 +170,7 @@ class AccountCascade implements AccountErasure {
     await _friendships();
     await _blocksIPlaced();
     await _publicProfile();
+    await _invite();
     await _handleDoc(handle);
     // Last, because the handle above is read out of it.
     await _userSpace();
@@ -416,6 +417,11 @@ class AccountCascade implements AccountErasure {
 
   Future<void> _publicProfile() =>
       db.collection('publicProfiles').doc(uid).delete();
+
+  /// Who invited them. Theirs, and only ever theirs to remove — deleting a
+  /// missing one is an allowed no-op, which is what an account that was
+  /// never invited does here.
+  Future<void> _invite() => db.collection('invites').doc(uid).delete();
 
   /// Give the handle back, so the next person can have it.
   Future<void> _handleDoc(String handle) async {

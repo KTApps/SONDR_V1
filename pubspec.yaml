@@ -57,6 +57,7 @@ dependencies:
   # it on every platform; it just doesn't re-export the Apple-only options.
   shared_preferences_foundation: ^2.5.7
   screen_brightness: ^2.1.11
+  app_links: ^7.2.2
 
 dev_dependencies:
   flutter_test:

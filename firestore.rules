@@ -159,6 +159,41 @@ service cloud.firestore {
     // moderator has to look and the slash says so. A slash cannot be in a
     // document id, so the id swaps it for an underscore — the key itself
     // keeps the readable form.
+    // Who invited whom. One document per invited account, written once by
+    // that account and never again: this is a fact about how they arrived,
+    // not a setting.
+    //
+    // The handle is carried alongside the uid so the pair can be read back
+    // without a second lookup, and the rule checks the two against the
+    // usernames index — so an invite cannot credit somebody who does not
+    // hold that handle. A guest cannot write one: an anonymous session has
+    // no account for an invitation to belong to.
+    match /invites/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.auth.token.firebase.sign_in_provider
+                       != 'anonymous'
+                    && request.resource.data.keys().hasOnly(
+                         ['invitedBy', 'invitedByHandle', 'at'])
+                    && request.resource.data.keys().hasAll(
+                         ['invitedBy', 'invitedByHandle', 'at'])
+                    && request.resource.data.invitedBy is string
+                    && request.resource.data.invitedBy != uid
+                    && request.resource.data.invitedByHandle is string
+                    && get(/databases/$(database)/documents/usernames/
+                           $(request.resource.data.invitedByHandle)).data.uid
+                       == request.resource.data.invitedBy
+                    && request.resource.data.at == request.time;
+
+      // It happened once. Nothing about it can be revised.
+      allow update: if false;
+
+      // Theirs to remove, which is what deleting an account does.
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
     match /reports/{reportId} {
       allow read, update, delete: if false;
 

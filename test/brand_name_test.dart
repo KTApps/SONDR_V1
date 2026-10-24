@@ -32,12 +32,19 @@ void main() {
   });
 
   test('the share copy is lowercase', () {
-    final src = File(
+    // The sentence moved out of the Friends screen when the invite started
+    // carrying the sender's own link; the heading above the button did not.
+    final link = File(
+      'lib/features/links/invite_link.dart',
+    ).readAsStringSync();
+    final screen = File(
       'lib/features/friends/friends_screen.dart',
     ).readAsStringSync();
-    expect(src, contains("'Join me on sondr — "));
-    expect(src, contains("'Invite your friends to sondr'"));
-    expect(src.contains('on Sondr'), isFalse);
-    expect(src.contains('to Sondr'), isFalse);
+    expect(link, contains("'Join me on sondr: "));
+    expect(screen, contains("'Invite your friends to sondr'"));
+    for (final src in [link, screen]) {
+      expect(src.contains('on Sondr'), isFalse);
+      expect(src.contains('to Sondr'), isFalse);
+    }
   });
 }

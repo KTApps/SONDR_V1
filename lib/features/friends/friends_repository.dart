@@ -324,18 +324,10 @@ class FriendsRepository {
     );
     if (refusal != null) throw refusal;
 
-    final users = [uid, targetUid]..sort();
     try {
-      await _friendships.doc(Friendship.pairId(uid, targetUid)).set({
-        'users': users,
-        'requestedBy': uid,
-        'status': 'pending',
-        'profiles': {
-          uid: {'username': me.username, 'displayName': me.displayName},
-          targetUid: {'username': handle},
-        },
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await _friendships
+          .doc(Friendship.pairId(uid, targetUid))
+          .set(_requestData(targetUid, me, handle));
     } on FirebaseException catch (e) {
       // For a well-formed request the create rule's only conditional
       // refusal is blockedEitherWay() — they blocked us. The same wording
@@ -345,6 +337,74 @@ class FriendsRepository {
       }
       rethrow;
     }
+  }
+
+  /// The document a pending request is, in one place: it is written by the
+  /// Add flow and again by the invite, and the two must not drift.
+  Map<String, dynamic> _requestData(
+    String targetUid,
+    FriendIdentity me,
+    String handle,
+  ) => {
+    'users': [uid, targetUid]..sort(),
+    'requestedBy': uid,
+    'status': 'pending',
+    'profiles': {
+      uid: {'username': me.username, 'displayName': me.displayName},
+      targetUid: {'username': handle},
+    },
+    'createdAt': FieldValue.serverTimestamp(),
+  };
+
+  /// Record who invited this account, and ask to be their friend.
+  ///
+  /// One batch, so there is no state where the invite is recorded and the
+  /// request is not — a half-written answer to a question asked once would
+  /// never be asked again.
+  ///
+  /// The request is staged only when there is one to send. Already friends,
+  /// already asked, or blocked in either direction: the invite still stands
+  /// — who invited them is true regardless of what the two of them have
+  /// done since — and nothing is written that the rules would refuse.
+  ///
+  /// Returns whether a request went with it, so the screen can say so.
+  Future<bool> recordInvite({
+    required String inviterUid,
+    required String inviterHandle,
+  }) async {
+    final me = await _myIdentity();
+
+    // The same duplicate check Add makes, and for the same reason: a get()
+    // on a friendship that does not exist yet is denied.
+    final mine = await _friendships.where('users', arrayContains: uid).get();
+    final existingDoc = mine.docs
+        .where((d) => (d.data()['users'] as List?)?.contains(inviterUid) ?? false)
+        .firstOrNull;
+    final refusal = addFriendRefusal(
+      myUid: uid,
+      targetUid: inviterUid,
+      myHandle: me.username,
+      handle: inviterHandle,
+      blockedByMe: await _blockedByMe(),
+      existing: existingDoc == null
+          ? null
+          : Friendship.fromMap(existingDoc.id, existingDoc.data()),
+    );
+
+    final batch = db.batch();
+    batch.set(db.collection('invites').doc(uid), {
+      'invitedBy': inviterUid,
+      'invitedByHandle': inviterHandle,
+      'at': FieldValue.serverTimestamp(),
+    });
+    if (refusal == null) {
+      batch.set(
+        _friendships.doc(Friendship.pairId(uid, inviterUid)),
+        _requestData(inviterUid, me, inviterHandle),
+      );
+    }
+    await batch.commit();
+    return refusal == null;
   }
 
   /// Accept an incoming request, writing this user's identity into the doc so

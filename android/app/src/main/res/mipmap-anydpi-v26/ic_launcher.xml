@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 8 and up masks the launcher icon to whatever shape the device
+     uses, from two layers. The foreground is the app's own 1024 master,
+     whose wordmark sits well inside the 72dp safe zone, so no mask can
+     crop it; the background is the app's backdrop tone. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

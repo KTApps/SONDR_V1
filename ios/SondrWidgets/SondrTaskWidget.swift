@@ -468,6 +468,11 @@ struct DayDial: View {
 
   /// What Home shows in the middle when a task is selected: its time
   /// today, and the word for what that is.
+  ///
+  /// Fixed width and centred, because `Text(timerInterval:)` reserves
+  /// room for the widest reading it could ever show and draws the
+  /// digits at the leading edge of that. Left to itself the ticking
+  /// clock sits off centre and runs into the ring.
   private var centre: some View {
     VStack(spacing: 0) {
       if entry.runningHere, let session = entry.session {
@@ -482,6 +487,8 @@ struct DayDial: View {
         .font(.inter(10, .semibold))
         .foregroundStyle(Ink.secondary)
     }
+    .frame(width: extent * Self.innerRatio - stroke * 2)
+    .multilineTextAlignment(.center)
   }
 }
 

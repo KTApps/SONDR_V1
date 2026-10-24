@@ -12,6 +12,7 @@ import '../profile/milestone_strip.dart';
 import '../profile/public_profile.dart';
 import '../habits/habits_providers.dart';
 import '../links/invite_link_listener.dart';
+import '../widget/widget_publisher.dart';
 import '../shell/main_shell.dart';
 import '../tasks/tasks_providers.dart';
 
@@ -70,6 +71,10 @@ class _BootGateState extends ConsumerState<BootGate> {
       // never wait on either.
       unawaited(ref.read(publishPublicProfileProvider)());
       unawaited(ref.read(friendMirrorReconcileProvider)());
+      // The Home Screen widget's copy of today. Listened to for the life
+      // of the app: anything that changes a task, the selection or the
+      // habits writes a new snapshot and asks WidgetKit to redraw.
+      ref.listenManual(widgetPublisherProvider, (_, _) {});
     });
   }
 

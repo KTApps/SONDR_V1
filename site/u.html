@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sondr</title>
+<meta name="description" content="Track the time you put into what matters. Every 20 hours is a milestone.">
+<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+<link rel="icon" type="image/png" href="/icon-192.png" sizes="192x192">
+<link rel="icon" type="image/png" href="/icon-512.png" sizes="512x512">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="page landing">
+  <p class="wordmark">sondr</p>
+  <!-- Replaced by the invitation when the path carries a usable handle.
+       Until then it is the landing, which is also what an invalid handle
+       leaves standing. -->
+  <p class="lead" id="lead">Track the time you put into what matters. Every 20 hours is a milestone.</p>
+  <p class="quiet" id="quiet">Coming soon to the App Store.</p>
+  <p id="cta" hidden><a class="button" id="get" href="#">Get sondr</a></p>
+  <footer>
+    <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/support">Support</a><br>
+    © 2026 sondr
+  </footer>
+</main>
+<script>
+// The link the invite carries. TestFlight for now; this one constant
+// becomes the App Store page at launch.
+var GET_SONDR = 'https://testflight.apple.com/join/XgqKWR4E';
+
+// The same rule the app's handle screen enforces, and the same one the
+// usernames index is keyed by.
+var HANDLE = /^[a-z0-9_]{3,20}$/;
+
+(function () {
+  var parts = window.location.pathname.split('/');
+  var handle = decodeURIComponent(parts[2] || '').toLowerCase();
+  if (!HANDLE.test(handle)) return;          // the landing, unchanged
+
+  // textContent, never innerHTML: the handle comes out of the URL bar and
+  // is somebody else's text until proven otherwise. No lookup is made from
+  // this page — whether the account exists is the app's question to ask.
+  var lead = document.getElementById('lead');
+  lead.textContent = '';
+  var name = document.createElement('strong');
+  name.textContent = handle;
+  lead.appendChild(name);
+  lead.appendChild(document.createTextNode(' invited you to sondr'));
+
+  document.getElementById('quiet').textContent =
+    'Track the time you put into what matters. Every 20 hours is a milestone.';
+  document.getElementById('get').setAttribute('href', GET_SONDR);
+  document.getElementById('cta').hidden = false;
+  document.title = handle + ' invited you to sondr';
+})();
+</script>
+</body>
+</html>

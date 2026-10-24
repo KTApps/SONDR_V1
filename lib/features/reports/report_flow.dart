@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/blur_sheet.dart';
 import '../../shared/sondr_prompt.dart';
 import 'report.dart';
 
@@ -30,16 +31,25 @@ Future<ReportOutcome> reportThing(
   required String targetKey,
   required String targetOwnerUid,
   required String title,
+  BlurSheetHandle? within,
 }) async {
+  // The question is the title and what is being reported is the line
+  // under it: "Why are you reporting this?" over "Report post". Opened
+  // from inside another view — the profile's Report/Block slot — it
+  // cross-fades in place rather than opening a second blur.
   final reason = await showSondrChoice<ReportReason>(
     context,
-    title: title,
-    body: 'Why are you reporting this?',
+    title: 'Why are you reporting this?',
+    body: title,
     choices: [
       for (final r in ReportReason.values) (label: r.label, value: r),
     ],
+    within: within,
   );
   if (reason == null) return ReportOutcome.cancelled;
+  // Answered, and nothing else to show: the blur goes now rather than
+  // standing there while the write happens behind it.
+  within?.close();
 
   final reports = ref.read(reportsProvider);
   if (reports == null) return ReportOutcome.failed;

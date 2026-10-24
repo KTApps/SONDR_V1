@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/debug_flags.dart';
+import '../../shared/blur_sheet.dart';
 import '../../shared/legal.dart';
-import '../../shared/sondr_prompt.dart';
 import '../debug/debug_panel.dart';
 import 'delete_account.dart';
 import 'sign_out_action.dart';
@@ -68,43 +68,61 @@ Future<String?> showMoreSheet(
   WidgetRef ref, {
   required bool signedIn,
 }) async {
-  final choices = moreChoicesFor(signedIn: signedIn);
-  final chosen = await showSondrChoice<MoreChoice>(
-    context,
-    choices: [
-      for (final choice in choices) (label: choice.label, value: choice),
-    ],
-    // The two that act on the account, and Debug with them: the supporting
-    // tone at full weight, against the three pages' white.
-    quiet: {MoreChoice.signOut, MoreChoice.deleteAccount, MoreChoice.debug},
-  );
-  if (chosen == null || !context.mounted) return null;
+  String? said;
 
-  final url = chosen.url;
-  if (url != null) {
-    await ref.read(legalPagesProvider).open(url);
-    return null;
-  }
+  await showBlurSheet(context, (handle) {
+    Future<void> choose(MoreChoice chosen) async {
+      final url = chosen.url;
+      if (url != null) {
+        handle.close();
+        await ref.read(legalPagesProvider).open(url);
+        return;
+      }
+      switch (chosen) {
+        case MoreChoice.signOut:
+          // Inside the same blur: a running session's prompt cross-fades
+          // in place rather than lifting the blur and bringing it back.
+          final result = await runSignOut(context, ref, within: handle);
+          said = result.error;
+          // Whatever happened, the flow is over. close() is a no-op on a
+          // sheet that has already gone — which it has, if the person
+          // cancelled or the flow closed it on its way to doing work.
+          handle.close();
+        case MoreChoice.deleteAccount:
+          final outcome = await deleteAccount(context, ref, within: handle);
+          said = outcome == DeleteAccountOutcome.failed
+              ? (lastDeleteError ?? kDeleteAccountFailed)
+              : null;
+          handle.close();
+        case MoreChoice.debug:
+          handle.close();
+          if (context.mounted) {
+            await Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const DebugPanel()),
+            );
+          }
+        case MoreChoice.support:
+        case MoreChoice.privacy:
+        case MoreChoice.terms:
+          handle.close();
+      }
+    }
 
-  switch (chosen) {
-    case MoreChoice.signOut:
-      final result = await runSignOut(context, ref);
-      return result.error;
-    case MoreChoice.deleteAccount:
-      final outcome = await deleteAccount(context, ref);
-      if (outcome != DeleteAccountOutcome.failed) return null;
-      // The line the flow composed: the step and the code in a DEBUG_TOOLS
-      // build, "That password isn't right." in every build, and the plain
-      // sentence otherwise.
-      return lastDeleteError ?? kDeleteAccountFailed;
-    case MoreChoice.debug:
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const DebugPanel()),
-      );
-      return null;
-    case MoreChoice.support:
-    case MoreChoice.privacy:
-    case MoreChoice.terms:
-      return null;
-  }
+    return BlurView(
+      items: [
+        for (final choice in moreChoicesFor(signedIn: signedIn))
+          BlurItem(
+            label: choice.label,
+            // The two that act on the account, and Debug with them: the
+            // not-done grey, against the three pages' white.
+            quiet: choice == MoreChoice.signOut ||
+                choice == MoreChoice.deleteAccount ||
+                choice == MoreChoice.debug,
+            onTap: () => choose(choice),
+          ),
+      ],
+    );
+  });
+
+  return said;
 }

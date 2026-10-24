@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -95,6 +96,11 @@ abstract interface class BlurSheetHandle {
 
   /// Close the whole thing.
   void close();
+
+  /// Completes when the sheet has gone, however it went — an answer, the
+  /// exit, a tap on the blur, a swipe. A flow waiting on an answer uses
+  /// it to hear a no that was never spoken.
+  Future<void> get closed;
 }
 
 /// Put a question over the app, frosted, in the Habits page's own clothes.
@@ -132,6 +138,17 @@ class BlurSheet extends StatefulWidget {
 
 class _BlurSheetState extends State<BlurSheet> implements BlurSheetHandle {
   late BlurView _view = widget.first(this);
+
+  final Completer<void> _closed = Completer<void>();
+
+  @override
+  Future<void> get closed => _closed.future;
+
+  @override
+  void dispose() {
+    if (!_closed.isCompleted) _closed.complete();
+    super.dispose();
+  }
 
   /// Which view is showing, so the cross-fade has something to key on.
   int _step = 0;

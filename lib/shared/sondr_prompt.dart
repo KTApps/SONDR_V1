@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/theme/greyscale_tokens.dart';
@@ -150,26 +152,150 @@ Future<bool> showSondrConfirm(
   required String body,
   required String confirmLabel,
   String cancelLabel = 'Cancel',
+  BlurSheetHandle? within,
 }) async {
+  BlurView view(BlurSheetHandle handle, void Function(bool) answer) =>
+      BlurView(
+        title: title,
+        explanation: body,
+        items: [BlurItem(label: confirmLabel, onTap: () => answer(true))],
+        cancelLabel: cancelLabel,
+      );
+
+  // Asked inside a sheet that is already open: cross-fade to it rather
+  // than open a second one over the first.
+  if (within != null) return _askWithin(within, view);
+
   var said = false;
   await showBlurSheet(
     context,
-    (handle) => BlurView(
-      title: title,
-      explanation: body,
-      items: [
-        BlurItem(
-          label: confirmLabel,
-          onTap: () {
-            said = true;
-            handle.close();
-          },
-        ),
-      ],
-      cancelLabel: cancelLabel,
-    ),
+    (handle) => view(handle, (yes) {
+      said = yes;
+      handle.close();
+    }),
   );
   return said;
+}
+
+/// Asks for a password over the blur, with the field where the answers
+/// would be.
+///
+/// The one question in the app that needs typing and still belongs on
+/// this surface: it is the middle of a flow that started on it, and
+/// dropping to a card halfway through would read as two apps. The field
+/// keeps its ordinary style; the blur lifts by whatever the keyboard
+/// covers of the exit, and by nothing when there is no keyboard.
+///
+/// Returns what was typed, or null if it was dismissed. Whitespace-only
+/// returns null, so callers need not re-check.
+Future<String?> showBlurPassword(
+  BuildContext context, {
+  required String title,
+  required String confirmLabel,
+  BlurSheetHandle? within,
+}) async {
+  final answered = Completer<String?>();
+  // The text, as typed. Held here rather than in a controller this
+  // function owns: a controller disposed when the function returns is
+  // still being rebuilt by the closing animation — the bug the prompt
+  // card had, and the reason its field lives in a widget of its own.
+  var typed = '';
+
+  void answer() {
+    if (!answered.isCompleted) {
+      final trimmed = typed.trim();
+      answered.complete(trimmed.isEmpty ? null : trimmed);
+    }
+  }
+
+  BlurView view(BlurSheetHandle handle) => BlurView(
+    title: title,
+    body: _BlurPasswordField(
+      onChanged: (value) => typed = value,
+      onSubmitted: () {
+        answer();
+        if (within == null) handle.close();
+      },
+    ),
+    items: [
+      BlurItem(
+        label: confirmLabel,
+        quiet: true,
+        onTap: () {
+          answer();
+          if (within == null) handle.close();
+        },
+      ),
+    ],
+  );
+
+  if (within != null) {
+    within.show(view(within));
+    within.closed.then((_) {
+      if (!answered.isCompleted) answered.complete(null);
+    });
+    return answered.future;
+  }
+  await showBlurSheet(context, view);
+  if (!answered.isCompleted) answered.complete(null);
+  return answered.future;
+}
+
+/// The field itself, owning its controller for exactly as long as it is
+/// on screen.
+class _BlurPasswordField extends StatefulWidget {
+  const _BlurPasswordField({required this.onChanged, required this.onSubmitted});
+
+  final ValueChanged<String> onChanged;
+  final VoidCallback onSubmitted;
+
+  @override
+  State<_BlurPasswordField> createState() => _BlurPasswordFieldState();
+}
+
+class _BlurPasswordFieldState extends State<_BlurPasswordField> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SondrField(
+    controller: _controller,
+    filled: false,
+    centered: true,
+    autofocus: true,
+    obscureText: true,
+    autocorrect: false,
+    textCapitalization: TextCapitalization.none,
+    textInputAction: TextInputAction.done,
+    onChanged: widget.onChanged,
+    onSubmitted: (_) => widget.onSubmitted(),
+  );
+}
+
+/// Show [view] in an open sheet and wait for its answer, or for the sheet
+/// to go without one.
+///
+/// A view shown inside an open sheet does NOT close it when answered: the
+/// flow that asked may have another view to cross-fade to, and only the
+/// flow knows when it is finished. Cancelling still closes, because
+/// Cancel is the sheet's own exit.
+Future<bool> _askWithin(
+  BlurSheetHandle handle,
+  BlurView Function(BlurSheetHandle, void Function(bool)) view,
+) {
+  final answered = Completer<bool>();
+  handle.show(view(handle, (yes) {
+    if (!answered.isCompleted) answered.complete(yes);
+  }));
+  handle.closed.then((_) {
+    if (!answered.isCompleted) answered.complete(false);
+  });
+  return answered.future;
 }
 
 /// A list of answers in the same frosted view.
@@ -187,26 +313,40 @@ Future<T?> showSondrChoice<T>(
   required List<({String label, T value})> choices,
   String cancelLabel = 'Cancel',
   Set<T> quiet = const {},
+  BlurSheetHandle? within,
 }) async {
+  BlurView view(void Function(T) answer) => BlurView(
+    title: title,
+    explanation: body,
+    items: [
+      for (final choice in choices)
+        BlurItem(
+          label: choice.label,
+          quiet: quiet.contains(choice.value),
+          onTap: () => answer(choice.value),
+        ),
+    ],
+    cancelLabel: cancelLabel,
+  );
+
+  if (within != null) {
+    final answered = Completer<T?>();
+    within.show(view((value) {
+      if (!answered.isCompleted) answered.complete(value);
+    }));
+    within.closed.then((_) {
+      if (!answered.isCompleted) answered.complete(null);
+    });
+    return answered.future;
+  }
+
   T? picked;
   await showBlurSheet(
     context,
-    (handle) => BlurView(
-      title: title,
-      explanation: body,
-      items: [
-        for (final choice in choices)
-          BlurItem(
-            label: choice.label,
-            quiet: quiet.contains(choice.value),
-            onTap: () {
-              picked = choice.value;
-              handle.close();
-            },
-          ),
-      ],
-      cancelLabel: cancelLabel,
-    ),
+    (handle) => view((value) {
+      picked = value;
+      handle.close();
+    }),
   );
   return picked;
 }

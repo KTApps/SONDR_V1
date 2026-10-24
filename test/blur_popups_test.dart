@@ -154,6 +154,8 @@ void main() {
     });
   });
 
+  group('one flow, one blur', chained);
+
   group('what was not converted', () {
     testWidgets('a text prompt is still its own card', (tester) async {
       await run<String?>(
@@ -169,5 +171,122 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('New task'), findsOneWidget);
     });
+  });
+}
+
+/// One flow, one blur: the chained questions cross-fade in place.
+///
+/// This is the shape of Block → confirm, Report → reasons, and
+/// Delete account → confirm → password. The flows themselves are tested
+/// where they live; what is tested here is that a question asked inside
+/// an open sheet never opens a second one, and that answering it does
+/// not close the sheet out from under what comes next.
+void chained() {
+  testWidgets('a confirm inside a sheet stays in it', (tester) async {
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+    bool? said;
+    var reached = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: TextButton(
+                onPressed: () => showBlurSheet(context, (handle) {
+                  return BlurView(
+                    items: [
+                      BlurItem(
+                        label: 'Block',
+                        onTap: () async {
+                          said = await showSondrConfirm(
+                            context,
+                            title: 'Block them?',
+                            body: 'They will not see you.',
+                            confirmLabel: 'Block',
+                            within: handle,
+                          );
+                          reached = true;
+                          handle.close();
+                        },
+                      ),
+                    ],
+                  );
+                }),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.byType(BackdropFilter), findsOneWidget);
+
+    await tester.tap(find.text('Block'));
+    await tester.pumpAndSettle();
+    // The confirm, in the same blur and the same route.
+    expect(find.text('Block them?'), findsOneWidget);
+    expect(find.byType(BackdropFilter), findsOneWidget);
+    expect(find.byType(BlurSheet), findsOneWidget);
+
+    await tester.tap(find.text('Block').last);
+    await tester.pumpAndSettle();
+    expect(said, isTrue);
+    expect(reached, isTrue);
+    expect(find.byType(BlurSheet), findsNothing);
+  });
+
+  testWidgets('cancelling a chained confirm is a no, and closes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+    bool? said;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: TextButton(
+                onPressed: () => showBlurSheet(
+                  context,
+                  (handle) => BlurView(
+                    items: [
+                      BlurItem(
+                        label: 'Block',
+                        onTap: () async {
+                          said = await showSondrConfirm(
+                            context,
+                            title: 'Block them?',
+                            body: 'They will not see you.',
+                            confirmLabel: 'Block',
+                            within: handle,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Block'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(said, isFalse, reason: 'a dismissal has to read as a no');
+    expect(find.byType(BlurSheet), findsNothing);
   });
 }

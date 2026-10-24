@@ -419,8 +419,13 @@ void main() {
       // This fake refuses the password, so the cascade is never reached and
       // the line still goes up: nothing was deleted, and the word that
       // opened the sheet is what says so.
+      expect(find.text(kPasswordPrompt), findsOneWidget);
+      expect(find.text(kDeleteAccountConfirm), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'pw');
-      await tester.tap(find.text(kDeleteAccountConfirm));
+      // Submitted from the keyboard. Tapping the answer works the same
+      // way — both call the same thing — but a focused field in a test
+      // puts a selection toolbar over everything below it.
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
       expect(erasure.runs, 0);

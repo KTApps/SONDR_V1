@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Where the session lives, as bytes.
@@ -25,6 +26,109 @@ enum SessionBroadcast {
       nil,
       true
     )
+  }
+}
+
+/// When this process started — if this process is the app.
+///
+/// A tap on the widget or the card runs a LiveActivityIntent, and the
+/// system launches the app to perform it. By the time `perform()` reads
+/// the clock the tap is a launch behind. The kernel knows when the
+/// process started; if the intent performs within a breath of that, the
+/// launch WAS the tap, and the start time is the nearest thing to the tap
+/// time that exists on this platform. Recorded by AppDelegate; never set
+/// in the extension, so an intent performed there uses its own clock,
+/// which is the tap time already.
+enum LaunchAnchor {
+  static private(set) var processLaunchedAt: Date?
+
+  /// How soon after launch a performed intent is taken to have caused it.
+  static let threshold: TimeInterval = 2.5
+
+  static func record() {
+    processLaunchedAt = ProcessStart.time ?? Date()
+  }
+}
+
+/// The kernel's record of when this process began.
+enum ProcessStart {
+  static var time: Date? {
+    var info = kinfo_proc()
+    var size = MemoryLayout<kinfo_proc>.stride
+    var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+    guard sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0) == 0 else { return nil }
+    let tv = info.kp_proc.p_starttime
+    return Date(
+      timeIntervalSince1970: TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000
+    )
+  }
+}
+
+/// The instant a tap happened, as near as this process can tell.
+enum TapTime {
+  struct Resolution: Equatable {
+    let stamp: Date
+    /// Whether the stamp is earlier than the clock said.
+    let backDated: Bool
+    /// How long this process had been alive, if that is known here.
+    let launchAge: TimeInterval?
+  }
+
+  /// `now` is the clock at perform; `launchedAt` the process start, if
+  /// this is the app; `notBefore` the session's last written instant,
+  /// which no stamp may precede — a pause cannot come before the start it
+  /// pauses, nor a resume before the pause it ends.
+  static func resolve(
+    now: Date,
+    launchedAt: Date?,
+    notBefore: Date?,
+    threshold: TimeInterval = LaunchAnchor.threshold
+  ) -> Resolution {
+    var stamp = now
+    var age: TimeInterval?
+    if let launchedAt {
+      let a = now.timeIntervalSince(launchedAt)
+      age = a
+      if a >= 0 && a <= threshold { stamp = launchedAt }
+    }
+    if let notBefore, stamp < notBefore { stamp = notBefore }
+    if stamp > now { stamp = now }
+    return Resolution(stamp: stamp, backDated: stamp < now, launchAge: age)
+  }
+}
+
+/// What each intent did with its clock — for the debug panel only.
+///
+/// Written only when the app has left `sondr.debug.enabled` in the App
+/// Group, which it does under DEBUG_TOOLS and never otherwise, so a
+/// release build neither writes nor reads this.
+enum IntentTrace {
+  static let key = "sondr.debug.intents"
+  static let enabledKey = "sondr.debug.enabled"
+
+  static func record(
+    _ kind: String,
+    performedAt: Date,
+    _ tap: TapTime.Resolution,
+    defaults: UserDefaults? = SessionBox.sharedDefaults
+  ) {
+    guard let defaults, defaults.bool(forKey: enabledKey) else { return }
+    var entries: [[String: Any]] = []
+    if let raw = defaults.string(forKey: key), let data = raw.data(using: .utf8),
+      let old = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] {
+      entries = old
+    }
+    entries.append([
+      "kind": kind,
+      "performedAt": Int64(performedAt.timeIntervalSince1970 * 1000),
+      "launchAge": tap.launchAge.map { Int($0 * 1000) } ?? -1,
+      "backDated": tap.backDated,
+      "finalStamp": Int64(tap.stamp.timeIntervalSince1970 * 1000),
+      "process": Bundle.main.bundleIdentifier ?? "?",
+    ])
+    guard let out = try? JSONSerialization.data(withJSONObject: Array(entries.suffix(3)))
+    else { return }
+    defaults.set(String(decoding: out, as: UTF8.self), forKey: key)
   }
 }
 

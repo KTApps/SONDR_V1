@@ -71,16 +71,27 @@ enum SessionControl {
   /// it must not become the first tap undone.
   ///
   /// `reload` is injectable so a test can see it was asked for.
+  ///
+  /// The instant written is the tap's, not the clock's: see `TapTime`. A
+  /// pause can never land before the session started, nor a resume before
+  /// the pause it ends.
   static func apply(
     _ change: Change,
     now: Date = Date(),
+    launchedAt: Date? = LaunchAnchor.processLaunchedAt,
     defaults: UserDefaults? = SessionBox.sharedDefaults,
     reload: () -> Void = { WidgetCenter.shared.reloadAllTimelines() }
   ) async {
     guard let current = SessionBox.read(from: defaults) else { return }
+    let snapshot = SessionSnapshot.from(current)
+    let floor: Date? = switch change {
+    case .pause: snapshot?.startedAt
+    case .resume: snapshot?.pausedAt
+    }
+    let tap = TapTime.resolve(now: now, launchedAt: launchedAt, notBefore: floor)
     let changed = switch change {
-    case .pause: SessionMutation.pause(current, at: now)
-    case .resume: SessionMutation.resume(current, at: now)
+    case .pause: SessionMutation.pause(current, at: tap.stamp)
+    case .resume: SessionMutation.resume(current, at: tap.stamp)
     }
     guard let changed else {
       // Already there. The widget is the one that is behind.
@@ -98,6 +109,9 @@ enum SessionControl {
     // from a clock that has been paused under it.
     reload()
     SessionBroadcast.post()
+    IntentTrace.record(
+      change == .pause ? "pause" : "resume", performedAt: now, tap, defaults: defaults
+    )
 
     // Never a staleDate — see SessionActivityChannel.content(of:). The
     // card is redrawn from the session at this push and holds until the

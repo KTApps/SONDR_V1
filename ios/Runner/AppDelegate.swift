@@ -7,6 +7,9 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // First thing: when did this process start? An intent performed a
+    // breath later was the reason it started. See LaunchAnchor.
+    LaunchAnchor.record()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

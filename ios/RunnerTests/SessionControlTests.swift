@@ -168,4 +168,85 @@ final class SessionControlTests: XCTestCase {
     XCTAssertNotNil(stored()?["pausedAt"])
     XCTAssertEqual(reloads, 1)
   }
+
+  // MARK: - The stamp is the tap, not the launch
+
+  func testAnIntentPerformedJustAfterLaunchIsStampedAtTheLaunch() async {
+    put(running())
+    let launched = t0.addingTimeInterval(3600)
+    await SessionControl.apply(
+      .pause, now: launched.addingTimeInterval(1.8), launchedAt: launched,
+      defaults: defaults, reload: {}
+    )
+    XCTAssertEqual(ms(stored()?["pausedAt"]), 1_760_003_600_000)
+  }
+
+  func testAWarmProcessUsesItsClock() async {
+    put(running())
+    let now = t0.addingTimeInterval(3600)
+    await SessionControl.apply(
+      .pause, now: now, launchedAt: now.addingTimeInterval(-60),
+      defaults: defaults, reload: {}
+    )
+    XCTAssertEqual(ms(stored()?["pausedAt"]), 1_760_003_600_000)
+  }
+
+  func testNoAnchorMeansTheClock() async {
+    // The extension never records a launch; its clock is the tap time.
+    put(running())
+    let now = t0.addingTimeInterval(3600)
+    await SessionControl.apply(
+      .pause, now: now, launchedAt: nil, defaults: defaults, reload: {}
+    )
+    XCTAssertEqual(ms(stored()?["pausedAt"]), 1_760_003_600_000)
+  }
+
+  func testAPauseIsNeverBeforeTheStart() async {
+    // Started half a second ago; the process launched a second ago.
+    var session = running()
+    session["startedAt"] = 1_760_003_599_500
+    put(session)
+    let now = t0.addingTimeInterval(3600)
+    await SessionControl.apply(
+      .pause, now: now, launchedAt: now.addingTimeInterval(-1),
+      defaults: defaults, reload: {}
+    )
+    XCTAssertEqual(ms(stored()?["pausedAt"]), 1_760_003_599_500)
+  }
+
+  func testAResumeIsNeverBeforeThePause() async {
+    var session = running()
+    session["pausedAt"] = 1_760_003_599_500
+    put(session)
+    let now = t0.addingTimeInterval(3600)
+    await SessionControl.apply(
+      .resume, now: now, launchedAt: now.addingTimeInterval(-1),
+      defaults: defaults, reload: {}
+    )
+    // Resumed at the pause itself: nothing waited, nothing folded in.
+    XCTAssertEqual(ms(stored()?["pausedMs"]), 0)
+    XCTAssertNil(stored()?["pausedAt"])
+  }
+
+  func testTapTimeResolution() {
+    let now = Date(timeIntervalSince1970: 1_000)
+    let cold = TapTime.resolve(now: now, launchedAt: now.addingTimeInterval(-2), notBefore: nil)
+    XCTAssertEqual(cold.stamp, now.addingTimeInterval(-2))
+    XCTAssertTrue(cold.backDated)
+    XCTAssertEqual(cold.launchAge ?? 0, 2, accuracy: 0.001)
+
+    let warm = TapTime.resolve(now: now, launchedAt: now.addingTimeInterval(-2.6), notBefore: nil)
+    XCTAssertEqual(warm.stamp, now)
+    XCTAssertFalse(warm.backDated)
+
+    let guarded = TapTime.resolve(
+      now: now, launchedAt: now.addingTimeInterval(-2), notBefore: now.addingTimeInterval(-1)
+    )
+    XCTAssertEqual(guarded.stamp, now.addingTimeInterval(-1))
+    XCTAssertTrue(guarded.backDated)
+
+    // A clock that reads before the launch is not trusted either way.
+    let odd = TapTime.resolve(now: now, launchedAt: now.addingTimeInterval(5), notBefore: nil)
+    XCTAssertEqual(odd.stamp, now)
+  }
 }

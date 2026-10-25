@@ -107,6 +107,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
       onPause: timer.pause,
       onResume: timer.start,
       onStop: () => _onStop(context, ref),
+      onStopAt: (at) => _onStopAt(context, ref, at),
     ).handle(action);
   }
 

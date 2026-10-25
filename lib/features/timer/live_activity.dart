@@ -140,6 +140,7 @@ class CardTapRouter {
     required this.onPause,
     required this.onResume,
     required this.onStop,
+    this.onStopAt,
   });
 
   /// Completes when the app knows what session, if any, is running.
@@ -158,14 +159,30 @@ class CardTapRouter {
   final void Function() onResume;
   final Future<void> Function() onStop;
 
+  /// A stop asked for at a known instant — the Home Screen widget's,
+  /// which the app only hears about when it comes to the front. The
+  /// session ends then, and nothing after it is credited. Null falls
+  /// back to [onStop].
+  final Future<void> Function(DateTime at)? onStopAt;
+
   static CardTap? parse(String action) => switch (action) {
     'pause' => CardTap.pause,
     'resume' => CardTap.resume,
     'stop' => CardTap.stop,
     'home' => CardTap.home,
+    _ when action.startsWith('stop:') => CardTap.stop,
     // A card left over from a build that spoke a word this one does not.
     _ => null,
   };
+
+  /// The instant a `stop:<epoch ms>` was asked for; null for a bare stop
+  /// or anything unreadable.
+  static DateTime? stopInstant(String action) {
+    if (!action.startsWith('stop:')) return null;
+    final ms = int.tryParse(action.substring(5));
+    if (ms == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(ms);
+  }
 
   Future<void> handle(String action) async {
     final tap = parse(action);
@@ -179,7 +196,13 @@ class CardTapRouter {
       case CardTap.resume:
         onResume();
       case CardTap.stop:
-        await onStop();
+        final at = stopInstant(action);
+        final stopAt = onStopAt;
+        if (at != null && stopAt != null) {
+          await stopAt(at);
+        } else {
+          await onStop();
+        }
       case CardTap.home:
         break;
     }

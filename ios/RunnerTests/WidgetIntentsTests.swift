@@ -199,25 +199,74 @@ final class WidgetIntentsTests: XCTestCase {
 
   func testStopLeavesAFlagTheAppTakesOnce() async {
     writeSnapshot(selected: "a")
+    let began = Date(timeIntervalSince1970: 1_700_000_000)
     _ = await SessionStart.begin(
-      taskId: "a", defaults: defaults, requestCard: false
+      taskId: "a", now: began, defaults: defaults, requestCard: false
     )
 
-    PendingStop.set(defaults: defaults)
+    let tapped = began.addingTimeInterval(600)
+    PendingStop.set(now: tapped, launchedAt: nil, defaults: defaults)
     XCTAssertTrue(defaults.bool(forKey: PendingStop.key), "nothing was written")
 
-    XCTAssertTrue(PendingStop.take(defaults: defaults), "the stop was not seen")
-    XCTAssertFalse(PendingStop.take(defaults: defaults), "the stop was seen twice")
+    XCTAssertEqual(PendingStop.take(defaults: defaults), tapped, "the stop was not seen")
+    XCTAssertNil(PendingStop.take(defaults: defaults), "the stop was seen twice")
     XCTAssertFalse(defaults.bool(forKey: PendingStop.key), "the flag was left behind")
+    XCTAssertNil(defaults.object(forKey: PendingStop.atKey), "the instant was left behind")
+  }
+
+  func testAStopTappedJustAfterLaunchIsStampedAtTheLaunch() async {
+    writeSnapshot(selected: "a")
+    let began = Date(timeIntervalSince1970: 1_700_000_000)
+    _ = await SessionStart.begin(
+      taskId: "a", now: began, defaults: defaults, requestCard: false
+    )
+    let launched = began.addingTimeInterval(600)
+    PendingStop.set(now: launched.addingTimeInterval(2), launchedAt: launched, defaults: defaults)
+    XCTAssertEqual(PendingStop.take(defaults: defaults), launched)
+  }
+
+  func testAStopIsNeverBeforeTheSessionsLastInstant() async {
+    writeSnapshot(selected: "a")
+    let began = Date(timeIntervalSince1970: 1_700_000_000)
+    _ = await SessionStart.begin(
+      taskId: "a", now: began, defaults: defaults, requestCard: false
+    )
+    // An instant before the session even started cannot be the end of it.
+    PendingStop.set(now: began.addingTimeInterval(-5), launchedAt: nil, defaults: defaults)
+    XCTAssertEqual(PendingStop.take(defaults: defaults), began)
   }
 
   func testAStopWithNoSessionIsClearedAndIgnored() {
     PendingStop.set(defaults: defaults)
-    XCTAssertFalse(PendingStop.take(defaults: defaults))
+    XCTAssertNil(PendingStop.take(defaults: defaults))
     XCTAssertFalse(defaults.bool(forKey: PendingStop.key))
   }
 
   func testNoFlagIsNoStop() {
-    XCTAssertFalse(PendingStop.take(defaults: defaults))
+    XCTAssertNil(PendingStop.take(defaults: defaults))
+  }
+
+  // MARK: - Starting at the tap
+
+  func testAStartJustAfterLaunchBeginsAtTheLaunch() async {
+    writeSnapshot(selected: "a")
+    let launched = Date(timeIntervalSince1970: 1_700_000_000)
+    _ = await SessionStart.begin(
+      taskId: "a", now: launched.addingTimeInterval(2), launchedAt: launched,
+      defaults: defaults, requestCard: false
+    )
+    let session = SessionBox.read(from: defaults).flatMap(SessionSnapshot.from)
+    XCTAssertEqual(session?.startedAt, launched)
+  }
+
+  func testAStartFromAWarmProcessBeginsNow() async {
+    writeSnapshot(selected: "a")
+    let now = Date(timeIntervalSince1970: 1_700_000_000)
+    _ = await SessionStart.begin(
+      taskId: "a", now: now, launchedAt: now.addingTimeInterval(-30),
+      defaults: defaults, requestCard: false
+    )
+    let session = SessionBox.read(from: defaults).flatMap(SessionSnapshot.from)
+    XCTAssertEqual(session?.startedAt, now)
   }
 }

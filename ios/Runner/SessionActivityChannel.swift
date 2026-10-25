@@ -257,8 +257,11 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
   /// the same word, the same hold-back until Dart has read the session.
   /// A flag with no session behind it is cleared and nothing happens.
   func sceneDidBecomeActive(_ scene: UIScene) {
-    guard PendingStop.take() else { return }
-    if listening { send("stop") } else { waiting.append("stop") }
+    guard let at = PendingStop.take() else { return }
+    // The instant of the tap rides along: the session ends then, and
+    // nothing after it is credited.
+    let action = "stop:\(Int64(at.timeIntervalSince1970 * 1000))"
+    if listening { send(action) } else { waiting.append(action) }
   }
 
   func scene(

@@ -180,24 +180,41 @@ struct SelectTaskIntent: AppIntent {
 /// card's link takes, hold-back included.
 enum PendingStop {
   static let key = "sondr.pendingStop"
+  static let atKey = "sondr.pendingStopAt"
 
+  /// Leave the flag, and the instant of the tap beside it: the session
+  /// ends THEN, not when the app has come to the front to hear about it.
   static func set(
+    now: Date = Date(),
+    launchedAt: Date? = LaunchAnchor.processLaunchedAt,
     defaults: UserDefaults? = UserDefaults(suiteName: WidgetSnapshot.appGroup)
   ) {
-    defaults?.set(true, forKey: key)
+    guard let defaults else { return }
+    let tap = TapTime.resolve(now: now, launchedAt: launchedAt, notBefore: nil)
+    defaults.set(true, forKey: key)
+    defaults.set(Int64(tap.stamp.timeIntervalSince1970 * 1000), forKey: atKey)
+    IntentTrace.record("stop", performedAt: now, tap, defaults: defaults)
   }
 
-  /// Whether a stop is waiting, clearing it either way. Taken once: a
-  /// stop that is acted on twice would stop the next session too.
+  /// The instant a waiting stop was asked for, clearing it either way.
+  /// Taken once: a stop that is acted on twice would stop the next
+  /// session too.
   ///
-  /// A flag with no session behind it is cleared and ignored — the
-  /// session ended some other way before the app got here.
+  /// Nil with no session behind it — it ended some other way before the
+  /// app got here. Never earlier than the session's last written instant.
   static func take(
     defaults: UserDefaults? = UserDefaults(suiteName: WidgetSnapshot.appGroup)
-  ) -> Bool {
-    guard let defaults, defaults.bool(forKey: key) else { return false }
+  ) -> Date? {
+    guard let defaults, defaults.bool(forKey: key) else { return nil }
+    let ms = defaults.object(forKey: atKey) as? NSNumber
     defaults.removeObject(forKey: key)
-    return SessionBox.read(from: defaults) != nil
+    defaults.removeObject(forKey: atKey)
+    guard let session = SessionBox.read(from: defaults).flatMap(SessionSnapshot.from)
+    else { return nil }
+    var at = ms.map { Date(timeIntervalSince1970: $0.doubleValue / 1000) } ?? Date()
+    let floor = session.pausedAt ?? session.startedAt
+    if at < floor { at = floor }
+    return at
   }
 }
 
@@ -283,10 +300,14 @@ enum SessionStart {
   static func begin(
     taskId: String,
     now: Date = Date(),
+    launchedAt: Date? = LaunchAnchor.processLaunchedAt,
     defaults: UserDefaults? = UserDefaults(suiteName: WidgetSnapshot.appGroup),
     requestCard: Bool = true
   ) async -> Bool {
     guard SessionBox.read(from: defaults) == nil else { return false }
+    // The session starts when the tap happened, not when the app had
+    // finished launching to hear about it. See TapTime.
+    let tap = TapTime.resolve(now: now, launchedAt: launchedAt, notBefore: nil)
     let snapshot = WidgetSnapshot.read(from: defaults) ?? WidgetSnapshot()
     guard let task = snapshot.task(taskId) ?? snapshot.selected else {
       return false
@@ -296,7 +317,7 @@ enum SessionStart {
       taskId: task.id,
       taskName: task.name,
       taskSecondsBefore: task.total,
-      startedAt: now
+      startedAt: tap.stamp
     )
     // The selection first: once the session is written down nothing may
     // change which task is shown, this included.
@@ -307,6 +328,7 @@ enum SessionStart {
     // widget, and tell the app.
     WidgetCenter.shared.reloadAllTimelines()
     SessionBroadcast.post()
+    IntentTrace.record("start", performedAt: now, tap, defaults: defaults)
 
     guard requestCard else { return true }
     guard

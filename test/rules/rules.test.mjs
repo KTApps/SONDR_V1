@@ -69,6 +69,19 @@ describe('posts', () => {
     });
   });
 
+  it('a post carrying the story fields is accepted — nothing validates keys', async () => {
+    const db = as(A);
+    await assertSucceeds(setDoc(doc(db, 'posts/story1'), {
+      authorUid: A, audience: [A, B], type: 'milestone', createdAt: serverTimestamp(),
+      taskName: 'Spanish', milestoneHours: 20, totalHours: 21,
+      photos: [{ url: 'u', storagePath: 'p', sessionIndex: 0 }],
+      sessions: [{ at: 1000, seconds: 3600, photo: true }],
+      unit: 'session',
+    }));
+    // Leave the fixtures as the other tests expect them.
+    await assertSucceeds(deleteDoc(doc(db, 'posts/story1')));
+  });
+
   it('the feed query returns what the reader is in', async () => {
     const q = query(collection(as(C), 'posts'),
       where('audience', 'array-contains', C), orderBy('createdAt', 'desc'));

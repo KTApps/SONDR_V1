@@ -11,6 +11,7 @@ import '../notifications/notifications_repository.dart';
 import 'models/comment.dart';
 import '../friends/friends_repository.dart';
 import '../reports/report.dart';
+import 'band_story.dart' show SegmentUnit;
 import 'models/post.dart';
 
 /// Reads the friends-only feed and creates posts. Posts live in a top-level
@@ -426,31 +427,47 @@ class PostsRepository {
     await _posts.doc(post.id).delete();
   }
 
+  /// [segments] and [unit] are the story: the band's effort, by session or
+  /// — where the task predates the session log — by day. Additive: a post
+  /// without them is an old one and still reads.
   Future<String> createMilestonePost({
     required String taskName,
     required int milestoneHours,
     required int totalHours,
     String? caption,
     List<PostPhoto> photos = const [],
+    List<PostSegment> segments = const [],
+    SegmentUnit? unit,
   }) => _create(
     'milestone',
     {
       'taskName': taskName,
       'milestoneHours': milestoneHours,
       'totalHours': totalHours,
+      if (segments.isNotEmpty && unit != null) ...{
+        'sessions': [for (final s in segments) s.toMap()],
+        'unit': unit.name,
+      },
     },
     caption: caption,
     photos: photos,
   );
 
+  /// [bandSeconds]: the task's seconds into its band after this session,
+  /// for the card's ring.
   Future<String> createSessionPost({
     required String taskName,
     required int sessionSeconds,
     String? caption,
     List<PostPhoto> photos = const [],
+    int? bandSeconds,
   }) => _create(
     'session',
-    {'taskName': taskName, 'sessionSeconds': sessionSeconds},
+    {
+      'taskName': taskName,
+      'sessionSeconds': sessionSeconds,
+      'bandSeconds': ?bandSeconds,
+    },
     caption: caption,
     photos: photos,
   );

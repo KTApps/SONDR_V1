@@ -114,4 +114,71 @@ void main() {
       expect(profile, contains(unit), reason: '$unit should be lowercase');
     }
   });
+
+  /// The timer's own words, in three languages.
+  ///
+  /// Home and Focus Mode are Dart, the Home Screen widget and the Lock
+  /// Screen card are Swift, and nothing but this links them. The rule:
+  /// the control that gets a session going is the right-hand one and
+  /// reads "Start" — even going again after a pause — and a screen
+  /// reader is told "Resume" there, because that is what it does.
+  group('the timer says the same words everywhere', () {
+    test('the paused control reads "Start" and is spoken "Resume"', () {
+      final dart = File(
+        'lib/features/timer/timer_screen.dart',
+      ).readAsStringSync();
+      expect(dart, contains("secondLabel: 'Start',"));
+      expect(dart, contains("secondSemanticLabel: 'Resume',"));
+      expect(
+        dart.contains("firstLabel: 'Resume'"),
+        isFalse,
+        reason: 'the paused control went back to saying Resume',
+      );
+
+      final focus = File(
+        'lib/features/focus/focus_view.dart',
+      ).readAsStringSync();
+      expect(focus, contains("firstLabel: 'Stop',"));
+      expect(focus, contains("isRunning ? 'Pause' : 'Start'"));
+
+      final words = File(
+        'ios/SondrWidgets/WidgetTasks.swift',
+      ).readAsStringSync();
+      expect(words, contains('static let start = "Start"'));
+      expect(words, contains('static let pause = "Pause"'));
+      expect(words, contains('static let resumeSpoken = "Resume"'));
+
+      for (final path in const [
+        'ios/SondrWidgets/SondrTaskWidget.swift',
+        'ios/SondrWidgets/SondrSessionActivity.swift',
+      ]) {
+        final src = File(path).readAsStringSync();
+        expect(
+          src,
+          contains('.accessibilityLabel(PrimaryWord.resumeSpoken)'),
+          reason: '$path does not say what it does',
+        );
+        expect(
+          src.contains('word: "Resume"') || src.contains('word("Resume")'),
+          isFalse,
+          reason: '$path writes Resume where it should say Start',
+        );
+      }
+    });
+
+    test('every control on the widget is plain text', () {
+      final src = File(
+        'ios/SondrWidgets/SondrTaskWidget.swift',
+      ).readAsStringSync();
+      final buttons = 'Button('.allMatches(src).length;
+      final plain = '.buttonStyle(.plain)'.allMatches(src).length;
+      expect(
+        plain,
+        buttons,
+        reason:
+            'a widget Button without a plain style is drawn by the system '
+            'as a tinted capsule',
+      );
+    });
+  });
 }

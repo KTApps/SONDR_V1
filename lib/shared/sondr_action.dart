@@ -28,10 +28,19 @@ class SondrAction extends StatelessWidget {
     this.supporting = false,
     this.weight,
     this.fontSize = 15,
+    this.semanticLabel,
   });
 
   final String label;
   final VoidCallback? onPressed;
+
+  /// What a screen reader says, where that is not the label.
+  ///
+  /// The paused timer reads "Start" — the word for going again — but it
+  /// resumes the session that is already there, and "Resume" is what
+  /// VoiceOver should say. The widget and the Lock Screen card make the
+  /// same split.
+  final String? semanticLabel;
 
   /// An exit or low-priority action — Sign out, and later Remove / Block /
   /// Delete. Grey and regular weight so it sits below the primary actions,
@@ -79,6 +88,7 @@ class SondrAction extends StatelessWidget {
         ),
         child: Text(
           label,
+          semanticsLabel: semanticLabel,
           style: theme.textTheme.bodyMedium?.copyWith(
             fontSize: fontSize * scale,
             fontWeight:
@@ -110,12 +120,31 @@ class SondrActionPair extends StatelessWidget {
     required this.onFirst,
     required this.secondLabel,
     required this.onSecond,
+    this.secondSemanticLabel,
+    this.firstWords,
+    this.secondWords,
   });
 
   final String firstLabel;
   final VoidCallback? onFirst;
   final String secondLabel;
   final VoidCallback? onSecond;
+
+  /// What a screen reader says for the second action. See
+  /// [SondrAction.semanticLabel].
+  final String? secondSemanticLabel;
+
+  /// Every word each place can ever show.
+  ///
+  /// The timer's control changes its words as the session does — Focus /
+  /// Start, Stop / Pause, Stop / Start — and laid out pair by pair the
+  /// right-hand control moves under the finger between states. Given the
+  /// whole vocabulary of a place, [SondrActionSlot] lays all of it out
+  /// and shows one, so the place is as wide as its widest word and never
+  /// moves. Null on both is the plain behaviour: two actions, side by
+  /// side, centred.
+  final List<String>? firstWords;
+  final List<String>? secondWords;
 
   /// Extra space between the pair, over and above each action's own padding.
   /// Public so a pair that cannot use this widget — one whose two actions
@@ -130,11 +159,75 @@ class SondrActionPair extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        SondrAction(label: firstLabel, onPressed: onFirst),
+        SondrActionSlot(
+          words: firstWords,
+          label: firstLabel,
+          onPressed: onFirst,
+        ),
         // On top of each action's own 20 of padding, so the labels sit 56
         // apart — enough to read as two buttons with nothing drawn between.
         SizedBox(width: gap * scale),
-        SondrAction(label: secondLabel, onPressed: onSecond),
+        SondrActionSlot(
+          words: secondWords,
+          label: secondLabel,
+          onPressed: onSecond,
+          semanticLabel: secondSemanticLabel,
+        ),
+      ],
+    );
+  }
+}
+
+/// One place in a pair, wide enough for every word it can show.
+///
+/// The other words are laid out and not painted — [Visibility] with
+/// `maintainSize`, which also takes them out of hit testing — so the
+/// place is sized by a real layout of the real actions rather than by a
+/// second, parallel measurement of the text. Nothing is ever drawn
+/// outside its own tap target, and the action you can see is the action
+/// you can press.
+///
+/// With no [words] it is simply the action: one word, its own width.
+class SondrActionSlot extends StatelessWidget {
+  const SondrActionSlot({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.words,
+    this.semanticLabel,
+  });
+
+  /// Every word this place can show, the current one included.
+  final List<String>? words;
+
+  /// The word it is showing now.
+  final String label;
+  final VoidCallback? onPressed;
+  final String? semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = SondrAction(
+      label: label,
+      onPressed: onPressed,
+      semanticLabel: semanticLabel,
+    );
+    final all = words;
+    if (all == null || all.length < 2) return shown;
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        for (final word in all)
+          if (word != label)
+            Visibility(
+              visible: false,
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: SondrAction(label: word, onPressed: null),
+            ),
+        shown,
       ],
     );
   }

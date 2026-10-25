@@ -8,6 +8,7 @@ import '../../core/utils/figma_scale.dart';
 import '../../shared/sondr_action.dart';
 import '../tasks/tasks_providers.dart';
 import '../timer/timer_controller.dart';
+import '../timer/timer_screen.dart';
 
 /// The quietened Focus Mode surface, shown in place of the home screen while a
 /// focused session runs. Everything is stripped away but the task, the live
@@ -98,11 +99,15 @@ class FocusView extends ConsumerWidget {
                 ),
                 gap,
 
+                // Stop on the left, the primary on the right — the same
+                // order, the same words and the same two places as Home.
                 SondrActionPair(
-                  firstLabel: isRunning ? 'Pause' : 'Resume',
-                  onFirst: isRunning ? controller.pause : controller.start,
-                  secondLabel: 'Stop',
-                  onSecond: onStop,
+                  firstLabel: 'Stop',
+                  onFirst: onStop,
+                  secondLabel: isRunning ? 'Pause' : 'Start',
+                  onSecond: isRunning ? controller.pause : controller.start,
+                  secondSemanticLabel: isRunning ? null : 'Resume',
+                  secondWords: TimerControls.rightWords,
                 ),
               ],
             ),

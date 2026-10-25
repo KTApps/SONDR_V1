@@ -72,6 +72,31 @@ void main() {
     expect(timer.isTicking, isTrue, reason: 'the clock is not repainting');
     expect(store.saved?.isPaused, isFalse, reason: 'the store is paused');
   });
+
+  test('the lifecycle observer is added once, however many starts', () async {
+    final c = makeContainer();
+    final timer = c.read(timerControllerProvider.notifier);
+    for (var i = 0; i < 3; i++) {
+      await timer.start();
+      now = now.add(const Duration(minutes: 1));
+      await timer.pause();
+      now = now.add(const Duration(minutes: 1));
+    }
+    await timer.start();
+    await store.settled;
+
+    // Coming to the foreground re-reads the store: once per observer.
+    final before = store.reads;
+    WidgetsBinding.instance.handleAppLifecycleStateChanged(
+      AppLifecycleState.resumed,
+    );
+    await pumpEventQueue();
+    expect(
+      store.reads - before,
+      1,
+      reason: 'each start had added the observer again',
+    );
+  });
 }
 
 /// A store whose writes land a turn later, as a platform channel's do,

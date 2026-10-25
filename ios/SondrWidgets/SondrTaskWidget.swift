@@ -214,6 +214,7 @@ struct SmallWidgetView: View {
           .font(.inter(20, .bold))
           .monospacedDigit()
           .foregroundStyle(Ink.primary)
+          .invalidatableContent()
       }
     }
   }
@@ -329,6 +330,7 @@ struct PrimaryAction: View {
     Text(text)
       .font(.inter(size, .bold))
       .foregroundStyle(Ink.primary)
+      .invalidatableContent()
   }
 }
 
@@ -350,6 +352,7 @@ struct StopAction: View {
       Text("Stop")
         .font(.inter(size, .regular))
         .foregroundStyle(Ink.secondary)
+        .invalidatableContent()
     }
     .buttonStyle(.plain)
   }
@@ -375,6 +378,9 @@ struct RunningTime: View {
     .font(.inter(size, .bold))
     .monospacedDigit()
     .foregroundStyle(session.isPaused ? Ink.tertiary : Ink.primary)
+    // Greyed from the tap until the next timeline lands, so a tap that
+    // takes a moment reads as taken, not ignored.
+    .invalidatableContent()
   }
 }
 
@@ -557,6 +563,7 @@ struct DayDial: View {
     }
     .frame(width: extent * Self.innerRatio - stroke * 2)
     .multilineTextAlignment(.center)
+    .invalidatableContent()
   }
 }
 

@@ -207,8 +207,14 @@ class TimerController extends Notifier<TimerState> {
     _ticker?.cancel();
     // Repaint, not count: every tick re-reads the clock.
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _publish());
-    final observer = _observer ??= _Resync(() => unawaited(sync()));
-    WidgetsBinding.instance.addObserver(observer);
+    // Once. This used to add the same observer on every start and resume,
+    // with nothing taking it away until dispose — so each foreground
+    // re-read the store once per session there had ever been.
+    if (_observer == null) {
+      final observer = _Resync(() => unawaited(sync()));
+      _observer = observer;
+      WidgetsBinding.instance.addObserver(observer);
+    }
   }
 
   /// The running session, for anything that needs more than its elapsed

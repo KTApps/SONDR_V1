@@ -119,4 +119,53 @@ final class SessionControlTests: XCTestCase {
       "two hours paused should not count as work"
     )
   }
+
+  // MARK: - Idempotent at the request
+
+  /// The second tap on a slow widget asks for a state the session is
+  /// already in. It writes nothing — and still redraws the widget, which
+  /// is the thing that was behind.
+  func testPausingAPausedSessionWritesNothingAndStillReloads() async {
+    var session = running()
+    session["pausedAt"] = 1_760_001_800_000
+    put(session)
+    let before = defaults.string(forKey: SessionSnapshot.key)
+    var reloads = 0
+
+    await SessionControl.apply(
+      .pause, now: t0.addingTimeInterval(7200), defaults: defaults,
+      reload: { reloads += 1 }
+    )
+
+    XCTAssertEqual(defaults.string(forKey: SessionSnapshot.key), before,
+                   "a second Pause rewrote the session")
+    XCTAssertEqual(reloads, 1)
+  }
+
+  func testResumingARunningSessionWritesNothingAndStillReloads() async {
+    put(running())
+    let before = defaults.string(forKey: SessionSnapshot.key)
+    var reloads = 0
+
+    await SessionControl.apply(
+      .resume, now: t0.addingTimeInterval(60), defaults: defaults,
+      reload: { reloads += 1 }
+    )
+
+    XCTAssertEqual(defaults.string(forKey: SessionSnapshot.key), before)
+    XCTAssertEqual(reloads, 1)
+  }
+
+  /// And a change that does land asks for the redraw too — once, right
+  /// after the write.
+  func testAChangeThatLandsReloadsOnce() async {
+    put(running())
+    var reloads = 0
+    await SessionControl.apply(
+      .pause, now: t0.addingTimeInterval(60), defaults: defaults,
+      reload: { reloads += 1 }
+    )
+    XCTAssertNotNil(stored()?["pausedAt"])
+    XCTAssertEqual(reloads, 1)
+  }
 }

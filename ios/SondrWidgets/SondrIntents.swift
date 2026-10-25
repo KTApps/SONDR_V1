@@ -62,26 +62,41 @@ enum SessionControl {
   /// Does nothing at all when there is nothing to do — no session, or a
   /// session already in the state being asked for. The card is redrawn
   /// only when something actually changed.
+  ///
+  /// Idempotent at the level of the request, not only of the arithmetic:
+  /// a Pause when already paused, or a Resume when already running,
+  /// writes nothing — and still asks the widget to redraw, because the
+  /// widget that offered the button is the one showing a state the
+  /// session has already left. That is the second tap on a slow widget:
+  /// it must not become the first tap undone.
+  ///
+  /// `reload` is injectable so a test can see it was asked for.
   static func apply(
     _ change: Change,
     now: Date = Date(),
-    defaults: UserDefaults? = SessionBox.sharedDefaults
+    defaults: UserDefaults? = SessionBox.sharedDefaults,
+    reload: () -> Void = { WidgetCenter.shared.reloadAllTimelines() }
   ) async {
     guard let current = SessionBox.read(from: defaults) else { return }
     let changed = switch change {
     case .pause: SessionMutation.pause(current, at: now)
     case .resume: SessionMutation.resume(current, at: now)
     }
+    guard let changed else {
+      // Already there. The widget is the one that is behind.
+      reload()
+      return
+    }
     guard
-      let changed,
       SessionBox.write(changed, to: defaults),
       let session = SessionSnapshot.from(changed)
     else { return }
 
-    // The session moved, so everything showing it is now wrong: the Home
-    // Screen widget redraws, and a running app is told to re-read rather
-    // than carry on counting from a clock that has been paused under it.
-    WidgetCenter.shared.reloadAllTimelines()
+    // The session moved, so everything showing it is now wrong. The
+    // widget first and at once — before the card's updates are awaited —
+    // then a running app is told to re-read rather than carry on counting
+    // from a clock that has been paused under it.
+    reload()
     SessionBroadcast.post()
 
     // Never a staleDate — see SessionActivityChannel.content(of:). The

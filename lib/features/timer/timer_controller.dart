@@ -75,7 +75,13 @@ class TimerController extends Notifier<TimerState> {
 
   @override
   TimerState build() {
+    // Pause and Resume on the Lock Screen card, and Start on the widget,
+    // change the stored session in another process — or in this one with
+    // no Dart involved. Swift says so the moment it happens, and the
+    // answer is the same as everywhere else: read what is written down.
+    final outside = _card.sessionChanges.listen((_) => unawaited(sync()));
     ref.onDispose(() {
+      unawaited(outside.cancel());
       _ticker?.cancel();
       final observer = _observer;
       if (observer != null) {

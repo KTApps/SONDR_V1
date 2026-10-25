@@ -6,6 +6,28 @@ import Foundation
 /// it. This reads and writes the dictionary underneath, because a button on
 /// the Lock Screen has to change one field and put everything else back
 /// exactly as it found it — including fields this build has never heard of.
+/// Saying, to anyone listening, that the stored session just changed.
+///
+/// A Darwin notification is the one signal that crosses processes on iOS
+/// without either side being awake for the other: the extension posts,
+/// and a running app hears it at once. The app observes it in
+/// SessionActivityChannel and re-reads the session — nothing polls, and
+/// nothing is carried in the notification itself, because the App Group
+/// already holds the truth.
+enum SessionBroadcast {
+  static let name = "com.tanakabere.sondr.sessionChanged"
+
+  static func post() {
+    CFNotificationCenterPostNotification(
+      CFNotificationCenterGetDarwinNotifyCenter(),
+      CFNotificationName(name as CFString),
+      nil,
+      nil,
+      true
+    )
+  }
+}
+
 enum SessionBox {
   static var sharedDefaults: UserDefaults? {
     UserDefaults(suiteName: SessionSnapshot.appGroup)

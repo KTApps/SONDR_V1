@@ -1,6 +1,7 @@
 import ActivityKit
 import AppIntents
 import Foundation
+import WidgetKit
 
 /// Pause and Resume, as the Lock Screen's own buttons.
 ///
@@ -76,6 +77,12 @@ enum SessionControl {
       SessionBox.write(changed, to: defaults),
       let session = SessionSnapshot.from(changed)
     else { return }
+
+    // The session moved, so everything showing it is now wrong: the Home
+    // Screen widget redraws, and a running app is told to re-read rather
+    // than carry on counting from a clock that has been paused under it.
+    WidgetCenter.shared.reloadAllTimelines()
+    SessionBroadcast.post()
 
     // Never a staleDate — see SessionActivityChannel.content(of:). The
     // card is redrawn from the session at this push and holds until the

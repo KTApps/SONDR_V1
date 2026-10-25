@@ -365,6 +365,8 @@ void main() async {
 }
 
 class _RecordingCard implements LiveActivity {
+  @override
+  Stream<void> get sessionChanges => const Stream<void>.empty();
   final List<String> calls = [];
   final List<SessionClock> shown = [];
   final StreamController<String> taps = StreamController<String>.broadcast();

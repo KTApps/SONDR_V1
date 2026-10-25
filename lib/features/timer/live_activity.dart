@@ -22,6 +22,16 @@ abstract class LiveActivity {
   /// Taps on the card, as bare actions: `stop`, `pause`, `resume`, `home`.
   Stream<String> get links;
 
+  /// Something outside the app changed the stored session.
+  ///
+  /// The card's Pause and Resume are intents, and so is the widget's
+  /// Start: they write the App Group in another process (or in this one,
+  /// without Dart), and nothing comes down the channel for them. Swift
+  /// posts a Darwin notification after every such write and this is it,
+  /// arriving here. It carries nothing — the answer is always to re-read
+  /// the session.
+  Stream<void> get sessionChanges;
+
   /// Say the app is ready to act on a tap.
   ///
   /// A card tapped while the app was not running has to wait: stopping a
@@ -41,11 +51,15 @@ class ChannelLiveActivity implements LiveActivity {
 
   final MethodChannel _channel;
   final StreamController<String> _taps = StreamController<String>.broadcast();
+  final StreamController<void> _changes = StreamController<void>.broadcast();
 
   Future<bool>? _asked;
 
   @override
   Stream<String> get links => _taps.stream;
+
+  @override
+  Stream<void> get sessionChanges => _changes.stream;
 
   /// Whether this phone can show a card at all.
   ///
@@ -78,6 +92,10 @@ class ChannelLiveActivity implements LiveActivity {
   }
 
   Future<void> _onCall(MethodCall call) async {
+    if (call.method == 'sessionChanged') {
+      _changes.add(null);
+      return;
+    }
     if (call.method != 'link') return;
     final action = call.arguments;
     if (action is String && action.isNotEmpty) _taps.add(action);

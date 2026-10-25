@@ -355,6 +355,8 @@ class _RecordingAuth implements AuthRepository {
 }
 
 class _RecordingCard implements LiveActivity {
+  @override
+  Stream<void> get sessionChanges => const Stream<void>.empty();
   _RecordingCard(this.order);
 
   final List<String> order;

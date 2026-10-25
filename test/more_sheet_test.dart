@@ -87,6 +87,8 @@ class _NoStore implements SessionStore {
 
 class _Card implements LiveActivity {
   @override
+  Stream<void> get sessionChanges => const Stream<void>.empty();
+  @override
   Future<void> clear() async {}
 
   @override

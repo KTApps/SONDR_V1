@@ -252,8 +252,12 @@ enum SessionStart {
     WidgetSelection.set(task.id, defaults: defaults)
     guard SessionBox.write(session, to: defaults) else { return false }
 
-    guard requestCard else { return true }
+    // One rule, everywhere the extension writes a session: redraw the
+    // widget, and tell the app.
     WidgetCenter.shared.reloadAllTimelines()
+    SessionBroadcast.post()
+
+    guard requestCard else { return true }
     guard
       ActivityAuthorizationInfo().areActivitiesEnabled,
       let decoded = SessionSnapshot.from(session)

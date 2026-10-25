@@ -37,10 +37,14 @@ Task _task(
 
 class _Recording implements WidgetBridge {
   final List<WidgetSnapshot> published = [];
+  int reloads = 0;
 
   @override
   Future<void> publish(WidgetSnapshot snapshot) async =>
       published.add(snapshot);
+
+  @override
+  Future<void> reload() async => reloads++;
 }
 
 /// The real store is a platform channel with nothing behind it in a

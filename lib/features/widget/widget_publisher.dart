@@ -33,6 +33,16 @@ final widgetSnapshotProvider = Provider<WidgetSnapshot>((ref) {
 /// because a timeline reload is not free.
 final widgetPublisherProvider = Provider<void>((ref) {
   final bridge = ref.watch(widgetBridgeProvider);
+
+  // Starting, pausing and stopping change the session, not the document
+  // — the widget reads the session itself — so there is nothing to
+  // publish and everything to redraw. Status, not elapsed: a tick is not
+  // news, and the widget counts its own seconds.
+  ref.listen<TimerStatus>(
+    timerControllerProvider.select((timer) => timer.status),
+    (_, _) => bridge.reload(),
+  );
+
   WidgetSnapshot? last;
   ref.listen<WidgetSnapshot>(
     widgetSnapshotProvider,

@@ -228,6 +228,8 @@ void main() {
 
 class _SilentCard implements LiveActivity {
   @override
+  Stream<void> get sessionChanges => const Stream<void>.empty();
+  @override
   Stream<String> get links => const Stream<String>.empty();
   @override
   Future<void> show(SessionClock clock) async {}

@@ -29,6 +29,10 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
   private var waiting: [String] = []
   private var listening = false
 
+  /// Registered once. The channel is a singleton for the app's life, so
+  /// the observer is never removed.
+  private var observing = false
+
   private override init() { super.init() }
 
   func register(with registrar: FlutterPluginRegistrar) {
@@ -44,6 +48,42 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
     // be one of them without replacing a method it implements and does not
     // declare.
     registrar.addSceneDelegate(self)
+    listenForSessionChanges()
+  }
+
+  /// Hear it when something outside the app changes the session.
+  ///
+  /// The Lock Screen card's Pause and Resume are intents, not links, so
+  /// nothing comes down the channel when they run — and the app, if it is
+  /// alive, carries on counting from a clock that has just been paused
+  /// under it, then writes it back. A Darwin notification is the one
+  /// cross-process signal that reaches a running app; the extension posts
+  /// it after every write (`SessionBroadcast`), and Dart answers by
+  /// re-reading the App Group. Nothing is carried in the notification:
+  /// the stored session is the truth, as always.
+  private func listenForSessionChanges() {
+    guard !observing else { return }
+    observing = true
+    CFNotificationCenterAddObserver(
+      CFNotificationCenterGetDarwinNotifyCenter(),
+      Unmanaged.passUnretained(self).toOpaque(),
+      { _, observer, _, _, _ in
+        guard let observer else { return }
+        let channel = Unmanaged<SessionActivityChannel>
+          .fromOpaque(observer)
+          .takeUnretainedValue()
+        // A Darwin callback arrives on an arbitrary thread; the channel
+        // must be spoken to on the main one.
+        DispatchQueue.main.async { channel.sessionChanged() }
+      },
+      SessionBroadcast.name as CFString,
+      nil,
+      .deliverImmediately
+    )
+  }
+
+  private func sessionChanged() {
+    channel?.invokeMethod("sessionChanged", arguments: nil)
   }
 
   // MARK: - Dart asking

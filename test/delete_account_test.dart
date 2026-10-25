@@ -103,6 +103,8 @@ class _Caches implements LocalCaches {
 }
 
 class _Card implements LiveActivity {
+  @override
+  Stream<void> get sessionChanges => const Stream<void>.empty();
   _Card(this.steps);
 
   final _Steps steps;

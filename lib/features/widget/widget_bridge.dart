@@ -16,6 +16,15 @@ import 'widget_snapshot.dart';
 /// the right shape.
 abstract interface class WidgetBridge {
   Future<void> publish(WidgetSnapshot snapshot);
+
+  /// Redraw the widget without changing what it reads.
+  ///
+  /// The session is not in the snapshot — it has its own document, which
+  /// the widget reads itself — so starting, pausing or stopping changes
+  /// nothing about the document and the publisher below has nothing to
+  /// send. The widget is still wrong, though: it is drawing a clock that
+  /// has just stopped. This is how it is told.
+  Future<void> reload();
 }
 
 class PlatformWidgetBridge implements WidgetBridge {
@@ -45,6 +54,15 @@ class PlatformWidgetBridge implements WidgetBridge {
       // A widget that misses one redraw shows the last thing it had,
       // which is never worse than the screen it is on top of.
       debugPrint('SONDR widget publish error: ${e.runtimeType}');
+    }
+  }
+
+  @override
+  Future<void> reload() async {
+    try {
+      await _channel.invokeMethod<void>('reloadWidgets');
+    } catch (e) {
+      debugPrint('SONDR widget reload error: ${e.runtimeType}');
     }
   }
 }

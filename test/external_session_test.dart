@@ -262,6 +262,8 @@ void main() {
 class _Gate {}
 
 class _RecordingCard implements LiveActivity {
+  @override
+  Stream<void> get sessionChanges => const Stream<void>.empty();
   final List<String> calls = [];
 
   @override

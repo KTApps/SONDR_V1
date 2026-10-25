@@ -6,8 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/date.dart';
 import '../feed/models/post.dart';
+import '../feed/story_builder.dart';
+import '../tasks/models/task.dart';
+import '../tasks/session_log.dart';
+import '../tasks/tasks_providers.dart';
 import '../feed/posts_repository.dart';
 import '../shell/main_shell.dart';
+import 'capture_crop.dart' show photoRequiredToPost;
 import 'capture_review_screen.dart';
 import 'models/photo.dart';
 import 'photo_refresh.dart';
@@ -49,7 +54,12 @@ Future<void> runCaptureFlow(
         ),
       ),
     );
-    if (shot == null || !context.mounted) return;
+    if (!context.mounted) return;
+    // A session post is its photo: Skip ends the journey. A milestone
+    // stands without one — the review's frame shows the milestone itself
+    // and the band's earlier photos can still be chosen — so Skip goes on.
+    final isMilestone = milestoneHours != null;
+    if (shot == null && photoRequiredToPost(isMilestone: isMilestone)) return;
 
     final outcome = await Navigator.of(context).push<ReviewOutcome>(
       MaterialPageRoute(
@@ -59,17 +69,10 @@ Future<void> runCaptureFlow(
           sessionLabel: sessionLabel,
           share: share,
           bandPhotos: bandPhotos,
-          onKeep: (ref) => _savePrivately(
-            ref,
-            shot: shot,
-            taskId: taskId,
-            taskName: taskName,
-            sessionSeconds: sessionSeconds,
-            cumulativeSeconds: cumulativeSeconds,
-            milestoneHours: milestoneHours,
-          ).then((id) => id != null),
-          onShare: (ref, caption, alsoPost) async {
-            final photoId = await _savePrivately(
+          milestoneHours: milestoneHours,
+          onKeep: (ref) async {
+            if (shot == null) return true;
+            final saved = await _savePrivately(
               ref,
               shot: shot,
               taskId: taskId,
@@ -78,17 +81,34 @@ Future<void> runCaptureFlow(
               cumulativeSeconds: cumulativeSeconds,
               milestoneHours: milestoneHours,
             );
-            if (photoId == null) return false;
+            return saved != null;
+          },
+          onShare: (ref, caption, alsoPost) async {
+            Photo? lead;
+            if (shot != null) {
+              lead = await _savePrivately(
+                ref,
+                shot: shot,
+                taskId: taskId,
+                taskName: taskName,
+                sessionSeconds: sessionSeconds,
+                cumulativeSeconds: cumulativeSeconds,
+                milestoneHours: milestoneHours,
+              );
+              if (lead == null) return false;
+            }
             return _post(
               ref,
               shot: shot,
+              lead: lead,
               caption: caption,
               alsoPost: alsoPost,
+              taskId: taskId,
               taskName: taskName,
               sessionSeconds: sessionSeconds,
+              cumulativeSeconds: cumulativeSeconds,
               milestoneHours: milestoneHours,
               totalHours: totalHours,
-              sourceIds: [photoId, for (final p in alsoPost) p.id],
             );
           },
         ),
@@ -105,9 +125,9 @@ Future<void> runCaptureFlow(
   }
 }
 
-/// Upload the binary and write the private photo doc. Returns the id, or null
-/// if it could not be saved.
-Future<String?> _savePrivately(
+/// Upload the binary and write the private photo doc. Returns the photo,
+/// or null if it could not be saved.
+Future<Photo?> _savePrivately(
   WidgetRef ref, {
   required Uint8List shot,
   required String taskId,
@@ -126,19 +146,18 @@ Future<String?> _savePrivately(
       await _materialise(shot, photoId),
       photoId: photoId,
     );
-    await repo.savePhoto(
-      Photo(
-        taskId: taskId,
-        taskName: taskName,
-        dayKey: DayKey.of(now),
-        timestamp: timestamp,
-        sessionSeconds: sessionSeconds,
-        photoUrl: up.url,
-        storagePath: up.storagePath,
-        milestoneHours: milestoneHours,
-        cumulativeSeconds: cumulativeSeconds,
-      ),
+    final photo = Photo(
+      taskId: taskId,
+      taskName: taskName,
+      dayKey: DayKey.of(now),
+      timestamp: timestamp,
+      sessionSeconds: sessionSeconds,
+      photoUrl: up.url,
+      storagePath: up.storagePath,
+      milestoneHours: milestoneHours,
+      cumulativeSeconds: cumulativeSeconds,
     );
+    await repo.savePhoto(photo);
     // Every surface that shows a photo is reading a cached one until it is
     // told otherwise — see [invalidatePhotoViews].
     // A photo taken at a crossing belongs in that milestone's collage, which
@@ -147,37 +166,69 @@ Future<String?> _savePrivately(
       await attachCrossingPhoto(ref, taskId, milestoneHours, photoId);
     }
     invalidatePhotoViews(ref);
-    return photoId;
+    return photo;
   } catch (e) {
     debugPrint('SONDR photo save error: ${e.runtimeType} :: $e');
     return null;
   }
 }
 
-/// Write the post. A milestone crossing posts as a milestone; anything else
-/// posts as a session.
+/// Write the post. A milestone crossing posts as a milestone — with the
+/// band's story, built here from the task, the session log and the chosen
+/// photos — anything else as a session, with its seconds into the band.
+///
+/// The photos are written in time order, the new one last, so the story's
+/// cover (the newest) is the crossing photo whenever there is one.
 Future<bool> _post(
   WidgetRef ref, {
-  required Uint8List shot,
+  required Uint8List? shot,
+  required Photo? lead,
   required String? caption,
   required List<Photo> alsoPost,
+  required String taskId,
   required String taskName,
   required int sessionSeconds,
-  required List<String> sourceIds,
+  required int cumulativeSeconds,
   int? milestoneHours,
   int? totalHours,
 }) async {
   final repo = ref.read(postsRepositoryProvider);
   if (repo == null) return false;
   try {
+    final ordered = [...alsoPost, ?lead]
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final sourceIds = [for (final p in ordered) p.id];
+
+    MilestoneStory? story;
+    if (milestoneHours != null) {
+      final task = (ref.read(tasksProvider).value ?? const <Task>[])
+          .where((t) => t.id == taskId)
+          .firstOrNull;
+      if (task != null) {
+        final log = await ref.read(sessionLogProvider).forTask(taskId);
+        story = buildMilestoneStory(
+          task: task,
+          log: log,
+          milestoneHours: milestoneHours,
+          photos: ordered,
+        );
+      }
+    }
+
     final photos = <PostPhoto>[];
-    final lead = await repo.uploadPostPhoto(
-      await _materialise(shot, 'post'),
-    );
-    photos.add(PostPhoto(url: lead.url, storagePath: lead.storagePath));
-    for (final p in alsoPost) {
-      final up = await repo.copyToPostsSpace(p.storagePath);
-      photos.add(PostPhoto(url: up.url, storagePath: up.storagePath));
+    for (var i = 0; i < ordered.length; i++) {
+      final p = ordered[i];
+      final isLead = lead != null && p.id == lead.id && shot != null;
+      final up = isLead
+          ? await repo.uploadPostPhoto(await _materialise(shot, 'post'))
+          : await repo.copyToPostsSpace(p.storagePath);
+      photos.add(
+        PostPhoto(
+          url: up.url,
+          storagePath: up.storagePath,
+          sessionIndex: story?.photoIndices[i],
+        ),
+      );
     }
     if (milestoneHours != null) {
       await repo.createMilestonePost(
@@ -186,6 +237,8 @@ Future<bool> _post(
         totalHours: totalHours ?? 0,
         caption: caption,
         photos: photos,
+        segments: story?.segments ?? const [],
+        unit: story?.unit,
       );
     } else {
       await repo.createSessionPost(
@@ -193,6 +246,7 @@ Future<bool> _post(
         sessionSeconds: sessionSeconds,
         caption: caption,
         photos: photos,
+        bandSeconds: bandSecondsAfter(cumulativeSeconds),
       );
     }
     // The post is written. Tagging its sources is a nicety from here on and

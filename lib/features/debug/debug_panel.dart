@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/backend.dart';
 import '../../core/utils/date.dart';
 import '../history/calendar_screen.dart';
+import 'intent_trace.dart';
 import '../history/day_detail_sheet.dart';
 import '../photos/collage_selection.dart';
 import '../photos/collages_repository.dart';
@@ -344,6 +345,21 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
             if (_busy) const LinearProgressIndicator(),
             const SizedBox(height: 8),
             Text(_status, style: const TextStyle(fontFamily: 'monospace')),
+            const SizedBox(height: 16),
+            // The last three intents, and what each did with its clock.
+            FutureBuilder<List<Map<String, Object?>>>(
+              future: IntentTraceStore.last(),
+              builder: (context, snap) {
+                final entries = snap.data ?? const [];
+                return Text(
+                  entries.isEmpty
+                      ? 'Intent trace: nothing yet'
+                      : 'Intent trace:\n'
+                          '${entries.map(IntentTraceStore.describe).join('\n')}',
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                );
+              },
+            ),
           ],
         ),
       ),

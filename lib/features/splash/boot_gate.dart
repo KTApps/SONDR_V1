@@ -14,6 +14,8 @@ import '../habits/habits_providers.dart';
 import '../links/invite_link_listener.dart';
 import '../widget/widget_publisher.dart';
 import '../widget/widget_selection.dart';
+import '../debug/intent_trace.dart';
+import '../../core/debug_flags.dart';
 import '../shell/main_shell.dart';
 import '../tasks/tasks_providers.dart';
 
@@ -80,6 +82,10 @@ class _BootGateState extends ConsumerState<BootGate> {
       // once, before the publisher's first write settles, so Home opens
       // on the task the Home Screen was last showing.
       unawaited(ref.read(applyWidgetSelectionProvider)());
+      // Under DEBUG_TOOLS only: tell the Swift side it may keep its
+      // intent trace. A release build never sets this, so Swift never
+      // writes.
+      if (kDebugTools) unawaited(IntentTraceStore.enable());
     });
   }
 

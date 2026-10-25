@@ -59,6 +59,22 @@ class TimerController extends Notifier<TimerState> {
   /// written again.
   String? _written;
 
+  /// The write that is on its way, if one is.
+  ///
+  /// `sync()` waits for it before reading. Setting the state notifies
+  /// listeners synchronously, and one of them (Home's "Still going?"
+  /// check) reads the store on the running transition — so without this
+  /// its read went out before the write, came back with the old paused
+  /// session, and `sync()` adopted it: the clock went on running in the
+  /// store and stood still on the screen. A read may never see bytes older
+  /// than what this process has already decided to write.
+  Future<void>? _writing;
+
+  /// Whether the clock is being repainted every second — a running
+  /// session, as the screen sees it.
+  @visibleForTesting
+  bool get isTicking => _ticker?.isActive ?? false;
+
   final Completer<void> _restored = Completer<void>();
 
   /// Completes when the first read of the stored session has landed, found
@@ -142,6 +158,7 @@ class TimerController extends Notifier<TimerState> {
   /// moment ago has not been written yet, and the read that missed it must
   /// not delete it.
   Future<void> sync() async {
+    await _writing;
     final found = await _store.read();
     if (found == null) return;
     final current = _clock;
@@ -274,19 +291,26 @@ class TimerController extends Notifier<TimerState> {
       return;
     }
     _clock = _withTask(clock);
+    // The write goes out BEFORE the state changes hands: setting the state
+    // notifies listeners at once, and a listener that reads the store must
+    // find this write ahead of it in the queue, not behind.
+    if (persist) {
+      // The ticker publishes once a second and the clock does not change
+      // on a tick — elapsed is derived from it, not written into it.
+      // Writing the same bytes sixty times a minute would be a platform
+      // call a second for nothing.
+      final encoded = _clock!.encode();
+      if (encoded != _written) {
+        _written = encoded;
+        final write = _store.write(_clock!);
+        _writing = write;
+        unawaited(write);
+      }
+    }
     state = TimerState(
       status: _clock!.isPaused ? TimerStatus.paused : TimerStatus.running,
       sessionElapsed: _clock!.elapsedAt(_now()),
     );
-    if (!persist) return;
-    // The ticker publishes once a second and the clock does not change on a
-    // tick — elapsed is derived from it, not written into it. Writing the
-    // same bytes sixty times a minute would be a platform call a second for
-    // nothing.
-    final encoded = _clock!.encode();
-    if (encoded == _written) return;
-    _written = encoded;
-    unawaited(_store.write(_clock!));
   }
 
   /// Stop and commit.

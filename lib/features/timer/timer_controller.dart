@@ -154,6 +154,14 @@ class TimerController extends Notifier<TimerState> {
     if (current != null && found.encode() == current.encode()) return;
     _clock = found;
     _written = found.encode();
+    // A session started elsewhere — the Home Screen widget — is for
+    // whatever task IT names, not whatever Home had selected. The same
+    // call restore() makes, for the same reason: Home must show the task
+    // that is actually running, and stopping must credit it.
+    final taskId = found.taskId;
+    if (taskId != null && taskId != ref.read(selectedTaskIdProvider)) {
+      ref.read(selectedTaskIdProvider.notifier).select(taskId);
+    }
     if (found.isPaused) {
       _ticker?.cancel();
     } else {
@@ -332,7 +340,7 @@ class TimerController extends Notifier<TimerState> {
               ? clock.elapsedAt(_now())
               : clock.loggedUntil(endedAt));
     final seconds = elapsed.inSeconds;
-    final task = ref.read(selectedTaskProvider);
+    final task = _taskOf(clock);
 
     var milestoneHours = 0;
     var wasFirst = false;
@@ -378,6 +386,21 @@ class TimerController extends Notifier<TimerState> {
       totalHours: totalHours,
       totalSeconds: totalSeconds,
     );
+  }
+
+  /// The task a session belongs to: the one its stored copy names.
+  ///
+  /// The stored session's taskId is the only truth for this. The
+  /// selection is where Home's eye is, and the two part company the moment
+  /// a session is started from the Home Screen widget for some other task
+  /// — crediting the selection then gave the widget's minutes to the wrong
+  /// task, milestone and all. A clock with no id at all (one written
+  /// before the id was) falls back to the selection, as it always did.
+  Task? _taskOf(SessionClock? clock) {
+    final id = clock?.taskId;
+    if (id == null) return ref.read(selectedTaskProvider);
+    final tasks = ref.read(tasksProvider).value ?? const <Task>[];
+    return tasks.where((t) => t.id == id).firstOrNull;
   }
 
   /// Take the session away.

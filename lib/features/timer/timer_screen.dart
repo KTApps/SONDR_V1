@@ -106,7 +106,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
       onHome: () => ref.read(selectedTabProvider.notifier).set(0),
       onPause: timer.pause,
       onResume: timer.start,
-      onStop: () => _onStop(context, ref, ref.read(selectedTaskProvider)),
+      onStop: () => _onStop(context, ref),
     ).handle(action);
   }
 
@@ -156,7 +156,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
         case StillGoingAnswer(endedAt: final DateTime endedAt):
           await _onStopAt(context, ref, endedAt);
         case StillGoingAnswer():
-          await _onStop(context, ref, task);
+          await _onStop(context, ref);
       }
     } finally {
       _asking = false;
@@ -268,7 +268,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
 
     // Focus Mode replaces the whole home with the quietened focused view.
     if (ref.watch(focusModeProvider)) {
-      return FocusView(onStop: () => _onStop(context, ref, selectedTask));
+      return FocusView(onStop: () => _onStop(context, ref));
     }
 
     final isCollective = selectedTask == null;
@@ -410,7 +410,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
                           ref.read(timerControllerProvider.notifier).start(),
                       onPause: () =>
                           ref.read(timerControllerProvider.notifier).pause(),
-                      onStop: () => _onStop(context, ref, selectedTask),
+                      onStop: () => _onStop(context, ref),
                     ),
                 ],
               ),
@@ -460,7 +460,9 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     }
   }
 
-  Future<void> _onStop(BuildContext context, WidgetRef ref, Task? task) async {
+  /// Everything after Stop takes its task from the outcome — the task the
+  /// stored session named — never from the screen's selection.
+  Future<void> _onStop(BuildContext context, WidgetRef ref) async {
     final outcome = await ref.read(timerControllerProvider.notifier).stop();
     // The hours other people see. Covers the milestone crossing below too —
     // every crossing is logged time first — and writes nothing when the

@@ -248,6 +248,19 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
     accept(URLContexts)
   }
 
+  /// The Home Screen widget's Stop.
+  ///
+  /// A widget's Button cannot open a custom URL scheme, so the widget
+  /// leaves a flag and opens the app instead; this is where the app
+  /// picks the flag up — on becoming active, whether it was launched for
+  /// it or merely brought forward. From here it is the card's own Stop:
+  /// the same word, the same hold-back until Dart has read the session.
+  /// A flag with no session behind it is cleared and nothing happens.
+  func sceneDidBecomeActive(_ scene: UIScene) {
+    guard PendingStop.take() else { return }
+    if listening { send("stop") } else { waiting.append("stop") }
+  }
+
   func scene(
     _ scene: UIScene,
     willConnectTo session: UISceneSession,

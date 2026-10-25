@@ -168,6 +168,57 @@ struct SelectTaskIntent: AppIntent {
   }
 }
 
+/// Stop, asked for from the Home Screen widget.
+///
+/// Stopping needs the app — the camera, the milestone, the post — so the
+/// widget cannot do it; it can only ask. The Lock Screen card asks with a
+/// link, but a widget's Button cannot open a custom URL scheme
+/// (OpenURLIntent takes universal links only, so sondr://stop did
+/// nothing). This is the other way: a flag in the App Group, and an
+/// intent that opens the app. SessionActivityChannel takes the flag when
+/// the scene becomes active and feeds "stop" into the very path the
+/// card's link takes, hold-back included.
+enum PendingStop {
+  static let key = "sondr.pendingStop"
+
+  static func set(
+    defaults: UserDefaults? = UserDefaults(suiteName: WidgetSnapshot.appGroup)
+  ) {
+    defaults?.set(true, forKey: key)
+  }
+
+  /// Whether a stop is waiting, clearing it either way. Taken once: a
+  /// stop that is acted on twice would stop the next session too.
+  ///
+  /// A flag with no session behind it is cleared and ignored — the
+  /// session ended some other way before the app got here.
+  static func take(
+    defaults: UserDefaults? = UserDefaults(suiteName: WidgetSnapshot.appGroup)
+  ) -> Bool {
+    guard let defaults, defaults.bool(forKey: key) else { return false }
+    defaults.removeObject(forKey: key)
+    return SessionBox.read(from: defaults) != nil
+  }
+}
+
+@available(iOS 17.0, *)
+struct StopSessionIntent: AppIntent {
+  static var title: LocalizedStringResource = "Stop session"
+  static var description = IntentDescription("Stop the running sondr session.")
+  static var isDiscoverable: Bool = false
+
+  /// The whole point: the app comes to the front and finishes the
+  /// session.
+  static var openAppWhenRun: Bool = true
+
+  init() {}
+
+  func perform() async throws -> some IntentResult {
+    PendingStop.set()
+    return .result()
+  }
+}
+
 /// Start a session on a task, from the Home Screen, without opening the
 /// app.
 ///

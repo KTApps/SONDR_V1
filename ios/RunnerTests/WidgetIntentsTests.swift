@@ -194,4 +194,30 @@ final class WidgetIntentsTests: XCTestCase {
     WidgetSelection.set("b", defaults: defaults)
     XCTAssertEqual(WidgetSnapshot.read(from: defaults)?.selectedTaskId, "b")
   }
+
+  // MARK: - Stop, asked for from the widget
+
+  func testStopLeavesAFlagTheAppTakesOnce() async {
+    writeSnapshot(selected: "a")
+    _ = await SessionStart.begin(
+      taskId: "a", defaults: defaults, requestCard: false
+    )
+
+    PendingStop.set(defaults: defaults)
+    XCTAssertTrue(defaults.bool(forKey: PendingStop.key), "nothing was written")
+
+    XCTAssertTrue(PendingStop.take(defaults: defaults), "the stop was not seen")
+    XCTAssertFalse(PendingStop.take(defaults: defaults), "the stop was seen twice")
+    XCTAssertFalse(defaults.bool(forKey: PendingStop.key), "the flag was left behind")
+  }
+
+  func testAStopWithNoSessionIsClearedAndIgnored() {
+    PendingStop.set(defaults: defaults)
+    XCTAssertFalse(PendingStop.take(defaults: defaults))
+    XCTAssertFalse(defaults.bool(forKey: PendingStop.key))
+  }
+
+  func testNoFlagIsNoStop() {
+    XCTAssertFalse(PendingStop.take(defaults: defaults))
+  }
 }

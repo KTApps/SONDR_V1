@@ -336,29 +336,22 @@ struct PrimaryAction: View {
 /// the grey and weight the Lock Screen card gives it.
 ///
 /// Stopping is the end of a session: the camera, the milestone, the
-/// post. That belongs in the app, so this opens sondr://stop.
-///
-/// A Button where there can be one, because a widget gives a Link its
-/// own styling — a blue capsule, on iOS 26 — and every control here is
-/// plain text in our own colours. `OpenURLIntent` is iOS 18, so a 17
-/// phone keeps the Link it has always had.
+/// post. That belongs in the app, so this asks the app to do it:
+/// `StopSessionIntent` leaves a flag and opens the app, and the app acts
+/// on the flag the moment it is active. Not a Link — a widget styles a
+/// Link its own way — and not OpenURLIntent, which cannot open a custom
+/// scheme and so did nothing.
 @available(iOS 17.0, *)
 struct StopAction: View {
   let size: CGFloat
 
-  @ViewBuilder var body: some View {
-    if #available(iOS 18.0, *) {
-      Button(intent: OpenURLIntent(SondrLink.stop)) { word }
-        .buttonStyle(.plain)
-    } else {
-      Link(destination: SondrLink.stop) { word }
+  var body: some View {
+    Button(intent: StopSessionIntent()) {
+      Text("Stop")
+        .font(.inter(size, .regular))
+        .foregroundStyle(Ink.secondary)
     }
-  }
-
-  private var word: some View {
-    Text("Stop")
-      .font(.inter(size, .regular))
-      .foregroundStyle(Ink.secondary)
+    .buttonStyle(.plain)
   }
 }
 

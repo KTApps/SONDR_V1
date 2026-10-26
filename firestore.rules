@@ -341,18 +341,39 @@ service cloud.firestore {
                       && request.resource.data.audience ==
                          get(/databases/$(database)/documents/posts/$(postId)).data.audience;
 
-        // Pruning only. The author may narrow their comment's audience and
-        // change nothing else — never widen it, never rewrite the text
-        // after people have read it.
+        // The audience only, and never the text after people have read
+        // it. The author may NARROW it (a block, an unfriend), or set it to
+        // the post's audience EXACTLY — which is how a comment follows its
+        // post when a new friend is let in. Any other widening is a forged
+        // reach and is refused.
         allow update: if request.auth != null
                       && resource.data.authorUid == request.auth.uid
                       && request.resource.data.diff(resource.data)
                            .affectedKeys().hasOnly(['audience'])
-                      && resource.data.audience
-                           .hasAll(request.resource.data.audience);
+                      && (
+                        resource.data.audience
+                           .hasAll(request.resource.data.audience)
+                        || request.resource.data.audience ==
+                           get(/databases/$(database)/documents/posts/$(postId)).data.audience
+                      );
 
         allow delete: if request.auth != null
                       && resource.data.authorUid == request.auth.uid;
+      }
+
+      // Who liked a post: one document per liker, named by them. Written
+      // only by that person, and only while the post reaches them; read by
+      // anyone the post reaches — the author included, which is what lets
+      // them see who liked their own post. The counter on the post still
+      // moves in the same batch (see the update rule above).
+      match /likes/{likerUid} {
+        allow read: if request.auth != null
+                    && request.auth.uid in
+                       get(/databases/$(database)/documents/posts/$(postId)).data.audience;
+        allow create, delete: if request.auth != null
+                              && likerUid == request.auth.uid
+                              && request.auth.uid in
+                                 get(/databases/$(database)/documents/posts/$(postId)).data.audience;
       }
     }
   }

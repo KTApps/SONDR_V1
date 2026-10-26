@@ -174,9 +174,21 @@ describe('comments', () => {
       updateDoc(doc(as(A), 'posts/p1/comments/c1'), { audience: [A, C] }));
   });
 
-  it('widening an audience is denied', async () => {
+  it('widening an audience to an arbitrary list is denied', async () => {
     await assertFails(
+      updateDoc(doc(as(A), 'posts/p1/comments/c2'), { audience: [A, B, C, D] }));
+  });
+
+  it('the author may widen their comment to exactly the post\'s audience', async () => {
+    // c2 was pruned to [A, C]; the post reaches [A, B, C]. Following the
+    // post is allowed — this is how a comment lets a new friend in.
+    await assertSucceeds(
       updateDoc(doc(as(A), 'posts/p1/comments/c2'), { audience: [A, B, C] }));
+  });
+
+  it('a non-author may not widen it, even to the post\'s audience', async () => {
+    await assertFails(
+      updateDoc(doc(as(C), 'posts/p1/comments/c2'), { audience: [A, B, C] }));
   });
 
   it('changing the text alongside the audience is denied', async () => {
@@ -187,6 +199,43 @@ describe('comments', () => {
   it('someone else may not prune your comment', async () => {
     await assertFails(
       updateDoc(doc(as(C), 'posts/p1/comments/c1'), { audience: [A] }));
+  });
+});
+
+describe('who liked a post', () => {
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/p1'), {
+        authorUid: A, audience: [A, B, C], createdAt: 1,
+      });
+    });
+  });
+
+  it('a liker can create and delete their own like', async () => {
+    await assertSucceeds(setDoc(doc(as(C), 'posts/p1/likes/' + C), { at: 1 }));
+    await assertSucceeds(deleteDoc(doc(as(C), 'posts/p1/likes/' + C)));
+  });
+
+  it('a liker cannot write a like in someone else\'s name', async () => {
+    await assertFails(setDoc(doc(as(C), 'posts/p1/likes/' + B), { at: 1 }));
+  });
+
+  it('someone the post does not reach can neither like nor look', async () => {
+    await assertFails(setDoc(doc(as(D), 'posts/p1/likes/' + D), { at: 1 }));
+    await assertFails(getDocs(collection(as(D), 'posts/p1/likes')));
+  });
+
+  it('anyone the post reaches can list the likes — the author included', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/p1/likes/' + C), { at: 1 });
+      await setDoc(doc(db, 'posts/p1/likes/' + B), { at: 2 });
+    });
+    const mine = await assertSucceeds(
+      getDocs(query(collection(as(A), 'posts/p1/likes'), orderBy('at', 'desc'))));
+    assert.deepEqual(mine.docs.map((d) => d.id), [B, C]);
+    const theirs = await assertSucceeds(getDocs(collection(as(B), 'posts/p1/likes')));
+    assert.equal(theirs.size, 2);
   });
 });
 

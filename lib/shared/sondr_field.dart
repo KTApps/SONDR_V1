@@ -34,6 +34,7 @@ class SondrField extends StatelessWidget {
     this.filled = true,
     this.centered = false,
     this.focusNode,
+    this.hint,
     this.maxLines = 1,
     this.minLines,
     this.fontSize = 15,
@@ -64,6 +65,10 @@ class SondrField extends StatelessWidget {
   final bool centered;
 
   final FocusNode? focusNode;
+
+  /// What the empty field says, in the quiet grey. Gone the moment there
+  /// is text.
+  final String? hint;
 
   /// Null grows without limit, wrapping to new lines as the text fills the
   /// width. One keeps the field a single line, which is the default.
@@ -162,12 +167,14 @@ class SondrField extends StatelessWidget {
                   cursorColor: tokens.textPrimary,
                   cursorWidth: 1.5 * scale,
                   // The capsule IS the field; strip Material's own chrome.
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
                     isDense: true,
                     contentPadding: EdgeInsets.zero,
+                    hintText: hint,
+                    hintStyle: entryStyle?.copyWith(color: tokens.textTertiary),
                   ),
                 ),
               ),

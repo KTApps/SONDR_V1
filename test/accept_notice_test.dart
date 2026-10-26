@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +24,12 @@ class _NoPrune implements ContentPruner {
 
 void main() {
   testWidgets('accepting a request announces nothing', (tester) async {
+    // iOS, as the app is. Tests default to Android, where a focused empty
+    // field draws a draggable selection handle just below the caret —
+    // right over the Requests header, which then swallows the tap. The
+    // field opens focused now, so this matters.
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
     // A real repository over a fake Firestore, so Accept actually runs:
     // with a null repository the tap never reaches the accept at all, and
     // the test would pass with the notice still there.
@@ -85,5 +92,7 @@ void main() {
         .doc(Friendship.pairId('me', 'them'))
         .get();
     expect(doc.data()?['status'], 'accepted');
+    // Restored inside the body: the framework checks before teardown runs.
+    debugDefaultTargetPlatformOverride = null;
   });
 }

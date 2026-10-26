@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/backend.dart';
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../core/utils/figma_scale.dart';
@@ -12,6 +13,7 @@ import '../../profile/other_profile_screen.dart';
 import '../models/post.dart';
 import '../posts_repository.dart';
 import 'comments_sheet.dart';
+import 'likes_sheet.dart';
 
 /// Soft dark halo behind text that sits over a photo (spec technique #3), so
 /// captions/usernames stay legible on bright images.
@@ -180,8 +182,17 @@ class _PostInteractionsState extends ConsumerState<PostInteractions> {
           ),
         );
 
+    // An author cannot like their own post; the word there is "Likes",
+    // which opens who did.
+    final mine = post.authorUid == ref.watch(currentUidProvider);
     final row = Row(
       children: [
+        if (mine)
+          action(
+            label: 'Likes',
+            onTap: () => showLikesSheet(context, post.id),
+          )
+        else
         action(
           label: liked ? 'Liked' : 'Like',
           onTap: repo == null

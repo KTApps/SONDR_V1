@@ -7,6 +7,7 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/cached_photo.dart';
 import '../friends/friends_repository.dart';
 import '../photos/photos_repository.dart';
+import '../friends/audience_widen.dart';
 import '../profile/friend_mirror.dart';
 import '../profile/milestone_strip.dart';
 import '../profile/public_profile.dart';
@@ -70,6 +71,8 @@ class _BootGateState extends ConsumerState<BootGate> {
       // never wait on either.
       unawaited(ref.read(publishPublicProfileProvider)());
       unawaited(ref.read(friendMirrorReconcileProvider)());
+      // Then let every friend into what was posted before they were one.
+      unawaited(ref.read(audienceReconcileProvider)());
     });
   }
 

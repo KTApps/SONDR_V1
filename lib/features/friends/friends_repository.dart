@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import '../profile/friend_mirror.dart';
+import 'audience_widen.dart';
 import 'content_prune.dart';
 import 'models/block.dart';
 import 'models/friendship.dart';
@@ -96,20 +97,35 @@ String addFriendUnavailable(String handle) => handle.isEmpty
 /// reads are scoped by `array-contains uid`, matching the security rule that a
 /// user can only see friendships they're part of.
 class FriendsRepository {
-  FriendsRepository({required this.db, required this.uid, ContentPruner? pruner})
-    : pruner =
-          pruner ??
-          ContentPruner(
-            uid: uid,
-            audiences: FirestoreAudiences(db: db, uid: uid),
-            pending: PrefsPendingPrunes(),
-          );
+  FriendsRepository({
+    required this.db,
+    required this.uid,
+    ContentPruner? pruner,
+    AudienceWidener? widener,
+  }) : pruner =
+           pruner ??
+           ContentPruner(
+             uid: uid,
+             audiences: FirestoreAudiences(db: db, uid: uid),
+             pending: PrefsPendingPrunes(),
+           ) {
+    this.widener =
+        widener ??
+        AudienceWidener(
+          uid: uid,
+          audiences: FirestoreWidenableAudiences(db: db, uid: uid),
+          blocked: _blockedByMe,
+        );
+  }
 
   final FirebaseFirestore db;
   final String uid;
 
   /// Takes the other person out of audiences this user already wrote.
   final ContentPruner pruner;
+
+  /// Lets a new friend into audiences this user already wrote.
+  late final AudienceWidener widener;
 
   CollectionReference<Map<String, dynamic>> get _friendships =>
       db.collection('friendships');
@@ -438,6 +454,10 @@ class FriendsRepository {
       }
       rethrow;
     }
+    // Everything I posted before today reaches them now. Their side of it
+    // — their posts to me — lands when their app next reconciles at
+    // launch. Not awaited: the accept is done, and this can retry.
+    if (other.isNotEmpty) unawaited(widener.widenFor({other}));
   }
 
   /// Decline an incoming request, cancel an outgoing one, or unfriend — all the

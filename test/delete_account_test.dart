@@ -207,14 +207,14 @@ void main() {
       expect(find.text(kDeleteAccountTitle), findsOneWidget);
       expect(find.text(kDeleteAccountBody), findsOneWidget);
       expect(find.text(kDeleteAccountConfirm), findsOneWidget);
-      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Back'), findsOneWidget);
     });
 
     testWidgets('Cancel deletes nothing, and asks for no password', (
       tester,
     ) async {
       await pump(tester);
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
       expect(steps.order, isEmpty);
       expect(find.byType(TextField), findsNothing);
@@ -238,7 +238,7 @@ void main() {
       await pump(tester);
       await tester.tap(find.text(kDeleteAccountConfirm));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
 
       expect(steps.order, isEmpty, reason: 'it got past the password');

@@ -21,7 +21,7 @@ Future<String?> showSondrPrompt(
   BuildContext context, {
   required String title,
   required String confirmLabel,
-  String cancelLabel = 'Cancel',
+  String cancelLabel = 'Back',
   bool obscure = false,
 }) async {
   final typed = await showDialog<String>(
@@ -151,7 +151,7 @@ Future<bool> showSondrConfirm(
   required String title,
   required String body,
   required String confirmLabel,
-  String cancelLabel = 'Cancel',
+  String cancelLabel = 'Back',
   BlurSheetHandle? within,
 }) async {
   BlurView view(BlurSheetHandle handle, void Function(bool) answer) =>
@@ -311,7 +311,7 @@ Future<T?> showSondrChoice<T>(
   String? title,
   String? body,
   required List<({String label, T value})> choices,
-  String cancelLabel = 'Cancel',
+  String cancelLabel = 'Back',
   Set<T> quiet = const {},
   BlurSheetHandle? within,
 }) async {

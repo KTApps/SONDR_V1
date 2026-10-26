@@ -374,7 +374,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Remove cass?'), findsOneWidget);
       expect(find.text(removeFriendBody('cass')), findsOneWidget);
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back').hitTestable());
       await tester.pumpAndSettle();
       expect(find.text('Remove cass?'), findsNothing);
       // Still their friend.
@@ -395,7 +395,7 @@ void main() {
         find.text('They won\'t be able to see your profile or posts.'),
         findsOneWidget,
       );
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back').hitTestable());
       await tester.pumpAndSettle();
       expect(find.text('Block cass?'), findsNothing);
     });
@@ -679,14 +679,14 @@ void main() {
       final acts = _FakeActions();
       await pump(tester, friendships: [_friendship()], actions: acts);
       for (final label in ['Remove', 'Block']) {
-        final slot = tester.getRect(find.text(label)).center;
+        final slot = tester.getRect(find.text(label).hitTestable()).center;
         await tester.tapAt(slot);
         await tester.pumpAndSettle();
         // Whatever the slot opened — a confirm for Remove, the
         // Report/Block sheet for Block — its own actions are nowhere
         // near the slot that opened it.
         expect(
-          tester.getRect(find.text(label).last).contains(slot),
+          tester.getRect(find.text(label).hitTestable().last).contains(slot),
           isFalse,
           reason: '$label sits under its own slot',
         );
@@ -703,7 +703,7 @@ void main() {
       await tester.tap(find.text('Block'));
       await tester.pumpAndSettle();
       expect(acts.blocked, isEmpty);
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back').hitTestable());
       await tester.pumpAndSettle();
       expect(acts.blocked, isEmpty);
 
@@ -738,7 +738,7 @@ void main() {
           .evaluate()
           .map((e) => (e.widget as Text).data)
           .toList();
-      expect(labels, ['Report', 'Block', 'Cancel']);
+      expect(labels, ['Report', 'Block', 'Back']);
       expect(
         find.text('cass').evaluate().length,
         handlesBefore,
@@ -759,13 +759,13 @@ void main() {
       // Centred: the three actions straddle the middle of the screen.
       expect(report.center.dy, lessThan(screen.height / 2));
       expect(
-        tester.getRect(find.text('Cancel')).center.dy,
+        tester.getRect(find.text('Back').hitTestable()).center.dy,
         greaterThan(screen.height / 2),
       );
       // And none of them is under the slot that opened the card.
-      for (final label in ['Report', 'Block', 'Cancel']) {
+      for (final label in ['Report', 'Block', 'Back']) {
         expect(
-          slot.contains(tester.getRect(find.text(label).last).center),
+          slot.contains(tester.getRect(find.text(label).hitTestable().last).center),
           isFalse,
           reason: '$label sits under the slot',
         );

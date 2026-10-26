@@ -233,7 +233,7 @@ void main() {
         'Sign out',
         'Delete account',
         if (kDebugTools) 'Debug',
-        'Cancel',
+        'Back',
       ]);
       // No rule any more: the view is a blur with nothing drawn on it,
       // and the grey tone is what parts the pages from the two answers
@@ -258,7 +258,7 @@ void main() {
         'Privacy',
         'Terms',
         if (kDebugTools) 'Debug',
-        'Cancel',
+        'Back',
       ]);
       expect(find.text('Delete account'), findsNothing);
       expect(find.text('Sign out'), findsNothing);
@@ -305,10 +305,10 @@ void main() {
       final word = tester.getRect(find.text('More'));
       await openSheet(tester);
       final support = tester.getRect(find.text('Support'));
-      final cancel = tester.getRect(find.text('Cancel'));
+      final cancel = tester.getRect(find.text('Back'));
       expect(support.center.dy, lessThan(kRefHeight / 2));
       expect(cancel.center.dy, greaterThan(kRefHeight / 2));
-      for (final label in ['Support', 'Sign out', 'Delete account', 'Cancel']) {
+      for (final label in ['Support', 'Sign out', 'Delete account', 'Back']) {
         expect(
           word.contains(tester.getRect(find.text(label)).center),
           isFalse,
@@ -337,7 +337,7 @@ void main() {
     testWidgets('Cancel does nothing at all', (tester) async {
       await pump(tester, user: _Account());
       await openSheet(tester);
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
       expect(pages.opened, isEmpty);
       expect(find.text('Support'), findsNothing);

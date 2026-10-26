@@ -146,7 +146,7 @@ void main() {
 
       await tester.tap(find.text('Sign out'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
 
       expect(order, isEmpty, reason: 'cancelling did something');

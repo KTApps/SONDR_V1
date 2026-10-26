@@ -129,7 +129,7 @@ void main() {
         final sheetMiddle = tester.getRect(find.text('Two'));
         final sheetFirst = tester.getRect(find.text('One'));
         final sheetStyle = styleOf(tester, 'Two');
-        final sheetCancel = tester.getRect(find.text('Cancel'));
+        final sheetCancel = tester.getRect(find.text('Back'));
 
         // The type.
         expect(sheetStyle.fontSize, closeTo(habitStyle.fontSize!, 0.01));
@@ -143,10 +143,12 @@ void main() {
           sheetMiddle.top - sheetFirst.bottom,
           closeTo(habitMiddle.top - habitFirst.bottom, 0.5),
         );
-        expect(sheetMiddle.left, closeTo(habitMiddle.left, 0.5));
-        expect(sheetMiddle.right, closeTo(habitMiddle.right, 0.5));
+        // Centred where the habit is. The label itself is now only as wide
+        // as its word (the word is the tap target), so the centre is the
+        // comparison, not the edges of a full-width box.
+        expect(sheetMiddle.center.dx, closeTo(habitMiddle.center.dx, 0.5));
 
-        // Cancel stands where "Add habit" does.
+        // Back stands where "Add habit" does.
         expect(sheetCancel.top, closeTo(habitAdd.top, 0.5));
         expect(sheetCancel.center.dy, closeTo(habitAdd.center.dy, 0.5));
         expect(sheetCancel.height, closeTo(habitAdd.height, 0.5));
@@ -254,7 +256,7 @@ void main() {
 
     testWidgets('Cancel closes it', (tester) async {
       await pumpSheet(tester, 1.0);
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
       expect(find.byType(BlurSheet), findsNothing);
     });

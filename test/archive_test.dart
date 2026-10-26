@@ -162,7 +162,7 @@ void main() async {
     /// The OPEN swipe tray's action. Every row builds its tray, so the word is
     /// in the tree once per row; only the uncovered one can be hit.
     Finder tray(String label) => find
-        .descendant(of: find.byType(SondrSwipeRow), matching: find.text(label))
+        .descendant(of: find.byType(SondrSwipeRow), matching: find.text(label).hitTestable())
         .hitTestable();
 
     /// The footer's "Archive" toggle — which now shares its word with the
@@ -178,7 +178,7 @@ void main() async {
       expect(find.text('Spanish'), findsOneWidget);
       expect(find.text('Add task'), findsOneWidget);
       expect(archiveToggle(), findsOneWidget);
-      expect(find.text('Back'), findsNothing);
+      expect(find.text('Back').hitTestable(), findsNothing);
     });
 
     testWidgets('the Archive toggle is the same SIZE as Add task, and a '
@@ -205,14 +205,14 @@ void main() async {
       await tester.tap(archiveToggle());
       await tester.pumpAndSettle();
       expect(find.text('No archived tasks.'), findsOneWidget);
-      expect(find.text('Back'), findsOneWidget);
+      expect(find.text('Back').hitTestable(), findsOneWidget);
       // The archived view carries neither the add nor a second toggle, and
       // with no rows there is no tray to borrow the word either.
       expect(find.text('Add task'), findsNothing);
       expect(find.text('Archive'), findsNothing);
       expect(find.text('Golf'), findsNothing);
 
-      await tester.tap(find.text('Back'));
+      await tester.tap(find.text('Back').hitTestable());
       await tester.pumpAndSettle();
       expect(find.text('Golf'), findsOneWidget);
       expect(find.text('Add task'), findsOneWidget);
@@ -331,7 +331,7 @@ void main() async {
         findsOneWidget,
       );
 
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back').hitTestable());
       await tester.pumpAndSettle();
       expect(find.text('Delete Golf?'), findsNothing);
       expect(c.read(tasksProvider).value!.length, 3);

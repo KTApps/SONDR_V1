@@ -56,7 +56,7 @@ void main() {
       expect(find.text('Delete your account?'), findsOneWidget);
       expect(find.text("This can't be undone."), findsOneWidget);
       expect(find.text('Delete account'), findsOneWidget);
-      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Back'), findsOneWidget);
     });
 
     testWidgets('the answer is a yes', (tester) async {
@@ -66,11 +66,11 @@ void main() {
       expect(find.byType(BlurSheet), findsNothing);
     });
 
-    testWidgets('Cancel, a tap on the blur and a swipe are all a no', (
+    testWidgets('Back, a tap on the blur and a swipe are all a no', (
       tester,
     ) async {
       for (final dismiss in [
-        (WidgetTester t) async => t.tap(find.text('Cancel')),
+        (WidgetTester t) async => t.tap(find.text('Back')),
         (WidgetTester t) async => t.tapAt(const Offset(195, 40)),
         (WidgetTester t) async =>
             t.drag(find.byType(BlurSheet), const Offset(0, 120)),
@@ -87,7 +87,7 @@ void main() {
     ) async {
       await confirm(tester);
       final answer = tester.getRect(find.text('Delete account'));
-      final cancel = tester.getRect(find.text('Cancel'));
+      final cancel = tester.getRect(find.text('Back'));
       // Home's two lines apart: the answer sits in the middle of the
       // screen and the way out is at the bottom, where Add habit is.
       expect(cancel.top - answer.bottom, greaterThan(200));
@@ -284,7 +284,7 @@ void chained() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Block'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
     expect(said, isFalse, reason: 'a dismissal has to read as a no');
     expect(find.byType(BlurSheet), findsNothing);

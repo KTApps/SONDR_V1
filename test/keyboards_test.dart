@@ -60,7 +60,8 @@ void main() {
       await open(tester);
       final field = tester.widget<SondrField>(find.byType(SondrField));
       expect(field.autofocus, isTrue);
-      expect(field.hint, 'Add a comment');
+      // No hint: the sheet's own heading says what the field takes.
+      expect(field.hint, isNull);
       expect(field.textInputAction, TextInputAction.done);
       expect(
         tester.widget<TextField>(find.byType(TextField)).focusNode?.hasFocus ??

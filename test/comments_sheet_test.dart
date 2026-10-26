@@ -139,8 +139,11 @@ void main() {
     testWidgets('with the keyboard up the composer is above it, not under '
         'the title', (tester) async {
       await openSheet(tester, keyboard: true);
-      // The composer keeps an INVISIBLE Post on its left as a spacer, so the
-      // real one is the hit-testable match.
+      // Post shows once there is something to post; empty, the word is
+      // Cancel. The composer keeps an INVISIBLE twin on its left as a
+      // spacer, so the real one is the hit-testable match.
+      await tester.enterText(find.byType(TextField), 'x');
+      await tester.pumpAndSettle();
       final postLabel = find.text('Post').hitTestable();
       expect(postLabel, findsOneWidget);
       // The whole composer sits clear of the keyboard's top edge.
@@ -258,6 +261,8 @@ void main() {
         );
         // The composer carries a hidden second Post to centre the field;
         // the real one is the hit-testable one.
+        await tester.enterText(find.byType(TextField), 'x');
+        await tester.pumpAndSettle();
         final post = tester.getRect(find.text('Post').hitTestable());
         await reveal(tester, 'a comment by $author');
         final action = tester.getRect(find.text(label));

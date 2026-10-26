@@ -80,18 +80,43 @@ class CommentsSheet extends ConsumerStatefulWidget {
 class _CommentsSheetState extends ConsumerState<CommentsSheet> {
   final _input = TextEditingController();
   final _inputFocus = FocusNode();
+  final _reply = TextEditingController();
+  final _replyFocus = FocusNode();
+  final _replyKey = GlobalKey();
   bool _busy = false;
 
-  /// The comment being replied to, if any. A reply to a reply attaches to
-  /// the same parent; see [replyParentOf].
+  /// The comment being replied to, if any: its thread gets a composer of
+  /// its own, directly beneath its last reply. One at a time — another
+  /// Reply moves it. A reply to a reply attaches to the same parent; see
+  /// [replyParentOf].
   Comment? _replyTo;
 
   void _startReply(Comment c) {
+    // The top composer gives way: emptied, and the cursor leaves it.
+    _input.clear();
+    _inputFocus.unfocus();
     setState(() => _replyTo = c);
-    _inputFocus.requestFocus();
+    // After the frame that builds it: focus, and bring the parent and the
+    // composer into view above the keyboard.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _replyTo != c) return;
+      _replyFocus.requestFocus();
+      final ctx = _replyKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 1,
+          duration: const Duration(milliseconds: 180),
+        );
+      }
+    });
   }
 
-  void _cancelReply() => setState(() => _replyTo = null);
+  void _cancelReply() {
+    _reply.clear();
+    setState(() => _replyTo = null);
+    _inputFocus.requestFocus();
+  }
   bool _hasText = false;
   String? _error;
 
@@ -123,6 +148,9 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
         setState(() => _loadTimedOut = true);
       }
     });
+    _reply.addListener(() {
+      if (mounted) setState(() {});
+    });
     _input.addListener(() {
       final has = _input.text.trim().isNotEmpty;
       // Editing is the retry, so it clears the last failure.
@@ -141,11 +169,21 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
     _loadTimer?.cancel();
     _input.dispose();
     _inputFocus.dispose();
+    _reply.dispose();
+    _replyFocus.dispose();
     super.dispose();
   }
 
-  Future<void> _send() async {
-    final text = _input.text.trim();
+  Future<void> _send() => _post(_input, parent: null);
+
+  Future<void> _sendReply() async {
+    final target = _replyTo;
+    if (target == null) return;
+    await _post(_reply, parent: replyParentOf(target));
+  }
+
+  Future<void> _post(TextEditingController from, {required String? parent}) async {
+    final text = from.text.trim();
     final repo = ref.read(postsRepositoryProvider);
     if (text.isEmpty || repo == null) return;
     setState(() {
@@ -154,14 +192,9 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       _noticeIsQuiet = false;
     });
     try {
-      final target = _replyTo;
-      await repo.addComment(
-        widget.postId,
-        text,
-        parentId: target == null ? null : replyParentOf(target),
-      );
-      _input.clear();
-      if (mounted) setState(() => _replyTo = null);
+      await repo.addComment(widget.postId, text, parentId: parent);
+      from.clear();
+      if (mounted && parent != null) setState(() => _replyTo = null);
     } on FirebaseException catch (e) {
       debugPrint('SONDR comment error: ${e.code} :: ${e.message}');
       if (mounted) setState(() => _error = 'Couldn’t post comment.');
@@ -221,120 +254,34 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
         child: SondrError('Couldn’t load comments.', textAlign: TextAlign.center),
       );
 
-  /// The composer: a borderless centred field with Post to its right.
-  ///
-  /// Post is MIRRORED by an invisible copy on the left. Without it the field
-  /// would be centred in what Post leaves over, pushing the cursor left of
-  /// the screen's true centre; an invisible twin is exact by construction,
-  /// where a hand-set width would drift with the font and the scale factor.
-  Widget _composer(double scale) {
-    final post = SondrAction(
-      label: 'Post',
-      // Tone alone says whether there is anything to post — the weight stays
-      // bold either way, like Like/Liked on a feed card.
-      supporting: !_hasText,
-      weight: FontWeight.w700,
-      onPressed: _hasText && !_busy ? _send : null,
-    );
+  /// The top composer: a bare field, and one word at its right — Cancel
+  /// while it is empty, Post once there is something to post.
+  Widget _composer(double scale) => _Composer(
+    controller: _input,
+    focusNode: _inputFocus,
+    busy: _busy,
+    autofocus: true,
+    onPost: _send,
+    // Cancel clears and keeps the cursor: the sheet is still for typing.
+    onCancel: () => _input.clear(),
+    scale: scale,
+  );
 
-    final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
-    final replyTo = _replyTo;
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: kSpacingPair * scale),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Who the reply is to, with the way out of it. Quiet, above the
-          // field; the field itself does not move.
-          if (replyTo != null)
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                kSpacingPair * scale, 0, kSpacingPair * scale, kSpacingPair * scale,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Replying to ${replyTo.author.username}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontSize: 12 * scale,
-                        color: tokens.textSecondary,
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _cancelReply,
-                    child: Text(
-                      'Cancel',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontSize: 12 * scale,
-                        fontWeight: FontWeight.w700,
-                        color: tokens.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Visibility(
-            visible: false,
-            maintainSize: true,
-            maintainAnimation: true,
-            maintainState: true,
-            child: post,
-          ),
-          Expanded(
-            // The field's own air. On one line Post's taller tap target sets
-            // the row height and this does nothing; once the text wraps past
-            // that height the field drives the row, and without this the
-            // first line climbs up against the title.
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: kSpacingPair * scale),
-                child: SondrField(
-                controller: _input,
-                focusNode: _inputFocus,
-                enabled: !_busy,
-                // No capsule: the sheet's own heading says what this takes, so
-                // a container would only add furniture (as on Add Friends).
-                filled: false,
-                centered: true,
-                // Grows a line at a time to a ceiling of three, then holds
-                // its height and scrolls inside itself. EditableText keeps
-                // the cursor in view on its own, so the newest line stays
-                // visible without a ScrollController of ours.
-                minLines: 1,
-                maxLines: 3,
-                // Return closes the keyboard, exactly as the caption screen's
-                // field does — it does NOT send, and it does not insert a
-                // line either. Post is the only way to send, and with the
-                // keyboard gone the comments you were joining are visible
-                // again. Long text still wraps to the three-line ceiling as
-                // you type.
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                // Open ready to type: the sheet was asked for, so the
-                // cursor is already in it. Nothing else moves.
-                autofocus: true,
-                hint: 'Add a comment',
-                // What you type is the size of what you are joining.
-                fontSize: _kCommentBody,
-              ),
-            ),
-          ),
-          post,
-        ],
-          ),
-        ],
-      ),
-    );
-  }
+  /// The reply composer, beneath the thread it answers, indented as a
+  /// reply is.
+  Widget _replyComposer(double scale) => Padding(
+    key: _replyKey,
+    padding: EdgeInsets.only(left: (_CommentTile._replyInset - 24) * scale),
+    child: _Composer(
+      controller: _reply,
+      focusNode: _replyFocus,
+      busy: _busy,
+      autofocus: false,
+      onPost: _sendReply,
+      onCancel: _cancelReply,
+      scale: scale,
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -411,36 +358,33 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                           ScrollViewKeyboardDismissBehavior.onDrag,
                       itemCount: threadOf(list).length,
                       itemBuilder: (_, i) {
-                        final entry = threadOf(list)[i];
+                        final thread = threadOf(list);
+                        final entry = thread[i];
                         final c = entry.comment;
                         final tile = _CommentTile(
                           comment: c,
                           depth: entry.depth,
                           onReply: () => _startReply(c),
                         );
-                        // The swipe hides the action, exactly as a friend
-                        // row hides Remove and Block: Delete on your own
-                        // comment, Report on somebody else's. An
-                        // affordance on every comment would be clutter on
-                        // the common case.
-                        final own = c.authorUid == uid;
-                        return SondrSwipeRow(
-                          // The composer's own horizontal inset, so the
-                          // action a swipe reveals has its right edge
-                          // exactly where Post's is — the two are the only
-                          // controls on this sheet, one above the other.
-                          trayInset: kSpacingPair,
-                          actions: [
-                            SondrAction(
-                              label: own ? 'Delete' : 'Report',
-                              fontSize: kRowActionSize,
-                              onPressed: own
-                                  ? () => _delete(c.id)
-                                  : () => _report(c),
-                            ),
-                          ],
-                          child: tile,
-                        );
+                        // The reply composer sits after the LAST entry of
+                        // the thread being answered.
+                        final target = _replyTo;
+                        final parentId = target == null ? null : replyParentOf(target);
+                        final lastOfThread = parentId != null &&
+                            (c.id == parentId || c.parentId == parentId) &&
+                            (i + 1 == thread.length ||
+                                thread[i + 1].comment.parentId != parentId &&
+                                    thread[i + 1].comment.id != parentId);
+                        if (lastOfThread) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _row(c, tile, uid),
+                              _replyComposer(scale),
+                            ],
+                          );
+                        }
+                        return _row(c, tile, uid);
                       },
                     );
                   },
@@ -452,6 +396,23 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       ),
     );
   }
+
+  /// A comment's row: the tile, with Delete or Report under the swipe.
+  Widget _row(Comment c, Widget tile, String? uid) {
+    final own = c.authorUid == uid;
+    return SondrSwipeRow(
+      trayInset: kSpacingPair,
+      actions: [
+        SondrAction(
+          label: own ? 'Delete' : 'Report',
+          fontSize: kRowActionSize,
+          onPressed: own ? () => _delete(c.id) : () => _report(c),
+        ),
+      ],
+      child: tile,
+    );
+  }
+
 }
 
 class _CommentTile extends ConsumerWidget {
@@ -582,6 +543,80 @@ class _CommentTile extends ConsumerWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A bare field with one word at its right: Cancel while empty, Post once
+/// there is something to post. The word is mirrored by an invisible twin
+/// on the left, so the field is centred by construction.
+class _Composer extends StatelessWidget {
+  const _Composer({
+    required this.controller,
+    required this.focusNode,
+    required this.busy,
+    required this.autofocus,
+    required this.onPost,
+    required this.onCancel,
+    required this.scale,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool busy;
+  final bool autofocus;
+  final VoidCallback onPost;
+  final VoidCallback onCancel;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasText = controller.text.trim().isNotEmpty;
+    final word = hasText
+        ? SondrAction(
+            label: 'Post',
+            weight: FontWeight.w700,
+            onPressed: busy ? null : onPost,
+          )
+        : SondrAction(
+            label: 'Cancel',
+            supporting: true,
+            weight: FontWeight.w700,
+            onPressed: busy ? null : onCancel,
+          );
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: kSpacingPair * scale),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Visibility(
+            visible: false,
+            maintainSize: true,
+            maintainAnimation: true,
+            maintainState: true,
+            child: word,
+          ),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: kSpacingPair * scale),
+              child: SondrField(
+                controller: controller,
+                focusNode: focusNode,
+                enabled: !busy,
+                filled: false,
+                centered: true,
+                minLines: 1,
+                maxLines: 3,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                autofocus: autofocus,
+                fontSize: _kCommentBody,
+              ),
+            ),
+          ),
+          word,
         ],
       ),
     );

@@ -138,7 +138,7 @@ void main() {
       await open(tester, set, 1, deleter);
       await tester.tap(find.text('Delete'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
       expect(deleter.removed, isEmpty);
       expect(deleter.deleted, isEmpty);

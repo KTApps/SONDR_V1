@@ -10,6 +10,7 @@ class Comment {
     required this.author,
     required this.text,
     required this.createdAt,
+    this.parentId,
   });
 
   final String id;
@@ -17,6 +18,12 @@ class Comment {
   final PostAuthor author;
   final String text;
   final DateTime? createdAt;
+
+  /// The top-level comment this replies to, or null for a top-level
+  /// comment. One level only: a reply to a reply names the same parent.
+  final String? parentId;
+
+  bool get isReply => parentId != null;
 
   factory Comment.fromMap(String id, Map<String, dynamic> map) {
     final author = PostAuthor.fromMap(
@@ -40,6 +47,7 @@ class Comment {
       author: author,
       text: (map['text'] as String?) ?? '',
       createdAt: createdAt,
+      parentId: map['parentId'] is String ? map['parentId'] as String : null,
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import 'feed_mocks.dart';
 import 'posts_repository.dart';
+import '../notifications/notifications_page.dart';
 import 'widgets/feed_view.dart';
 
 /// The Feed tab: a friends-only vertical scroll of milestone / streak / session
@@ -23,13 +24,22 @@ class FeedScreen extends ConsumerWidget {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(top: 8),
-          child: kMockFeed
-              ? FeedView(posts: mockPosts())
-              : ref.watch(feedProvider).when(
-                    data: (posts) => FeedView(posts: posts),
-                    loading: () => const SondrLoading(),
-                    error: (_, _) => const _Error(),
-                  ),
+          child: Column(
+            children: [
+              // One word, top right, above the first post. The list below
+              // moves down by this row's height and nothing else.
+              const NotificationsEntry(),
+              Expanded(
+                child: kMockFeed
+                    ? FeedView(posts: mockPosts())
+                    : ref.watch(feedProvider).when(
+                          data: (posts) => FeedView(posts: posts),
+                          loading: () => const SondrLoading(),
+                          error: (_, _) => const _Error(),
+                        ),
+              ),
+            ],
+          ),
         ),
       ),
     );

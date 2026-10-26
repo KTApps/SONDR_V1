@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import '../photos/local_first.dart';
+import '../notifications/notifications_repository.dart';
 import 'models/comment.dart';
 import '../friends/friends_repository.dart';
 import '../reports/report.dart';
@@ -17,7 +18,15 @@ import 'models/post.dart';
 /// friends at post time + self) so the feed is a single array-contains query and
 /// the read rule needs no per-post friendship lookup.
 class PostsRepository {
-  PostsRepository({required this.db, required this.uid});
+  PostsRepository({
+    required this.db,
+    required this.uid,
+    NotificationsWriter? notifier,
+  }) : notifier = notifier ?? FirestoreNotificationsWriter(db: db, uid: uid);
+
+  /// Puts a notice beside each action: a like, a comment, a reply, a
+  /// milestone shared.
+  final NotificationsWriter notifier;
 
   final FirebaseFirestore db;
   final String uid;
@@ -117,7 +126,66 @@ class PostsRepository {
       'commentCount': 0,
       ...payload,
     });
+    // A milestone is news: every friend the post reaches hears of it.
+    // After the post, so a notice never points at nothing; batched under
+    // the limit; a failure here never undoes the post.
+    if (type == 'milestone') {
+      try {
+        await _tellFriends(
+          audience,
+          type: NotificationType.milestone,
+          actorHandle: author.username,
+          postId: ref.id,
+          taskName: payload['taskName'] as String?,
+          hours: payload['milestoneHours'] as int?,
+        );
+      } catch (e) {
+        debugPrint('SONDR milestone notices error: ${e.runtimeType}');
+      }
+    }
     return ref.id;
+  }
+
+  static const int _batchLimit = 450;
+
+  Future<void> _tellFriends(
+    List<String> audience, {
+    required NotificationType type,
+    required String actorHandle,
+    required String postId,
+    String? taskName,
+    int? hours,
+  }) async {
+    final friends = [for (final u in audience) if (u != uid) u];
+    for (var i = 0; i < friends.length; i += _batchLimit) {
+      final batch = db.batch();
+      for (final u in friends.skip(i).take(_batchLimit)) {
+        notifier.add(
+          batch,
+          recipientUid: u,
+          type: type,
+          actorHandle: actorHandle,
+          postId: postId,
+          taskName: taskName,
+          hours: hours,
+        );
+      }
+      await batch.commit();
+    }
+  }
+
+  /// One post by id, or null if it is gone or does not reach this user.
+  /// What a notification opens.
+  Future<Post?> fetchPost(String postId) async {
+    try {
+      final doc = await _posts.doc(postId).get();
+      final data = doc.data();
+      if (data == null) return null;
+      return Post.fromMap(doc.id, data);
+    } catch (e) {
+      debugPrint('SONDR post fetch error: ${e.runtimeType}');
+      return null;
+    }
   }
 
   // --- Likes -------------------------------------------------------------
@@ -137,7 +205,10 @@ class PostsRepository {
   /// user's own mirror (what fills the heart), the post's copy
   /// (`posts/{id}/likes/{uid}`, what the author's Likes sheet lists), and
   /// the counter on the post.
-  Future<void> setLike(String postId, bool liked) async {
+  ///
+  /// [authorUid] is who to tell; the writer says nothing to yourself.
+  Future<void> setLike(String postId, bool liked, {String? authorUid}) async {
+    final me = await _author();
     final likeRef = db
         .collection('users')
         .doc(uid)
@@ -150,6 +221,15 @@ class PostsRepository {
       batch.set(likeRef, {'createdAt': FieldValue.serverTimestamp()});
       batch.set(onPost, {'at': FieldValue.serverTimestamp()});
       batch.update(postRef, {'likeCount': FieldValue.increment(1)});
+      if (authorUid != null) {
+        notifier.add(
+          batch,
+          recipientUid: authorUid,
+          type: NotificationType.like,
+          actorHandle: me.username,
+          postId: postId,
+        );
+      }
     } else {
       batch.delete(likeRef);
       batch.delete(onPost);
@@ -207,8 +287,12 @@ class PostsRepository {
         );
   }
 
-  /// Add a comment. Batched with the post's commentCount bump.
-  Future<void> addComment(String postId, String text) async {
+  /// Add a comment — or a reply, when [parentId] names a top-level
+  /// comment on this post. A reply to a reply attaches to the same parent;
+  /// the rules refuse anything deeper. Batched with the post's commentCount
+  /// bump, and with the notices: the post's author hears of a comment, the
+  /// parent's author of a reply (and the post's author too, if different).
+  Future<void> addComment(String postId, String text, {String? parentId}) async {
     final t = text.trim();
     if (t.isEmpty) return;
     final author = await _author();
@@ -220,6 +304,16 @@ class PostsRepository {
     final audience = [
       for (final u in (post.data()?['audience'] as List? ?? const [])) '$u',
     ];
+    final postAuthor = (post.data()?['authorUid'] as String?) ?? '';
+    String? parentAuthor;
+    if (parentId != null) {
+      final parent = await _posts
+          .doc(postId)
+          .collection('comments')
+          .doc(parentId)
+          .get();
+      parentAuthor = parent.data()?['authorUid'] as String?;
+    }
     final commentRef = _posts.doc(postId).collection('comments').doc();
     final batch = db.batch();
     batch.set(commentRef, {
@@ -228,17 +322,56 @@ class PostsRepository {
       'text': t,
       'audience': audience,
       'createdAt': FieldValue.serverTimestamp(),
+      'parentId': ?parentId,
     });
     batch.update(_posts.doc(postId), {'commentCount': FieldValue.increment(1)});
+    if (parentId == null) {
+      notifier.add(
+        batch,
+        recipientUid: postAuthor,
+        type: NotificationType.comment,
+        actorHandle: author.username,
+        postId: postId,
+        commentId: commentRef.id,
+      );
+    } else {
+      if (parentAuthor != null) {
+        notifier.add(
+          batch,
+          recipientUid: parentAuthor,
+          type: NotificationType.reply,
+          actorHandle: author.username,
+          postId: postId,
+          commentId: commentRef.id,
+        );
+      }
+      if (postAuthor != parentAuthor) {
+        notifier.add(
+          batch,
+          recipientUid: postAuthor,
+          type: NotificationType.comment,
+          actorHandle: author.username,
+          postId: postId,
+          commentId: commentRef.id,
+        );
+      }
+    }
     await batch.commit();
   }
 
-  /// Delete one of the user's own comments. Batched with the count bump.
+  /// Delete one of the user's own comments — and, if it was a parent, the
+  /// replies under it, in the same batch (the rules let a parent's author
+  /// take those down). The count moves by however many went.
   Future<void> deleteComment(String postId, String commentId) async {
+    final comments = _posts.doc(postId).collection('comments');
+    final replies = await comments.where('parentId', isEqualTo: commentId).get();
     final batch = db.batch();
-    batch.delete(_posts.doc(postId).collection('comments').doc(commentId));
+    batch.delete(comments.doc(commentId));
+    for (final r in replies.docs) {
+      batch.delete(r.reference);
+    }
     batch.update(_posts.doc(postId), {
-      'commentCount': FieldValue.increment(-1),
+      'commentCount': FieldValue.increment(-(1 + replies.docs.length)),
     });
     await batch.commit();
   }

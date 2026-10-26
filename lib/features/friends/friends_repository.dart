@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
 import '../profile/friend_mirror.dart';
+import '../notifications/notifications_repository.dart';
 import 'audience_widen.dart';
 import 'content_prune.dart';
 import 'models/block.dart';
@@ -102,7 +103,9 @@ class FriendsRepository {
     required this.uid,
     ContentPruner? pruner,
     AudienceWidener? widener,
-  }) : pruner =
+    NotificationsWriter? notifier,
+  }) : notifier = notifier ?? FirestoreNotificationsWriter(db: db, uid: uid),
+       pruner =
            pruner ??
            ContentPruner(
              uid: uid,
@@ -126,6 +129,9 @@ class FriendsRepository {
 
   /// Lets a new friend into audiences this user already wrote.
   late final AudienceWidener widener;
+
+  /// Puts a notice beside a request, an acceptance, an invite.
+  final NotificationsWriter notifier;
 
   CollectionReference<Map<String, dynamic>> get _friendships =>
       db.collection('friendships');
@@ -341,9 +347,19 @@ class FriendsRepository {
     if (refusal != null) throw refusal;
 
     try {
-      await _friendships
-          .doc(Friendship.pairId(uid, targetUid))
-          .set(_requestData(targetUid, me, handle));
+      // The request and its notice, in one batch.
+      final batch = db.batch();
+      batch.set(
+        _friendships.doc(Friendship.pairId(uid, targetUid)),
+        _requestData(targetUid, me, handle),
+      );
+      notifier.add(
+        batch,
+        recipientUid: targetUid,
+        type: NotificationType.request,
+        actorHandle: me.username,
+      );
+      await batch.commit();
     } on FirebaseException catch (e) {
       // For a well-formed request the create rule's only conditional
       // refusal is blockedEitherWay() — they blocked us. The same wording
@@ -419,6 +435,13 @@ class FriendsRepository {
         _requestData(inviterUid, me, inviterHandle),
       );
     }
+    // The one who invited hears who arrived, in the same batch.
+    notifier.add(
+      batch,
+      recipientUid: inviterUid,
+      type: NotificationType.invite,
+      actorHandle: me.username,
+    );
     await batch.commit();
     return refusal == null;
   }
@@ -445,6 +468,15 @@ class FriendsRepository {
         },
       });
       if (other.isNotEmpty) addFriendMirror(batch, db, uid, other);
+      // The one who asked hears it was accepted, in the same batch.
+      if (other.isNotEmpty) {
+        notifier.add(
+          batch,
+          recipientUid: other,
+          type: NotificationType.accepted,
+          actorHandle: me.username,
+        );
+      }
       await batch.commit();
     } on FirebaseException catch (e) {
       // Denied means the rules refused the accept across a block in either

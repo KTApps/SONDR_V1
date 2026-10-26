@@ -190,16 +190,27 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
                             curve: Curves.easeOut,
                             alignment: Alignment.topCenter,
                             child: _adding
-                                ? SondrField(
-                                    controller: _name,
-                                    filled: false,
-                                    centered: true,
-                                    autofocus: true,
-                                    fontSize: _kNameSize,
-                                    textInputAction: TextInputAction.done,
-                                    textCapitalization:
-                                        TextCapitalization.sentences,
-                                    onSubmitted: _submit,
+                                // In a habit's row exactly: the same style
+                                // (so the line box and the cursor are the
+                                // habit text's height) and the same 12
+                                // above and below, so the cursor and the
+                                // first habit sit like two habits.
+                                ? Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      vertical: kSpacingBase * scale,
+                                    ),
+                                    child: SondrField(
+                                      controller: _name,
+                                      filled: false,
+                                      centered: true,
+                                      autofocus: true,
+                                      fontSize: _kNameSize,
+                                      style: habitNameStyle(context),
+                                      textInputAction: TextInputAction.done,
+                                      textCapitalization:
+                                          TextCapitalization.sentences,
+                                      onSubmitted: _submit,
+                                    ),
                                   )
                                 : const SizedBox(height: 0),
                           ),
@@ -259,6 +270,17 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
 /// rather than as a second column. Nothing is shown below one: a habit with no
 /// run behind it yet has nothing to say, and a bare 0 beside a name reads as a
 /// score.
+/// A habit name's type: the one style the row and the add field share, so
+/// the field's line box is a habit's line box.
+TextStyle? habitNameStyle(BuildContext context, {bool done = true}) {
+  final tokens = GreyscaleTokens.of(context);
+  return Theme.of(context).textTheme.displayMedium?.copyWith(
+    fontSize: _kNameSize * figmaScale(context),
+    fontWeight: FontWeight.w600,
+    color: done ? tokens.textPrimary : tokens.textTertiary,
+  );
+}
+
 class _HabitName extends ConsumerWidget {
   const _HabitName({required this.tick});
 
@@ -267,15 +289,10 @@ class _HabitName extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
     final scale = figmaScale(context);
     final streak = ref.watch(habitStreakForProvider(tick.habitId));
 
-    final name = theme.textTheme.displayMedium?.copyWith(
-      fontSize: _kNameSize * scale,
-      fontWeight: FontWeight.w600,
-      color: tick.done ? tokens.textPrimary : tokens.textTertiary,
-    );
+    final name = habitNameStyle(context, done: tick.done);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

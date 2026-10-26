@@ -37,6 +37,10 @@ const double kBlurExitTop = 732 - kSpacingBase;
 /// padding either side of it.
 const double kBlurItemSize = 27;
 const double kBlurItemPad = kSpacingBase;
+
+/// The tap padding either side of a label, and the least a target is tall.
+const double kBlurTapSide = 24;
+const double kBlurTapMinHeight = 44;
 const double kBlurSideInset = 32;
 
 /// The line under a title, for a question that needs one.
@@ -67,7 +71,7 @@ class BlurView {
     this.explanation,
     this.items = const [],
     this.body,
-    this.cancelLabel = 'Cancel',
+    this.cancelLabel = 'Back',
   });
 
   /// On Home's title line, in Home's title type.
@@ -345,20 +349,42 @@ class _Answer extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
 
+    // The LABEL is the target: its own bounds plus a tier of tap padding
+    // (12 above and below, 24 either side), never less than 44 tall. The
+    // rest of the row absorbs a tap and does nothing — it is not the blur,
+    // which still dismisses, and it is not the word, which acts.
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: item.onTap,
+      onTap: () {},
       child: SizedBox(
         width: double.infinity,
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: kBlurItemPad * scale),
-          child: Text(
-            item.label,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.displayMedium?.copyWith(
-              fontSize: kBlurItemSize * scale,
-              fontWeight: FontWeight.w600,
-              color: item.quiet ? tokens.textTertiary : tokens.textPrimary,
+        child: Center(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: item.onTap,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: kBlurTapMinHeight * scale),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  vertical: kBlurItemPad * scale,
+                  horizontal: kBlurTapSide * scale,
+                ),
+                child: Center(
+                  // As wide as the word, as tall as the box: a Center
+                  // without this fills the row, and the whole row would be
+                  // the target again.
+                  widthFactor: 1,
+                  child: Text(
+                    item.label,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.displayMedium?.copyWith(
+                      fontSize: kBlurItemSize * scale,
+                      fontWeight: FontWeight.w600,
+                      color: item.quiet ? tokens.textTertiary : tokens.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),

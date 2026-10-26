@@ -35,11 +35,13 @@ class SondrField extends StatelessWidget {
     this.centered = false,
     this.focusNode,
     this.hint,
+    this.style,
     this.maxLines = 1,
     this.minLines,
     this.fontSize = 15,
     this.autofocus = false,
     this.textCapitalization = TextCapitalization.none,
+    this.scrollPadding,
   });
 
   /// Omit where the surrounding screen already says what the field is for.
@@ -70,6 +72,16 @@ class SondrField extends StatelessWidget {
   /// is text.
   final String? hint;
 
+  /// The text's style, in full, where the field has to match a line of
+  /// text beside it exactly — the habit name field is one. Replaces the
+  /// standard entry style and [fontSize].
+  final TextStyle? style;
+
+  /// How far past the caret an enclosing list scrolls to keep it in view.
+  /// Null is the platform's 20 on every side. Zero where the screen keeps
+  /// the field in view itself and the field must not scroll any further.
+  final EdgeInsets? scrollPadding;
+
   /// Null grows without limit, wrapping to new lines as the text fills the
   /// width. One keeps the field a single line, which is the default.
   final int? maxLines;
@@ -92,17 +104,49 @@ class SondrField extends StatelessWidget {
   /// what you type matches what you are about to join.
   final double fontSize;
 
+  /// The height of one line of entry — the cursor's line box — for a field
+  /// of [fontSize] (or [style]) in [context], at the user's text size. What
+  /// a layout needs to place a field's first line before the field exists.
+  static double lineHeightOf(
+    BuildContext context, {
+    double fontSize = 15,
+    TextStyle? style,
+  }) {
+    final entry = _entryStyle(context, fontSize: fontSize, style: style);
+    final painter = TextPainter(
+      text: TextSpan(text: 'x', style: entry),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+      // The field's own lines are strut-forced from the style; measure the
+      // same way or a tall glyph could disagree with it.
+      strutStyle: entry == null
+          ? null
+          : StrutStyle.fromTextStyle(entry, forceStrutHeight: true),
+    )..layout();
+    final height = painter.height;
+    painter.dispose();
+    return height;
+  }
+
+  static TextStyle? _entryStyle(
+    BuildContext context, {
+    required double fontSize,
+    required TextStyle? style,
+  }) =>
+      style ??
+      Theme.of(context).textTheme.bodyMedium?.copyWith(
+        fontSize: fontSize * figmaScale(context),
+        fontWeight: FontWeight.w700,
+        color: GreyscaleTokens.of(context).textPrimary,
+      );
+
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);
 
-    final entryStyle = theme.textTheme.bodyMedium?.copyWith(
-      fontSize: fontSize * scale,
-      fontWeight: FontWeight.w700,
-      color: tokens.textPrimary,
-    );
+    final entryStyle = _entryStyle(context, fontSize: fontSize, style: style);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -166,6 +210,7 @@ class SondrField extends StatelessWidget {
                   textAlign: centered ? TextAlign.center : TextAlign.start,
                   cursorColor: tokens.textPrimary,
                   cursorWidth: 1.5 * scale,
+                  scrollPadding: scrollPadding ?? const EdgeInsets.all(20),
                   // The capsule IS the field; strip Material's own chrome.
                   decoration: InputDecoration(
                     border: InputBorder.none,

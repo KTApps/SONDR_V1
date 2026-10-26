@@ -162,6 +162,7 @@ class AccountCascade implements AccountErasure {
 
     // Likes first: a like on one of MY posts needs that post to still be
     // there, or the counter write in its batch fails.
+    await _notifications();
     await _likes(myPostIds);
     await _comments(myComments, myPostIds);
     await _posts(myPostIds);
@@ -264,6 +265,23 @@ class AccountCascade implements AccountErasure {
   /// deleted by its own author at any moment, and a single missing
   /// document would fail a batch carrying hundreds of other people's
   /// counters with it.
+  /// What was written TO me: notifications/{me}/items. Top-level rather
+  /// than under users/{me}, because other people write there, so it is
+  /// not in [kUserSubcollections] and needs its own step.
+  Future<void> _notifications() async {
+    final items = db.collection('notifications').doc(uid).collection('items');
+    while (true) {
+      final page = await items.limit(batchLimit).get();
+      if (page.docs.isEmpty) break;
+      final batch = db.batch();
+      for (final d in page.docs) {
+        batch.delete(d.reference);
+      }
+      await batch.commit();
+      if (page.docs.length < batchLimit) break;
+    }
+  }
+
   Future<void> _likes(Set<String> myPostIds) async {
     final likes = await db
         .collection('users')

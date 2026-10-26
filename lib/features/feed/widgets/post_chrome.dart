@@ -199,7 +199,7 @@ class _PostInteractionsState extends ConsumerState<PostInteractions> {
               ? null
               : () async {
                   try {
-                    await repo.setLike(post.id, !liked);
+                    await repo.setLike(post.id, !liked, authorUid: post.authorUid);
                     if (mounted && _error != null) {
                       setState(() => _error = null);
                     }

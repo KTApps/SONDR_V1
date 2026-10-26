@@ -114,4 +114,25 @@ void main() {
       expect(profile, contains(unit), reason: '$unit should be lowercase');
     }
   });
+
+  /// The way out of a blur view is "Back", and the comments field has no
+  /// placeholder — the sheet's own heading says what it takes.
+  group('blur views and the comments field', () {
+    test('every blur view and confirm backs out with "Back"', () {
+      expect(File('lib/shared/blur_sheet.dart').readAsStringSync(),
+          contains("this.cancelLabel = 'Back',"));
+      final prompt = File('lib/shared/sondr_prompt.dart').readAsStringSync();
+      expect("String cancelLabel = 'Back',".allMatches(prompt).length, 3);
+      expect(prompt.contains("cancelLabel = 'Cancel'"), isFalse);
+    });
+
+    test('the comments composer has no hint, and its empty word is Close', () {
+      final sheet = File('lib/features/feed/widgets/comments_sheet.dart').readAsStringSync();
+      expect(sheet.contains("hint: 'Add a comment'"), isFalse);
+      expect(sheet.contains('Replying to'), isFalse);
+      expect(sheet, contains("label: 'Close',"));
+      expect(sheet, contains("label: 'Post',"));
+      expect(sheet.contains("'Cancel'"), isFalse);
+    });
+  });
 }

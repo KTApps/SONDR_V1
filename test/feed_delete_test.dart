@@ -62,7 +62,7 @@ void main() {
     expect(find.byType(BlurSheet), findsOneWidget);
     expect(find.text('Delete this post?'), findsOneWidget);
     expect(find.text('Delete'), findsOneWidget);
-    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Back'), findsOneWidget);
     expect(find.text('Report'), findsNothing);
   });
 
@@ -120,7 +120,7 @@ void main() {
     );
     await tester.longPress(find.byType(DeletablePostCard));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
     expect(deleted, isNull);
     expect(find.byType(BlurSheet), findsNothing);
@@ -182,7 +182,7 @@ void main() {
       );
       await tester.longPress(find.byType(DeletablePostCard));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
       expect(reports.sent, isEmpty);
       expect(reports.hidden, isEmpty);

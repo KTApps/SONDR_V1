@@ -366,7 +366,7 @@ void main() {
       final tabBar = tester.getRect(find.byType(TextTabBar));
       final tabs = {
         for (final label in ['Home', 'Feed', 'Profile'])
-          label: tester.getRect(find.text(label)).center,
+          label: tester.getRect(find.text(label).hitTestable()).center,
       };
 
       await pumpTheirs(tester, posts: [_milestone(0)]);
@@ -380,10 +380,10 @@ void main() {
         ('Back', 'Feed'),
         ('Block', 'Profile'),
       ]) {
-        final slot = tester.getRect(find.text(label)).center;
+        final slot = tester.getRect(find.text(label).hitTestable()).center;
         expect(slot.dx, closeTo(tabs[tab]!.dx, 0.5), reason: '$label x');
         expect(slot.dy, closeTo(tabs[tab]!.dy, 0.5), reason: '$label y');
-        final style = tester.widget<Text>(find.text(label)).style;
+        final style = tester.widget<Text>(find.text(label).hitTestable()).style;
         expect(style?.fontSize, ProfileActionBar.labelSize);
         expect(style?.fontWeight, FontWeight.w500);
         expect(style?.color, const Color(0xFF6E6E6E));
@@ -403,7 +403,7 @@ void main() {
     testWidgets('Back is always the middle slot, whatever the state', (
       tester,
     ) async {
-      Offset backCentre() => tester.getRect(find.text('Back')).center;
+      Offset backCentre() => tester.getRect(find.text('Back').hitTestable()).center;
 
       await pumpTheirs(tester, posts: [_milestone(0)]);
       final centre = backCentre();
@@ -546,12 +546,12 @@ void main() {
         final bar = find.byType(ProfileActionBar);
         for (final label in ['Add', 'Accept', 'Remove']) {
           expect(
-            find.descendant(of: bar, matching: find.text(label)),
+            find.descendant(of: bar, matching: find.text(label).hitTestable()),
             label == slot ? findsOneWidget : findsNothing,
             reason: '$label for "$line"',
           );
         }
-        expect(find.text('Back'), findsOneWidget);
+        expect(find.text('Back').hitTestable(), findsOneWidget);
         // And the line under the handle.
         final hero = find.byType(ProgressRing);
         expect(hero, findsOneWidget);
@@ -584,7 +584,7 @@ void main() {
       final before = {
         'handle': tester.getRect(find.text('cass')),
         'stats': tester.getRect(find.byType(ProfileStat).first),
-        'back': tester.getRect(find.text('Back')),
+        'back': tester.getRect(find.text('Back').hitTestable()),
       };
 
       await tester.tap(find.text('Add'));
@@ -598,7 +598,7 @@ void main() {
       expect(find.text('Requested'), findsOneWidget);
       expect(tester.getRect(find.text('cass')), before['handle']);
       expect(tester.getRect(find.byType(ProfileStat).first), before['stats']);
-      expect(tester.getRect(find.text('Back')), before['back']);
+      expect(tester.getRect(find.text('Back').hitTestable()), before['back']);
     });
 
     testWidgets('a double tap on Add sends one request', (tester) async {
@@ -631,7 +631,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Remove cass?'), findsOneWidget);
       expect(acts.removed, isEmpty);
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back').hitTestable());
       await tester.pumpAndSettle();
       expect(acts.removed, isEmpty);
     });

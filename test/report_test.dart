@@ -272,7 +272,7 @@ void main() {
       for (final r in ReportReason.values) {
         expect(find.text(r.label), findsOneWidget, reason: r.wire);
       }
-      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Back'), findsOneWidget);
     });
 
     testWidgets('a reason sends the report and hides the post', (tester) async {
@@ -312,7 +312,7 @@ void main() {
 
     testWidgets('Cancel writes nothing and hides nothing', (tester) async {
       await pumpSheet(tester);
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
       expect(reports.sent, isEmpty);
       expect(reports.hidden, isEmpty);

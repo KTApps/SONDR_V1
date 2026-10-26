@@ -52,31 +52,47 @@ void main() {
   }
 
   group('the top composer', () {
-    testWidgets('is bare, focused, and says Cancel until there is text', (tester) async {
+    testWidgets('is bare, focused, and says Close until there is text', (tester) async {
       await open(tester);
       final field = tester.widget<SondrField>(find.byType(SondrField));
       expect(field.hint, isNull);
       expect(field.autofocus, isTrue);
-      expect(find.text('Cancel').hitTestable(), findsOneWidget);
+      expect(find.text('Close').hitTestable(), findsOneWidget);
       expect(find.text('Post').hitTestable(), findsNothing);
       expect(find.textContaining('Replying to'), findsNothing);
 
       await tester.enterText(find.byType(TextField), 'hello');
       await tester.pumpAndSettle();
       expect(find.text('Post').hitTestable(), findsOneWidget);
-      expect(find.text('Cancel').hitTestable(), findsNothing);
+      expect(find.text('Close').hitTestable(), findsNothing);
     });
 
-    testWidgets('Cancel clears and keeps the cursor', (tester) async {
+    testWidgets('Close clears the field and puts the keyboard away', (tester) async {
       await open(tester);
-      // Whitespace is not text: the word stays Cancel.
+      // Whitespace is not text: the word stays Close.
       await tester.enterText(find.byType(TextField), '   ');
       await tester.pumpAndSettle();
-      expect(find.text('Cancel').hitTestable(), findsOneWidget);
-      await tester.tap(find.text('Cancel').hitTestable());
+      expect(find.text('Close').hitTestable(), findsOneWidget);
+      await tester.tap(find.text('Close').hitTestable());
       await tester.pumpAndSettle();
-      expect(tester.widget<TextField>(find.byType(TextField)).controller?.text, '');
-      expect(FocusManager.instance.primaryFocus, isNotNull, reason: 'Cancel took the cursor away');
+      final field = tester.widget<SondrField>(find.byType(SondrField));
+      expect(field.controller.text, '');
+      expect(field.focusNode?.hasFocus, isFalse, reason: 'Close should dismiss the keyboard');
+      // The field is still there for the next comment, and still bare.
+      expect(find.byType(SondrField), findsOneWidget);
+      expect(find.text('Close').hitTestable(), findsOneWidget);
+    });
+
+    testWidgets('the word is Close or Post, never both, as text comes and goes', (tester) async {
+      await open(tester);
+      await tester.enterText(find.byType(TextField), 'a');
+      await tester.pumpAndSettle();
+      expect(find.text('Post').hitTestable(), findsOneWidget);
+      expect(find.text('Close').hitTestable(), findsNothing);
+      await tester.enterText(find.byType(TextField), '');
+      await tester.pumpAndSettle();
+      expect(find.text('Close').hitTestable(), findsOneWidget);
+      expect(find.text('Post').hitTestable(), findsNothing);
     });
   });
 
@@ -98,7 +114,7 @@ void main() {
       expect(composer.left, greaterThan(tester.getRect(find.text('first')).left));
     });
 
-    testWidgets('a second Reply moves it; Cancel removes it', (tester) async {
+    testWidgets('a second Reply moves it; Close removes it and the keyboard', (tester) async {
       await open(tester);
       await tester.tap(find.text('Reply').first);
       await tester.pumpAndSettle();
@@ -110,10 +126,14 @@ void main() {
       expect(moved.top, greaterThan(under.top));
       expect(moved.top, greaterThan(tester.getRect(find.text('another')).bottom));
 
-      await tester.tap(find.text('Cancel').hitTestable().last, warnIfMissed: false);
+      // The reply composer's own word says Close too.
+      expect(find.text('Close').hitTestable(), findsNWidgets(2));
+      await tester.tap(find.text('Close').hitTestable().last, warnIfMissed: false);
       await tester.pumpAndSettle();
       expect(find.byType(SondrField), findsOneWidget);
-      expect(tester.widget<SondrField>(find.byType(SondrField)).focusNode?.hasFocus, isTrue);
+      // Nothing takes the cursor back: the keyboard is simply gone.
+      expect(tester.widget<SondrField>(find.byType(SondrField)).focusNode?.hasFocus, isFalse,
+          reason: 'Close on a reply should not refocus the top composer');
     });
 
     testWidgets('Post sends with the parent and removes the composer', (tester) async {

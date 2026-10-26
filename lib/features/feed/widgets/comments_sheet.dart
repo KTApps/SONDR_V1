@@ -112,10 +112,17 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
     });
   }
 
-  void _cancelReply() {
+  /// Close on the reply composer: it goes, and the keyboard with it.
+  void _closeReply() {
     _reply.clear();
+    _replyFocus.unfocus();
     setState(() => _replyTo = null);
-    _inputFocus.requestFocus();
+  }
+
+  /// Close on the top composer: emptied, and the keyboard goes.
+  void _closeInput() {
+    _input.clear();
+    _inputFocus.unfocus();
   }
   bool _hasText = false;
   String? _error;
@@ -254,7 +261,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
         child: SondrError('Couldn’t load comments.', textAlign: TextAlign.center),
       );
 
-  /// The top composer: a bare field, and one word at its right — Cancel
+  /// The top composer: a bare field, and one word at its right — Close
   /// while it is empty, Post once there is something to post.
   Widget _composer(double scale) => _Composer(
     controller: _input,
@@ -262,8 +269,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
     busy: _busy,
     autofocus: true,
     onPost: _send,
-    // Cancel clears and keeps the cursor: the sheet is still for typing.
-    onCancel: () => _input.clear(),
+    onClose: _closeInput,
     scale: scale,
   );
 
@@ -278,7 +284,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       busy: _busy,
       autofocus: false,
       onPost: _sendReply,
-      onCancel: _cancelReply,
+      onClose: _closeReply,
       scale: scale,
     ),
   );
@@ -549,7 +555,7 @@ class _CommentTile extends ConsumerWidget {
   }
 }
 
-/// A bare field with one word at its right: Cancel while empty, Post once
+/// A bare field with one word at its right: Close while empty, Post once
 /// there is something to post. The word is mirrored by an invisible twin
 /// on the left, so the field is centred by construction.
 class _Composer extends StatelessWidget {
@@ -559,7 +565,7 @@ class _Composer extends StatelessWidget {
     required this.busy,
     required this.autofocus,
     required this.onPost,
-    required this.onCancel,
+    required this.onClose,
     required this.scale,
   });
 
@@ -568,7 +574,7 @@ class _Composer extends StatelessWidget {
   final bool busy;
   final bool autofocus;
   final VoidCallback onPost;
-  final VoidCallback onCancel;
+  final VoidCallback onClose;
   final double scale;
 
   @override
@@ -581,10 +587,10 @@ class _Composer extends StatelessWidget {
             onPressed: busy ? null : onPost,
           )
         : SondrAction(
-            label: 'Cancel',
+            label: 'Close',
             supporting: true,
             weight: FontWeight.w700,
-            onPressed: busy ? null : onCancel,
+            onPressed: busy ? null : onClose,
           );
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: kSpacingPair * scale),

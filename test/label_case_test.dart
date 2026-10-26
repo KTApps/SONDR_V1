@@ -126,10 +126,13 @@ void main() {
       expect(prompt.contains("cancelLabel = 'Cancel'"), isFalse);
     });
 
-    test('the comments composer has no hint', () {
+    test('the comments composer has no hint, and its empty word is Close', () {
       final sheet = File('lib/features/feed/widgets/comments_sheet.dart').readAsStringSync();
       expect(sheet.contains("hint: 'Add a comment'"), isFalse);
       expect(sheet.contains('Replying to'), isFalse);
+      expect(sheet, contains("label: 'Close',"));
+      expect(sheet, contains("label: 'Post',"));
+      expect(sheet.contains("'Cancel'"), isFalse);
     });
   });
 }

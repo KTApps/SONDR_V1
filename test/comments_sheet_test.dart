@@ -140,7 +140,7 @@ void main() {
         'the title', (tester) async {
       await openSheet(tester, keyboard: true);
       // Post shows once there is something to post; empty, the word is
-      // Cancel. The composer keeps an INVISIBLE twin on its left as a
+      // Close. The composer keeps an INVISIBLE twin on its left as a
       // spacer, so the real one is the hit-testable match.
       await tester.enterText(find.byType(TextField), 'x');
       await tester.pumpAndSettle();

@@ -18,6 +18,7 @@ import '../../../core/utils/relative_time.dart';
 import '../../profile/other_profile_screen.dart';
 import '../../reports/report.dart';
 import '../../reports/report_flow.dart';
+import '../comment_threads.dart';
 import '../models/comment.dart';
 import '../posts_repository.dart';
 
@@ -78,7 +79,19 @@ class CommentsSheet extends ConsumerStatefulWidget {
 
 class _CommentsSheetState extends ConsumerState<CommentsSheet> {
   final _input = TextEditingController();
+  final _inputFocus = FocusNode();
   bool _busy = false;
+
+  /// The comment being replied to, if any. A reply to a reply attaches to
+  /// the same parent; see [replyParentOf].
+  Comment? _replyTo;
+
+  void _startReply(Comment c) {
+    setState(() => _replyTo = c);
+    _inputFocus.requestFocus();
+  }
+
+  void _cancelReply() => setState(() => _replyTo = null);
   bool _hasText = false;
   String? _error;
 
@@ -127,6 +140,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
   void dispose() {
     _loadTimer?.cancel();
     _input.dispose();
+    _inputFocus.dispose();
     super.dispose();
   }
 
@@ -140,8 +154,14 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       _noticeIsQuiet = false;
     });
     try {
-      await repo.addComment(widget.postId, text);
+      final target = _replyTo;
+      await repo.addComment(
+        widget.postId,
+        text,
+        parentId: target == null ? null : replyParentOf(target),
+      );
       _input.clear();
+      if (mounted) setState(() => _replyTo = null);
     } on FirebaseException catch (e) {
       debugPrint('SONDR comment error: ${e.code} :: ${e.message}');
       if (mounted) setState(() => _error = 'Couldn’t post comment.');
@@ -217,9 +237,50 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       onPressed: _hasText && !_busy ? _send : null,
     );
 
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
+    final replyTo = _replyTo;
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: kSpacingPair * scale),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Who the reply is to, with the way out of it. Quiet, above the
+          // field; the field itself does not move.
+          if (replyTo != null)
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                kSpacingPair * scale, 0, kSpacingPair * scale, kSpacingPair * scale,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Replying to ${replyTo.author.username}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: 12 * scale,
+                        color: tokens.textSecondary,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _cancelReply,
+                    child: Text(
+                      'Cancel',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: 12 * scale,
+                        fontWeight: FontWeight.w700,
+                        color: tokens.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Visibility(
@@ -238,6 +299,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
               padding: EdgeInsets.symmetric(vertical: kSpacingPair * scale),
                 child: SondrField(
                 controller: _input,
+                focusNode: _inputFocus,
                 enabled: !_busy,
                 // No capsule: the sheet's own heading says what this takes, so
                 // a container would only add furniture (as on Add Friends).
@@ -267,6 +329,8 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
             ),
           ),
           post,
+        ],
+          ),
         ],
       ),
     );
@@ -345,10 +409,15 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                       // Pulling the list puts the keyboard away.
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      itemCount: list.length,
+                      itemCount: threadOf(list).length,
                       itemBuilder: (_, i) {
-                        final c = list[i];
-                        final tile = _CommentTile(comment: c);
+                        final entry = threadOf(list)[i];
+                        final c = entry.comment;
+                        final tile = _CommentTile(
+                          comment: c,
+                          depth: entry.depth,
+                          onReply: () => _startReply(c),
+                        );
                         // The swipe hides the action, exactly as a friend
                         // row hides Remove and Block: Delete on your own
                         // comment, Report on somebody else's. An
@@ -386,9 +455,20 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
 }
 
 class _CommentTile extends ConsumerWidget {
-  const _CommentTile({required this.comment});
+  const _CommentTile({
+    required this.comment,
+    this.depth = 0,
+    this.onReply,
+  });
 
   final Comment comment;
+
+  /// 1 for a reply: the row starts 24 beyond its parent's text, which
+  /// begins after the gutter, the avatar and the gap.
+  final int depth;
+  final VoidCallback? onReply;
+
+  static const double _replyInset = 24 + kAvatarComment + kSpacingBase + 24;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -401,10 +481,12 @@ class _CommentTile extends ConsumerWidget {
 
     return Padding(
       // The row carries the app's 24 gutter itself so the swipe tray can open
-      // into it, rather than the list insetting every row by 20.
-      padding: EdgeInsets.symmetric(
-        horizontal: 24 * scale,
-        vertical: kSpacingPair * scale,
+      // into it; a reply starts 24 beyond its parent's text.
+      padding: EdgeInsets.fromLTRB(
+        (depth > 0 ? _replyInset : 24) * scale,
+        kSpacingPair * scale,
+        24 * scale,
+        kSpacingPair * scale,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,6 +552,22 @@ class _CommentTile extends ConsumerWidget {
                           color: tokens.textTertiary,
                         ),
                       ),
+                    // The way to answer, as quiet as the time beside it.
+                    if (onReply != null) ...[
+                      SizedBox(width: kSpacingPair * scale),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onReply,
+                        child: Text(
+                          'Reply',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontSize: 12 * scale,
+                            fontWeight: FontWeight.w700,
+                            color: tokens.textTertiary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 SizedBox(height: kSpacingPair * scale),

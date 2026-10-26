@@ -323,7 +323,8 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                 textInputAction: TextInputAction.done,
                 // Open ready to type, cursor in the field.
                 autofocus: true,
-                hint: 'Their handle',
+                // The page's "Add friends" reads into it.
+                hint: 'Here',
                 onChanged: _onQueryChanged,
                 // Adding is by tapping a result, so Enter only puts the
                 // keyboard away.

@@ -102,7 +102,7 @@ void main() {
 
       final field = tester.widget<SondrField>(find.byType(SondrField));
       expect(field.autofocus, isTrue);
-      expect(field.hint, 'Their handle');
+      expect(field.hint, 'Here');
       expect(field.textInputAction, TextInputAction.done);
       expect(FocusManager.instance.primaryFocus, isNotNull);
 

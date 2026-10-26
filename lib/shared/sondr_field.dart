@@ -35,6 +35,7 @@ class SondrField extends StatelessWidget {
     this.centered = false,
     this.focusNode,
     this.hint,
+    this.style,
     this.maxLines = 1,
     this.minLines,
     this.fontSize = 15,
@@ -70,6 +71,11 @@ class SondrField extends StatelessWidget {
   /// is text.
   final String? hint;
 
+  /// The text's style, in full, where the field has to match a line of
+  /// text beside it exactly — the habit name field is one. Replaces the
+  /// standard entry style and [fontSize].
+  final TextStyle? style;
+
   /// Null grows without limit, wrapping to new lines as the text fills the
   /// width. One keeps the field a single line, which is the default.
   final int? maxLines;
@@ -98,11 +104,13 @@ class SondrField extends StatelessWidget {
     final theme = Theme.of(context);
     final scale = figmaScale(context);
 
-    final entryStyle = theme.textTheme.bodyMedium?.copyWith(
-      fontSize: fontSize * scale,
-      fontWeight: FontWeight.w700,
-      color: tokens.textPrimary,
-    );
+    final entryStyle =
+        style ??
+        theme.textTheme.bodyMedium?.copyWith(
+          fontSize: fontSize * scale,
+          fontWeight: FontWeight.w700,
+          color: tokens.textPrimary,
+        );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -98,6 +98,21 @@ service cloud.firestore {
       return pair != null && pair.data.status == 'accepted';
     }
 
+    // Whether `actor` has a request to `target` standing AFTER this write —
+    // the request and its notification land in one batch.
+    function pendingRequestAfter(actor, target) {
+      let pair = getAfter(/databases/$(database)/documents/friendships/$(pairId(actor, target)));
+      return pair != null && pair.data.status == 'pending'
+             && pair.data.requestedBy == actor;
+    }
+
+    // Whether `actor` has just recorded `inviter` as the one who invited
+    // them — the invite and its notification land in one batch.
+    function invitedAfter(actor, inviter) {
+      let inv = getAfter(/databases/$(database)/documents/invites/$(actor));
+      return inv != null && inv.data.invitedBy == inviter;
+    }
+
     // Whether `handle` is claimed by `uid` in the usernames index. A public
     // profile that could name any handle would be an impersonation vector:
     // the handle is the name everything else in the app goes by.
@@ -285,6 +300,58 @@ service cloud.firestore {
     // author's accepted friends at post time + self), so the feed is a single
     // `audience array-contains uid` query and the read rule needs no per-post
     // friendship lookup. Only the author writes their own posts.
+    // In-app notifications: one document per event, under the RECIPIENT,
+    // written by the ACTOR. users/{uid}/** is owner-only, so these live at
+    // the top level; the recipient alone reads and deletes them (deleting
+    // an account deletes them), nobody updates one, and an actor may only
+    // write the kind of notice the thing they just did allows — a like to
+    // a friend, a request to the person asked, an acceptance to the one
+    // who asked, an invite to the one who invited. Never to yourself. The
+    // keys are exact per kind, and `at` is the server's clock.
+    match /notifications/{recipientUid}/items/{itemId} {
+      allow read, delete: if request.auth != null
+                          && request.auth.uid == recipientUid;
+      allow update: if false;
+      allow create: if request.auth != null
+                    && request.resource.data.actorUid == request.auth.uid
+                    && request.auth.uid != recipientUid
+                    && request.resource.data.actorHandle is string
+                    && request.resource.data.at == request.time
+                    && (
+                      (
+                        request.resource.data.type == 'request'
+                        && request.resource.data.keys().hasOnly(['type', 'actorUid', 'actorHandle', 'at'])
+                        && pendingRequestAfter(request.auth.uid, recipientUid)
+                      ) || (
+                        request.resource.data.type == 'accepted'
+                        && request.resource.data.keys().hasOnly(['type', 'actorUid', 'actorHandle', 'at'])
+                        && acceptedAfter(request.auth.uid, recipientUid)
+                      ) || (
+                        request.resource.data.type == 'like'
+                        && request.resource.data.keys().hasOnly(['type', 'actorUid', 'actorHandle', 'postId', 'at'])
+                        && request.resource.data.postId is string
+                        && acceptedBetween(request.auth.uid, recipientUid)
+                      ) || (
+                        (request.resource.data.type == 'comment' || request.resource.data.type == 'reply')
+                        && request.resource.data.keys().hasOnly(['type', 'actorUid', 'actorHandle', 'postId', 'commentId', 'at'])
+                        && request.resource.data.postId is string
+                        && request.resource.data.commentId is string
+                        && acceptedBetween(request.auth.uid, recipientUid)
+                      ) || (
+                        request.resource.data.type == 'milestone'
+                        && request.resource.data.keys().hasOnly(['type', 'actorUid', 'actorHandle', 'postId', 'taskName', 'hours', 'at'])
+                        && request.resource.data.postId is string
+                        && request.resource.data.taskName is string
+                        && request.resource.data.hours is int
+                        && acceptedBetween(request.auth.uid, recipientUid)
+                      ) || (
+                        request.resource.data.type == 'invite'
+                        && request.resource.data.keys().hasOnly(['type', 'actorUid', 'actorHandle', 'at'])
+                        && invitedAfter(request.auth.uid, recipientUid)
+                      )
+                    );
+    }
+
     match /posts/{postId} {
       allow read: if request.auth != null
                   && request.auth.uid in resource.data.audience;
@@ -339,7 +406,17 @@ service cloud.firestore {
                       && request.auth.uid in
                          get(/databases/$(database)/documents/posts/$(postId)).data.audience
                       && request.resource.data.audience ==
-                         get(/databases/$(database)/documents/posts/$(postId)).data.audience;
+                         get(/databases/$(database)/documents/posts/$(postId)).data.audience
+                      // A reply names its parent: an existing TOP-LEVEL
+                      // comment on this same post. One level, never deeper.
+                      && (
+                        !('parentId' in request.resource.data)
+                        || (
+                          request.resource.data.parentId is string
+                          && exists(/databases/$(database)/documents/posts/$(postId)/comments/$(request.resource.data.parentId))
+                          && !('parentId' in get(/databases/$(database)/documents/posts/$(postId)/comments/$(request.resource.data.parentId)).data)
+                        )
+                      );
 
         // The audience only, and never the text after people have read
         // it. The author may NARROW it (a block, an unfriend), or set it to
@@ -357,8 +434,18 @@ service cloud.firestore {
                            get(/databases/$(database)/documents/posts/$(postId)).data.audience
                       );
 
+        // Yours to delete — and a reply under YOUR comment is yours to
+        // take down with it, which is what lets deleting a comment delete
+        // its replies in one batch.
         allow delete: if request.auth != null
-                      && resource.data.authorUid == request.auth.uid;
+                      && (
+                        resource.data.authorUid == request.auth.uid
+                        || (
+                          'parentId' in resource.data
+                          && get(/databases/$(database)/documents/posts/$(postId)/comments/$(resource.data.parentId)).data.authorUid
+                             == request.auth.uid
+                        )
+                      );
       }
 
       // Who liked a post: one document per liker, named by them. Written

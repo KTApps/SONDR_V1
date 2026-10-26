@@ -239,6 +239,168 @@ describe('who liked a post', () => {
   });
 });
 
+describe('replies', () => {
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/p1'), { authorUid: C, audience: [A, B, C], createdAt: 1 });
+      await setDoc(doc(db, 'posts/p1/comments/top'), {
+        authorUid: A, audience: [A, B, C], text: 't', createdAt: 1,
+      });
+      await setDoc(doc(db, 'posts/p1/comments/reply1'), {
+        authorUid: B, audience: [A, B, C], text: 'r', createdAt: 2, parentId: 'top',
+      });
+    });
+  });
+
+  it('a reply names an existing top-level comment on the same post', async () => {
+    await assertSucceeds(setDoc(doc(as(C), 'posts/p1/comments/r2'), {
+      authorUid: C, audience: [A, B, C], text: 'ok', createdAt: 3, parentId: 'top',
+    }));
+  });
+
+  it('a reply to a missing parent is refused', async () => {
+    await assertFails(setDoc(doc(as(C), 'posts/p1/comments/r3'), {
+      authorUid: C, audience: [A, B, C], text: 'x', createdAt: 3, parentId: 'nope',
+    }));
+  });
+
+  it('a reply to a reply is refused — one level, never deeper', async () => {
+    await assertFails(setDoc(doc(as(C), 'posts/p1/comments/r4'), {
+      authorUid: C, audience: [A, B, C], text: 'x', createdAt: 3, parentId: 'reply1',
+    }));
+  });
+
+  it("the parent's author may delete a reply under their comment", async () => {
+    await assertSucceeds(deleteDoc(doc(as(A), 'posts/p1/comments/reply1')));
+  });
+
+  it('nobody else may delete somebody\'s reply', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/p1/comments/reply5'), {
+        authorUid: B, audience: [A, B, C], text: 'r', createdAt: 2, parentId: 'top',
+      });
+    });
+    await assertFails(deleteDoc(doc(as(C), 'posts/p1/comments/reply5')));
+  });
+});
+
+describe('notifications', () => {
+  const base = (type, extra = {}) => ({
+    type, actorUid: A, actorHandle: 'tom', at: serverTimestamp(), ...extra,
+  });
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      // A and C are friends; A and D are strangers; B invited A.
+      await setDoc(doc(db, 'friendships/' + pairId(A, C)), {
+        users: [A, C].sort(), status: 'accepted', requestedBy: C,
+      });
+      await setDoc(doc(db, 'posts/p1'), { authorUid: C, audience: [A, C], createdAt: 1 });
+      await setDoc(doc(db, 'usernames/bee'), { uid: B });
+    });
+  });
+
+  it('a like goes to a friend, with exact keys', async () => {
+    await assertSucceeds(setDoc(doc(as(A), 'notifications/' + C + '/items/n1'),
+      base('like', { postId: 'p1' })));
+  });
+
+  it('a like with a stray key is refused', async () => {
+    await assertFails(setDoc(doc(as(A), 'notifications/' + C + '/items/n2'),
+      base('like', { postId: 'p1', extra: 1 })));
+  });
+
+  it('a like to a stranger is refused', async () => {
+    await assertFails(setDoc(doc(as(A), 'notifications/' + D + '/items/n3'),
+      base('like', { postId: 'p1' })));
+  });
+
+  it('nothing to yourself', async () => {
+    await assertFails(setDoc(doc(as(A), 'notifications/' + A + '/items/n4'),
+      base('like', { postId: 'p1' })));
+  });
+
+  it('the actor must be the signed-in user', async () => {
+    await assertFails(setDoc(doc(as(C), 'notifications/' + A + '/items/n5'),
+      base('like', { postId: 'p1' })));
+  });
+
+  it('the clock is the server\'s', async () => {
+    await assertFails(setDoc(doc(as(A), 'notifications/' + C + '/items/n6'),
+      { ...base('like', { postId: 'p1' }), at: 123 }));
+  });
+
+  it('a comment and a reply carry the comment id', async () => {
+    await assertSucceeds(setDoc(doc(as(A), 'notifications/' + C + '/items/n7'),
+      base('comment', { postId: 'p1', commentId: 'c1' })));
+    await assertSucceeds(setDoc(doc(as(A), 'notifications/' + C + '/items/n8'),
+      base('reply', { postId: 'p1', commentId: 'c1' })));
+    await assertFails(setDoc(doc(as(A), 'notifications/' + C + '/items/n9'),
+      base('comment', { postId: 'p1' })));
+  });
+
+  it('a milestone carries the task and the hours', async () => {
+    await assertSucceeds(setDoc(doc(as(A), 'notifications/' + C + '/items/n10'),
+      base('milestone', { postId: 'p1', taskName: 'Spanish', hours: 20 })));
+    await assertFails(setDoc(doc(as(A), 'notifications/' + C + '/items/n11'),
+      base('milestone', { postId: 'p1', taskName: 'Spanish' })));
+  });
+
+  it('a request notice lands with the request, in one batch — and not without it', async () => {
+    const db = as(A);
+    const b = writeBatch(db);
+    b.set(doc(db, 'friendships/' + pairId(A, D)), {
+      users: [A, D].sort(), status: 'pending', requestedBy: A,
+      profiles: { [A]: { username: 'tom', displayName: 'Tom' } },
+    });
+    b.set(doc(db, 'notifications/' + D + '/items/req1'), base('request'));
+    await assertSucceeds(b.commit());
+    // A stranger with no request standing cannot say "wants to be friends".
+    await assertFails(setDoc(doc(as(C), 'notifications/' + D + '/items/req2'),
+      { type: 'request', actorUid: C, actorHandle: 'cass', at: serverTimestamp() }));
+  });
+
+  it('an acceptance lands with the accept', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'friendships/' + pairId(A, B)), {
+        users: [A, B].sort(), status: 'pending', requestedBy: B,
+        profiles: { [B]: { username: 'bee', displayName: 'Bee' } },
+      });
+    });
+    const db = as(A);
+    const b = writeBatch(db);
+    b.update(doc(db, 'friendships/' + pairId(A, B)), {
+      status: 'accepted', acceptedAt: serverTimestamp(),
+      [`profiles.${A}`]: { username: 'tom', displayName: 'Tom' },
+    });
+    b.set(doc(db, 'publicProfiles/' + A + '/friends/' + B), { since: serverTimestamp() });
+    b.set(doc(db, 'publicProfiles/' + B + '/friends/' + A), { since: serverTimestamp() });
+    b.set(doc(db, 'notifications/' + B + '/items/acc1'), base('accepted'));
+    await assertSucceeds(b.commit());
+  });
+
+  it('an invite notice lands with the invite record', async () => {
+    const db = as(A);
+    const b = writeBatch(db);
+    b.set(doc(db, 'invites/' + A), { invitedBy: B, invitedByHandle: 'bee', at: serverTimestamp() });
+    b.set(doc(db, 'notifications/' + B + '/items/inv1'), base('invite'));
+    await assertSucceeds(b.commit());
+    await assertFails(setDoc(doc(as(C), 'notifications/' + B + '/items/inv2'),
+      { type: 'invite', actorUid: C, actorHandle: 'cass', at: serverTimestamp() }));
+  });
+
+  it('only the recipient reads and deletes; nobody updates', async () => {
+    const mine = await assertSucceeds(getDocs(query(
+      collection(as(C), 'notifications/' + C + '/items'), orderBy('at', 'desc'), limit(100))));
+    assert.ok(mine.size >= 1);
+    await assertFails(getDocs(collection(as(A), 'notifications/' + C + '/items')));
+    await assertFails(updateDoc(doc(as(C), 'notifications/' + C + '/items/n1'), { type: 'reply' }));
+    await assertSucceeds(deleteDoc(doc(as(C), 'notifications/' + C + '/items/n1')));
+    await assertFails(deleteDoc(doc(as(A), 'notifications/' + C + '/items/n7')));
+  });
+});
+
 describe('finding my own comments to prune', () => {
   before(async () => {
     await env.clearFirestore();

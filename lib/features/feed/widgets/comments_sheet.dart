@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -100,16 +101,38 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
     // composer into view above the keyboard.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _replyTo != c) return;
+      // Focus is applied here and now, so the field's own "show my caret"
+      // scroll is scheduled BEFORE ours for the next frame — and ours, the
+      // one that knows about the clearance, is the one that lands.
       _replyFocus.requestFocus();
-      final ctx = _replyKey.currentContext;
-      if (ctx != null) {
-        Scrollable.ensureVisible(
-          ctx,
-          alignment: 1,
+      FocusManager.instance.applyFocusChangesIfNeeded();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _replyTo != c) return;
+        _revealReply(
+          alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
           duration: const Duration(milliseconds: 180),
         );
-      }
+      });
     });
+  }
+
+  /// Scrolls the reply composer's box — field, word, and the clearance
+  /// beneath — to the bottom of the list, which is the keyboard's top edge.
+  /// With [ScrollPositionAlignmentPolicy.keepVisibleAtEnd] it only scrolls
+  /// when the box has slipped below, which is what typing wants: the field
+  /// grows down into the keyboard and is brought back, nothing else moves.
+  void _revealReply({
+    required ScrollPositionAlignmentPolicy alignmentPolicy,
+    Duration duration = Duration.zero,
+  }) {
+    final ctx = _replyKey.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 1,
+      alignmentPolicy: alignmentPolicy,
+      duration: duration,
+    );
   }
 
   /// Close on the reply composer: it goes, and the keyboard with it.
@@ -156,7 +179,16 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       }
     });
     _reply.addListener(() {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() {});
+      // A second or third line grows the field downwards; after the frame
+      // that lays it out, keep the same clearance above the keyboard.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _replyTo == null) return;
+        _revealReply(
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        );
+      });
     });
     _input.addListener(() {
       final has = _input.text.trim().isNotEmpty;
@@ -277,8 +309,14 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
   /// exactly as the top composer is — full width, the field centred, the
   /// word at the same right edge — so the cursor sits on the same line
   /// down the sheet. Only the replies themselves are indented.
-  Widget _replyComposer(double scale) => KeyedSubtree(
+  ///
+  /// Beneath it, the same air a comment row leaves under its text. The
+  /// composer's inside is symmetric, so with this the clearance between the
+  /// cursor and the keyboard equals the gap between the text above and the
+  /// cursor: one rhythm, whichever side of the field you read.
+  Widget _replyComposer(double scale) => Padding(
     key: _replyKey,
+    padding: EdgeInsets.only(bottom: kSpacingPair * scale),
     child: _Composer(
       controller: _reply,
       focusNode: _replyFocus,
@@ -286,6 +324,9 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       autofocus: false,
       onPost: _sendReply,
       onClose: _closeReply,
+      // The sheet scrolls the composer into view itself; the field must not
+      // add the platform's 20 on top and overshoot the clearance.
+      scrollPadding: EdgeInsets.zero,
       scale: scale,
     ),
   );
@@ -559,6 +600,12 @@ class _CommentTile extends ConsumerWidget {
 /// A bare field with one word at its right: Close while empty, Post once
 /// there is something to post. The word is mirrored by an invisible twin
 /// on the left, so the field is centred by construction.
+///
+/// The field's air above and below is one figure, [_pad], settled before
+/// layout from the word's height and the line's: the word is centred on the
+/// FIRST line, and a second or third line grows the field downwards with
+/// the first line, the word and the air above all standing still. The air
+/// below the last line is that same figure, whatever the count.
 class _Composer extends StatelessWidget {
   const _Composer({
     required this.controller,
@@ -568,6 +615,7 @@ class _Composer extends StatelessWidget {
     required this.onPost,
     required this.onClose,
     required this.scale,
+    this.scrollPadding,
   });
 
   final TextEditingController controller;
@@ -577,10 +625,26 @@ class _Composer extends StatelessWidget {
   final VoidCallback onPost;
   final VoidCallback onClose;
   final double scale;
+  final EdgeInsets? scrollPadding;
+
+  /// The field's padding above and below: enough that the word's tap target
+  /// fits beside one line, and never less than a row's own.
+  static double _pad(BuildContext context, double scale, double lineHeight) =>
+      math.max(
+        kSpacingPair * scale,
+        (SondrAction.heightOf(context) - lineHeight) / 2,
+      );
 
   @override
   Widget build(BuildContext context) {
     final hasText = controller.text.trim().isNotEmpty;
+    final lineHeight = SondrField.lineHeightOf(context, fontSize: _kCommentBody);
+    final pad = _pad(context, scale, lineHeight);
+    // The word, centred on the first line's box.
+    Widget onFirstLine(Widget word) => SizedBox(
+      height: lineHeight + 2 * pad,
+      child: Center(child: word),
+    );
     final word = hasText
         ? SondrAction(
             label: 'Post',
@@ -596,18 +660,20 @@ class _Composer extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: kSpacingPair * scale),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Visibility(
-            visible: false,
-            maintainSize: true,
-            maintainAnimation: true,
-            maintainState: true,
-            child: word,
+          onFirstLine(
+            Visibility(
+              visible: false,
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: word,
+            ),
           ),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: kSpacingPair * scale),
+              padding: EdgeInsets.symmetric(vertical: pad),
               child: SondrField(
                 controller: controller,
                 focusNode: focusNode,
@@ -620,10 +686,11 @@ class _Composer extends StatelessWidget {
                 onSubmitted: (_) => FocusScope.of(context).unfocus(),
                 autofocus: autofocus,
                 fontSize: _kCommentBody,
+                scrollPadding: scrollPadding,
               ),
             ),
           ),
-          word,
+          onFirstLine(word),
         ],
       ),
     );

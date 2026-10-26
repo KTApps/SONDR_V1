@@ -63,6 +63,32 @@ class SondrAction extends StatelessWidget {
   /// this exists for.
   bool get _disabled => onPressed == null;
 
+  /// The tap target's reach above and below the label, on the reference
+  /// canvas.
+  static const double _verticalPad = 12;
+
+  /// How tall an action of [fontSize] stands in [context] — its label at
+  /// the user's text size plus the tap padding either side. For a layout
+  /// that has to make room for the action before it is laid out: the
+  /// comments composer pads its field so the word never pushes it about.
+  static double heightOf(BuildContext context, {double fontSize = 15}) {
+    final scale = figmaScale(context);
+    final painter = TextPainter(
+      text: TextSpan(
+        text: 'Post',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          fontSize: fontSize * scale,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final height = painter.height;
+    painter.dispose();
+    return height + 2 * _verticalPad * scale;
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
@@ -75,7 +101,7 @@ class SondrAction extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: 20 * scale,
-          vertical: 12 * scale,
+          vertical: _verticalPad * scale,
         ),
         child: Text(
           label,

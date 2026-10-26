@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/backend.dart';
@@ -8,6 +9,7 @@ import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/posts_repository.dart';
 import 'package:sondr/features/feed/widgets/comments_sheet.dart';
 import 'package:sondr/shared/sondr_field.dart';
+import 'package:sondr/shared/sondr_swipe_row.dart';
 
 /// The composers: the one at the top, and the one that opens beneath a
 /// thread when you reply.
@@ -24,7 +26,7 @@ void main() {
 
   const w = 390.0, h = 844.0, keyboard = 335.0;
 
-  Future<void> open(WidgetTester tester, {int extra = 0, bool keyboardUp = false}) async {
+  Future<void> open(WidgetTester tester, {int extra = 0, bool keyboardUp = false, double textScale = 1.0}) async {
     tester.view.physicalSize = const Size(w * 3, h * 3);
     tester.view.devicePixelRatio = 3.0;
     tester.view.viewInsets = keyboardUp ? const FakeViewPadding(bottom: keyboard * 3) : FakeViewPadding.zero;
@@ -37,6 +39,10 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.dark(),
+          builder: (c, child) => MediaQuery(
+            data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           home: Builder(
             builder: (context) => Scaffold(
               body: Center(
@@ -181,5 +187,100 @@ void main() {
       final composer = tester.getRect(find.byType(SondrField).last);
       expect(composer.bottom, lessThanOrEqualTo(h - keyboard + 0.5), reason: 'the reply composer is behind the keyboard');
     });
+  });
+
+  /// The clearance between the cursor and the keyboard is the gap between
+  /// the text above and the cursor — one rhythm either side of the field —
+  /// and it holds as the field grows to two and three lines.
+  group('above the keyboard', () {
+    // Twelve older comments, then the thread, so Reply on it has to scroll.
+    List<Comment> late() => [
+      for (var i = 0; i < 12; i++)
+        Comment(id: 'f$i', authorUid: 'bea', author: bea, text: 'filler $i', createdAt: DateTime(2026, 10, 1, 8, i)),
+      Comment(id: 'top', authorUid: 'cass', author: cass, text: 'first', createdAt: DateTime(2026, 10, 1, 9)),
+      Comment(id: 'r1', authorUid: 'bea', author: bea, text: 'reply', createdAt: DateTime(2026, 10, 1, 10), parentId: 'top'),
+    ];
+
+    Future<void> replyToLast(WidgetTester tester, double textScale) async {
+      tester.view.physicalSize = const Size(w * 3, h * 3);
+      tester.view.devicePixelRatio = 3.0;
+      tester.view.viewInsets = const FakeViewPadding(bottom: keyboard * 3);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUidProvider.overrideWithValue('me'),
+            postCommentsProvider.overrideWith((ref, id) => AsyncValue.data(late())),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            builder: (c, child) => MediaQuery(
+              data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: TextButton(onPressed: () => showCommentsSheet(context, 'p1'), child: const Text('open')),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('reply'), 200, scrollable: find.byType(Scrollable).last);
+      await tester.pumpAndSettle();
+      final row = find.ancestor(of: find.text('reply'), matching: find.byType(SondrSwipeRow)).first;
+      await tester.tap(find.descendant(of: row, matching: find.text('Reply')), warnIfMissed: false);
+      await tester.pumpAndSettle();
+    }
+
+    /// The cursor's line box: the field's editable area.
+    Rect cursorBox(WidgetTester tester) => tester.getRect(
+      find.descendant(of: find.byType(SondrField).last, matching: find.byType(EditableText)),
+    );
+
+    /// The caret itself, at the end of the text.
+    Rect caret(WidgetTester tester) {
+      final re = tester.renderObject<RenderEditable>(find.descendant(
+        of: find.byType(SondrField).last,
+        matching: find.byElementPredicate((e) => e.renderObject is RenderEditable),
+      ));
+      final local = re.getLocalRectForCaret(TextPosition(offset: re.text!.toPlainText().length));
+      final tl = re.localToGlobal(local.topLeft);
+      return Rect.fromLTWH(tl.dx, tl.dy, local.width, local.height);
+    }
+
+    const kb = h - keyboard;
+    for (final ts in [0.824, 1.0, 1.235]) {
+      testWidgets('at textScale $ts the clearance below equals the gap above', (tester) async {
+        await replyToLast(tester, ts);
+        final textBottom = tester.getRect(find.text('reply')).bottom;
+        final box = cursorBox(tester);
+        final above = box.top - textBottom;
+        final below = kb - box.bottom;
+        // ignore: avoid_print
+        print('AFTER ts=$ts gapAbove=${above.toStringAsFixed(2)} gapBelow=${below.toStringAsFixed(2)} '
+            'caretAbove=${(caret(tester).top - textBottom).toStringAsFixed(2)} caretBelow=${(kb - caret(tester).bottom).toStringAsFixed(2)}');
+        expect(below, moreOrLessEquals(above, epsilon: 0.5));
+        expect(kb - caret(tester).bottom, moreOrLessEquals(caret(tester).top - textBottom, epsilon: 0.5));
+
+        // Two lines, then three: the field grows down and is brought back
+        // to the same clearance each time.
+        for (final text in [
+          'a long reply that should certainly wrap onto a second line of the field here',
+          'a long reply that should certainly wrap onto a second line of the field here, '
+              'and then keep going far enough to need a third line as well, which it does',
+        ]) {
+          await tester.enterText(find.byType(TextField).last, text);
+          await tester.pumpAndSettle();
+          expect(kb - cursorBox(tester).bottom, moreOrLessEquals(above, epsilon: 0.5),
+              reason: 'the grown field should keep the clearance');
+          expect(find.text('reply'), findsOneWidget, reason: 'the reply above should still be on screen');
+        }
+      });
+    }
   });
 }

@@ -133,8 +133,10 @@ class PostsRepository {
         .map((snap) => snap.docs.map((d) => d.id).toSet());
   }
 
-  /// Like or unlike [postId]. Batched so the user's like mirror and the post's
-  /// likeCount move together.
+  /// Like or unlike [postId]. One batch, three writes, all or none: the
+  /// user's own mirror (what fills the heart), the post's copy
+  /// (`posts/{id}/likes/{uid}`, what the author's Likes sheet lists), and
+  /// the counter on the post.
   Future<void> setLike(String postId, bool liked) async {
     final likeRef = db
         .collection('users')
@@ -142,15 +144,45 @@ class PostsRepository {
         .collection('likes')
         .doc(postId);
     final postRef = _posts.doc(postId);
+    final onPost = postRef.collection('likes').doc(uid);
     final batch = db.batch();
     if (liked) {
       batch.set(likeRef, {'createdAt': FieldValue.serverTimestamp()});
+      batch.set(onPost, {'at': FieldValue.serverTimestamp()});
       batch.update(postRef, {'likeCount': FieldValue.increment(1)});
     } else {
       batch.delete(likeRef);
+      batch.delete(onPost);
       batch.update(postRef, {'likeCount': FieldValue.increment(-1)});
     }
     await batch.commit();
+  }
+
+  /// Who liked [postId], newest first. Readable by anyone the post
+  /// reaches; the author opens it from the word "Likes" on their own post.
+  /// Likes made before the post kept its own copy are not here — the sheet
+  /// starts from the day it existed.
+  Stream<List<PostLike>> watchLikes(String postId) {
+    return _posts
+        .doc(postId)
+        .collection('likes')
+        .orderBy('at', descending: true)
+        .snapshots()
+        .map(
+          (snap) => [
+            for (final d in snap.docs)
+              PostLike(uid: d.id, at: _toTime(d.data()['at'])),
+          ],
+        );
+  }
+
+  static DateTime? _toTime(dynamic v) {
+    if (v == null) return null;
+    try {
+      return (v as dynamic).toDate() as DateTime;
+    } catch (_) {
+      return null;
+    }
   }
 
   // --- Comments ----------------------------------------------------------
@@ -289,6 +321,17 @@ class PostsRepository {
     caption: caption,
     photos: photos,
   );
+}
+
+/// One like on a post: who, and when. The name comes from their public
+/// profile, looked up by the sheet.
+class PostLike {
+  const PostLike({required this.uid, required this.at});
+
+  final String uid;
+
+  /// Null only between the local write and the server stamp landing.
+  final DateTime? at;
 }
 
 /// Null on the local/offline backend or before a uid exists.

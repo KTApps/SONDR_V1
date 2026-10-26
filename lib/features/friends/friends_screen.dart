@@ -63,6 +63,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     final q = normalizeHandle(raw);
     if (q == _query) return;
     setState(() => _query = q);
+    _syncSearching();
     _debounce?.cancel();
     if (q.isEmpty) {
       setState(() {
@@ -99,11 +100,16 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
   @override
   void initState() {
     super.initState();
-    _handleFocus.addListener(() {
-      if (_handleFocus.hasFocus != _searching) {
-        setState(() => _searching = _handleFocus.hasFocus);
-      }
-    });
+    _handleFocus.addListener(_syncSearching);
+  }
+
+  /// The results take over the page while there is something TYPED in a
+  /// focused field — not on focus alone. The field opens focused now, and
+  /// a page that swapped its sections for an empty results list the moment
+  /// it appeared would have moved everything for nothing.
+  void _syncSearching() {
+    final want = _handleFocus.hasFocus && _query.isNotEmpty;
+    if (want != _searching) setState(() => _searching = want);
   }
 
   @override
@@ -219,6 +225,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
 
     return ListView(
       padding: EdgeInsets.zero,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         for (final m in _matches)
           _FriendRow(
@@ -314,6 +321,9 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                 filled: false,
                 centered: true,
                 textInputAction: TextInputAction.done,
+                // Open ready to type, cursor in the field.
+                autofocus: true,
+                hint: 'Their handle',
                 onChanged: _onQueryChanged,
                 // Adding is by tapping a result, so Enter only puts the
                 // keyboard away.
@@ -414,6 +424,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         Expanded(
           child: ListView(
             padding: EdgeInsets.zero,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
               for (final f in friends)
                 SondrSwipeRow(

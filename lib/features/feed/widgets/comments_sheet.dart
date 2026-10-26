@@ -257,6 +257,10 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                 // you type.
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                // Open ready to type: the sheet was asked for, so the
+                // cursor is already in it. Nothing else moves.
+                autofocus: true,
+                hint: 'Add a comment',
                 // What you type is the size of what you are joining.
                 fontSize: _kCommentBody,
               ),
@@ -338,6 +342,9 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                     if (list.isEmpty) return const SizedBox.shrink();
                     return ListView.builder(
                       padding: EdgeInsets.zero,
+                      // Pulling the list puts the keyboard away.
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
                       itemCount: list.length,
                       itemBuilder: (_, i) {
                         final c = list[i];

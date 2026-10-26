@@ -273,11 +273,12 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
     scale: scale,
   );
 
-  /// The reply composer, beneath the thread it answers, indented as a
-  /// reply is.
-  Widget _replyComposer(double scale) => Padding(
+  /// The reply composer, beneath the thread it answers. It is laid out
+  /// exactly as the top composer is — full width, the field centred, the
+  /// word at the same right edge — so the cursor sits on the same line
+  /// down the sheet. Only the replies themselves are indented.
+  Widget _replyComposer(double scale) => KeyedSubtree(
     key: _replyKey,
-    padding: EdgeInsets.only(left: (_CommentTile._replyInset - 24) * scale),
     child: _Composer(
       controller: _reply,
       focusNode: _replyFocus,

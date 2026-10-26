@@ -97,7 +97,7 @@ void main() {
   });
 
   group('replying', () {
-    testWidgets('Reply opens a composer beneath the thread, focused, indented', (tester) async {
+    testWidgets('Reply opens a composer beneath the thread, focused', (tester) async {
       await open(tester);
       expect(find.byType(SondrField), findsOneWidget);
       await tester.tap(find.text('Reply').first);
@@ -110,8 +110,30 @@ void main() {
       final composer = tester.getRect(find.byType(SondrField).last);
       expect(composer.top, greaterThan(tester.getRect(find.text('reply')).bottom));
       expect(composer.bottom, lessThan(tester.getRect(find.text('another')).top));
-      // Indented like a reply.
-      expect(composer.left, greaterThan(tester.getRect(find.text('first')).left));
+    });
+
+    testWidgets('the reply composer is laid out exactly like the top one', (tester) async {
+      await open(tester);
+      await tester.tap(find.text('Reply').first);
+      await tester.pumpAndSettle();
+      final fields = find.byType(SondrField);
+      expect(fields, findsNWidgets(2));
+      final top = tester.getRect(fields.first);
+      final reply = tester.getRect(fields.last);
+      // Same width and the same centre line: the cursor and the typed text
+      // sit on one vertical line down the sheet, not indented as replies are.
+      expect(reply.width, moreOrLessEquals(top.width, epsilon: 0.5));
+      expect(reply.center.dx, moreOrLessEquals(top.center.dx, epsilon: 0.5));
+      expect(reply.left, lessThan(tester.getRect(find.text('reply')).left),
+          reason: 'the composer is not indented like the reply above it');
+      // The word at the right sits at the same edge on both.
+      final words = find.text('Close').hitTestable();
+      expect(words, findsNWidgets(2));
+      expect(tester.getRect(words.last).right, moreOrLessEquals(tester.getRect(words.first).right, epsilon: 0.5));
+      await tester.enterText(find.byType(TextField).last, 'yes');
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.text('Post').hitTestable()).right,
+          moreOrLessEquals(tester.getRect(find.text('Close').hitTestable()).right, epsilon: 0.5));
     });
 
     testWidgets('a second Reply moves it; Close removes it and the keyboard', (tester) async {

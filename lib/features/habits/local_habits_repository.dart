@@ -33,9 +33,12 @@ class LocalHabitsRepository implements HabitsRepository {
     // Seed the previous three days as fully-completed frozen snapshots, so the
     // streak (consecutive complete days up to yesterday) reads 3. These stay
     // put when the live list later changes (immutable history).
+    // Counted on the calendar, not in hours: the night after the clocks go
+    // back, now minus 24 hours is still today, and the seed wrote one day
+    // twice and the streak read 2.
     final now = DateTime.now();
     for (var ago = 1; ago <= 3; ago++) {
-      final key = DayKey.of(now.subtract(Duration(days: ago)));
+      final key = DayKey.of(DateTime(now.year, now.month, now.day - ago));
       _days[key] = DailyHabits(
         dayKey: key,
         ticks: [

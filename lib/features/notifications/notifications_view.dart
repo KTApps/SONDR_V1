@@ -44,7 +44,7 @@ NotificationDestination destinationOf(NotificationType type) => switch (type) {
 NotificationGroup groupOf(DateTime at, DateTime now) {
   final day = DayKey.of(at);
   if (day == DayKey.of(now)) return NotificationGroup.today;
-  if (day == DayKey.of(now.subtract(const Duration(days: 1)))) {
+  if (day == DayKey.of(DateTime(now.year, now.month, now.day - 1))) {
     return NotificationGroup.yesterday;
   }
   return NotificationGroup.earlier;

@@ -163,20 +163,60 @@ void main() {
       expect(r.right - time.right, closeTo(18, 0.5));
       expect(find.text('Spanish'), findsOneWidget);
       expect(find.text('Twenty hours in. Starting to dream in it.'), findsOneWidget);
-      // Actions at the right: Comments ends at the inset.
-      final comments = tester.getRect(find.text('Comments'));
-      expect(r.right - comments.right, closeTo(18, 0.5));
-      expect(r.bottom - comments.bottom, closeTo(16, 0.5));
-      // Dots at the left, on the same line.
-      final first = tester.getRect(dots().first);
-      expect(first.left - r.left, closeTo(18, 0.5));
-      expect(first.bottom, lessThanOrEqualTo(comments.bottom));
-      expect(first.top, greaterThanOrEqualTo(comments.top));
+      // Actions at the left: Like starts at the inset, 16 from the bottom.
+      final like = tester.getRect(find.text('Like'));
+      expect(like.left - r.left, closeTo(18, 0.5));
+      expect(r.bottom - like.bottom, closeTo(16, 0.5));
+      // Dots at the right, on the same line.
+      final last = tester.getRect(dots().last);
+      expect(r.right - last.right, closeTo(18, 0.5));
+      expect(last.bottom, lessThanOrEqualTo(like.bottom));
+      expect(last.top, greaterThanOrEqualTo(like.top));
     });
 
     testWidgets('the author sees Likes', (tester) async {
       await pump(tester, twoPhotos(), uid: 'cass-uid');
       expect(find.text('Likes'), findsOneWidget);
+    });
+  });
+
+  group('the ring\'s text', () {
+    /// The figure and the unit on the page, as drawn.
+    (Text figure, Text unit) ringText(WidgetTester tester) {
+      final centre = find.byType(MilestoneRingCentre);
+      final texts = tester.widgetList<Text>(find.descendant(of: centre, matching: find.byType(Text))).toList();
+      return (texts[0], texts[1]);
+    }
+
+    testWidgets('is one size on the cover and on every photo page', (tester) async {
+      await pump(tester, twoPhotos());
+      final (coverFigure, coverUnit) = ringText(tester);
+      expect(coverFigure.data, '20');
+      expect(coverFigure.style?.fontSize, kMilestoneFigureSize);
+      expect(
+        find.descendant(of: find.byType(MilestoneRingCentre), matching: find.byType(FittedBox)),
+        findsNothing,
+        reason: 'nothing is fitted per page',
+      );
+      await tapAt(tester, 0.9);
+      final (pageFigure, pageUnit) = ringText(tester);
+      expect(pageFigure.data, '2h');
+      expect(pageFigure.style?.fontSize, coverFigure.style?.fontSize);
+      expect(pageFigure.style?.fontWeight, coverFigure.style?.fontWeight);
+      expect(pageUnit.style?.fontSize, coverUnit.style?.fontSize);
+      expect(pageUnit.style?.fontWeight, coverUnit.style?.fontWeight);
+    });
+
+    testWidgets('"12h 59m" fits inside the ring at that size, with margin', (tester) async {
+      await pump(tester, twoPhotos());
+      final context = tester.element(find.byType(MilestoneRingCentre));
+      final painter = TextPainter(
+        text: TextSpan(text: '12h 59m', style: MilestoneRingCentre.figureStyle(context, onPhoto: true)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final allowed = MilestoneRingCentre.widthFor(kMilestoneRingSize, onPhoto: true);
+      expect(painter.width, lessThan(allowed));
+      expect(painter.width, lessThan(const MilestoneRingGeometry(onPhoto: true).inner - 24));
     });
   });
 

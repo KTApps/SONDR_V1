@@ -17,6 +17,13 @@ const double kMilestoneRingGlowOpacity = 0.22;
 const double kMilestoneRingGlowWidth = 1.35;
 const double kMilestoneRingGlowBlur = 10;
 
+/// The figure's size, the same on every page — "20", "120", "12h 59m":
+/// the largest at which the longest session a band can hold, "12h 59m",
+/// still sits inside the ring's clear width with a margin (111 of the 116
+/// the centre allows itself). Nothing is fitted per page: a figure that
+/// changed size from page to page read as a different ring.
+const double kMilestoneFigureSize = 28;
+
 /// Over a photo, the disc inside the band is darkened by this much under
 /// the figure — the same in the card and the rendered cover — with its
 /// edge feathered by [kMilestoneRingInnerFeather] points.
@@ -190,8 +197,8 @@ class _MilestoneRingPainter extends CustomPainter {
 }
 
 /// What the ring holds: a figure over a word — "20" over "hours", or a
-/// session's "2h 40m" over its date — in the styles today's card gives the
-/// hours. A long figure is scaled down to stay inside the ring.
+/// session's "2h 40m" over its date — in two styles shared by every page,
+/// at one size: see [kMilestoneFigureSize].
 class MilestoneRingCentre extends StatelessWidget {
   const MilestoneRingCentre({
     super.key,
@@ -210,6 +217,7 @@ class MilestoneRingCentre extends StatelessWidget {
   static TextStyle? figureStyle(BuildContext context, {required bool onPhoto}) {
     final tokens = GreyscaleTokens.of(context);
     return Theme.of(context).textTheme.displaySmall?.copyWith(
+      fontSize: kMilestoneFigureSize,
       color: onPhoto ? kOnPhoto : tokens.textPrimary,
       shadows: onPhoto ? kTextShadows : null,
     );
@@ -236,13 +244,11 @@ class MilestoneRingCentre extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              figure,
-              maxLines: 1,
-              style: figureStyle(context, onPhoto: onPhoto),
-            ),
+          Text(
+            figure,
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            style: figureStyle(context, onPhoto: onPhoto),
           ),
           Text(
             unit,

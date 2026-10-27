@@ -341,7 +341,7 @@ class _TopRow extends ConsumerWidget {
 }
 
 /// The task, its caption — or the hint — and, on the actions' line, the
-/// page dots at the left and the actions at the right.
+/// actions at the left and the page dots at the right.
 class _Bottom extends StatelessWidget {
   const _Bottom({
     required this.post,
@@ -389,6 +389,8 @@ class _Bottom extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            PostInteractions(post: post, onPhoto: true),
+            const Spacer(),
             if (pages > 1)
               IgnorePointer(
                 child: Padding(
@@ -399,8 +401,6 @@ class _Bottom extends StatelessWidget {
                   child: _PageDots(count: pages, current: page),
                 ),
               ),
-            const Spacer(),
-            PostInteractions(post: post, onPhoto: true),
           ],
         ),
       ],

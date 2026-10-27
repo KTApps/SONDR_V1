@@ -103,9 +103,8 @@ void paintMilestoneCover(
   );
   paintMilestoneRing(canvas, centre, geometry, _kRingFill);
 
-  // The hours over the word, centred in the ring, the figure scaled down
-  // to fit as the card's FittedBox does.
-  final maxWidth = MilestoneRingCentre.widthFor(kMilestoneRingSize, onPhoto: true);
+  // The hours over the word, centred in the ring, at the one size every
+  // page uses — the styles are the card's own.
   final figure = TextPainter(
     text: TextSpan(text: '$milestoneHours', style: styles.figure),
     textDirection: TextDirection.ltr,
@@ -114,16 +113,10 @@ void paintMilestoneCover(
     text: TextSpan(text: 'hours', style: styles.unit),
     textDirection: TextDirection.ltr,
   )..layout();
-  final figureScale = figure.width > maxWidth ? maxWidth / figure.width : 1.0;
-  final figureHeight = figure.height * figureScale;
-  final total = figureHeight + unit.height;
+  final total = figure.height + unit.height;
   final top = centre.dy - total / 2;
-  canvas.save();
-  canvas.translate(centre.dx - figure.width * figureScale / 2, top);
-  canvas.scale(figureScale);
-  figure.paint(canvas, Offset.zero);
-  canvas.restore();
-  unit.paint(canvas, Offset(centre.dx - unit.width / 2, top + figureHeight));
+  figure.paint(canvas, Offset(centre.dx - figure.width / 2, top));
+  unit.paint(canvas, Offset(centre.dx - unit.width / 2, top + figure.height));
   figure.dispose();
   unit.dispose();
 }

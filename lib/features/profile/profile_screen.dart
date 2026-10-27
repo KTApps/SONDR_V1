@@ -672,6 +672,7 @@ class _MilestonesRow extends ConsumerWidget {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted) return;
         precachePhotos(context, [
+          for (final e in strip) ?e.detail.collage?.thumbUrl,
           for (final e in strip) ?e.detail.collage?.coverUrl,
           for (final e in strip)
             for (final p in e.detail.photos) p.photoUrl,
@@ -910,9 +911,9 @@ class _TaskTile extends StatelessWidget {
   }
 }
 
-/// One milestone in the strip — its cover in the strip's fixed square: the
-/// image it was shared with, else its collage drawn, with the near-raw tint
-/// a rendered cover takes like any strip photo.
+/// One milestone in the strip — its collage alone in the strip's fixed
+/// square: the thumbnail it was shared with, else its collage drawn, with
+/// the near-raw tint a rendered thumbnail takes like any strip photo.
 class _MilestoneThumb extends StatelessWidget {
   const _MilestoneThumb({required this.entry});
 
@@ -920,10 +921,9 @@ class _MilestoneThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ProfileStripTile(
-    child: MilestoneCoverTile(
-      milestoneHours: entry.bandHours,
+    child: MilestoneCollageThumb(
       photoUrls: [for (final p in entry.detail.photos) p.photoUrl],
-      coverUrl: entry.detail.collage?.coverUrl,
+      thumbUrl: entry.detail.collage?.thumbUrl,
       saturation: kProfilePhotoSaturation,
       tint: kProfilePhotoTint,
     ),

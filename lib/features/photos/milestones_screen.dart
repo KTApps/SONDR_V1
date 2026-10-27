@@ -332,13 +332,13 @@ class _TaskRow extends ConsumerWidget {
       photosAsync.value ?? const <Photo>[],
       task.milestonesReached,
     );
-    // The thumb is the newest milestone's cover: the image it was shared
-    // with, else its collage drawn from the stretch's photos.
+    // The thumb is the newest milestone's collage alone: the thumbnail it
+    // was shared with, else drawn from the stretch's photos.
     final reachedHours = task.milestonesReached * Task.milestoneStepHours;
     final newest = loaded && photos.isNotEmpty
         ? ref.watch(bandDetailProvider('${task.id}|$reachedHours')).value
         : null;
-    final coverUrl = newest?.collage?.coverUrl;
+    final thumbUrl = newest?.collage?.thumbUrl;
     final coverPhotos = [
       for (final p in newest?.photos ?? bandPhotos(photos, reachedHours)) p.photoUrl,
     ];
@@ -346,7 +346,7 @@ class _TaskRow extends ConsumerWidget {
     if (loaded && photos.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
-          precachePhotos(context, [?coverUrl, ...coverPhotos]);
+          precachePhotos(context, [?thumbUrl, ...coverPhotos]);
         }
       });
     }
@@ -414,10 +414,9 @@ class _TaskRow extends ConsumerWidget {
                 child: SizedBox(
                   width: _thumb * scale,
                   height: _thumb * scale,
-                  child: MilestoneCoverTile(
-                    milestoneHours: reachedHours,
+                  child: MilestoneCollageThumb(
                     photoUrls: coverPhotos,
-                    coverUrl: coverUrl,
+                    thumbUrl: thumbUrl,
                   ),
                 ),
               ),

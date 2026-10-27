@@ -13,6 +13,7 @@ class Collage {
     required this.edited,
     this.createdAt,
     this.coverUrl,
+    this.thumbUrl,
   });
 
   final String taskId;
@@ -36,6 +37,10 @@ class Collage {
   /// surfaces draw the collage instead.
   final String? coverUrl;
 
+  /// The collage alone, small, as the post carried it — for the strip and
+  /// the Milestones page. Null with [coverUrl].
+  final String? thumbUrl;
+
   /// Deterministic id — one collage per task+milestone.
   String get id => docId(taskId, milestoneHours);
 
@@ -51,6 +56,7 @@ class Collage {
         edited: (map['edited'] as bool?) ?? false,
         createdAt: _parseTime(map['createdAt']),
         coverUrl: map['coverUrl'] as String?,
+        thumbUrl: map['thumbUrl'] as String?,
       );
 }
 

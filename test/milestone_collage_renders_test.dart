@@ -169,8 +169,7 @@ void main() {
                   for (var i = 0; i < 4; i++) ...[
                     if (i > 0) const SizedBox(width: 8),
                     ProfileStripTile(
-                      child: MilestoneCoverTile(
-                        milestoneHours: 20 * (4 - i),
+                      child: MilestoneCollageThumb(
                         photoUrls: [for (final p in photos(2 + i * 2)) p.url],
                         saturation: kProfilePhotoSaturation,
                         tint: kProfilePhotoTint,

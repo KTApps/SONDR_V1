@@ -75,6 +75,37 @@ void main() {
     // The scrim darkens the top edge: the red there is dimmer than mid-tile.
     final top = at(Offset(tiles[0].left + 20, 4));
     expect(top.r, lessThan(tl.r - 40));
+    // Inside the band the disc is tinted: the red tile under the ring's
+    // disc, beside the text, is dimmer than the same tile outside the ring
+    // on the same line, where the scrim is clear.
+    final inside = at(Offset(kMilestoneFrameSize.width / 2 - 40, cy - 20));
+    final outside = at(Offset(kMilestoneFrameSize.width / 2 - 150, cy - 20));
+    expect(outside.r, greaterThan(230));
+    expect(inside.r, lessThan(outside.r - 40));
+  });
+
+  test('the thumbnail is the collage alone, 600 × 800 at 80: no ring', () async {
+    final photos = [
+      await solid(const Color(0xFFFF0000)),
+      await solid(const Color(0xFF00FF00)),
+    ];
+    final bytes = await renderMilestoneThumb(photos: photos);
+    expect(bytes[0], 0xFF);
+    expect(bytes[1], 0xD8);
+    final decoded = img.decodeJpg(bytes)!;
+    expect(decoded.width, kThumbWidth);
+    expect(decoded.height, kThumbHeight);
+    // Two stacked tiles, touching; where the ring would be, the photo shows
+    // at full strength — no band, no tint, no scrim.
+    final top = decoded.getPixel(300, 200);
+    expect(top.r, greaterThan(230));
+    expect(top.g, lessThan(40));
+    final bottom = decoded.getPixel(300, 600);
+    expect(bottom.g, greaterThan(230));
+    final edge = decoded.getPixel(300, 4);
+    expect(edge.r, greaterThan(230), reason: 'no scrim');
+    final ringLine = decoded.getPixel(300, (0.44 * kThumbHeight - 80.74 * (600 / 358)).round());
+    expect(ringLine.r, greaterThan(230), reason: 'no ring');
   });
 
   test('nine at most, and a framing is honoured', () async {

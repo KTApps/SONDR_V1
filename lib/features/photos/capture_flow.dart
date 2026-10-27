@@ -254,6 +254,7 @@ Future<bool> _post(
     }
     if (milestoneHours != null) {
       ({String url, String storagePath})? cover;
+      ({String url, String storagePath})? thumb;
       if (images.isNotEmpty && coverStyles != null) {
         try {
           final jpeg = await renderMilestoneCover(
@@ -264,6 +265,12 @@ Future<bool> _post(
           cover = await repo.uploadPostPhoto(await _materialise(jpeg, 'cover'));
         } catch (e) {
           debugPrint('SONDR cover render error: ${e.runtimeType} :: $e');
+        }
+        try {
+          final jpeg = await renderMilestoneThumb(photos: images);
+          thumb = await repo.uploadPostPhoto(await _materialise(jpeg, 'thumb'));
+        } catch (e) {
+          debugPrint('SONDR thumb render error: ${e.runtimeType} :: $e');
         }
       }
       for (final image in images) {
@@ -278,13 +285,17 @@ Future<bool> _post(
         segments: story?.segments ?? const [],
         unit: story?.unit,
         cover: cover,
+        thumb: thumb,
       );
-      // The owner's own surfaces show the same cover their friends see.
-      if (cover != null) {
+      // The owner's own surfaces show the same images their friends see.
+      if (cover != null || thumb != null) {
         try {
-          await ref
-              .read(collagesRepositoryProvider)
-              ?.setCover(taskId, milestoneHours, cover.url);
+          await ref.read(collagesRepositoryProvider)?.setCover(
+            taskId,
+            milestoneHours,
+            coverUrl: cover?.url,
+            thumbUrl: thumb?.url,
+          );
         } catch (e) {
           debugPrint('SONDR collage cover error: ${e.runtimeType} :: $e');
         }

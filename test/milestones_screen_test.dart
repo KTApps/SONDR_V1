@@ -13,6 +13,7 @@ import 'package:sondr/features/photos/collages_repository.dart';
 import 'package:sondr/features/photos/models/collage.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/feed/widgets/milestone_cover.dart';
+import 'package:sondr/features/feed/widgets/milestone_ring.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/photos/photo_refresh.dart';
 import 'package:sondr/features/photos/photo_viewer.dart';
@@ -180,7 +181,7 @@ void main() {
     final band = [photo(1000), photo(5000)];
     final collage = Collage(
       taskId: 'golf', milestoneHours: 20, photoIds: [for (final p in band) p.id],
-      edited: false, coverUrl: 'https://x/cover.jpg',
+      edited: false, coverUrl: 'https://x/cover.jpg', thumbUrl: 'https://x/thumb.jpg',
     );
     await tester.pumpWidget(ProviderScope(
       overrides: [
@@ -194,11 +195,12 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.text('1 milestone · 2 photos'), findsOneWidget);
-    // The cover the milestone was shared with, not its newest photo.
-    final tile = tester.widget<MilestoneCoverTile>(find.byType(MilestoneCoverTile));
-    expect(tile.coverUrl, 'https://x/cover.jpg');
-    expect(tile.milestoneHours, 20);
+    // The collage thumbnail the milestone was shared with — no ring — not
+    // its newest photo.
+    final tile = tester.widget<MilestoneCollageThumb>(find.byType(MilestoneCollageThumb));
+    expect(tile.thumbUrl, 'https://x/thumb.jpg');
     expect(tile.photoUrls, ['https://x/1000.jpg', 'https://x/5000.jpg']);
+    expect(find.byType(MilestoneRing), findsNothing);
   });
 
   testWidgets('a stretch with a stored collage still shows its crossing photo', (

@@ -947,16 +947,16 @@ class _GridRow extends StatelessWidget {
   }
 }
 
-/// A post's tile in a strip or grid: a milestone's cover — the image it
-/// was shared with, else its collage drawn — and a session's photo.
+/// A post's tile in a strip or grid: a milestone's collage alone — the
+/// thumbnail it was shared with, else drawn from its photos — and a
+/// session's photo.
 Widget postStripTile(Post post, {double? side}) {
   if (post is MilestonePost) {
     return ProfileStripTile(
       side: side,
-      child: MilestoneCoverTile(
-        milestoneHours: post.milestoneHours,
+      child: MilestoneCollageThumb(
         photoUrls: [for (final p in post.photos) p.url],
-        coverUrl: post.coverUrl,
+        thumbUrl: post.thumbUrl,
         saturation: kProfilePhotoSaturation,
         tint: kProfilePhotoTint,
       ),

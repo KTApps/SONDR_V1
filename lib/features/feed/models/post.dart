@@ -183,6 +183,8 @@ sealed class Post {
           totalHours: _int(map['totalHours']),
           coverUrl: map['coverUrl'] as String?,
           coverStoragePath: map['coverStoragePath'] as String?,
+          thumbUrl: map['thumbUrl'] as String?,
+          thumbStoragePath: map['thumbStoragePath'] as String?,
           segments: _parseSegments(map['sessions']),
           unit: switch (map['unit']) {
             'session' => SegmentUnit.session,
@@ -227,6 +229,8 @@ class MilestonePost extends Post {
     this.unit,
     this.coverUrl,
     this.coverStoragePath,
+    this.thumbUrl,
+    this.thumbStoragePath,
   });
 
   final String taskName;
@@ -258,6 +262,12 @@ class MilestonePost extends Post {
 
   /// Where the cover's binary lives, so deleting the post removes it.
   final String? coverStoragePath;
+
+  /// The collage alone, small — no ring, no scrim, no text — rendered at
+  /// share time beside the cover, for the strips and the thumbs. Null on
+  /// a post from before; those draw the collage from their photos.
+  final String? thumbUrl;
+  final String? thumbStoragePath;
 
   @override
   PostType get type => PostType.milestone;

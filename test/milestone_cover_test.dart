@@ -5,6 +5,7 @@ import 'package:sondr/features/feed/collage_layout.dart';
 import 'package:sondr/features/feed/widgets/milestone_cover.dart';
 import 'package:sondr/features/feed/widgets/milestone_frame.dart';
 import 'package:sondr/features/feed/widgets/milestone_ring.dart';
+import 'package:sondr/shared/cached_photo.dart';
 
 import 'tiny_png.dart';
 
@@ -88,5 +89,30 @@ void main() {
       find.byWidgetPredicate((w) => w is DecoratedBox && (w.decoration as BoxDecoration).gradient == kMilestoneScrim),
       findsOneWidget,
     );
+  });
+
+  testWidgets('the thumbnail is the collage alone — no ring, no scrim — drawn, or the rendered one', (tester) async {
+    final before = photoImageProviderFactory;
+    photoImageProviderFactory = (_) => MemoryImage(tinyPng);
+    addTearDown(() => photoImageProviderFactory = before);
+    await pump(
+      tester,
+      const MilestoneCollageThumb(photoUrls: ['https://x/a.jpg', 'https://x/b.jpg', 'https://x/c.jpg']),
+      box: const Size(80, 80),
+    );
+    expect(find.byType(FramedPhoto), findsNWidgets(3));
+    expect(find.byType(MilestoneRing), findsNothing);
+    expect(find.text('hours'), findsNothing);
+    expect(
+      find.byWidgetPredicate((w) => w is DecoratedBox && (w.decoration as BoxDecoration).gradient == kMilestoneScrim),
+      findsNothing,
+    );
+    await pump(
+      tester,
+      const MilestoneCollageThumb(photoUrls: ['https://x/a.jpg'], thumbUrl: 'https://x/thumb.jpg'),
+      box: const Size(80, 80),
+    );
+    expect(find.byType(FramedPhoto), findsNothing);
+    expect(tester.widget<SondrPhoto>(find.byType(SondrPhoto)).url, 'https://x/thumb.jpg');
   });
 }

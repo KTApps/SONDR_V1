@@ -92,13 +92,19 @@ void main() {
     test('the cover round-trips, and an old post has none', () {
       final map = milestoneMap(const [])
         ..['coverUrl'] = 'https://x/cover.jpg'
-        ..['coverStoragePath'] = 'users/u1/posts/cover.jpg';
+        ..['coverStoragePath'] = 'users/u1/posts/cover.jpg'
+        ..['thumbUrl'] = 'https://x/thumb.jpg'
+        ..['thumbStoragePath'] = 'users/u1/posts/thumb.jpg';
       final post = Post.fromMap('p', map) as MilestonePost;
       expect(post.coverUrl, 'https://x/cover.jpg');
       expect(post.coverStoragePath, 'users/u1/posts/cover.jpg');
+      expect(post.thumbUrl, 'https://x/thumb.jpg');
+      expect(post.thumbStoragePath, 'users/u1/posts/thumb.jpg');
       final old = Post.fromMap('p', milestoneMap(const [])) as MilestonePost;
       expect(old.coverUrl, isNull);
       expect(old.coverStoragePath, isNull);
+      expect(old.thumbUrl, isNull);
+      expect(old.thumbStoragePath, isNull);
     });
 
     test('an old milestone post has no story and still reads', () {

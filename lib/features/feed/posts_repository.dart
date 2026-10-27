@@ -426,8 +426,10 @@ class PostsRepository {
   Future<void> deletePost(Post post) async {
     final binaries = [
       for (final photo in post.photos) photo.storagePath,
-      // The cover went up beside the photos and comes down with them.
+      // The cover and the thumbnail went up beside the photos and come
+      // down with them.
       if (post is MilestonePost) ?post.coverStoragePath,
+      if (post is MilestonePost) ?post.thumbStoragePath,
     ];
     for (final path in binaries) {
       if (path.isEmpty) continue;
@@ -441,9 +443,9 @@ class PostsRepository {
   }
 
   /// [segments] and [unit] are the story: the band's effort, session by
-  /// session. [cover] is the cover drawn at share time, uploaded like a
-  /// photo. All additive: a post without them is an old one and still
-  /// reads.
+  /// session. [cover] is the cover drawn at share time and [thumb] the
+  /// collage alone, small, both uploaded like photos. All additive: a post
+  /// without them is an old one and still reads.
   Future<String> createMilestonePost({
     required String taskName,
     required int milestoneHours,
@@ -453,6 +455,7 @@ class PostsRepository {
     List<PostSegment> segments = const [],
     SegmentUnit? unit,
     ({String url, String storagePath})? cover,
+    ({String url, String storagePath})? thumb,
   }) => _create(
     'milestone',
     {
@@ -466,6 +469,10 @@ class PostsRepository {
       if (cover != null) ...{
         'coverUrl': cover.url,
         'coverStoragePath': cover.storagePath,
+      },
+      if (thumb != null) ...{
+        'thumbUrl': thumb.url,
+        'thumbStoragePath': thumb.storagePath,
       },
     },
     caption: caption,

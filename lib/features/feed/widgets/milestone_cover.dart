@@ -193,3 +193,52 @@ class MilestoneCoverTile extends StatelessWidget {
     );
   }
 }
+
+/// The milestone in a strip or a row's thumb: the collage alone — no
+/// ring, no scrim, no text — as the thumbnail rendered at share time, else
+/// drawn from the photos. Cover-cropped into whatever box it is given.
+class MilestoneCollageThumb extends StatelessWidget {
+  const MilestoneCollageThumb({
+    super.key,
+    required this.photoUrls,
+    this.thumbUrl,
+    this.saturation,
+    this.tint,
+  });
+
+  /// The collage's photos, oldest first, for the drawn collage.
+  final List<String> photoUrls;
+
+  /// The rendered thumbnail, when there is one.
+  final String? thumbUrl;
+
+  /// The surface's own treatment of a photo, applied to a rendered thumbnail.
+  final double? saturation;
+  final Color? tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final thumb = thumbUrl;
+    if (thumb != null && thumb.isNotEmpty) {
+      return SondrPhoto(
+        url: thumb,
+        saturation: saturation,
+        tint: tint,
+        placeholder: (_) => ColoredBox(color: tokens.ringTrack),
+        error: (_) => ColoredBox(color: tokens.ringTrack),
+      );
+    }
+    return FittedBox(
+      fit: BoxFit.cover,
+      clipBehavior: Clip.hardEdge,
+      child: MilestoneCollage(
+        photos: [
+          for (final url in photoUrls)
+            if (url.isNotEmpty) cachedPhotoProvider(url),
+        ],
+        size: kMilestoneFrameSize,
+      ),
+    );
+  }
+}

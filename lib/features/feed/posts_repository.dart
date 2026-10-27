@@ -416,10 +416,15 @@ class PostsRepository {
   /// time. Author-only is enforced at the rules layer. (The long-press delete
   /// UX lands in a later stage; this is the plumbing.)
   Future<void> deletePost(Post post) async {
-    for (final photo in post.photos) {
-      if (photo.storagePath.isEmpty) continue;
+    final binaries = [
+      for (final photo in post.photos) photo.storagePath,
+      // The cover went up beside the photos and comes down with them.
+      if (post is MilestonePost) ?post.coverStoragePath,
+    ];
+    for (final path in binaries) {
+      if (path.isEmpty) continue;
       try {
-        await FirebaseStorage.instance.ref(photo.storagePath).delete();
+        await FirebaseStorage.instance.ref(path).delete();
       } on FirebaseException catch (e) {
         if (e.code != 'object-not-found') rethrow;
       }
@@ -427,9 +432,10 @@ class PostsRepository {
     await _posts.doc(post.id).delete();
   }
 
-  /// [segments] and [unit] are the story: the band's effort, by session or
-  /// — where the task predates the session log — by day. Additive: a post
-  /// without them is an old one and still reads.
+  /// [segments] and [unit] are the story: the band's effort, session by
+  /// session. [cover] is the cover drawn at share time, uploaded like a
+  /// photo. All additive: a post without them is an old one and still
+  /// reads.
   Future<String> createMilestonePost({
     required String taskName,
     required int milestoneHours,
@@ -438,6 +444,7 @@ class PostsRepository {
     List<PostPhoto> photos = const [],
     List<PostSegment> segments = const [],
     SegmentUnit? unit,
+    ({String url, String storagePath})? cover,
   }) => _create(
     'milestone',
     {
@@ -447,6 +454,10 @@ class PostsRepository {
       if (segments.isNotEmpty && unit != null) ...{
         'sessions': [for (final s in segments) s.toMap()],
         'unit': unit.name,
+      },
+      if (cover != null) ...{
+        'coverUrl': cover.url,
+        'coverStoragePath': cover.storagePath,
       },
     },
     caption: caption,

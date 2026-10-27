@@ -22,6 +22,7 @@ const List<String> kUserSubcollections = [
   'collages',
   'likes',
   'hidden',
+  'sessions',
 ];
 
 /// The Storage prefixes an account owns, under which every object of theirs

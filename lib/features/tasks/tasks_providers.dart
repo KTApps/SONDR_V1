@@ -5,6 +5,7 @@ import '../../core/backend.dart';
 import 'firestore_tasks_repository.dart';
 import 'local_tasks_repository.dart';
 import 'models/task.dart';
+import 'session_log.dart';
 import 'task_order.dart';
 import 'tasks_repository.dart';
 
@@ -85,12 +86,31 @@ class TasksController extends AsyncNotifier<List<Task>> {
     final current = state.value ?? await _repo.fetchAll();
     final task = current.where((t) => t.id == taskId).firstOrNull;
     if (task == null) return;
+    // A credit the task has already seen adds nothing (crediting() returns
+    // the task unchanged) but is still saved — a retry of a write the
+    // server never acknowledged has to reach it. The LOG is where the
+    // dedupe shows: a session already credited is not logged again.
+    final already = session != null && task.hasCredited(session);
     await _repo.save(
       session == null
           ? task.addingSeconds(seconds, when)
           : task.crediting(session, seconds, when),
     );
     state = AsyncData(await _repo.fetchAll());
+    if (already) return;
+    // The session itself, beside the day it was credited to. Keyed by the
+    // same instant as the credit, so a retry rewrites rather than adds.
+    // A synthetic credit (the debug tools) has no session; its moment is
+    // its key.
+    await ref
+        .read(sessionLogProvider)
+        .record(
+          SessionRecord(
+            taskId: taskId,
+            at: int.tryParse(session ?? '') ?? when.millisecondsSinceEpoch,
+            seconds: seconds,
+          ),
+        );
   }
 }
 

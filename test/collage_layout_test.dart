@@ -33,20 +33,26 @@ void main() {
       expect(collageTiles(frame, 1), [const Rect.fromLTWH(0, 0, 300, 400)]);
     });
 
-    test('two stack, with the gap between', () {
+    test('two stack, touching', () {
       final t = collageTiles(frame, 2);
-      expect(t[0], const Rect.fromLTWH(0, 0, 300, 199));
-      expect(t[1], const Rect.fromLTWH(0, 201, 300, 199));
+      expect(t[0], const Rect.fromLTWH(0, 0, 300, 200));
+      expect(t[1], const Rect.fromLTWH(0, 200, 300, 200));
     });
 
     test('three: one above a pair, 62 / 38', () {
       final t = collageTiles(frame, 3);
-      expect(t[0].height, closeTo(398 * 0.62, 1e-9));
+      expect(t[0].height, closeTo(400 * 0.62, 1e-9));
       expect(t[0].width, 300);
-      expect(t[1].top, closeTo(398 * 0.62 + 2, 1e-9));
-      expect(t[1].width, 149);
-      expect(t[2].left, 151);
+      expect(t[1].top, closeTo(400 * 0.62, 1e-9));
+      expect(t[1].width, 150);
+      expect(t[2].left, 150);
       expect(t[1].bottom, 400);
+    });
+
+    test('a gap, when one is asked for, sits between the tiles', () {
+      final t = collageTiles(frame, 2, gap: 2);
+      expect(t[0], const Rect.fromLTWH(0, 0, 300, 199));
+      expect(t[1], const Rect.fromLTWH(0, 201, 300, 199));
     });
 
     test('nine: a three by three, in reading order', () {
@@ -60,27 +66,24 @@ void main() {
       expect(t[3].left, 0);
       expect(t[8].bottom, closeTo(400, 1e-9));
       expect(t[8].right, closeTo(300, 1e-9));
-      // Equal cells, two-point gaps.
-      expect(t[1].left - t[0].right, closeTo(2, 1e-9));
-      expect(t[3].top - t[0].bottom, closeTo(2, 1e-9));
+      // Equal cells, touching.
+      expect(t[1].left - t[0].right, closeTo(0, 1e-9));
+      expect(t[3].top - t[0].bottom, closeTo(0, 1e-9));
     });
 
     test('seven: two, three, two', () {
       final t = collageTiles(frame, 7);
-      expect(t[0].width, 149);
-      expect(t[2].width, closeTo((300 - 4) / 3, 1e-9));
-      expect(t[5].width, 149);
+      expect(t[0].width, 150);
+      expect(t[2].width, closeTo(100, 1e-9));
+      expect(t[5].width, 150);
       expect(t[6].bottom, closeTo(400, 1e-9));
     });
 
-    test('the tiles tile: nothing overlaps and the frame is covered', () {
+    test('the tiles tile: nothing overlaps and the frame is covered exactly', () {
       for (var n = 1; n <= 9; n++) {
         final t = collageTiles(frame, n);
         final area = t.fold<double>(0, (s, r) => s + r.width * r.height);
-        final rows = collageRows(n);
-        final gaps = 2.0 * (rows.length - 1) * 300 + [for (final k in rows) 2.0 * (k - 1)].fold<double>(0, (s, g) => s + g) * (398 / rows.length);
-        expect(area, lessThanOrEqualTo(300 * 400 + 1e-6));
-        expect(area, greaterThan(300 * 400 - gaps - 1e-6), reason: '$n photos');
+        expect(area, closeTo(300 * 400, 1e-6), reason: '$n photos');
         for (var i = 0; i < t.length; i++) {
           for (var j = i + 1; j < t.length; j++) {
             expect(t[i].overlaps(t[j]), isFalse, reason: '$n photos: $i and $j');

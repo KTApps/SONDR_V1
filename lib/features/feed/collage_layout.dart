@@ -12,8 +12,9 @@ import 'package:flutter/foundation.dart';
 /// How many photos a collage holds at most.
 const int kCollageMax = 9;
 
-/// The space between tiles, in points of the frame.
-const double kCollageGap = 2;
+/// The space between tiles, in points of the frame. None: the photos
+/// touch, and the collage reads as one picture.
+const double kCollageGap = 0;
 
 /// Tiles per row, by photo count: `rows(5)` is `[2, 3]`.
 List<int> collageRows(int count) => switch (count.clamp(0, kCollageMax)) {

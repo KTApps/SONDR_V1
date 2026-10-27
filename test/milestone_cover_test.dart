@@ -24,7 +24,7 @@ void main() {
   }
 
   testWidgets('the collage places a tile per photo where the layout says', (tester) async {
-    await pump(tester, MilestoneCollage(photos: photos(5)));
+    await pump(tester, MilestoneCollage(photos: photos(5), size: const Size(300, 400)));
     final tiles = find.byType(FramedPhoto);
     expect(tiles, findsNWidgets(5));
     final origin = tester.getTopLeft(find.byType(MilestoneCollage));
@@ -39,7 +39,7 @@ void main() {
   });
 
   testWidgets('nine at most', (tester) async {
-    await pump(tester, MilestoneCollage(photos: photos(12)));
+    await pump(tester, MilestoneCollage(photos: photos(12), size: const Size(300, 400)));
     expect(find.byType(FramedPhoto), findsNWidgets(9));
   });
 
@@ -48,6 +48,7 @@ void main() {
       tester,
       MilestoneCollage(
         photos: photos(1),
+        size: const Size(300, 400),
         framings: const [PhotoFraming(scale: 1.5, dx: 0.1, dy: -0.1)],
       ),
     );

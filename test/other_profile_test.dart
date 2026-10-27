@@ -309,7 +309,11 @@ void main() {
       );
       // Hours, and milestones they have SHARED: two posts.
       expect(find.widgetWithText(ProfileStat, '41'), findsOneWidget);
-      expect(find.text('hours'), findsOneWidget);
+      // The stat's label — the milestone tiles' rings say "hours" too.
+      expect(
+        find.descendant(of: find.byType(ProfileStat), matching: find.text('hours')),
+        findsOneWidget,
+      );
       expect(find.widgetWithText(ProfileStat, '2'), findsOneWidget);
       expect(find.text('milestones'), findsOneWidget);
       // Three sections, each with its count beside it.

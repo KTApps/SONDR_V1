@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/photos/models/photo.dart';
+import 'package:sondr/features/feed/widgets/milestone_cover.dart';
 import 'package:sondr/features/photos/photo_viewer.dart';
 import 'package:sondr/features/photos/photo_viewer_text.dart';
 import 'package:sondr/shared/cached_photo.dart';
@@ -86,6 +87,43 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
     }
+
+    testWidgets('a milestone\'s cover is the first page, with nothing to delete', (tester) async {
+      final set = [_photo(ts: 1), _photo(ts: 2)];
+      await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showPhotoViewer(
+                context,
+                photos: set,
+                index: 0,
+                cover: const MilestoneCoverEntry(
+                  taskName: 'Spanish',
+                  milestoneHours: 20,
+                  photoUrls: ['https://x/a.jpg', 'https://x/b.jpg'],
+                ),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('1 of 3'), findsOneWidget);
+      expect(find.text('Spanish · 20h'), findsOneWidget);
+      expect(find.text('Milestone cover'), findsOneWidget);
+      expect(find.byType(MilestoneCoverTile), findsOneWidget);
+      expect(find.text('Delete'), findsNothing);
+      // The photos follow.
+      final width = tester.getSize(find.byType(PageView)).width;
+      await tester.drag(find.byType(PageView), Offset(-width, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('2 of 3'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+    });
 
     testWidgets('opens on the start index and swipes in set order', (tester) async {
       final set = [_photo(ts: 1), _photo(ts: 2), _photo(ts: 3)];

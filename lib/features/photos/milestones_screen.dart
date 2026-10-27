@@ -11,6 +11,7 @@ import '../../shared/ring/ring_metrics.dart';
 import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
 import '../../shared/sondr_loading.dart';
+import '../feed/widgets/milestone_cover.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'collage_selection.dart';
@@ -331,10 +332,22 @@ class _TaskRow extends ConsumerWidget {
       photosAsync.value ?? const <Photo>[],
       task.milestonesReached,
     );
-    // The thumb, decoded before it is asked for.
+    // The thumb is the newest milestone's cover: the image it was shared
+    // with, else its collage drawn from the stretch's photos.
+    final reachedHours = task.milestonesReached * Task.milestoneStepHours;
+    final newest = loaded && photos.isNotEmpty
+        ? ref.watch(bandDetailProvider('${task.id}|$reachedHours')).value
+        : null;
+    final coverUrl = newest?.collage?.coverUrl;
+    final coverPhotos = [
+      for (final p in newest?.photos ?? bandPhotos(photos, reachedHours)) p.photoUrl,
+    ];
+    // Decoded before it is asked for.
     if (loaded && photos.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) precachePhotos(context, [photos.first.photoUrl]);
+        if (context.mounted) {
+          precachePhotos(context, [?coverUrl, ...coverPhotos]);
+        }
       });
     }
     // The task's own milestones, not the app's total — the rows SUM to the
@@ -401,7 +414,11 @@ class _TaskRow extends ConsumerWidget {
                 child: SizedBox(
                   width: _thumb * scale,
                   height: _thumb * scale,
-                  child: SondrPhoto(url: photos.first.photoUrl),
+                  child: MilestoneCoverTile(
+                    milestoneHours: reachedHours,
+                    photoUrls: coverPhotos,
+                    coverUrl: coverUrl,
+                  ),
                 ),
               ),
             ],

@@ -17,6 +17,7 @@ import '../auth/guest_prompts.dart';
 import '../feed/models/post.dart';
 import '../feed/posts_repository.dart';
 import '../feed/single_post_screen.dart';
+import '../feed/widgets/milestone_cover.dart';
 import '../friends/friends_repository.dart';
 import '../friends/models/friendship.dart';
 import '../shell/main_shell.dart';
@@ -938,15 +939,30 @@ class _GridRow extends StatelessWidget {
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => showSinglePost(context, photos[i]),
-            child: ProfileStripTile(
-              url: photos[i].photos.first.url,
-              side: tile,
-            ),
+            child: postStripTile(photos[i], side: tile),
           ),
         ],
       ],
     );
   }
+}
+
+/// A post's tile in a strip or grid: a milestone's cover — the image it
+/// was shared with, else its collage drawn — and a session's photo.
+Widget postStripTile(Post post, {double? side}) {
+  if (post is MilestonePost) {
+    return ProfileStripTile(
+      side: side,
+      child: MilestoneCoverTile(
+        milestoneHours: post.milestoneHours,
+        photoUrls: [for (final p in post.photos) p.url],
+        coverUrl: post.coverUrl,
+        saturation: kProfilePhotoSaturation,
+        tint: kProfilePhotoTint,
+      ),
+    );
+  }
+  return ProfileStripTile(url: post.photos.first.url, side: side);
 }
 
 class _PostSection extends ConsumerWidget {
@@ -1008,9 +1024,7 @@ class _PostSection extends ConsumerWidget {
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () => showSinglePost(context, pictured[i]),
-                    child: ProfileStripTile(
-                      url: pictured[i].photos.first.url,
-                    ),
+                    child: postStripTile(pictured[i]),
                   ),
                 ],
               ],

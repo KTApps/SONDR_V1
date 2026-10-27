@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/greyscale_tokens.dart';
+import '../../../shared/cached_photo.dart';
 import '../collage_layout.dart';
 import 'milestone_frame.dart';
 import 'milestone_ring.dart';
@@ -10,17 +11,21 @@ import 'milestone_ring.dart';
 /// when a post has no rendered cover, for the Profile strip and the
 /// Milestones page, and — by the same figures, on a canvas — at share time.
 
-/// The collage alone: [photos] tiled in a box, oldest first, each
-/// cover-cropped and framed. Fills whatever box it is given.
+/// The collage alone: [photos] tiled in a box of [size], oldest first,
+/// each cover-cropped and framed. The size is given, not measured: the
+/// Profile page measures its first screen by intrinsics, which a
+/// LayoutBuilder cannot answer.
 class MilestoneCollage extends StatelessWidget {
   const MilestoneCollage({
     super.key,
     required this.photos,
+    required this.size,
     this.framings,
     this.gap = kCollageGap,
   });
 
   final List<ImageProvider> photos;
+  final Size size;
 
   /// One per photo, or null for the plain cover crop throughout.
   final List<PhotoFraming>? framings;
@@ -31,40 +36,43 @@ class MilestoneCollage extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final shown = photos.take(kCollageMax).toList();
-    return LayoutBuilder(
-      builder: (context, c) {
-        final tiles = collageTiles(Size(c.maxWidth, c.maxHeight), shown.length, gap: gap);
-        return ColoredBox(
-          color: tokens.surface,
-          child: Stack(
-            children: [
-              for (var i = 0; i < tiles.length; i++)
-                Positioned.fromRect(
-                  rect: tiles[i],
-                  child: FramedPhoto(
-                    image: shown[i],
-                    framing: framings != null && i < framings!.length
-                        ? framings![i]
-                        : PhotoFraming.none,
-                  ),
+    final tiles = collageTiles(size, shown.length, gap: gap);
+    return SizedBox.fromSize(
+      size: size,
+      child: ColoredBox(
+        color: tokens.surface,
+        child: Stack(
+          children: [
+            for (var i = 0; i < tiles.length; i++)
+              Positioned.fromRect(
+                rect: tiles[i],
+                child: FramedPhoto(
+                  image: shown[i],
+                  size: tiles[i].size,
+                  framing: framings != null && i < framings!.length
+                      ? framings![i]
+                      : PhotoFraming.none,
                 ),
-            ],
-          ),
-        );
-      },
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-/// One photo cover-cropped into its box, zoomed and nudged by [framing].
+/// One photo cover-cropped into a tile of [size], zoomed and nudged by
+/// [framing].
 class FramedPhoto extends StatelessWidget {
   const FramedPhoto({
     super.key,
     required this.image,
+    required this.size,
     this.framing = PhotoFraming.none,
   });
 
   final ImageProvider image;
+  final Size size;
   final PhotoFraming framing;
 
   @override
@@ -78,11 +86,9 @@ class FramedPhoto extends StatelessWidget {
     );
     if (framing == PhotoFraming.none) return ClipRect(child: photo);
     return ClipRect(
-      child: LayoutBuilder(
-        builder: (context, c) => Transform.translate(
-          offset: Offset(framing.dx * c.maxWidth, framing.dy * c.maxHeight),
-          child: Transform.scale(scale: framing.scale, child: photo),
-        ),
+      child: Transform.translate(
+        offset: Offset(framing.dx * size.width, framing.dy * size.height),
+        child: Transform.scale(scale: framing.scale, child: photo),
       ),
     );
   }
@@ -113,7 +119,11 @@ class MilestoneCover extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            MilestoneCollage(photos: photos, framings: framings),
+            MilestoneCollage(
+              photos: photos,
+              size: kMilestoneFrameSize,
+              framings: framings,
+            ),
             const DecoratedBox(
               decoration: BoxDecoration(gradient: kMilestoneScrim),
             ),
@@ -132,6 +142,54 @@ class MilestoneCover extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The cover in a small box — a strip tile, a row's thumb: the rendered
+/// cover when the milestone was shared with one, else the collage drawn
+/// from its photos. Cover-cropped into whatever box it is given.
+class MilestoneCoverTile extends StatelessWidget {
+  const MilestoneCoverTile({
+    super.key,
+    required this.milestoneHours,
+    required this.photoUrls,
+    this.coverUrl,
+    this.saturation,
+    this.tint,
+  });
+
+  final int milestoneHours;
+
+  /// The collage's photos, oldest first, for the drawn cover.
+  final List<String> photoUrls;
+
+  /// The rendered cover, when there is one.
+  final String? coverUrl;
+
+  /// The surface's own treatment of a photo, applied to a rendered cover.
+  final double? saturation;
+  final Color? tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = GreyscaleTokens.of(context);
+    final cover = coverUrl;
+    if (cover != null && cover.isNotEmpty) {
+      return SondrPhoto(
+        url: cover,
+        saturation: saturation,
+        tint: tint,
+        placeholder: (_) => ColoredBox(color: tokens.ringTrack),
+        error: (_) => ColoredBox(color: tokens.ringTrack),
+      );
+    }
+    return MilestoneCover(
+      photos: [
+        for (final url in photoUrls)
+          if (url.isNotEmpty) cachedPhotoProvider(url),
+      ],
+      milestoneHours: milestoneHours,
     );
   }
 }

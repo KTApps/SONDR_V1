@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../band_story.dart' show SegmentUnit;
+import '../collage_layout.dart' show PhotoFraming;
 
 /// Feed posts. Two kinds give the feed its rhythm (big milestone cards and
 /// tiny session logs); a sealed hierarchy parsed by `type` lets the feed
@@ -44,6 +45,7 @@ class PostPhoto {
     required this.url,
     required this.storagePath,
     this.sessionIndex,
+    this.framing = PhotoFraming.none,
   });
 
   final String url;
@@ -54,10 +56,16 @@ class PostPhoto {
   /// on milestone posts written before stories.
   final int? sessionIndex;
 
+  /// How the photo is framed in its collage tile — the zoom and nudge the
+  /// author set when arranging. The plain cover crop when they set none,
+  /// and on every post from before.
+  final PhotoFraming framing;
+
   Map<String, dynamic> toMap() => {
     'url': url,
     'storagePath': storagePath,
     if (sessionIndex != null) 'sessionIndex': sessionIndex,
+    if (framing != PhotoFraming.none) 'framing': framing.toMap(),
   };
 
   factory PostPhoto.fromMap(Map<String, dynamic> map) => PostPhoto(
@@ -66,6 +74,7 @@ class PostPhoto {
     sessionIndex: map['sessionIndex'] is num
         ? (map['sessionIndex'] as num).toInt()
         : null,
+    framing: PhotoFraming.fromMap(map['framing']),
   );
 
   /// Value equality so a photo list round-trips (write → read → equal).
@@ -74,10 +83,11 @@ class PostPhoto {
       other is PostPhoto &&
       other.url == url &&
       other.storagePath == storagePath &&
-      other.sessionIndex == sessionIndex;
+      other.sessionIndex == sessionIndex &&
+      other.framing == framing;
 
   @override
-  int get hashCode => Object.hash(url, storagePath, sessionIndex);
+  int get hashCode => Object.hash(url, storagePath, sessionIndex, framing);
 }
 
 /// One segment of a milestone band's effort, as stored on the post.

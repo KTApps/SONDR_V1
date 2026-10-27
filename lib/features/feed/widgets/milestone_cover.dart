@@ -154,6 +154,7 @@ class MilestoneCoverTile extends StatelessWidget {
     super.key,
     required this.milestoneHours,
     required this.photoUrls,
+    this.framings,
     this.coverUrl,
     this.saturation,
     this.tint,
@@ -163,6 +164,9 @@ class MilestoneCoverTile extends StatelessWidget {
 
   /// The collage's photos, oldest first, for the drawn cover.
   final List<String> photoUrls;
+
+  /// How each is framed in its tile, when the author set it.
+  final List<PhotoFraming>? framings;
 
   /// The rendered cover, when there is one.
   final String? coverUrl;
@@ -189,6 +193,7 @@ class MilestoneCoverTile extends StatelessWidget {
         for (final url in photoUrls)
           if (url.isNotEmpty) cachedPhotoProvider(url),
       ],
+      framings: framings,
       milestoneHours: milestoneHours,
     );
   }
@@ -201,6 +206,7 @@ class MilestoneCollageThumb extends StatelessWidget {
   const MilestoneCollageThumb({
     super.key,
     required this.photoUrls,
+    this.framings,
     this.thumbUrl,
     this.saturation,
     this.tint,
@@ -208,6 +214,9 @@ class MilestoneCollageThumb extends StatelessWidget {
 
   /// The collage's photos, oldest first, for the drawn collage.
   final List<String> photoUrls;
+
+  /// How each is framed in its tile, when the author set it.
+  final List<PhotoFraming>? framings;
 
   /// The rendered thumbnail, when there is one.
   final String? thumbUrl;
@@ -237,6 +246,7 @@ class MilestoneCollageThumb extends StatelessWidget {
           for (final url in photoUrls)
             if (url.isNotEmpty) cachedPhotoProvider(url),
         ],
+        framings: framings,
         size: kMilestoneFrameSize,
       ),
     );

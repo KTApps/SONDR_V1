@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/features/feed/band_story.dart';
+import 'package:sondr/features/feed/collage_layout.dart';
 import 'package:sondr/features/feed/models/post.dart';
 
 void main() {
@@ -52,6 +53,19 @@ void main() {
     test('PostPhoto toMap/fromMap round-trips', () {
       const p = PostPhoto(url: 'x', storagePath: 'users/u/posts/x.jpg');
       expect(PostPhoto.fromMap(p.toMap()), p);
+      expect(p.toMap().containsKey('framing'), isFalse, reason: 'the plain crop is not written');
+    });
+
+    test('a photo\'s framing round-trips, and an old photo has the plain crop', () {
+      const framed = PostPhoto(
+        url: 'x',
+        storagePath: 'p',
+        framing: PhotoFraming(scale: 1.8, dx: 0.1, dy: -0.2),
+      );
+      expect(framed.toMap()['framing'], {'scale': 1.8, 'dx': 0.1, 'dy': -0.2});
+      expect(PostPhoto.fromMap(framed.toMap()), framed);
+      expect(PostPhoto.fromMap({'url': 'x', 'storagePath': 'p'}).framing, PhotoFraming.none);
+      expect(PostPhoto.fromMap({'url': 'x', 'storagePath': 'p', 'framing': 'junk'}).framing, PhotoFraming.none);
     });
   });
 

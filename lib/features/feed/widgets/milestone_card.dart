@@ -278,13 +278,14 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
     }
   }
 
-  Widget _drawnCover() => MilestoneCover(
-    photos: [
-      for (final p in widget.post.photos)
-        if (p.url.isNotEmpty) postImageProvider(p.url),
-    ],
-    milestoneHours: widget.post.milestoneHours,
-  );
+  Widget _drawnCover() {
+    final shown = [for (final p in widget.post.photos) if (p.url.isNotEmpty) p];
+    return MilestoneCover(
+      photos: [for (final p in shown) postImageProvider(p.url)],
+      framings: [for (final p in shown) p.framing],
+      milestoneHours: widget.post.milestoneHours,
+    );
+  }
 }
 
 /// The handle, the way to whoever posted, and how long ago at the right.

@@ -9,7 +9,7 @@ import '../../core/utils/figma_scale.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
-import '../feed/widgets/story_card.dart' show NoPhotoFrame;
+import '../feed/widgets/milestone_frame.dart' show MilestoneNoPhotoFrame;
 import 'capture_crop.dart';
 import 'models/photo.dart';
 import 'sondr_camera.dart';
@@ -252,7 +252,7 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
                               kViewfinderRadius * scale,
                             ),
                             child: widget.shot == null
-                                ? NoPhotoFrame(
+                                ? MilestoneNoPhotoFrame(
                                     milestoneHours: widget.milestoneHours,
                                   )
                                 : Image.memory(

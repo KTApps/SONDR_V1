@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/photos/capture_crop.dart';
-import 'package:sondr/features/feed/widgets/story_card.dart' show NoPhotoFrame;
+import 'package:sondr/features/feed/widgets/milestone_frame.dart' show MilestoneNoPhotoFrame;
 import 'package:sondr/features/photos/capture_review_screen.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/sondr_camera.dart';
@@ -437,7 +437,7 @@ void main() {
           return true;
         },
       );
-      expect(find.byType(NoPhotoFrame), findsOneWidget);
+      expect(find.byType(MilestoneNoPhotoFrame), findsOneWidget);
       expect(find.text('20'), findsOneWidget);
       expect(find.byKey(kBandRowKey), findsOneWidget);
       expect(find.text('Share'), findsOneWidget);

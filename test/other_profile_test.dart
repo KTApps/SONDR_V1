@@ -935,8 +935,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(SinglePostScreen), findsOneWidget);
-      // The feed's own card, with its byline and its two actions.
-      expect(find.text('Cass'), findsOneWidget);
+      // The feed's own card, with its handle and its two actions.
+      expect(find.text('cass'), findsOneWidget);
       expect(find.text('Like'), findsOneWidget);
       expect(find.text('Comments'), findsOneWidget);
       expect(find.text('Back'), findsOneWidget);

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/sondr_action.dart';
@@ -9,7 +10,8 @@ import 'widgets/session_log_card.dart';
 
 /// One post, on its own page: the card the feed would show, with its Like
 /// and Comments where they always are — the cards carry both themselves, so
-/// this page is the card, air, and the way back.
+/// this page is the card, air, and the way back. A milestone's caption,
+/// which the card cuts at two lines, is given in full beneath it.
 ///
 /// Reached from a profile's strips and grids. A post nobody is allowed to
 /// see can never arrive here: the query that found it already required the
@@ -22,10 +24,14 @@ class SinglePostScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scale = figmaScale(context);
+    final tokens = GreyscaleTokens.of(context);
+    final theme = Theme.of(context);
     final Widget card = switch (post) {
-      final MilestonePost p => MilestoneCard(post: p),
+      // Already here: a tap on the card has nowhere further to go.
+      final MilestonePost p => MilestoneCard(post: p, opensPost: false),
       final SessionPost p => SessionLogCard(post: p),
     };
+    final caption = post is MilestonePost ? post.caption : null;
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -37,6 +43,15 @@ class SinglePostScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               card,
+              if (caption != null && caption.isNotEmpty) ...[
+                SizedBox(height: kSpacingBase * scale),
+                Text(
+                  caption,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: tokens.textSecondary,
+                  ),
+                ),
+              ],
               SizedBox(height: kSpacingSection * scale),
               Center(
                 child: SondrAction(

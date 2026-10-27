@@ -20,11 +20,11 @@ void main() {
       "label: 'Retake',",
     ),
     'review: keeping': (
-      'lib/features/photos/capture_review_screen.dart',
+      'lib/features/photos/share_review_scaffold.dart',
       "'Keeping…'",
     ),
     'review: sharing': (
-      'lib/features/photos/capture_review_screen.dart',
+      'lib/features/photos/share_review_scaffold.dart',
       "'Sharing…'",
     ),
     'camera: skip': ('lib/features/photos/sondr_camera.dart', "label: 'Skip',"),
@@ -80,6 +80,7 @@ void main() {
         // Replaced by per-action labels: one flag said "Sharing…" on a Keep.
         "'Saving…'",
       ],
+      'lib/features/photos/share_review_scaffold.dart': ["'saving…'", "'Saving…'"],
       'lib/features/photos/sondr_camera.dart': [
         "label: 'skip'",
         "'flash off'",

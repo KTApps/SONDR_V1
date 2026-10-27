@@ -9,6 +9,7 @@ import 'package:sondr/features/feed/widgets/comments_sheet.dart' show replyCompo
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
 import 'package:sondr/shared/sondr_action.dart';
 import 'package:sondr/features/photos/milestone_final_look_screen.dart';
+import 'package:sondr/features/photos/share_review_scaffold.dart';
 import 'package:sondr/shared/cached_photo.dart';
 
 import 'tiny_png.dart';

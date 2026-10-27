@@ -96,6 +96,7 @@ Future<void> runCaptureFlow(
         totalHours: totalHours,
         bandPhotos: bandPhotos,
         coverStyles: coverStyles,
+        share: share,
       );
       if (!context.mounted) return;
       if (result.done) {
@@ -110,15 +111,20 @@ Future<void> runCaptureFlow(
       continue;
     }
 
+    // The review shows the card as it will be posted: the shot stands in
+    // as a file, and the card is the author's.
+    final shotFile = shot == null ? null : await _materialise(shot, 'preview');
+    final profile = await ref.read(currentProfileProvider.future);
+    if (!context.mounted) return;
     final outcome = await Navigator.of(context).push<ReviewOutcome>(
       MaterialPageRoute(
         builder: (_) => CaptureReviewScreen(
-          shot: shot,
+          shotUrl: shotFile?.uri.toString(),
           taskName: taskName,
-          sessionLabel: sessionLabel,
+          sessionSeconds: sessionSeconds,
+          bandSeconds: bandSecondsAfter(cumulativeSeconds),
+          handle: profile?.username ?? '',
           share: share,
-          bandPhotos: bandPhotos,
-          milestoneHours: milestoneHours,
           onKeep: (ref) async {
             if (shot == null) return true;
             final saved = await _savePrivately(
@@ -132,7 +138,7 @@ Future<void> runCaptureFlow(
             );
             return saved != null;
           },
-          onShare: (ref, caption, alsoPost) async {
+          onShare: (ref, caption) async {
             // A session post is its photo. The post goes out now, the
             // upload behind it — the same job a milestone runs.
             trace = await _beginShare(
@@ -140,9 +146,10 @@ Future<void> runCaptureFlow(
               type: PostType.session,
               shot: shot,
               chosen: [
-                for (final p in alsoPost) (photo: p, framing: PhotoFraming.none),
                 if (shot != null) (photo: null, framing: PhotoFraming.none),
               ],
+              handle: profile?.username ?? '',
+              displayName: profile?.displayName ?? '',
               caption: caption,
               taskId: taskId,
               taskName: taskName,
@@ -183,6 +190,7 @@ Future<({bool done, bool shared, Arrangement? arrangement, ShareTrace? trace})> 
   required int? totalHours,
   required List<Photo> bandPhotos,
   required CoverTextStyles coverStyles,
+  required ShareState share,
 }) async {
   final entries = [
     for (final p in bandPhotos)
@@ -272,6 +280,7 @@ Future<({bool done, bool shared, Arrangement? arrangement, ShareTrace? trace})> 
           milestoneHours: milestoneHours,
           taskName: taskName,
           handle: profile?.username ?? '',
+          share: share,
           segments: story?.segments ?? const [],
           unit: story?.unit,
           onKeep: keep,

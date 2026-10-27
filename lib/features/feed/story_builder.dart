@@ -13,7 +13,9 @@ class MilestoneStory {
   const MilestoneStory({required this.segments, required this.unit, required this.photoIndices});
 
   final List<PostSegment> segments;
-  final SegmentUnit unit;
+
+  /// Null when the log does not reach back to the band: no story.
+  final SegmentUnit? unit;
 
   /// For each photo given to [buildMilestoneStory], in the same order, the
   /// segment it belongs to (null if none).
@@ -22,10 +24,10 @@ class MilestoneStory {
 
 /// The story of the band [milestoneHours] closed.
 ///
-/// Sessions when the log covers the band; otherwise days from the task's
-/// own record, clipped to the band. One unit per post, never both. Each
-/// photo is mapped to its segment by its timestamp (by session) or its
-/// day (by day); a photo that lands on no segment keeps no index.
+/// Sessions, when the log covers the band; a band the log does not reach
+/// back to has no story at all, and its photos no session. Each photo is
+/// mapped to its session by its timestamp; a photo that lands on none
+/// keeps no index.
 MilestoneStory buildMilestoneStory({
   required Task task,
   required List<SessionRecord> log,
@@ -33,25 +35,22 @@ MilestoneStory buildMilestoneStory({
   required List<Photo> photos,
 }) {
   final band = bandOf(milestoneHours, stepHours: Task.milestoneStepHours);
-  final fromLog = sessionSegments(
+  final segments = sessionSegments(
     log: log,
     bandStart: band.start,
     bandEnd: band.end,
     totalSeconds: task.totalSeconds,
   );
-  final segments = fromLog ??
-      daySegments(
-        secondsByDay: task.secondsByDay,
-        bandStart: band.start,
-        bandEnd: band.end,
-      );
+  if (segments == null) {
+    return MilestoneStory(
+      segments: const [],
+      unit: null,
+      photoIndices: List<int?>.filled(photos.length, null),
+    );
+  }
   final indices = [
     for (final p in photos)
-      segmentIndexForPhoto(
-        photoTimestamp: p.timestamp,
-        photoDayKey: p.dayKey,
-        segments: segments,
-      ),
+      segmentIndexForPhoto(photoTimestamp: p.timestamp, segments: segments),
   ];
   final marked = markPhotos(segments.segments, indices);
   return MilestoneStory(

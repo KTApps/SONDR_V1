@@ -181,10 +181,11 @@ sealed class Post {
           taskName: (map['taskName'] as String?) ?? '',
           milestoneHours: _int(map['milestoneHours']),
           totalHours: _int(map['totalHours']),
+          coverUrl: map['coverUrl'] as String?,
+          coverStoragePath: map['coverStoragePath'] as String?,
           segments: _parseSegments(map['sessions']),
           unit: switch (map['unit']) {
             'session' => SegmentUnit.session,
-            'day' => SegmentUnit.day,
             _ => null,
           },
         );
@@ -224,6 +225,8 @@ class MilestonePost extends Post {
     required this.totalHours,
     this.segments = const [],
     this.unit,
+    this.coverUrl,
+    this.coverStoragePath,
   });
 
   final String taskName;
@@ -245,6 +248,16 @@ class MilestonePost extends Post {
 
   /// Whether this post carries a story at all.
   bool get hasStory => segments.isNotEmpty && unit != null;
+
+  /// The cover as one image — the collage, the scrim and the ring, drawn
+  /// at share time and uploaded beside the photos. The feed shows it for
+  /// the first page when it is there and draws the collage when it is not
+  /// (every post from before covers were made). What a share to another
+  /// app would send.
+  final String? coverUrl;
+
+  /// Where the cover's binary lives, so deleting the post removes it.
+  final String? coverStoragePath;
 
   @override
   PostType get type => PostType.milestone;

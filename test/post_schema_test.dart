@@ -78,15 +78,27 @@ void main() {
       expect(post.photos.map((p) => p.sessionIndex), [0, 2]);
     });
 
-    test('a day-unit story reads as days', () {
+    test('a day-unit story, from before days were dropped, reads as no story', () {
       final map = milestoneMap(const [])
         ..['sessions'] = [
           {'at': 1000, 'seconds': 3600},
         ]
         ..['unit'] = 'day';
       final post = Post.fromMap('p', map) as MilestonePost;
-      expect(post.unit, SegmentUnit.day);
-      expect(post.segments.single.photo, isFalse);
+      expect(post.unit, isNull);
+      expect(post.hasStory, isFalse);
+    });
+
+    test('the cover round-trips, and an old post has none', () {
+      final map = milestoneMap(const [])
+        ..['coverUrl'] = 'https://x/cover.jpg'
+        ..['coverStoragePath'] = 'users/u1/posts/cover.jpg';
+      final post = Post.fromMap('p', map) as MilestonePost;
+      expect(post.coverUrl, 'https://x/cover.jpg');
+      expect(post.coverStoragePath, 'users/u1/posts/cover.jpg');
+      final old = Post.fromMap('p', milestoneMap(const [])) as MilestonePost;
+      expect(old.coverUrl, isNull);
+      expect(old.coverStoragePath, isNull);
     });
 
     test('an old milestone post has no story and still reads', () {

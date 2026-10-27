@@ -88,49 +88,6 @@ void main() {
     });
   });
 
-  group('the day fallback', () {
-    test('one segment per day, clipped to the band', () {
-      final out = daySegments(
-        secondsByDay: {
-          '2026-10-01': 10 * h,
-          '2026-10-02': 12 * h, // crosses 20h at 2h into this day
-          '2026-10-03': 5 * h,
-        },
-        bandStart: 0,
-        bandEnd: 20 * h,
-      );
-      expect(out.unit, SegmentUnit.day);
-      expect(out.segments.map((e) => e.seconds), [10 * h, 10 * h]);
-      expect(out.totalSeconds, 20 * h);
-      expect(
-        out.segments.first.at,
-        DateTime(2026, 10, 1).millisecondsSinceEpoch,
-      );
-    });
-
-    test('a later band starts where the earlier one stopped', () {
-      final out = daySegments(
-        secondsByDay: {'2026-10-01': 10 * h, '2026-10-02': 12 * h, '2026-10-03': 5 * h},
-        bandStart: 20 * h,
-        bandEnd: 40 * h,
-      );
-      expect(out.segments.map((e) => e.seconds), [2 * h, 5 * h]);
-    });
-
-    test('days are read in calendar order whatever the map order', () {
-      final out = daySegments(
-        secondsByDay: {'2026-10-03': h, '2026-10-01': h},
-        bandStart: 0,
-        bandEnd: 20 * h,
-      );
-      expect(
-        out.segments.map((e) => e.at),
-        [DateTime(2026, 10, 1), DateTime(2026, 10, 3)]
-            .map((d) => d.millisecondsSinceEpoch),
-      );
-    });
-  });
-
   group('photo → segment', () {
     test('by session: the last session that began before the photo', () {
       final segs = BandSegments(
@@ -144,7 +101,6 @@ void main() {
       // Taken just after the second session ended: micros.
       final idx = segmentIndexForPhoto(
         photoTimestamp: (5_000_000 + h * 1000 + 30_000) * 1000,
-        photoDayKey: 'x',
         segments: segs,
       );
       expect(idx, 1);
@@ -157,25 +113,9 @@ void main() {
       );
       expect(
         segmentIndexForPhoto(
-          photoTimestamp: 1_000_000 * 1000, photoDayKey: 'x', segments: segs,
+          photoTimestamp: 1_000_000 * 1000, segments: segs,
         ),
         isNull,
-      );
-    });
-
-    test('by day: its own day', () {
-      final segs = BandSegments(
-        unit: SegmentUnit.day,
-        segments: [
-          BandSegment(at: DateTime(2026, 10, 1).millisecondsSinceEpoch, seconds: h),
-          BandSegment(at: DateTime(2026, 10, 2).millisecondsSinceEpoch, seconds: h),
-        ],
-      );
-      expect(
-        segmentIndexForPhoto(
-          photoTimestamp: 0, photoDayKey: '2026-10-02', segments: segs,
-        ),
-        1,
       );
     });
 

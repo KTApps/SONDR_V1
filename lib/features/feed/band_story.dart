@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import '../../core/utils/date.dart';
 import '../tasks/session_log.dart';
 
 /// What a milestone story is made of: the effort of one 20-hour band, cut
@@ -8,7 +7,8 @@ import '../tasks/session_log.dart';
 ///
 /// Pure arithmetic, no I/O, so every rule here is unit-tested in isolation:
 /// whether the session log covers the band, how a session is clipped at the
-/// band's edges, the day fallback, and the photo → segment mapping.
+/// band's edges, and the photo → segment mapping. A band the log does not
+/// reach back to has no segments: there is no telling it by days.
 
 /// One segment of the band's effort.
 @immutable
@@ -19,8 +19,7 @@ class BandSegment {
     this.photo = false,
   });
 
-  /// When the segment began, epoch milliseconds. A session's start, or
-  /// midnight for a day segment.
+  /// When the session began, epoch milliseconds.
   final int at;
   final int seconds;
 
@@ -43,8 +42,9 @@ class BandSegment {
   String toString() => 'BandSegment(at: $at, seconds: $seconds, photo: $photo)';
 }
 
-/// What a segment stands for. Never mixed within one post.
-enum SegmentUnit { session, day }
+/// What a segment stands for. Sessions only: a post from the days when a
+/// band could be told by its days is parsed as having no story.
+enum SegmentUnit { session }
 
 @immutable
 class BandSegments {
@@ -62,8 +62,7 @@ class BandSegments {
 const int kBandCoverageToleranceSeconds = 60;
 
 /// The band's segments from the session log — or null when the log does
-/// not reach back to the band's start, in which case the story must fall
-/// back to days.
+/// not reach back to the band's start, in which case the post has no story.
 ///
 /// Time the log never saw is taken to have come FIRST (the log is
 /// forward-only, so everything it is missing predates it): the walk
@@ -96,63 +95,21 @@ BandSegments? sessionSegments({
   return BandSegments(segments: out, unit: SegmentUnit.session);
 }
 
-/// The fallback: one segment per DAY with time on it, in order, clipped to
-/// the band's edges. A day's segment begins at its local midnight.
-BandSegments daySegments({
-  required Map<String, int> secondsByDay,
-  required int bandStart,
-  required int bandEnd,
-}) {
-  final days = secondsByDay.keys.toList()..sort();
-  var cursor = 0;
-  final out = <BandSegment>[];
-  for (final day in days) {
-    final seconds = secondsByDay[day] ?? 0;
-    if (seconds <= 0) continue;
-    final start = cursor;
-    final end = cursor + seconds;
-    cursor = end;
-    final from = start < bandStart ? bandStart : start;
-    final to = end > bandEnd ? bandEnd : end;
-    if (to > from) {
-      out.add(
-        BandSegment(
-          at: DayKey.parse(day).millisecondsSinceEpoch,
-          seconds: to - from,
-        ),
-      );
-    }
-  }
-  return BandSegments(segments: out, unit: SegmentUnit.day);
-}
-
 /// Which segment a photo belongs to, or null if none does.
 ///
-/// A photo is taken as a session ends, so by session it is the last
-/// segment that began before it; by day it is the segment of its own day.
-/// [photoTimestamp] is MICROSECONDS, as `Photo.timestamp` is stored.
+/// A photo is taken as a session ends, so it is the last segment that
+/// began before it. [photoTimestamp] is MICROSECONDS, as `Photo.timestamp`
+/// is stored.
 int? segmentIndexForPhoto({
   required int photoTimestamp,
-  required String photoDayKey,
   required BandSegments segments,
 }) {
-  switch (segments.unit) {
-    case SegmentUnit.session:
-      final ms = photoTimestamp ~/ 1000;
-      int? found;
-      for (var i = 0; i < segments.segments.length; i++) {
-        if (segments.segments[i].at <= ms) found = i;
-      }
-      return found;
-    case SegmentUnit.day:
-      for (var i = 0; i < segments.segments.length; i++) {
-        final day = DayKey.of(
-          DateTime.fromMillisecondsSinceEpoch(segments.segments[i].at),
-        );
-        if (day == photoDayKey) return i;
-      }
-      return null;
+  final ms = photoTimestamp ~/ 1000;
+  int? found;
+  for (var i = 0; i < segments.segments.length; i++) {
+    if (segments.segments[i].at <= ms) found = i;
   }
+  return found;
 }
 
 /// The segments with the ones that have a photo marked.

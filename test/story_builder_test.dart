@@ -6,7 +6,7 @@ import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/tasks/session_log.dart';
 
 /// What a milestone post stores about its band: sessions when the log
-/// covers the band, days when it does not, and which segment each photo
+/// covers the band, nothing when it does not, and which session each photo
 /// belongs to.
 void main() {
   const h = 3600;
@@ -43,7 +43,7 @@ void main() {
     expect(story.segments[0].photo, isFalse);
   });
 
-  test('a band the log does not reach back to is told by day', () {
+  test('a band the log does not reach back to has no story', () {
     const task = Task(
       id: 't',
       name: 'Spanish',
@@ -57,10 +57,10 @@ void main() {
       milestoneHours: 20,
       photos: [photo(0, day: '2026-10-02')],
     );
-    expect(story.unit, SegmentUnit.day);
-    expect(story.segments.map((s) => s.seconds), [8 * h, 12 * h]);
-    // By day, a photo belongs to its own day.
-    expect(story.photoIndices, [1]);
+    expect(story.unit, isNull);
+    expect(story.segments, isEmpty);
+    // No sessions to belong to.
+    expect(story.photoIndices, [null]);
   });
 
   test('a photo that lands on no segment keeps no index', () {

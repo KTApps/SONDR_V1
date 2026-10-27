@@ -5,18 +5,39 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/sondr_action.dart';
+import '../feed/widgets/milestone_cover.dart';
 import 'delete_photo.dart';
 import 'models/photo.dart';
 import 'photo_viewer_text.dart';
 
-/// Open the viewer on [photos], starting at [index]. A full-screen modal
-/// route that fades in; the page beneath stays put behind the scrim.
+/// A milestone's cover as a page of the viewer, ahead of its photos: the
+/// image it was shared with, else its collage drawn from [photoUrls].
+@immutable
+class MilestoneCoverEntry {
+  const MilestoneCoverEntry({
+    required this.taskName,
+    required this.milestoneHours,
+    required this.photoUrls,
+    this.coverUrl,
+  });
+
+  final String taskName;
+  final int milestoneHours;
+  final List<String> photoUrls;
+  final String? coverUrl;
+}
+
+/// Open the viewer on [photos], starting at [index] — counted with the
+/// [cover] first, when there is one. A full-screen modal route that fades
+/// in; the page beneath stays put behind the scrim.
 Future<void> showPhotoViewer(
   BuildContext context, {
   required List<Photo> photos,
   required int index,
+  MilestoneCoverEntry? cover,
 }) {
-  if (photos.isEmpty) return Future.value();
+  if (photos.isEmpty && cover == null) return Future.value();
+  final count = photos.length + (cover == null ? 0 : 1);
   return Navigator.of(context).push(
     PageRouteBuilder<void>(
       opaque: false,
@@ -25,7 +46,8 @@ Future<void> showPhotoViewer(
       reverseTransitionDuration: kPhotoViewerFade,
       pageBuilder: (_, _, _) => PhotoViewer(
         photos: photos,
-        index: index.clamp(0, photos.length - 1),
+        index: index.clamp(0, count - 1),
+        cover: cover,
       ),
       transitionsBuilder: (_, anim, _, child) =>
           FadeTransition(opacity: anim, child: child),
@@ -50,10 +72,16 @@ class PhotoViewer extends ConsumerStatefulWidget {
     super.key,
     required this.photos,
     required this.index,
+    this.cover,
   });
 
   final List<Photo> photos;
+
+  /// The page to open on, counting [cover] as the first when there is one.
   final int index;
+
+  /// A milestone's cover, shown as the page before its photos.
+  final MilestoneCoverEntry? cover;
 
   @override
   ConsumerState<PhotoViewer> createState() => _PhotoViewerState();
@@ -67,6 +95,14 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
 
   static const double _inset = 18;
   static const double _radius = 18;
+
+  /// How many pages the cover adds before the photos.
+  int get _lead => widget.cover == null ? 0 : 1;
+  int get _count => _photos.length + _lead;
+  bool get _onCover => _lead == 1 && _index == 0;
+
+  /// The photo on the current page, or null on the cover.
+  Photo? get _photo => _onCover ? null : _photos[_index - _lead];
 
   @override
   void initState() {
@@ -83,9 +119,10 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
   /// The pages either side, decoded before they are swiped to.
   void _warmNeighbours() {
     if (!mounted) return;
+    final i = _index - _lead;
     precachePhotos(context, [
-      if (_index > 0) _photos[_index - 1].photoUrl,
-      if (_index < _photos.length - 1) _photos[_index + 1].photoUrl,
+      if (i > 0) _photos[i - 1].photoUrl,
+      if (i >= -1 && i < _photos.length - 1) _photos[i + 1].photoUrl,
     ]);
   }
 
@@ -98,7 +135,8 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
 
   Future<void> _delete() async {
     if (_deleting) return;
-    final photo = _photos[_index];
+    final photo = _photo;
+    if (photo == null) return;
     // Busy only once the prompt has been answered: a photo being deleted,
     // not a question being asked.
     final gone = await confirmDeletePhoto(
@@ -118,9 +156,9 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
       _close();
       return;
     }
-    _photos.removeAt(_index);
+    _photos.removeAt(_index - _lead);
     // The next photo in the set, or the new last one.
-    final next = _index.clamp(0, _photos.length - 1);
+    final next = _index.clamp(0, _count - 1);
     setState(() {
       _index = next;
       _deleting = false;
@@ -129,16 +167,30 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
     _warmNeighbours();
   }
 
+  /// The cover's page: the image it was shared with, else its collage.
+  Widget _coverPage(MilestoneCoverEntry cover) => MilestoneCoverTile(
+    key: const ValueKey('cover'),
+    milestoneHours: cover.milestoneHours,
+    photoUrls: cover.photoUrls,
+    coverUrl: cover.coverUrl,
+  );
+
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);
-    final photo = _photos[_index];
+    final photo = _photo;
+    final cover = widget.cover;
     String time(DateTime when) => MaterialLocalizations.of(context)
         .formatTimeOfDay(TimeOfDay.fromDateTime(when));
-    final line3 = viewerLine3(photo);
-    final counter = viewerCounter(_index, _photos.length);
+    // The cover's lines: the milestone it stands for, and what it is.
+    final line1 = photo == null
+        ? '${cover!.taskName} · ${cover.milestoneHours}h'
+        : viewerLine1(photo);
+    final line2 = photo == null ? 'Milestone cover' : viewerLine2(photo, time: time);
+    final line3 = photo == null ? null : viewerLine3(photo);
+    final counter = viewerCounter(_index, _count);
 
     TextStyle? style(double size, Color color, [FontWeight? weight]) =>
         theme.textTheme.bodyMedium?.copyWith(
@@ -171,15 +223,17 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
                           controller: _pages,
                           physics: const BouncingScrollPhysics(),
                           onPageChanged: _onPage,
-                          itemCount: _photos.length,
-                          itemBuilder: (_, i) => SondrPhoto(
-                            key: ValueKey(_photos[i].id),
-                            url: _photos[i].photoUrl,
-                            // Full colour: a close look, meant to be enjoyed.
-                            saturation: null,
-                            placeholder: (_) => ColoredBox(color: tokens.surface),
-                            error: (_) => ColoredBox(color: tokens.ringTrack),
-                          ),
+                          itemCount: _count,
+                          itemBuilder: (_, i) => i < _lead
+                              ? _coverPage(cover!)
+                              : SondrPhoto(
+                                  key: ValueKey(_photos[i - _lead].id),
+                                  url: _photos[i - _lead].photoUrl,
+                                  // Full colour: a close look, meant to be enjoyed.
+                                  saturation: null,
+                                  placeholder: (_) => ColoredBox(color: tokens.surface),
+                                  error: (_) => ColoredBox(color: tokens.ringTrack),
+                                ),
                         ),
                       ),
                     ),
@@ -188,13 +242,13 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
               ),
               SizedBox(height: 12 * scale),
               Text(
-                viewerLine1(photo),
+                line1,
                 textAlign: TextAlign.center,
                 style: style(14, tokens.textPrimary, FontWeight.w700),
               ),
               SizedBox(height: 4 * scale),
               Text(
-                viewerLine2(photo, time: time),
+                line2,
                 textAlign: TextAlign.center,
                 style: style(12, tokens.textSecondary),
               ),
@@ -217,20 +271,24 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
               SizedBox(height: 32 * scale),
               SondrAction(label: 'Close', supporting: true, onPressed: _close),
               SizedBox(height: 12 * scale),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _deleting ? null : _delete,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 24 * scale,
-                    vertical: 4 * scale,
+              // A cover is not a photo of its own: nothing to delete.
+              if (photo != null)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _deleting ? null : _delete,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 24 * scale,
+                      vertical: 4 * scale,
+                    ),
+                    child: Text(
+                      _deleting ? 'Deleting…' : 'Delete',
+                      style: style(15, tokens.textTertiary),
+                    ),
                   ),
-                  child: Text(
-                    _deleting ? 'Deleting…' : 'Delete',
-                    style: style(15, tokens.textTertiary),
-                  ),
-                ),
-              ),
+                )
+              else
+                SizedBox(height: (4 + 21 + 4) * scale),
               SizedBox(height: 24 * scale),
             ],
           ),

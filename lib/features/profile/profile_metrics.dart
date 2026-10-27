@@ -167,11 +167,15 @@ double profileGridTile(BuildContext context, double contentWidth) =>
     (contentWidth - (kProfileGridColumns - 1) * kProfileStripGap * figmaScale(context)) /
     kProfileGridColumns;
 
-/// One tile in a strip: a fixed square, rounded, at the page's photo tone.
+/// One tile in a strip: a fixed square, rounded, at the page's photo tone —
+/// a photo by [url], or whatever [child] draws in the square (a
+/// milestone's cover).
 class ProfileStripTile extends StatelessWidget {
-  const ProfileStripTile({super.key, required this.url, this.side});
+  const ProfileStripTile({super.key, this.url, this.child, this.side})
+    : assert(url != null || child != null);
 
-  final String url;
+  final String? url;
+  final Widget? child;
 
   /// The side, when something other than the strip's fixed square — the
   /// grid's tile is a quarter of a point wider, so that four of them fill
@@ -188,13 +192,14 @@ class ProfileStripTile extends StatelessWidget {
       height: size,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(kProfileStripRadius * scale),
-        child: SondrPhoto(
-          url: url,
-          saturation: kProfilePhotoSaturation,
-          tint: kProfilePhotoTint,
-          placeholder: (_) => ColoredBox(color: tokens.ringTrack),
-          error: (_) => ColoredBox(color: tokens.ringTrack),
-        ),
+        child: child ??
+            SondrPhoto(
+              url: url!,
+              saturation: kProfilePhotoSaturation,
+              tint: kProfilePhotoTint,
+              placeholder: (_) => ColoredBox(color: tokens.ringTrack),
+              error: (_) => ColoredBox(color: tokens.ringTrack),
+            ),
       ),
     );
   }

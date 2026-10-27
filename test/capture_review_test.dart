@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/photos/capture_crop.dart';
+import 'package:sondr/features/feed/widgets/milestone_frame.dart' show MilestoneNoPhotoFrame;
 import 'package:sondr/features/photos/capture_review_screen.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/sondr_camera.dart';
@@ -29,6 +30,8 @@ void main() {
     Future<bool> Function(WidgetRef)? onKeep,
     Future<bool> Function(WidgetRef, String?, List<Photo>)? onShare,
     double textScale = 1.0,
+    bool withShot = true,
+    int? milestoneHours,
   }) async {
     tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -45,7 +48,8 @@ void main() {
             child: child!,
           ),
           home: CaptureReviewScreen(
-            shot: shot,
+            shot: withShot ? shot : null,
+            milestoneHours: milestoneHours,
             taskName: 'Spanish',
             sessionLabel: '1h 20m',
             share: share,
@@ -408,6 +412,39 @@ void main() {
       await tester.pumpAndSettle();
       // Pool order, not tap order.
       expect(posted!.map((p) => p.id).toList(), [band[1].id]);
+    });
+  });
+
+  group('a milestone with the camera skipped', () {
+    testWidgets('shows the milestone frame where the photo would be, and '
+        'still offers the band and Share', (tester) async {
+      final band = [
+        const Photo(
+          taskId: 't', taskName: 'Spanish', dayKey: '2026-10-01',
+          timestamp: 1, sessionSeconds: 0, photoUrl: 'assets/mock/sample1.jpg',
+          storagePath: 'p',
+        ),
+      ];
+      List<Photo>? shared;
+      await pumpReview(
+        tester,
+        share: ShareState.allowed,
+        band: band,
+        withShot: false,
+        milestoneHours: 20,
+        onShare: (ref, caption, also) async {
+          shared = also;
+          return true;
+        },
+      );
+      expect(find.byType(MilestoneNoPhotoFrame), findsOneWidget);
+      expect(find.text('20'), findsOneWidget);
+      expect(find.byKey(kBandRowKey), findsOneWidget);
+      expect(find.text('Share'), findsOneWidget);
+
+      await tester.tap(find.text('Share'));
+      await tester.pumpAndSettle();
+      expect(shared, isNotNull, reason: 'Share did nothing without a photo');
     });
   });
 }

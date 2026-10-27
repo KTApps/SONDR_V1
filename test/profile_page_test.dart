@@ -17,6 +17,7 @@ import 'package:sondr/features/photos/photo_viewer.dart';
 import 'package:sondr/features/photos/milestones_screen.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/profile/milestone_strip.dart';
+import 'package:sondr/features/profile/profile_metrics.dart';
 import 'package:sondr/features/profile/profile_providers.dart';
 import 'package:sondr/features/profile/profile_screen.dart';
 import 'package:sondr/features/tasks/models/task.dart';
@@ -554,7 +555,7 @@ void main() {
         milestonePhotos: [for (var i = 0; i < 6; i++) _photo(1000 + i)],
       );
       final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
-      final tiles = find.byType(SondrPhoto);
+      final tiles = find.byType(ProfileStripTile);
 
       // Every photo the collage holds, reached by dragging rather than by
       // shrinking the tiles to suit.
@@ -598,7 +599,7 @@ void main() {
         milestonePhotos: [for (var i = 0; i < 2; i++) _photo(2000 + i)],
       );
       final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
-      final tiles = find.byType(SondrPhoto);
+      final tiles = find.byType(ProfileStripTile);
       expect(tiles, findsNWidgets(2));
       // Not stretched to fill the width — the same square as a full collage.
       expect(tester.getSize(tiles.first).width, closeTo(80 * scale, 0.01));
@@ -629,12 +630,15 @@ void main() {
         tester,
         milestonePhotos: [for (var i = 0; i < 4; i++) _photo(3000 + i)],
       );
-      await tester.tap(find.byType(SondrPhoto).first);
+      await tester.tap(find.byType(ProfileStripTile).first);
       await tester.pumpAndSettle();
       // The photo itself, large, with its stretch (the harness hands each
       // milestone a one-photo stretch) — and no journey pushed underneath.
       final viewer = tester.widget<PhotoViewer>(find.byType(PhotoViewer));
       expect(viewer.photos.map((p) => p.id), [_photo(3000).id]);
+      // Opened on the milestone's cover, its photo the page after.
+      expect(viewer.cover, isNotNull);
+      expect(viewer.cover!.milestoneHours, 20);
       expect(viewer.index, 0);
       expect(find.byType(MilestonesScreen, skipOffstage: false), findsNothing);
       expect(find.text('Close'), findsOneWidget);
@@ -757,7 +761,7 @@ void main() {
         (w) => w is SizedBox && w.height == 1,
       );
       expect(lines, findsNWidgets(4)); // three sections, plus the account's
-      final photos = find.byType(SondrPhoto);
+      final photos = find.byType(ProfileStripTile);
       final rings = find.byType(ProgressRing);
 
       double top(Finder f) => tester.getTopLeft(f).dy;
@@ -834,7 +838,7 @@ void main() {
         reason: 'emblem',
       );
       expect(
-        tester.getSize(find.byType(SondrPhoto).first).height,
+        tester.getSize(find.byType(ProfileStripTile).first).height,
         closeTo(79.3, 0.6),
         reason: 'photo strip tile',
       );
@@ -882,7 +886,7 @@ void main() {
       ('stat label', find.text('day streak')),
       ('Friends', find.text('Friends')),
       ('Milestones', find.text('Milestones')),
-      ('photo strip', find.byType(SondrPhoto).first),
+      ('photo strip', find.byType(ProfileStripTile).first),
       ('In progress', find.text('In progress')),
       ('ring', ringFinder(tester, 56).first),
       ('ring label', find.text('Task 0')),
@@ -1081,12 +1085,14 @@ void main() {
                   : find.text('No task in progress.'),
             ),
             ('stat figure', statFigure.first),
-            ('stat label', find.text('hours')),
+            // The stat's label: the first "hours" on the page — the milestone
+            // tiles' rings say it too, further down.
+            ('stat label', find.text('hours').first),
             ('hairline 1', hairlines.at(0)),
             ('Friends', find.text('Friends')),
             ('hairline 2', hairlines.at(1)),
             ('Milestones', find.text('Milestones')),
-            if (photoCount > 0) ('photo strip', find.byType(SondrPhoto).first),
+            if (photoCount > 0) ('photo strip', find.byType(ProfileStripTile).first),
             ('hairline 3', hairlines.at(2)),
             ('In progress', find.text('In progress')),
             if (taskCount > 0) ...[
@@ -1252,7 +1258,7 @@ void main() {
       tester,
     ) async {
       await compose(tester);
-      final photos = find.byType(SondrPhoto);
+      final photos = find.byType(ProfileStripTile);
       expect(photos, findsNWidgets(4));
       // One row: all four share a top edge.
       final firstTop = tester.getTopLeft(photos.first).dy;
@@ -1347,7 +1353,7 @@ void main() {
       final scale = figmaScale(tester.element(find.byType(ProfileScreen)));
       final margin = 24 * scale;
 
-      final photos = find.byType(SondrPhoto);
+      final photos = find.byType(ProfileStripTile);
       final rings = ringFinder(tester, 56);
       expect(photos, findsNWidgets(5));
       expect(rings, findsNWidgets(5));

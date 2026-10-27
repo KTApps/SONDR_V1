@@ -74,4 +74,25 @@ void main() {
     expect(kCaptureAspect, 3 / 4);
     expect(kCaptureWidth / kCaptureHeight, closeTo(kCaptureAspect, 0.0001));
   });
+
+  group('whether a post needs a photo', () {
+    test('a session post is its photo', () {
+      expect(photoRequiredToPost(isMilestone: false), isTrue);
+    });
+    test('a milestone stands without one', () {
+      expect(photoRequiredToPost(isMilestone: true), isFalse);
+    });
+    test('the stop rules are unchanged by it', () {
+      expect(
+        decideAfterStop(loggedSeconds: 59, hasTask: true, isGuest: false,
+            taskTotalSeconds: 72000, milestoneBandSeconds: 72000).openCamera,
+        isFalse,
+      );
+      expect(
+        decideAfterStop(loggedSeconds: 600, hasTask: false, isGuest: false,
+            taskTotalSeconds: 72000, milestoneBandSeconds: 72000).openCamera,
+        isFalse,
+      );
+    });
+  });
 }

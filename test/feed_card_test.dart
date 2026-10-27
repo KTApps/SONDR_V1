@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
-import 'package:sondr/features/feed/widgets/post_collage.dart';
+import 'package:sondr/features/feed/widgets/milestone_ring.dart';
 import 'package:sondr/features/feed/widgets/session_log_card.dart';
 
 List<PostPhoto> _mockPhotos(int n) => [
@@ -25,13 +25,12 @@ MilestonePost _milestone(List<PostPhoto> photos) => MilestonePost(
 
 const _author = PostAuthor(username: 'tom', displayName: 'Tom Hardy');
 
-// Cards now use the interactive PostInteractions (a ConsumerWidget), so a
+// Cards use the interactive PostInteractions (a ConsumerWidget), so a
 // ProviderScope is required. With no Firebase the interaction providers resolve
 // to empty/null and the affordances simply render inert.
 Future<void> _pump(WidgetTester tester, Widget child) => tester.pumpWidget(
   ProviderScope(
-    // Scrollable like the feed's ListView, so a tall multi-photo card doesn't
-    // overflow the test viewport.
+    // Scrollable like the feed's ListView.
     child: MaterialApp(
       home: Scaffold(body: SingleChildScrollView(child: child)),
     ),
@@ -39,7 +38,7 @@ Future<void> _pump(WidgetTester tester, Widget child) => tester.pumpWidget(
 );
 
 void main() {
-  testWidgets('MilestoneCard (no photo) shows the hours figure and badge', (
+  testWidgets('MilestoneCard (no photo) shows the hours in the ring, the handle and the task', (
     tester,
   ) async {
     await _pump(
@@ -58,61 +57,29 @@ void main() {
       ),
     );
     expect(find.text('20'), findsOneWidget); // ring centre figure
-    expect(find.text('Milestone · 20h'), findsOneWidget);
-    expect(find.text('Tom Hardy'), findsWidgets);
+    expect(find.text('hours'), findsOneWidget);
+    expect(find.text('tom'), findsOneWidget); // the handle, not the display name
+    expect(find.text('Spanish'), findsOneWidget);
+    expect(find.byType(Image), findsNothing);
+    expect(find.byType(MilestoneRing), findsOneWidget);
   });
 
-  testWidgets('MilestoneCard (with photo) builds over a backdrop', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      MilestoneCard(
-        post: MilestonePost(
-          id: 'm',
-          authorUid: 'u',
-          author: _author,
-          createdAt: DateTime(2026, 6, 1),
-          caption: 'done',
-          photos: const [
-            PostPhoto(url: 'assets/mock/sample1.jpg', storagePath: ''),
-          ],
-          taskName: 'Spanish',
-          milestoneHours: 40,
-          totalHours: 41,
-        ),
-      ),
-    );
-    expect(find.byType(MilestoneCard), findsOneWidget);
-    expect(find.text('40'), findsOneWidget);
-  });
-
-  testWidgets('MilestoneCard (1 photo) uses the backdrop, not a collage', (
+  testWidgets('MilestoneCard (with photo) builds over the photo', (
     tester,
   ) async {
     await _pump(tester, MilestoneCard(post: _milestone(_mockPhotos(1))));
-    expect(find.byType(PostCollage), findsNothing);
-    expect(find.text('40'), findsOneWidget); // ring figure over the backdrop
+    expect(find.byType(MilestoneCard), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.text('40'), findsOneWidget);
   });
 
-  testWidgets('MilestoneCard (3 photos) renders the collage, no ring', (
+  testWidgets('MilestoneCard (3 photos, no sessions) is one frame: the collage, the ring', (
     tester,
   ) async {
     await _pump(tester, MilestoneCard(post: _milestone(_mockPhotos(3))));
-    expect(find.byType(PostCollage), findsOneWidget);
-    expect(find.text('Milestone · 40h'), findsOneWidget); // badge carries it
-    expect(find.text('40'), findsNothing); // ring figure gone
-  });
-
-  testWidgets('PostCollage caps at 9 tiles with a +N overflow', (tester) async {
-    await _pump(tester, MilestoneCard(post: _milestone(_mockPhotos(12))));
-    expect(find.byType(PostCollage), findsOneWidget);
-    expect(find.text('+3'), findsOneWidget); // 12 - 9
-  });
-
-  testWidgets('PostCollage at exactly 9 shows no overflow', (tester) async {
-    await _pump(tester, MilestoneCard(post: _milestone(_mockPhotos(9))));
-    expect(find.textContaining('+'), findsNothing);
+    expect(find.byType(PageView), findsNothing); // no swiping: a tap steps
+    expect(find.text('40'), findsOneWidget); // the ring stays, solid
+    expect(find.textContaining('Milestone ·'), findsNothing); // no badge any more
   });
 
   testWidgets('SessionLogCard (no photo) renders the slim middot line', (

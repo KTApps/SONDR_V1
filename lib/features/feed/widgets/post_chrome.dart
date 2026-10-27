@@ -135,6 +135,31 @@ class PostInteractions extends ConsumerStatefulWidget {
   final Post post;
   final bool onPhoto;
 
+  /// The tap target above and below each word, on the reference canvas.
+  static const double verticalPad = kSpacingBase;
+
+  /// The words' style in [context] — one place, so a layout that has to
+  /// line something up with them measures the same text they draw.
+  static TextStyle? wordStyle(BuildContext context) =>
+      Theme.of(context).textTheme.bodyMedium?.copyWith(
+        fontSize: 15 * figmaScale(context),
+        fontWeight: FontWeight.w700,
+      );
+
+  /// How far below the row's top the words' baseline lies: the padding,
+  /// then the text's own ascent at the user's text size. For the milestone
+  /// card's page dots, which stand on that line.
+  static double wordBaseline(BuildContext context) {
+    final painter = TextPainter(
+      text: TextSpan(text: 'Like', style: wordStyle(context)),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final baseline = painter.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+    painter.dispose();
+    return verticalPad * figmaScale(context) + baseline;
+  }
+
   @override
   ConsumerState<PostInteractions> createState() => _PostInteractionsState();
 }
@@ -147,7 +172,6 @@ class _PostInteractionsState extends ConsumerState<PostInteractions> {
     final post = widget.post;
     final onPhoto = widget.onPhoto;
     final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
     final scale = figmaScale(context);
     final labelColor = onPhoto ? kOnPhoto : tokens.textPrimary;
     final shadows = onPhoto ? kTextShadows : null;
@@ -169,12 +193,12 @@ class _PostInteractionsState extends ConsumerState<PostInteractions> {
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
           child: Padding(
-            padding: EdgeInsets.symmetric(vertical: kSpacingBase * scale),
+            padding: EdgeInsets.symmetric(
+              vertical: PostInteractions.verticalPad * scale,
+            ),
             child: Text(
               label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontSize: 15 * scale,
-                fontWeight: FontWeight.w700,
+              style: PostInteractions.wordStyle(context)?.copyWith(
                 color: labelColor,
                 shadows: shadows,
               ),

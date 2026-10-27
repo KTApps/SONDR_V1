@@ -82,7 +82,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(OtherProfileScreen), findsNothing);
 
-    await tester.tap(find.text('Cass'));
+    // The card prints the handle, not the display name.
+    await tester.tap(find.text('cass'));
     await tester.pumpAndSettle();
     final screen = tester.widget<OtherProfileScreen>(
       find.byType(OtherProfileScreen),
@@ -111,7 +112,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tab, 0);
 
-    await tester.tap(find.text('Cass'));
+    await tester.tap(find.text('cass'));
     await tester.pumpAndSettle();
     expect(find.byType(OtherProfileScreen), findsNothing);
     expect(tab, kProfileTabIndex);

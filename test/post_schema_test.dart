@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sondr/features/feed/band_story.dart';
 import 'package:sondr/features/feed/models/post.dart';
 
 void main() {
@@ -51,6 +52,93 @@ void main() {
     test('PostPhoto toMap/fromMap round-trips', () {
       const p = PostPhoto(url: 'x', storagePath: 'users/u/posts/x.jpg');
       expect(PostPhoto.fromMap(p.toMap()), p);
+    });
+  });
+
+  group('the story fields', () {
+    test('a milestone with sessions, unit and photo→session round-trips', () {
+      final map = milestoneMap(const [
+        PostPhoto(url: 'a', storagePath: 'p/a', sessionIndex: 0),
+        PostPhoto(url: 'b', storagePath: 'p/b', sessionIndex: 2),
+      ])
+        ..['sessions'] = [
+          {'at': 1000, 'seconds': 3600, 'photo': true},
+          {'at': 2000, 'seconds': 1800, 'photo': false},
+          {'at': 3000, 'seconds': 7200, 'photo': true},
+        ]
+        ..['unit'] = 'session';
+      final post = Post.fromMap('p', map) as MilestonePost;
+      expect(post.hasStory, isTrue);
+      expect(post.unit, SegmentUnit.session);
+      expect(post.segments, const [
+        PostSegment(at: 1000, seconds: 3600, photo: true),
+        PostSegment(at: 2000, seconds: 1800),
+        PostSegment(at: 3000, seconds: 7200, photo: true),
+      ]);
+      expect(post.photos.map((p) => p.sessionIndex), [0, 2]);
+    });
+
+    test('a day-unit story, from before days were dropped, reads as no story', () {
+      final map = milestoneMap(const [])
+        ..['sessions'] = [
+          {'at': 1000, 'seconds': 3600},
+        ]
+        ..['unit'] = 'day';
+      final post = Post.fromMap('p', map) as MilestonePost;
+      expect(post.unit, isNull);
+      expect(post.hasStory, isFalse);
+    });
+
+    test('the cover round-trips, and an old post has none', () {
+      final map = milestoneMap(const [])
+        ..['coverUrl'] = 'https://x/cover.jpg'
+        ..['coverStoragePath'] = 'users/u1/posts/cover.jpg'
+        ..['thumbUrl'] = 'https://x/thumb.jpg'
+        ..['thumbStoragePath'] = 'users/u1/posts/thumb.jpg';
+      final post = Post.fromMap('p', map) as MilestonePost;
+      expect(post.coverUrl, 'https://x/cover.jpg');
+      expect(post.coverStoragePath, 'users/u1/posts/cover.jpg');
+      expect(post.thumbUrl, 'https://x/thumb.jpg');
+      expect(post.thumbStoragePath, 'users/u1/posts/thumb.jpg');
+      final old = Post.fromMap('p', milestoneMap(const [])) as MilestonePost;
+      expect(old.coverUrl, isNull);
+      expect(old.coverStoragePath, isNull);
+      expect(old.thumbUrl, isNull);
+      expect(old.thumbStoragePath, isNull);
+    });
+
+    test('an old milestone post has no story and still reads', () {
+      final post = Post.fromMap('p', milestoneMap(const [])) as MilestonePost;
+      expect(post.hasStory, isFalse);
+      expect(post.segments, isEmpty);
+      expect(post.unit, isNull);
+    });
+
+    test('a malformed segment is dropped, not thrown', () {
+      final map = milestoneMap(const [])
+        ..['sessions'] = [
+          {'at': 'soon', 'seconds': 1},
+          {'at': 1, 'seconds': 1},
+        ]
+        ..['unit'] = 'session';
+      final post = Post.fromMap('p', map) as MilestonePost;
+      expect(post.segments.length, 1);
+    });
+
+    test('a session post carries its seconds into the band', () {
+      final map = milestoneMap(const [])
+        ..['type'] = 'session'
+        ..['sessionSeconds'] = 900
+        ..['bandSeconds'] = 5400;
+      final post = Post.fromMap('p', map) as SessionPost;
+      expect(post.bandSeconds, 5400);
+      final old = Post.fromMap('p', map..remove('bandSeconds')) as SessionPost;
+      expect(old.bandSeconds, isNull);
+    });
+
+    test('PostSegment round-trips', () {
+      const s = PostSegment(at: 5, seconds: 6, photo: true);
+      expect(PostSegment.fromMap(s.toMap()), s);
     });
   });
 }

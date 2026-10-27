@@ -11,6 +11,7 @@ import '../notifications/notifications_repository.dart';
 import 'models/comment.dart';
 import '../friends/friends_repository.dart';
 import '../reports/report.dart';
+import 'band_story.dart' show SegmentUnit;
 import 'models/post.dart';
 
 /// Reads the friends-only feed and creates posts. Posts live in a top-level
@@ -399,13 +400,21 @@ class PostsRepository {
   Future<({String url, String storagePath})> copyToPostsSpace(
     String sourceStoragePath,
   ) async {
+    final bytes = await photoBytes(sourceStoragePath);
+    final dir = Directory.systemTemp.createTempSync('sondr_postcopy');
+    final file = File('${dir.path}/copy.jpg')..writeAsBytesSync(bytes);
+    return uploadPostPhoto(file);
+  }
+
+  /// The bytes of an owner-only Storage object — a gallery original — for
+  /// a share that both copies it to the posts space and draws it into the
+  /// cover, so it is fetched once.
+  Future<Uint8List> photoBytes(String sourceStoragePath) async {
     final bytes = await FirebaseStorage.instance
         .ref(sourceStoragePath)
         .getData(10 * 1024 * 1024);
     if (bytes == null) throw StateError('no photo bytes at $sourceStoragePath');
-    final dir = Directory.systemTemp.createTempSync('sondr_postcopy');
-    final file = File('${dir.path}/copy.jpg')..writeAsBytesSync(bytes);
-    return uploadPostPhoto(file);
+    return bytes;
   }
 
   /// Delete a post and its posts-space photo binaries: each [PostPhoto]'s
@@ -415,10 +424,17 @@ class PostsRepository {
   /// time. Author-only is enforced at the rules layer. (The long-press delete
   /// UX lands in a later stage; this is the plumbing.)
   Future<void> deletePost(Post post) async {
-    for (final photo in post.photos) {
-      if (photo.storagePath.isEmpty) continue;
+    final binaries = [
+      for (final photo in post.photos) photo.storagePath,
+      // The cover and the thumbnail went up beside the photos and come
+      // down with them.
+      if (post is MilestonePost) ?post.coverStoragePath,
+      if (post is MilestonePost) ?post.thumbStoragePath,
+    ];
+    for (final path in binaries) {
+      if (path.isEmpty) continue;
       try {
-        await FirebaseStorage.instance.ref(photo.storagePath).delete();
+        await FirebaseStorage.instance.ref(path).delete();
       } on FirebaseException catch (e) {
         if (e.code != 'object-not-found') rethrow;
       }
@@ -426,31 +442,58 @@ class PostsRepository {
     await _posts.doc(post.id).delete();
   }
 
+  /// [segments] and [unit] are the story: the band's effort, session by
+  /// session. [cover] is the cover drawn at share time and [thumb] the
+  /// collage alone, small, both uploaded like photos. All additive: a post
+  /// without them is an old one and still reads.
   Future<String> createMilestonePost({
     required String taskName,
     required int milestoneHours,
     required int totalHours,
     String? caption,
     List<PostPhoto> photos = const [],
+    List<PostSegment> segments = const [],
+    SegmentUnit? unit,
+    ({String url, String storagePath})? cover,
+    ({String url, String storagePath})? thumb,
   }) => _create(
     'milestone',
     {
       'taskName': taskName,
       'milestoneHours': milestoneHours,
       'totalHours': totalHours,
+      if (segments.isNotEmpty && unit != null) ...{
+        'sessions': [for (final s in segments) s.toMap()],
+        'unit': unit.name,
+      },
+      if (cover != null) ...{
+        'coverUrl': cover.url,
+        'coverStoragePath': cover.storagePath,
+      },
+      if (thumb != null) ...{
+        'thumbUrl': thumb.url,
+        'thumbStoragePath': thumb.storagePath,
+      },
     },
     caption: caption,
     photos: photos,
   );
 
+  /// [bandSeconds]: the task's seconds into its band after this session,
+  /// for the card's ring.
   Future<String> createSessionPost({
     required String taskName,
     required int sessionSeconds,
     String? caption,
     List<PostPhoto> photos = const [],
+    int? bandSeconds,
   }) => _create(
     'session',
-    {'taskName': taskName, 'sessionSeconds': sessionSeconds},
+    {
+      'taskName': taskName,
+      'sessionSeconds': sessionSeconds,
+      'bandSeconds': ?bandSeconds,
+    },
     caption: caption,
     photos: photos,
   );

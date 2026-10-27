@@ -109,6 +109,16 @@ class CaptureDecision {
   );
 }
 
+/// Whether a post of this kind needs a photo.
+///
+/// A session post is its photo: without one there is nothing to show, so
+/// the camera's Skip ends the journey. A milestone post is the band's
+/// story — the effort bar, the ring, the photos chosen from the band —
+/// and stands without a new photo: Skip goes on to the review screen,
+/// where the frame shows the milestone itself and earlier photos can
+/// still be chosen.
+bool photoRequiredToPost({required bool isMilestone}) => !isMilestone;
+
 /// The rules, in one place.
 CaptureDecision decideAfterStop({
   required int loggedSeconds,

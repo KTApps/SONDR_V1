@@ -9,6 +9,7 @@ import '../../core/utils/figma_scale.dart';
 import '../../shared/cached_photo.dart';
 import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
+import '../feed/widgets/milestone_frame.dart' show MilestoneNoPhotoFrame;
 import 'capture_crop.dart';
 import 'models/photo.dart';
 import 'sondr_camera.dart';
@@ -89,12 +90,15 @@ class CaptureReviewScreen extends ConsumerStatefulWidget {
     required this.sessionLabel,
     required this.share,
     this.bandPhotos = const [],
+    this.milestoneHours,
     this.onKeep,
     this.onShare,
   });
 
   /// The cropped JPEG, exactly as it will be stored.
-  final Uint8List shot;
+  /// The new photo — or null for a milestone whose camera was skipped,
+  /// which still posts: the frame then shows the milestone itself.
+  final Uint8List? shot;
 
   final String taskName;
   final String sessionLabel;
@@ -105,6 +109,10 @@ class CaptureReviewScreen extends ConsumerStatefulWidget {
   /// This milestone band's earlier captures, offered alongside the new one.
   /// Empty on an ordinary session.
   final List<Photo> bandPhotos;
+
+  /// The milestone being shared, if this is one — what the frame shows
+  /// when there is no new photo.
+  final int? milestoneHours;
 
   /// Saves privately. Returns false to keep the screen up on failure.
   final Future<bool> Function(WidgetRef ref)? onKeep;
@@ -243,12 +251,16 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
                             borderRadius: BorderRadius.circular(
                               kViewfinderRadius * scale,
                             ),
-                            child: Image.memory(
-                              widget.shot,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) =>
-                                  ColoredBox(color: tokens.surface),
-                            ),
+                            child: widget.shot == null
+                                ? MilestoneNoPhotoFrame(
+                                    milestoneHours: widget.milestoneHours,
+                                  )
+                                : Image.memory(
+                                    widget.shot!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) =>
+                                        ColoredBox(color: tokens.surface),
+                                  ),
                           ),
                         ),
                       ),
@@ -364,7 +376,8 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
         physics: const ClampingScrollPhysics(),
         padding: EdgeInsets.symmetric(horizontal: kCameraSideInset * scale),
         children: [
-          _thumb(child: Image.memory(widget.shot, fit: BoxFit.cover),
+          if (widget.shot != null)
+            _thumb(child: Image.memory(widget.shot!, fit: BoxFit.cover),
               selected: true, onTap: null, scale: scale, tokens: tokens),
           for (final photo in widget.bandPhotos) ...[
             SizedBox(width: kBandGap * scale),

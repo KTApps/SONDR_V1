@@ -148,6 +148,23 @@ class CollagesRepository {
     });
   }
 
+  /// Record the cover and the thumbnail the milestone was shared with on
+  /// its collage, so the owner's own surfaces show the same images their
+  /// friends see. A milestone with no collage doc has nothing to hang them
+  /// on and is left alone: a cover-only doc would read as a collage with
+  /// no photos.
+  Future<void> setCover(
+    String taskId,
+    int milestoneHours, {
+    String? coverUrl,
+    String? thumbUrl,
+  }) async {
+    final ref = _col.doc(Collage.docId(taskId, milestoneHours));
+    final existing = await ref.get();
+    if (!existing.exists) return;
+    await ref.update({'coverUrl': ?coverUrl, 'thumbUrl': ?thumbUrl});
+  }
+
   /// Every collage, newest first. Single-field `orderBy(createdAt)` → automatic
   /// index, no composite.
   Future<List<Collage>> allCollages() => allCollagesFrom();

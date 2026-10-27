@@ -15,6 +15,7 @@ import '../auth/profile_repository.dart';
 import '../friends/friends_repository.dart';
 import '../friends/friends_screen.dart';
 import '../habits/habits_providers.dart';
+import '../feed/widgets/milestone_cover.dart';
 import '../photos/milestones_screen.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
@@ -671,7 +672,8 @@ class _MilestonesRow extends ConsumerWidget {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted) return;
         precachePhotos(context, [
-          for (final e in strip) e.photo.photoUrl,
+          for (final e in strip) ?e.detail.collage?.thumbUrl,
+          for (final e in strip) ?e.detail.collage?.coverUrl,
           for (final e in strip)
             for (final p in e.detail.photos) p.photoUrl,
         ]);
@@ -726,18 +728,24 @@ class _MilestonesRow extends ConsumerWidget {
                     if (i > 0) SizedBox(width: _kStripGap * scale),
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      // The photo itself, large, with the rest of its
-                      // stretch a swipe away. The heading still opens the
+                      // The cover itself, large, with the stretch's photos
+                      // a swipe away. The heading still opens the
                       // Milestones page.
                       onTap: () {
-                        final set = bandViewerSet(strip[i].detail);
+                        final e = strip[i];
                         showPhotoViewer(
                           context,
-                          photos: set,
-                          index: viewerIndexOf(set, strip[i].photo),
+                          photos: bandViewerSet(e.detail),
+                          index: 0,
+                          cover: MilestoneCoverEntry(
+                            taskName: e.task.name,
+                            milestoneHours: e.bandHours,
+                            coverUrl: e.detail.collage?.coverUrl,
+                            photoUrls: [for (final p in e.detail.photos) p.photoUrl],
+                          ),
                         );
                       },
-                      child: _GalleryThumb(photo: strip[i].photo),
+                      child: _MilestoneThumb(entry: strip[i]),
                     ),
                   ],
                 ],
@@ -903,13 +911,21 @@ class _TaskTile extends StatelessWidget {
   }
 }
 
-/// One photo in the milestones strip — a fixed square, with the near-raw tint
-/// and a muted tile rather than a broken image when a URL fails.
-class _GalleryThumb extends StatelessWidget {
-  const _GalleryThumb({required this.photo});
+/// One milestone in the strip — its collage alone in the strip's fixed
+/// square: the thumbnail it was shared with, else its collage drawn, with
+/// the near-raw tint a rendered thumbnail takes like any strip photo.
+class _MilestoneThumb extends StatelessWidget {
+  const _MilestoneThumb({required this.entry});
 
-  final Photo photo;
+  final MilestoneStripEntry entry;
 
   @override
-  Widget build(BuildContext context) => ProfileStripTile(url: photo.photoUrl);
+  Widget build(BuildContext context) => ProfileStripTile(
+    child: MilestoneCollageThumb(
+      photoUrls: [for (final p in entry.detail.photos) p.photoUrl],
+      thumbUrl: entry.detail.collage?.thumbUrl,
+      saturation: kProfilePhotoSaturation,
+      tint: kProfilePhotoTint,
+    ),
+  );
 }

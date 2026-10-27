@@ -400,13 +400,21 @@ class PostsRepository {
   Future<({String url, String storagePath})> copyToPostsSpace(
     String sourceStoragePath,
   ) async {
+    final bytes = await photoBytes(sourceStoragePath);
+    final dir = Directory.systemTemp.createTempSync('sondr_postcopy');
+    final file = File('${dir.path}/copy.jpg')..writeAsBytesSync(bytes);
+    return uploadPostPhoto(file);
+  }
+
+  /// The bytes of an owner-only Storage object — a gallery original — for
+  /// a share that both copies it to the posts space and draws it into the
+  /// cover, so it is fetched once.
+  Future<Uint8List> photoBytes(String sourceStoragePath) async {
     final bytes = await FirebaseStorage.instance
         .ref(sourceStoragePath)
         .getData(10 * 1024 * 1024);
     if (bytes == null) throw StateError('no photo bytes at $sourceStoragePath');
-    final dir = Directory.systemTemp.createTempSync('sondr_postcopy');
-    final file = File('${dir.path}/copy.jpg')..writeAsBytesSync(bytes);
-    return uploadPostPhoto(file);
+    return bytes;
   }
 
   /// Delete a post and its posts-space photo binaries: each [PostPhoto]'s

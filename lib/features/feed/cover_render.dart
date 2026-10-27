@@ -1,0 +1,163 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
+
+import 'collage_layout.dart';
+import 'widgets/milestone_frame.dart';
+import 'widgets/milestone_ring.dart';
+
+/// The milestone's cover as one image, made at share time: the collage,
+/// the scrim and the ring with the hours — the picture the card shows for
+/// its first page, and what a share to another app would send. The same
+/// figures the card draws with, on a canvas, at [kCoverWidth] across.
+
+/// The cover's size: 3:4 at 1080 across.
+const int kCoverWidth = 1080;
+const int kCoverHeight = 1440;
+
+/// JPEG quality.
+const int kCoverQuality = 85;
+
+/// The ring's two texts, in the styles the card draws them — captured
+/// from a context before the share leaves the screen.
+@immutable
+class CoverTextStyles {
+  const CoverTextStyles({required this.figure, required this.unit});
+
+  final TextStyle? figure;
+  final TextStyle? unit;
+
+  static CoverTextStyles of(BuildContext context) => CoverTextStyles(
+    figure: MilestoneRingCentre.figureStyle(context, onPhoto: true),
+    unit: MilestoneRingCentre.unitStyle(context, onPhoto: true),
+  );
+}
+
+/// The surface under the tiles, for a photo that fails to draw.
+const Color _kSurface = Color(0xFF161616);
+
+/// The ring's fill over a photo.
+const Color _kRingFill = Color(0xFFFAFAFA);
+
+/// Paint the cover onto [canvas] at the reference frame size — the card's
+/// width on the reference phone — so the composition is the card's exactly;
+/// the caller scales the canvas to the output.
+void paintMilestoneCover(
+  Canvas canvas, {
+  required List<ui.Image> photos,
+  required int milestoneHours,
+  required CoverTextStyles styles,
+  List<PhotoFraming>? framings,
+}) {
+  final size = kMilestoneFrameSize;
+  final frame = Offset.zero & size;
+  canvas.drawRect(frame, Paint()..color = _kSurface);
+
+  // The tiles, each its photo's cover crop, zoomed and nudged as framed.
+  final shown = photos.take(kCollageMax).toList();
+  final tiles = collageTiles(size, shown.length);
+  final paint = Paint()..filterQuality = FilterQuality.high;
+  for (var i = 0; i < tiles.length; i++) {
+    final image = shown[i];
+    final framing =
+        framings != null && i < framings.length ? framings[i] : PhotoFraming.none;
+    final src = coverSourceRect(
+      Size(image.width.toDouble(), image.height.toDouble()),
+      tiles[i].size,
+      framing,
+    );
+    canvas.save();
+    canvas.clipRect(tiles[i]);
+    canvas.drawImageRect(image, src, tiles[i], paint);
+    canvas.restore();
+  }
+
+  // The scrim.
+  canvas.drawRect(
+    frame,
+    Paint()..shader = kMilestoneScrim.createShader(frame),
+  );
+
+  // The ring, at the card's place.
+  const geometry = MilestoneRingGeometry(onPhoto: true);
+  final centre = Offset(
+    size.width / 2,
+    milestoneRingTop(size.height) + kMilestoneRingSize / 2,
+  );
+  paintMilestoneRing(canvas, centre, geometry, _kRingFill);
+
+  // The hours over the word, centred in the ring, the figure scaled down
+  // to fit as the card's FittedBox does.
+  final maxWidth = MilestoneRingCentre.widthFor(kMilestoneRingSize, onPhoto: true);
+  final figure = TextPainter(
+    text: TextSpan(text: '$milestoneHours', style: styles.figure),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  final unit = TextPainter(
+    text: TextSpan(text: 'hours', style: styles.unit),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  final figureScale = figure.width > maxWidth ? maxWidth / figure.width : 1.0;
+  final figureHeight = figure.height * figureScale;
+  final total = figureHeight + unit.height;
+  final top = centre.dy - total / 2;
+  canvas.save();
+  canvas.translate(centre.dx - figure.width * figureScale / 2, top);
+  canvas.scale(figureScale);
+  figure.paint(canvas, Offset.zero);
+  canvas.restore();
+  unit.paint(canvas, Offset(centre.dx - unit.width / 2, top + figureHeight));
+  figure.dispose();
+  unit.dispose();
+}
+
+/// The cover as JPEG bytes, [kCoverWidth] × [kCoverHeight] at [kCoverQuality].
+Future<Uint8List> renderMilestoneCover({
+  required List<ui.Image> photos,
+  required int milestoneHours,
+  required CoverTextStyles styles,
+  List<PhotoFraming>? framings,
+}) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  canvas.scale(kCoverWidth / kMilestoneFrameSize.width);
+  paintMilestoneCover(
+    canvas,
+    photos: photos,
+    milestoneHours: milestoneHours,
+    styles: styles,
+    framings: framings,
+  );
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(kCoverWidth, kCoverHeight);
+  picture.dispose();
+  try {
+    final rgba = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (rgba == null) throw StateError('the cover could not be read back');
+    final encoded = img.encodeJpg(
+      img.Image.fromBytes(
+        width: image.width,
+        height: image.height,
+        bytes: rgba.buffer,
+        numChannels: 4,
+      ),
+      quality: kCoverQuality,
+    );
+    return Uint8List.fromList(encoded);
+  } finally {
+    image.dispose();
+  }
+}
+
+/// Decode a photo's bytes for the cover, no wider than the cover itself.
+Future<ui.Image> decodeForCover(Uint8List bytes) async {
+  final codec = await ui.instantiateImageCodec(bytes, targetWidth: kCoverWidth);
+  try {
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  } finally {
+    codec.dispose();
+  }
+}

@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/date.dart';
+import '../feed/collage_layout.dart' show kCollageMax;
+import '../feed/cover_render.dart';
 import '../feed/models/post.dart';
 import '../feed/story_builder.dart';
 import '../tasks/models/task.dart';
@@ -17,6 +20,7 @@ import 'capture_review_screen.dart';
 import 'models/photo.dart';
 import 'photo_refresh.dart';
 import 'auto_collage.dart';
+import 'collages_repository.dart';
 import 'photos_repository.dart';
 import 'sondr_camera.dart';
 
@@ -43,6 +47,10 @@ Future<void> runCaptureFlow(
   int? totalHours,
   List<Photo> bandPhotos = const [],
 }) async {
+  // The ring's text styles for the cover, taken now while the page is
+  // here: the share happens after the camera and the review have come and
+  // gone.
+  final coverStyles = CoverTextStyles.of(context);
   while (true) {
     final shot = await Navigator.of(context).push<Uint8List>(
       MaterialPageRoute(
@@ -109,6 +117,7 @@ Future<void> runCaptureFlow(
               cumulativeSeconds: cumulativeSeconds,
               milestoneHours: milestoneHours,
               totalHours: totalHours,
+              coverStyles: coverStyles,
             );
           },
         ),
@@ -175,10 +184,14 @@ Future<Photo?> _savePrivately(
 
 /// Write the post. A milestone crossing posts as a milestone — with the
 /// band's story, built here from the task, the session log and the chosen
-/// photos — anything else as a session, with its seconds into the band.
+/// photos, and its cover drawn from those photos and uploaded beside them
+/// — anything else as a session, with its seconds into the band.
 ///
-/// The photos are written in time order, the new one last, so the story's
-/// cover (the newest) is the crossing photo whenever there is one.
+/// The photos are written in time order, the new one last: the collage's
+/// order, oldest first, the crossing photo closing it.
+///
+/// The cover is a nicety: a render or an upload that fails never fails
+/// the share — the post goes without one and the card draws the collage.
 Future<bool> _post(
   WidgetRef ref, {
   required Uint8List? shot,
@@ -191,6 +204,7 @@ Future<bool> _post(
   required int cumulativeSeconds,
   int? milestoneHours,
   int? totalHours,
+  CoverTextStyles? coverStyles,
 }) async {
   final repo = ref.read(postsRepositoryProvider);
   if (repo == null) return false;
@@ -216,12 +230,13 @@ Future<bool> _post(
     }
 
     final photos = <PostPhoto>[];
+    // The first nine, decoded for the cover, as they go up.
+    final images = <ui.Image>[];
     for (var i = 0; i < ordered.length; i++) {
       final p = ordered[i];
       final isLead = lead != null && p.id == lead.id && shot != null;
-      final up = isLead
-          ? await repo.uploadPostPhoto(await _materialise(shot, 'post'))
-          : await repo.copyToPostsSpace(p.storagePath);
+      final bytes = isLead ? shot : await repo.photoBytes(p.storagePath);
+      final up = await repo.uploadPostPhoto(await _materialise(bytes, 'post$i'));
       photos.add(
         PostPhoto(
           url: up.url,
@@ -229,8 +244,31 @@ Future<bool> _post(
           sessionIndex: story?.photoIndices[i],
         ),
       );
+      if (milestoneHours != null && images.length < kCollageMax) {
+        try {
+          images.add(await decodeForCover(bytes));
+        } catch (e) {
+          debugPrint('SONDR cover decode error: ${e.runtimeType} :: $e');
+        }
+      }
     }
     if (milestoneHours != null) {
+      ({String url, String storagePath})? cover;
+      if (images.isNotEmpty && coverStyles != null) {
+        try {
+          final jpeg = await renderMilestoneCover(
+            photos: images,
+            milestoneHours: milestoneHours,
+            styles: coverStyles,
+          );
+          cover = await repo.uploadPostPhoto(await _materialise(jpeg, 'cover'));
+        } catch (e) {
+          debugPrint('SONDR cover render error: ${e.runtimeType} :: $e');
+        }
+      }
+      for (final image in images) {
+        image.dispose();
+      }
       await repo.createMilestonePost(
         taskName: taskName,
         milestoneHours: milestoneHours,
@@ -239,7 +277,18 @@ Future<bool> _post(
         photos: photos,
         segments: story?.segments ?? const [],
         unit: story?.unit,
+        cover: cover,
       );
+      // The owner's own surfaces show the same cover their friends see.
+      if (cover != null) {
+        try {
+          await ref
+              .read(collagesRepositoryProvider)
+              ?.setCover(taskId, milestoneHours, cover.url);
+        } catch (e) {
+          debugPrint('SONDR collage cover error: ${e.runtimeType} :: $e');
+        }
+      }
     } else {
       await repo.createSessionPost(
         taskName: taskName,

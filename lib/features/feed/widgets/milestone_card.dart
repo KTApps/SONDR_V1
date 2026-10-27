@@ -29,13 +29,23 @@ import 'post_chrome.dart';
 /// Numbers here are the mockup's at the card's width and are not scaled,
 /// as the ring never was: the card is a fixed composition over a photo.
 class MilestoneCard extends ConsumerStatefulWidget {
-  const MilestoneCard({super.key, required this.post, this.opensPost = true});
+  const MilestoneCard({
+    super.key,
+    required this.post,
+    this.opensPost = true,
+    this.preview = false,
+  });
 
   final MilestonePost post;
 
   /// Whether a tap in the middle opens the post on its own page. Off on
   /// that page.
   final bool opensPost;
+
+  /// The final look before a share: the handle and the actions are drawn
+  /// as they will be but do nothing — there is no post yet to like, and
+  /// the pages still step.
+  final bool preview;
 
   @override
   ConsumerState<MilestoneCard> createState() => _MilestoneCardState();
@@ -119,6 +129,7 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
 
   /// The right side was tapped: the hint has done its job, on every card.
   void _foundTheGesture() {
+    if (widget.preview) return;
     final hints = ref.read(milestoneHintsProvider);
     hints.markTapped().then((_) {
       if (mounted) ref.invalidate(milestoneHintStateProvider);
@@ -128,7 +139,11 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
   /// Whether the hint is on for this card: a multi-photo post, on the
   /// cover, that the hint belongs on.
   bool _hintOn(MilestoneHintState? state) =>
-      _multi && _page == 0 && state != null && state.showFor(widget.post.id);
+      !widget.preview &&
+      _multi &&
+      _page == 0 &&
+      state != null &&
+      state.showFor(widget.post.id);
 
   void _startHint() {
     if (!_seenMarked) {
@@ -194,7 +209,10 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
                   left: _kInset,
                   right: _kInset,
                   top: _kTop,
-                  child: _TopRow(post: post),
+                  child: AbsorbPointer(
+                    absorbing: widget.preview,
+                    child: _TopRow(post: post),
+                  ),
                 ),
                 Positioned(
                   left: _kInset,
@@ -202,11 +220,14 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
                   // The actions carry 12 of their own below the words;
                   // the words' line ends 16 from the edge.
                   bottom: _kBottom - PostInteractions.verticalPad,
-                  child: _Bottom(
-                    post: post,
-                    pages: _multi ? pages.length : 1,
-                    page: index,
-                    hint: hint,
+                  child: AbsorbPointer(
+                    absorbing: widget.preview,
+                    child: _Bottom(
+                      post: post,
+                      pages: _multi ? pages.length : 1,
+                      page: index,
+                      hint: hint,
+                    ),
                   ),
                 ),
               ],

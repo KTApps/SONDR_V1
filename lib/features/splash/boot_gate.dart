@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/cached_photo.dart';
+import '../feed/firebase_share_backend.dart';
 import '../friends/friends_repository.dart';
 import '../photos/photos_repository.dart';
 import '../friends/audience_widen.dart';
@@ -73,6 +74,9 @@ class _BootGateState extends ConsumerState<BootGate> {
       unawaited(ref.read(friendMirrorReconcileProvider)());
       // Then let every friend into what was posted before they were one.
       unawaited(ref.read(audienceReconcileProvider)());
+      // A share the app was closed in the middle of carries on from where
+      // it stopped.
+      unawaited(ref.read(shareJobRunnerProvider)?.resume() ?? Future<void>.value());
     });
   }
 

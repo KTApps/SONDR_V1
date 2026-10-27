@@ -152,6 +152,7 @@ class _Recording implements NotificationsWriter {
     String? commentId,
     String? taskName,
     int? hours,
+    String? id,
   }) {
     if (recipientUid.isEmpty || recipientUid == 'me') return;
     sent.add((recipientUid, type, postId, commentId));

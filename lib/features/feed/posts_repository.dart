@@ -73,6 +73,16 @@ class PostsRepository {
     return [for (final d in snap.docs) Post.fromMap(d.id, d.data())];
   }
 
+  /// A fresh post id, made on the client, so a post can be written by id
+  /// and a share retried without a second post.
+  String newPostId() => _posts.doc().id;
+
+  /// Who I am, as a post names its author.
+  Future<PostAuthor> author() => _author();
+
+  /// Who my posts reach: my accepted friends, and me.
+  Future<List<String>> audience() => _audience();
+
   Future<PostAuthor> _author() async {
     final doc = await db
         .collection('users')

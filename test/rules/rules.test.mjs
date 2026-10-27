@@ -100,6 +100,21 @@ describe('posts', () => {
     await assertFails(getDocs(collection(as(B), 'posts')));
   });
 
+  it('a pending post reaches nobody but its author until the author widens it', async () => {
+    await assertSucceeds(setDoc(doc(as(A), 'posts/pending1'), {
+      authorUid: A, audience: [A], pending: true, type: 'milestone', createdAt: 5,
+      taskName: 'Spanish', milestoneHours: 20, totalHours: 20, photos: [{ url: 'file:///x.jpg', storagePath: '' }],
+    }));
+    await assertSucceeds(getDoc(doc(as(A), 'posts/pending1')));
+    await assertFails(getDoc(doc(as(B), 'posts/pending1')));
+    // The one update that finishes it: the author widens the audience.
+    await assertSucceeds(updateDoc(doc(as(A), 'posts/pending1'), {
+      audience: [A, B], pending: false, photos: [{ url: 'https://x/0.jpg', storagePath: 'users/A/posts/pending1/0.jpg' }],
+    }));
+    await assertSucceeds(getDoc(doc(as(B), 'posts/pending1')));
+    await assertSucceeds(deleteDoc(doc(as(A), 'posts/pending1')));
+  });
+
   it('the author may prune the audience', async () => {
     await assertSucceeds(
       updateDoc(doc(as(A), 'posts/p1'), { audience: [A, C] }));

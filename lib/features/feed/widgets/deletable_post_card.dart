@@ -5,6 +5,7 @@ import '../../../core/backend.dart';
 import '../../../shared/sondr_prompt.dart';
 import '../../reports/report.dart';
 import '../../reports/report_flow.dart';
+import '../firebase_share_backend.dart';
 import '../models/post.dart';
 import '../posts_repository.dart';
 
@@ -65,6 +66,9 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
           (Post p) async {
             final repo = ref.read(postsRepositoryProvider);
             if (repo == null) throw StateError('not signed in');
+            // A post still being shared: its job stops and its uploads
+            // come down with it.
+            if (p.pending) await ref.read(shareJobRunnerProvider)?.cancel(p.id);
             await repo.deletePost(p);
           };
       await del(widget.post);

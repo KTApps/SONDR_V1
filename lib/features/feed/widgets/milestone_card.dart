@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/backend.dart';
 import '../../../core/theme/greyscale_tokens.dart';
-import '../../../core/utils/relative_time.dart';
 import '../../photos/capture_crop.dart';
-import '../../profile/other_profile_screen.dart';
+import '../firebase_share_backend.dart';
 import '../milestone_hints.dart';
 import '../milestone_pages.dart';
+import '../share_job.dart';
 import '../models/post.dart';
 import '../single_post_screen.dart';
 import 'milestone_cover.dart';
 import 'milestone_frame.dart';
 import 'milestone_ring.dart';
+import 'post_card_chrome.dart';
 import 'post_chrome.dart';
 
 /// The milestone card: one 3:4 frame, the handle above and the task below,
@@ -29,7 +31,12 @@ import 'post_chrome.dart';
 /// Numbers here are the mockup's at the card's width and are not scaled,
 /// as the ring never was: the card is a fixed composition over a photo.
 class MilestoneCard extends ConsumerStatefulWidget {
-  const MilestoneCard({super.key, required this.post, this.opensPost = true});
+  const MilestoneCard({
+    super.key,
+    required this.post,
+    this.opensPost = true,
+    this.preview = false,
+  });
 
   final MilestonePost post;
 
@@ -37,27 +44,31 @@ class MilestoneCard extends ConsumerStatefulWidget {
   /// that page.
   final bool opensPost;
 
+  /// The final look before a share: the handle and the actions are drawn
+  /// as they will be but do nothing — there is no post yet to like, and
+  /// the pages still step.
+  final bool preview;
+
   @override
   ConsumerState<MilestoneCard> createState() => _MilestoneCardState();
 }
 
 /// The frame's corner, as the milestone card has always been cut.
-const double kMilestoneCardRadius = 24;
+const double kMilestoneCardRadius = kPostCardRadius;
 
 /// What the caption line says while the hint is on.
 const String kMilestoneHintText = 'Tap the right side to see each session';
 
-/// Air from the frame's edge to the text.
-const double _kInset = 18;
-const double _kTop = 16;
-const double _kBottom = 16;
+/// What the caption line says, to the author alone, when a share has
+/// given up: a tap tries again.
+const String kShareFailedText = 'Couldn’t share. Try again';
 
-/// Text over the photo. Fixed, not theme tokens: the ground is the photo,
-/// not the surface, and the scrim below holds the contrast.
-const Color _kText = Color(0xFFFAFAFA);
-const Color _kTextTime = Color(0xB3FAFAFA); // 70%
-const Color _kTextCaption = Color(0xCCFAFAFA); // 80%
-const Color _kDotOther = Color(0x59FAFAFA); // 35%
+const double _kInset = kPostCardInset;
+const double _kTop = kPostCardTop;
+const double _kBottom = kPostCardBottom;
+const Color _kText = kPostCardText;
+const Color _kTextCaption = kPostCardTextCaption;
+const Color _kDotOther = kPostCardDotOther;
 
 /// The hint's glow on the right third: white, to 14% at its brightest,
 /// easing in and out over 1.6 seconds, twice.
@@ -119,6 +130,7 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
 
   /// The right side was tapped: the hint has done its job, on every card.
   void _foundTheGesture() {
+    if (widget.preview) return;
     final hints = ref.read(milestoneHintsProvider);
     hints.markTapped().then((_) {
       if (mounted) ref.invalidate(milestoneHintStateProvider);
@@ -128,7 +140,11 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
   /// Whether the hint is on for this card: a multi-photo post, on the
   /// cover, that the hint belongs on.
   bool _hintOn(MilestoneHintState? state) =>
-      _multi && _page == 0 && state != null && state.showFor(widget.post.id);
+      !widget.preview &&
+      _multi &&
+      _page == 0 &&
+      state != null &&
+      state.showFor(widget.post.id);
 
   void _startHint() {
     if (!_seenMarked) {
@@ -152,6 +168,12 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
     final page = pages[index];
     final hint = _hintOn(ref.watch(milestoneHintStateProvider).value);
     if (hint) _startHint();
+    // A share of mine that has given up: the author is told, and can try
+    // again from the card.
+    final mine = post.authorUid == ref.watch(currentUidProvider);
+    final shareFailed = post.pending &&
+        mine &&
+        ref.watch(shareJobStateProvider(post.id))?.status == ShareJobStatus.failed;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(kMilestoneCardRadius),
@@ -194,7 +216,10 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
                   left: _kInset,
                   right: _kInset,
                   top: _kTop,
-                  child: _TopRow(post: post),
+                  child: AbsorbPointer(
+                    absorbing: widget.preview,
+                    child: PostCardTopRow(post: post),
+                  ),
                 ),
                 Positioned(
                   left: _kInset,
@@ -202,11 +227,16 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
                   // The actions carry 12 of their own below the words;
                   // the words' line ends 16 from the edge.
                   bottom: _kBottom - PostInteractions.verticalPad,
-                  child: _Bottom(
-                    post: post,
-                    pages: _multi ? pages.length : 1,
-                    page: index,
-                    hint: hint,
+                  child: AbsorbPointer(
+                    absorbing: widget.preview,
+                    child: _Bottom(
+                      post: post,
+                      pages: _multi ? pages.length : 1,
+                      page: index,
+                      hint: hint,
+                      shareFailed: shareFailed,
+                      onRetry: () => ref.read(shareJobRunnerProvider)?.retry(post.id),
+                    ),
                   ),
                 ),
               ],
@@ -278,64 +308,12 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
     }
   }
 
-  Widget _drawnCover() => MilestoneCover(
-    photos: [
-      for (final p in widget.post.photos)
-        if (p.url.isNotEmpty) postImageProvider(p.url),
-    ],
-    milestoneHours: widget.post.milestoneHours,
-  );
-}
-
-/// The handle, the way to whoever posted, and how long ago at the right.
-class _TopRow extends ConsumerWidget {
-  const _TopRow({required this.post});
-
-  final MilestonePost post;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final author = post.author;
-    final handle = author.username.isNotEmpty ? author.username : author.label;
-    final createdAt = post.createdAt;
-    return Row(
-      children: [
-        // The handle takes the line; the time sits at the right inset.
-        Expanded(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => openProfile(
-              context,
-              ref,
-              post.authorUid,
-              handle: author.username,
-              displayName: author.displayName,
-            ),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                handle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _kText,
-                ),
-              ),
-            ),
-          ),
-        ),
-        if (createdAt != null) ...[
-          const SizedBox(width: 12),
-          IgnorePointer(
-            child: Text(
-              RelativeTime.of(createdAt),
-              style: const TextStyle(fontSize: 13, color: _kTextTime),
-            ),
-          ),
-        ],
-      ],
+  Widget _drawnCover() {
+    final shown = [for (final p in widget.post.photos) if (p.url.isNotEmpty) p];
+    return MilestoneCover(
+      photos: [for (final p in shown) postImageProvider(p.url)],
+      framings: [for (final p in shown) p.framing],
+      milestoneHours: widget.post.milestoneHours,
     );
   }
 }
@@ -348,6 +326,8 @@ class _Bottom extends StatelessWidget {
     required this.pages,
     required this.page,
     required this.hint,
+    this.shareFailed = false,
+    this.onRetry,
   });
 
   final MilestonePost post;
@@ -355,9 +335,17 @@ class _Bottom extends StatelessWidget {
   final int page;
   final bool hint;
 
+  /// The share gave up: the caption line says so, and a tap on it retries.
+  final bool shareFailed;
+  final VoidCallback? onRetry;
+
   @override
   Widget build(BuildContext context) {
-    final caption = hint ? kMilestoneHintText : post.caption;
+    final caption = shareFailed
+        ? kShareFailedText
+        : hint
+            ? kMilestoneHintText
+            : post.caption;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -376,14 +364,26 @@ class _Bottom extends StatelessWidget {
         ),
         if (caption != null && caption.isNotEmpty) ...[
           const SizedBox(height: 3),
-          IgnorePointer(
-            child: Text(
-              caption,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13, color: _kTextCaption),
+          if (shareFailed)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onRetry,
+              child: Text(
+                caption,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: _kTextCaption),
+              ),
+            )
+          else
+            IgnorePointer(
+              child: Text(
+                caption,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: _kTextCaption),
+              ),
             ),
-          ),
         ],
         // Nothing declared: the actions' own 12 above the words is the 12.
         Row(

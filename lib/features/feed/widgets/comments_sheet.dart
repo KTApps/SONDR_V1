@@ -597,6 +597,16 @@ class _CommentTile extends ConsumerWidget {
   }
 }
 
+/// How far above the keyboard the reply composer's cursor line sits — a
+/// row's air beneath the text plus the composer's own padding over the
+/// field — in [context]. The one clearance a field typed above the
+/// keyboard keeps, here and on the milestone's final look.
+double replyComposerClearance(BuildContext context) {
+  final scale = figmaScale(context);
+  final lineHeight = SondrField.lineHeightOf(context, fontSize: _kCommentBody);
+  return kSpacingPair * scale + _Composer._pad(context, scale, lineHeight);
+}
+
 /// A bare field with one word at its right: Close while empty, Post once
 /// there is something to post. The word is mirrored by an invisible twin
 /// on the left, so the field is centred by construction.

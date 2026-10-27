@@ -7,7 +7,7 @@ import '../../../core/theme/greyscale_tokens.dart';
 import '../models/post.dart';
 import 'deletable_post_card.dart';
 import 'milestone_card.dart';
-import 'session_log_card.dart';
+import 'session_card.dart';
 
 /// Renders a list of posts as the feed. The card type carries the rhythm — big
 /// milestones, medium streaks, tiny session logs — so the list itself is just a
@@ -29,7 +29,7 @@ class FeedView extends StatelessWidget {
         final post = posts[i];
         final Widget card = switch (post) {
           final MilestonePost p => MilestoneCard(post: p),
-          final SessionPost p => SessionLogCard(post: p),
+          final SessionPost p => SessionCard(post: p),
         };
         // Wrap for long-press-to-delete on the viewer's own posts.
         return DeletablePostCard(post: post, child: card);

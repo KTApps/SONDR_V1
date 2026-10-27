@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
 import 'package:sondr/features/feed/widgets/milestone_ring.dart';
-import 'package:sondr/features/feed/widgets/session_log_card.dart';
+import 'package:sondr/features/feed/widgets/session_card.dart';
 
 List<PostPhoto> _mockPhotos(int n) => [
   for (var i = 0; i < n; i++)
@@ -82,12 +82,12 @@ void main() {
     expect(find.textContaining('Milestone ·'), findsNothing); // no badge any more
   });
 
-  testWidgets('SessionLogCard (no photo) renders the slim middot line', (
+  testWidgets('SessionCard (no photo) is the surface frame with the task and its length', (
     tester,
   ) async {
     await _pump(
       tester,
-      SessionLogCard(
+      SessionCard(
         post: SessionPost(
           id: 'l',
           authorUid: 'u',
@@ -99,58 +99,19 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Tom Hardy · Spanish · 2h 15m'), findsOneWidget);
-    expect(find.textContaining('Logged'), findsNothing);
-    expect(find.text('Like'), findsNothing); // no interactions
+    expect(find.text('Spanish · 2h 15m'), findsOneWidget);
+    expect(find.text('tom'), findsOneWidget);
+    expect(find.byType(Image), findsNothing);
+    expect(find.text('Like'), findsOneWidget);
+    expect(find.byType(SessionBandRing), findsNothing);
   });
 
-  testWidgets('SessionLogCard (no photo) shows the caption as a second line', (
+  testWidgets('SessionCard (with photo) renders the photo, the caption and the ring', (
     tester,
   ) async {
     await _pump(
       tester,
-      SessionLogCard(
-        post: SessionPost(
-          id: 'lc',
-          authorUid: 'u',
-          author: _author,
-          createdAt: DateTime(2026, 6, 1),
-          caption: 'grinding away',
-          taskName: 'Spanish',
-          sessionSeconds: 8100,
-        ),
-      ),
-    );
-    expect(find.text('Tom Hardy · Spanish · 2h 15m'), findsOneWidget);
-    expect(find.text('grinding away'), findsOneWidget); // caption line
-  });
-
-  testWidgets('SessionLogCard (no photo) rounds :30 up in the slim line', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SessionLogCard(
-        post: SessionPost(
-          id: 'l2',
-          authorUid: 'u',
-          author: _author,
-          createdAt: DateTime(2026, 6, 1),
-          caption: null,
-          taskName: 'Spanish',
-          sessionSeconds: 3629, // 1h 0m 29s -> "1h"
-        ),
-      ),
-    );
-    expect(find.text('Tom Hardy · Spanish · 1h'), findsOneWidget);
-  });
-
-  testWidgets('SessionLogCard (with photo) renders the photo + interactions', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SessionLogCard(
+      SessionCard(
         post: SessionPost(
           id: 'l3',
           authorUid: 'u',
@@ -159,15 +120,17 @@ void main() {
           caption: 'nice',
           taskName: 'Spanish',
           sessionSeconds: 3600, // 1h
+          bandSeconds: 3600,
           photos: const [
             PostPhoto(url: 'assets/mock/sample1.jpg', storagePath: ''),
           ],
         ),
       ),
     );
-    expect(find.byType(Image), findsWidgets); // the session photo renders
-    expect(find.text('Like'), findsOneWidget); // like/comment are text now
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.text('Like'), findsOneWidget);
+    expect(find.text('nice'), findsOneWidget);
     expect(find.text('Spanish · 1h'), findsOneWidget);
-    expect(find.textContaining('Logged'), findsNothing);
+    expect(find.byType(SessionBandRing), findsOneWidget);
   });
 }

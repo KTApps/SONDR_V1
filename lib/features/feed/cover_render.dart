@@ -2,9 +2,9 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
 
 import 'collage_layout.dart';
+import 'jpeg_encoder.dart';
 import 'widgets/milestone_frame.dart';
 import 'widgets/milestone_ring.dart';
 
@@ -127,6 +127,7 @@ Future<Uint8List> renderMilestoneCover({
   required int milestoneHours,
   required CoverTextStyles styles,
   List<PhotoFraming>? framings,
+  JpegEncoder encoder = const PlatformJpegEncoder(),
 }) async {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
@@ -142,25 +143,10 @@ Future<Uint8List> renderMilestoneCover({
   final image = await picture.toImage(kCoverWidth, kCoverHeight);
   picture.dispose();
   try {
-    return await _jpeg(image, quality: kCoverQuality);
+    return await encoder.encode(image, quality: kCoverQuality);
   } finally {
     image.dispose();
   }
-}
-
-Future<Uint8List> _jpeg(ui.Image image, {required int quality}) async {
-  final rgba = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-  if (rgba == null) throw StateError('the image could not be read back');
-  final encoded = img.encodeJpg(
-    img.Image.fromBytes(
-      width: image.width,
-      height: image.height,
-      bytes: rgba.buffer,
-      numChannels: 4,
-    ),
-    quality: quality,
-  );
-  return Uint8List.fromList(encoded);
 }
 
 /// The thumbnail as JPEG bytes, [kThumbWidth] × [kThumbHeight] at
@@ -168,6 +154,7 @@ Future<Uint8List> _jpeg(ui.Image image, {required int quality}) async {
 Future<Uint8List> renderMilestoneThumb({
   required List<ui.Image> photos,
   List<PhotoFraming>? framings,
+  JpegEncoder encoder = const PlatformJpegEncoder(),
 }) async {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
@@ -177,7 +164,7 @@ Future<Uint8List> renderMilestoneThumb({
   final image = await picture.toImage(kThumbWidth, kThumbHeight);
   picture.dispose();
   try {
-    return await _jpeg(image, quality: kThumbQuality);
+    return await encoder.encode(image, quality: kThumbQuality);
   } finally {
     image.dispose();
   }

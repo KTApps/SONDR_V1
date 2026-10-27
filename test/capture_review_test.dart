@@ -1,61 +1,91 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:image/image.dart' as img;
 import 'package:sondr/core/theme/app_theme.dart';
-import 'package:sondr/features/photos/capture_crop.dart';
-import 'package:sondr/features/feed/widgets/milestone_frame.dart' show MilestoneNoPhotoFrame;
+import 'package:sondr/features/feed/models/post.dart';
+import 'package:sondr/features/feed/widgets/comments_sheet.dart' show replyComposerClearance;
+import 'package:sondr/features/feed/widgets/milestone_card.dart';
+import 'package:sondr/features/feed/widgets/session_card.dart';
 import 'package:sondr/features/photos/capture_review_screen.dart';
+import 'package:sondr/features/photos/milestone_final_look_screen.dart';
 import 'package:sondr/features/photos/models/photo.dart';
-import 'package:sondr/features/photos/sondr_camera.dart';
+import 'package:sondr/features/photos/share_review_scaffold.dart';
 import 'package:sondr/shared/sondr_action.dart';
 
-/// The review screen: the shot at the size it was framed at, and the two
-/// things that can be done with it.
+/// The session's review: its final look — the card as friends will see
+/// it, the caption beneath, Share over Keep — laid out exactly as the
+/// milestone's, and locked where sharing is not offered.
 void main() {
-  const w13 = 390.0, h13 = 844.0;
-  const scale = 0.9906137184115524;
+  const w = 390.0, h = 844.0;
 
-  final shot = Uint8List.fromList(
-    img.encodeJpg(img.Image(width: 30, height: 40), quality: 80),
-  );
-
-  Future<void> pumpReview(
+  Future<ReviewOutcome?> Function() pushed = () async => null;
+  Future<void> open(
     WidgetTester tester, {
-    required ShareState share,
-    List<Photo> band = const [],
-    Future<bool> Function(WidgetRef)? onKeep,
-    Future<bool> Function(WidgetRef, String?, List<Photo>)? onShare,
-    double textScale = 1.0,
+    ShareState share = ShareState.allowed,
     bool withShot = true,
-    int? milestoneHours,
+    double keyboard = 0,
+    Future<bool> Function(WidgetRef)? onKeep,
+    Future<bool> Function(WidgetRef, String?)? onShare,
   }) async {
-    tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
+    tester.view.physicalSize = const Size(w * 3, h * 3);
+    tester.view.devicePixelRatio = 3.0;
+    tester.view.padding = FakeViewPadding(top: 47 * 3, bottom: keyboard > 0 ? 0 : 34 * 3);
+    if (keyboard > 0) tester.view.viewInsets = FakeViewPadding(bottom: keyboard * 3);
+    addTearDown(tester.view.reset);
+    final result = <ReviewOutcome?>[];
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          key: UniqueKey(),
+          theme: AppTheme.dark(),
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                result.add(await Navigator.of(context).push<ReviewOutcome>(
+                  MaterialPageRoute(
+                    builder: (_) => CaptureReviewScreen(
+                      shotUrl: withShot ? 'assets/mock/sample1.jpg' : null,
+                      taskName: 'Spanish',
+                      sessionSeconds: 4800,
+                      bandSeconds: 36000,
+                      handle: 'cass',
+                      share: share,
+                      onKeep: onKeep,
+                      onShare: onShare,
+                    ),
+                  ),
+                ));
+              },
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    pushed = () async => result.isEmpty ? null : result.last;
+  }
+
+  /// The milestone's final look on the same viewport, for the positions
+  /// the session's must match.
+  Future<void> openFinalLook(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(w * 3, h * 3);
     tester.view.devicePixelRatio = 3.0;
     tester.view.padding = const FakeViewPadding(top: 47 * 3, bottom: 34 * 3);
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
+          key: UniqueKey(),
           theme: AppTheme.dark(),
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(textScale)),
-            child: child!,
-          ),
-          home: CaptureReviewScreen(
-            shot: withShot ? shot : null,
-            milestoneHours: milestoneHours,
+          home: const MilestoneFinalLookScreen(
+            photos: [PostPhoto(url: 'assets/mock/sample1.jpg', storagePath: '')],
+            milestoneHours: 20,
             taskName: 'Spanish',
-            sessionLabel: '1h 20m',
-            share: share,
-            bandPhotos: band,
-            onKeep: onKeep,
-            onShare: onShare,
+            handle: 'cass',
           ),
         ),
       ),
@@ -63,388 +93,194 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the photo occupies the viewfinder rect', (tester) async {
-    await pumpReview(tester, share: ShareState.allowed);
-    final photo = tester.getRect(find.byKey(kReviewPhotoKey));
-    expect(photo.width, closeTo(w13 - 2 * kCameraSideInset * scale, 0.5));
-    expect(photo.width, closeTo(342.5, 0.5));
-    expect(photo.height, closeTo(456.6, 0.5));
-    expect(photo.width / photo.height, closeTo(kCaptureAspect, 0.001));
-    expect(photo.left, closeTo(kCameraSideInset * scale, 0.5));
-  });
+  Finder card() => find.byType(SessionCard);
+  Finder inCard(String text) => find.descendant(of: card(), matching: find.text(text));
 
-  testWidgets('past 20h: caption, then Share ABOVE Keep', (tester) async {
-    await pumpReview(tester, share: ShareState.allowed);
-    expect(find.text('Add a caption (optional)'), findsOneWidget);
-    expect(find.text('Keep'), findsOneWidget);
-    expect(find.text('Share'), findsOneWidget);
-    expect(find.text('Sharing unlocks at 20h'), findsNothing);
-    // Share leads, as the primary does in every other pair in the app.
-    expect(
-      tester.getRect(find.text('Share')).bottom,
-      lessThan(tester.getRect(find.text('Keep')).top),
-      reason: 'Keep is above Share',
-    );
-    expect(find.text('Retake'), findsOneWidget);
-  });
-
-  testWidgets('under 20h: no caption, no Share, and it says why', (
-    tester,
-  ) async {
-    await pumpReview(tester, share: ShareState.underTwentyHours);
-    expect(find.text('Sharing unlocks at 20h'), findsOneWidget);
-    expect(find.text('Share'), findsNothing);
-    expect(find.text('Add a caption (optional)'), findsNothing);
-    expect(find.text('Keep'), findsOneWidget);
-    // Keep is the primary here, not the supporting action.
-    final keep = tester.widget<Text>(find.text('Keep'));
-    expect(keep.style!.fontWeight, FontWeight.w700);
-    expect(keep.style!.color, const Color(0xFFFAFAFA));
-  });
-
-  testWidgets('a guest is told what is missing, and it is not hours', (
-    tester,
-  ) async {
-    await pumpReview(tester, share: ShareState.guest);
-    expect(find.text('Create an account to share'), findsOneWidget);
-    expect(find.text('Sharing unlocks at 20h'), findsNothing);
-    expect(find.text('Share'), findsNothing);
-    expect(find.text('Keep'), findsOneWidget);
-  });
-
-  testWidgets('a signed-in user under 20h is told about the hours', (
-    tester,
-  ) async {
-    await pumpReview(tester, share: ShareState.underTwentyHours);
-    expect(find.text('Sharing unlocks at 20h'), findsOneWidget);
-    expect(find.text('Create an account to share'), findsNothing);
-  });
-
-  test('the locked copy answers the question that was asked', () {
-    expect(ShareState.allowed.canShare, isTrue);
-    expect(ShareState.guest.canShare, isFalse);
-    expect(ShareState.underTwentyHours.canShare, isFalse);
-    expect(ShareState.guest.lockedCopy, 'Create an account to share');
-    expect(ShareState.underTwentyHours.lockedCopy, 'Sharing unlocks at 20h');
-  });
-
-  testWidgets('past 20h Keep is the quiet one', (tester) async {
-    await pumpReview(tester, share: ShareState.allowed);
-    final keep = tester.widget<Text>(find.text('Keep'));
-    expect(keep.style!.fontWeight, FontWeight.w400);
-    expect(keep.style!.color, const Color(0xFFB0B0B0));
-  });
-
-  testWidgets('retake goes back, and nothing is saved', (tester) async {
-    var kept = 0, shared = 0;
-    await pumpReview(
-      tester,
-      share: ShareState.allowed,
-      onKeep: (_) async {
-        kept++;
-        return true;
-      },
-      onShare: (_, _, _) async {
-        shared++;
-        return true;
-      },
-    );
-    await tester.tap(find.text('Retake'));
-    await tester.pumpAndSettle();
-    expect(kept, 0);
-    expect(shared, 0);
-  });
-
-  testWidgets('Keep saves and does not post', (tester) async {
-    var kept = 0, shared = 0;
-    await pumpReview(
-      tester,
-      share: ShareState.allowed,
-      onKeep: (_) async {
-        kept++;
-        return true;
-      },
-      onShare: (_, _, _) async {
-        shared++;
-        return true;
-      },
-    );
-    await tester.tap(find.text('Keep'));
-    await tester.pumpAndSettle();
-    expect(kept, 1);
-    expect(shared, 0, reason: 'Keep posted something');
-  });
-
-  testWidgets('Share posts, with the caption', (tester) async {
-    String? caption;
-    await pumpReview(
-      tester,
-      share: ShareState.allowed,
-      onShare: (_, text, _) async {
-        caption = text;
-        return true;
-      },
-    );
-    await tester.enterText(find.byType(TextField), 'Finally fluent');
-    await tester.tap(find.text('Share'));
-    await tester.pumpAndSettle();
-    expect(caption, 'Finally fluent');
-  });
-
-  group('the caption', () {
-    testWidgets('has no counter, and reserves no room for one', (
-      tester,
-    ) async {
-      await pumpReview(tester, share: ShareState.allowed);
-      // Material's own "0/200", which this app never styled.
-      expect(find.text('0/200'), findsNothing);
-      expect(find.textContaining('/200'), findsNothing);
-      final field = tester.widget<TextField>(find.byType(TextField));
-      expect(field.maxLength, isNull, reason: 'maxLength draws the counter');
-      expect(field.decoration!.counterText, isNull);
-
-      // Nothing below the field but the actions: with maxLength set, an
-      // empty field still kept a line for a counter nobody asked for.
-      final caption = tester.getRect(find.byType(TextField));
-      await tester.enterText(find.byType(TextField), 'a');
-      await tester.pumpAndSettle();
-      expect(tester.getRect(find.byType(TextField)), caption);
-      expect(find.textContaining('/200'), findsNothing);
+  group('the card as friends will see it', () {
+    testWidgets('the session card: handle, now, task and length, the ring; Retake top right', (tester) async {
+      await open(tester);
+      final c = tester.widget<SessionCard>(card());
+      expect(c.preview, isTrue);
+      expect(c.opensPost, isFalse);
+      expect(inCard('cass'), findsOneWidget);
+      expect(inCard('now'), findsOneWidget);
+      expect(inCard('Spanish · 1h 20m'), findsOneWidget);
+      expect(inCard('Like'), findsOneWidget);
+      expect(find.byType(SessionBandRing), findsOneWidget);
+      expect(tester.widget<SessionCard>(card()).bandFill, closeTo(0.5, 0.001));
+      final retake = tester.getRect(find.text('Retake'));
+      expect(retake.right, greaterThan(w / 2));
+      expect(find.text('Back'), findsNothing);
+      expect(tester.getRect(card()).width, w - 32);
     });
 
-    testWidgets('stops at 200, typed or pasted', (tester) async {
-      String? sent;
-      await pumpReview(
-        tester,
-        share: ShareState.allowed,
-        onShare: (_, caption, _) async {
-          sent = caption;
-          return true;
-        },
-      );
-      // A paste of 250 is truncated, not rejected.
-      await tester.enterText(find.byType(TextField), 'x' * 250);
+    testWidgets('the caption appears on the card as typed, bare and centred, 200 at most', (tester) async {
+      await open(tester);
+      final field = tester.widget<TextField>(find.byKey(kShareReviewCaptionKey));
+      expect(field.decoration?.hintText, kCaptionHint);
+      expect(field.decoration?.border, InputBorder.none);
+      expect(field.textAlign, TextAlign.center);
+      expect(field.style?.fontSize, 14);
+      await tester.enterText(find.byKey(kShareReviewCaptionKey), 'Done for today.');
       await tester.pumpAndSettle();
-      expect(
-        tester.widget<TextField>(find.byType(TextField)).controller!.text.length,
-        kCaptionMaxLength,
-      );
-      // And one character over the line is dropped, not refused: clear
-      // first, because a field already AT the limit rejects a longer value
-      // outright rather than truncating it.
-      await tester.enterText(find.byType(TextField), '');
-      await tester.enterText(find.byType(TextField), '${'y' * 200}z');
+      expect(inCard('Done for today.'), findsOneWidget);
+      await tester.enterText(find.byKey(kShareReviewCaptionKey), 'x' * 250);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Share'));
-      await tester.pumpAndSettle();
-      expect(sent!.length, kCaptionMaxLength);
-      expect(sent, 'y' * 200);
+      expect(tester.widget<TextField>(find.byKey(kShareReviewCaptionKey)).controller?.text.length, 200);
     });
   });
 
-  group('while it is working', () {
-    /// An action that does not finish until released, so the busy state can
-    /// be looked at.
-    (Future<bool> Function(WidgetRef), void Function()) held() {
-      final completer = Completer<bool>();
-      return ((_) => completer.future, () => completer.complete(true));
-    }
+  group('the layout matches the milestone\'s final look', () {
+    testWidgets('card, field, Share and Keep sit where the final look puts them', (tester) async {
+      await openFinalLook(tester);
+      final cardFL = tester.getRect(find.byType(MilestoneCard));
+      final fieldFL = tester.getRect(find.byKey(kShareReviewCaptionKey));
+      final shareFL = tester.getRect(find.text('Share'));
+      final keepFL = tester.getRect(find.text('Keep'));
+      final topFL = tester.getRect(find.text('Back')).top;
 
-    testWidgets('Keep says "Keeping…" and Share keeps its own name', (
-      tester,
-    ) async {
-      final (onKeep, release) = held();
-      await pumpReview(
-        tester,
-        share: ShareState.allowed,
-        onKeep: onKeep,
-      );
-      await tester.tap(find.text('Keep'));
-      await tester.pump();
+      await open(tester);
+      expect(tester.getRect(card()), cardFL);
+      expect(tester.getRect(find.byKey(kShareReviewCaptionKey)), fieldFL);
+      expect(tester.getRect(find.text('Share')), shareFL);
+      expect(tester.getRect(find.text('Keep')), keepFL);
+      expect(tester.getRect(find.text('Retake')).top, topFL);
+    });
 
-      expect(find.text('Keeping…'), findsOneWidget);
+    testWidgets('with the keyboard up Share and Keep go and the field keeps the clearance', (tester) async {
+      await open(tester, keyboard: 336);
+      await tester.showKeyboard(find.byKey(kShareReviewCaptionKey));
+      await tester.pumpAndSettle();
+      expect(find.text('Share'), findsNothing);
       expect(find.text('Keep'), findsNothing);
-      // The action nobody chose does not narrate.
-      expect(find.text('Share'), findsOneWidget);
-      expect(
-        find.text('Sharing…'),
-        findsNothing,
-        reason: 'Keep made Share claim to be working',
+      final cursor = tester.getRect(
+        find.descendant(of: find.byKey(kShareReviewCaptionKey), matching: find.byType(EditableText)),
       );
-      // And it cannot be tapped while the other runs.
-      expect(
-        tester.widget<SondrAction>(find.byType(SondrAction).last).onPressed,
-        isNull,
-      );
-      release();
+      final clearance = replyComposerClearance(tester.element(find.byKey(kShareReviewCaptionKey)));
+      expect((h - 336) - cursor.bottom, closeTo(clearance, 0.5));
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
+      expect(find.text('Share'), findsOneWidget);
+      expect(find.text('Keep'), findsOneWidget);
+    });
+  });
+
+  group('locked', () {
+    testWidgets('under 20h: the reason where Share would be, Keep alone and white, no caption', (tester) async {
+      await open(tester, share: ShareState.underTwentyHours);
+      expect(find.text('Share'), findsNothing);
+      expect(find.text('Sharing unlocks at 20h'), findsOneWidget);
+      expect(find.byKey(kShareReviewCaptionKey), findsNothing);
+      final keep = tester.widget<SondrAction>(find.widgetWithText(SondrAction, 'Keep'));
+      expect(keep.supporting, isFalse);
+      // Where Share sits: above Keep, centred.
+      final reason = tester.getRect(find.text('Sharing unlocks at 20h'));
+      final keepRect = tester.getRect(find.text('Keep'));
+      expect(reason.bottom, lessThan(keepRect.top));
+      expect(reason.center.dx, closeTo(w / 2, 1));
     });
 
-    testWidgets('Share says "Sharing…" and Keep keeps its own name', (
-      tester,
-    ) async {
-      final completer = Completer<bool>();
-      await pumpReview(
-        tester,
-        share: ShareState.allowed,
-        onShare: (_, _, _) => completer.future,
-      );
-      await tester.tap(find.text('Share'));
-      await tester.pump();
-
-      expect(find.text('Sharing…'), findsOneWidget);
+    testWidgets('a guest is told what is missing, and it is not hours', (tester) async {
+      await open(tester, share: ShareState.guest);
+      expect(find.text('Create an account to share'), findsOneWidget);
+      expect(find.text('Sharing unlocks at 20h'), findsNothing);
       expect(find.text('Share'), findsNothing);
       expect(find.text('Keep'), findsOneWidget);
-      expect(find.text('Keeping…'), findsNothing);
-      completer.complete(true);
-      await tester.pumpAndSettle();
     });
 
-    testWidgets('the keep-only variant says "Keeping…" too', (tester) async {
-      final (onKeep, release) = held();
-      await pumpReview(
-        tester,
-        share: ShareState.underTwentyHours,
-        onKeep: onKeep,
+    testWidgets('a guest on the milestone\'s final look sees the same', (tester) async {
+      tester.view.physicalSize = const Size(w * 3, h * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const MilestoneFinalLookScreen(
+              photos: [PostPhoto(url: 'assets/mock/sample1.jpg', storagePath: '')],
+              milestoneHours: 20,
+              taskName: 'Spanish',
+              handle: 'cass',
+              share: ShareState.guest,
+            ),
+          ),
+        ),
       );
+      await tester.pumpAndSettle();
+      expect(find.text('Create an account to share'), findsOneWidget);
+      expect(find.text('Share'), findsNothing);
+      expect(find.byKey(kShareReviewCaptionKey), findsNothing);
+      expect(find.text('Keep'), findsOneWidget);
+    });
+  });
+
+  group('the ways out', () {
+    testWidgets('Retake goes back, and nothing is saved', (tester) async {
+      var kept = 0;
+      await open(tester, onKeep: (_) async {
+        kept++;
+        return true;
+      });
+      await tester.tap(find.text('Retake'));
+      await tester.pumpAndSettle();
+      expect((await pushed()), ReviewOutcome.retake);
+      expect(kept, 0);
+    });
+
+    testWidgets('Keep saves and does not post; Share posts with the caption', (tester) async {
+      var kept = 0;
+      String? shared;
+      await open(tester, onKeep: (_) async {
+        kept++;
+        return true;
+      }, onShare: (_, c) async {
+        shared = c;
+        return true;
+      });
+      await tester.tap(find.text('Keep'));
+      await tester.pumpAndSettle();
+      expect((await pushed()), ReviewOutcome.kept);
+      expect(kept, 1);
+      expect(shared, isNull);
+
+      await open(tester, onShare: (_, c) async {
+        shared = c;
+        return true;
+      });
+      await tester.enterText(find.byKey(kShareReviewCaptionKey), 'Done.');
+      await tester.tap(find.text('Share'));
+      await tester.pumpAndSettle();
+      expect((await pushed()), ReviewOutcome.shared);
+      expect(shared, 'Done.');
+    });
+
+    testWidgets('while it works the action says so, and a failure keeps the screen up', (tester) async {
+      final gate = Completer<bool>();
+      await open(tester, onKeep: (_) => gate.future);
       await tester.tap(find.text('Keep'));
       await tester.pump();
       expect(find.text('Keeping…'), findsOneWidget);
-      // The old copy, which said what the code was doing rather than what
-      // the person had asked for.
-      expect(find.text('Saving…'), findsNothing);
-      release();
+      expect(find.text('Share'), findsOneWidget, reason: 'Share keeps its own name');
+      gate.complete(false);
       await tester.pumpAndSettle();
+      expect(find.byType(CaptureReviewScreen), findsOneWidget);
+      expect(find.textContaining('Couldn’t save the photo'), findsOneWidget);
     });
 
-    testWidgets('a guest keeping says the same', (tester) async {
-      final (onKeep, release) = held();
-      await pumpReview(tester, share: ShareState.guest, onKeep: onKeep);
-      await tester.tap(find.text('Keep'));
-      await tester.pump();
-      expect(find.text('Keeping…'), findsOneWidget);
-      release();
-      await tester.pumpAndSettle();
+    testWidgets('a session whose camera was skipped is the surface with the same text', (tester) async {
+      await open(tester, withShot: false, share: ShareState.underTwentyHours);
+      expect(find.byType(Image), findsNothing);
+      expect(inCard('Spanish · 1h 20m'), findsOneWidget);
     });
   });
 
-  testWidgets('a failed save keeps the screen up and says so', (tester) async {
-    await pumpReview(tester, share: ShareState.allowed, onKeep: (_) async => false);
-    await tester.tap(find.text('Keep'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Couldn’t save'), findsOneWidget);
-    expect(find.byKey(kReviewPhotoKey), findsOneWidget);
-  });
-
-  group('the milestone band row', () {
-    final band = [
-      for (var i = 0; i < 3; i++)
-        Photo(
-          taskId: 't',
-          taskName: 'Spanish',
-          dayKey: '2026-10-0${i + 1}',
-          timestamp: 1000 + i,
-          sessionSeconds: 600,
-          photoUrl: 'https://example.test/$i.jpg',
-          storagePath: 'p/$i',
-        ),
-    ];
-
-    testWidgets('sits above the caption, not below it', (tester) async {
-      await pumpReview(tester, share: ShareState.allowed, band: band);
-      await tester.drag(find.byKey(kReviewPhotoKey), const Offset(0, -320));
-      await tester.pumpAndSettle();
-      expect(
-        tester.getRect(find.byKey(kBandRowKey)).bottom,
-        lessThan(tester.getRect(find.byType(TextField)).top),
-        reason: 'the caption is above the band row',
-      );
-    });
-
-    testWidgets('starts with only the new photo in, the rest dimmed', (
-      tester,
-    ) async {
-      await pumpReview(tester, share: ShareState.allowed, band: band);
-      final row = find.byKey(kBandRowKey);
-      expect(row, findsOneWidget);
-      // Four thumbs: the capture plus three from the band.
-      final opacities = tester
-          .widgetList<Opacity>(
-            find.descendant(of: row, matching: find.byType(Opacity)),
-          )
-          .map((o) => o.opacity)
-          .toList();
-      expect(opacities, [1.0, 0.35, 0.35, 0.35]);
-      expect(tester.getSize(find.byKey(kBandRowKey)).height,
-          closeTo(kBandThumb * scale, 0.5));
-    });
-
-    testWidgets('tapping toggles, and only the chosen ones are posted', (
-      tester,
-    ) async {
-      List<Photo>? posted;
-      await pumpReview(
-        tester,
-        share: ShareState.allowed,
-        band: band,
-        onShare: (_, _, also) async {
-          posted = also;
-          return true;
-        },
-      );
-      // The row sits under a 456-tall photo, so it is below the fold on
-      // this device — scroll to it as a thumb would.
-      await tester.drag(find.byKey(kReviewPhotoKey), const Offset(0, -320));
-      await tester.pumpAndSettle();
-
-      final thumbs = find.descendant(
-        of: find.byKey(kBandRowKey),
-        matching: find.byType(Opacity),
-      );
-      await tester.tap(thumbs.at(2));
-      await tester.pumpAndSettle();
-      await tester.tap(thumbs.at(1));
-      await tester.pumpAndSettle();
-      await tester.tap(thumbs.at(1)); // and off again
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Share'));
-      await tester.pumpAndSettle();
-      // Pool order, not tap order.
-      expect(posted!.map((p) => p.id).toList(), [band[1].id]);
-    });
-  });
-
-  group('a milestone with the camera skipped', () {
-    testWidgets('shows the milestone frame where the photo would be, and '
-        'still offers the band and Share', (tester) async {
-      final band = [
-        const Photo(
-          taskId: 't', taskName: 'Spanish', dayKey: '2026-10-01',
-          timestamp: 1, sessionSeconds: 0, photoUrl: 'assets/mock/sample1.jpg',
-          storagePath: 'p',
-        ),
-      ];
-      List<Photo>? shared;
-      await pumpReview(
-        tester,
-        share: ShareState.allowed,
-        band: band,
-        withShot: false,
-        milestoneHours: 20,
-        onShare: (ref, caption, also) async {
-          shared = also;
-          return true;
-        },
-      );
-      expect(find.byType(MilestoneNoPhotoFrame), findsOneWidget);
-      expect(find.text('20'), findsOneWidget);
-      expect(find.byKey(kBandRowKey), findsOneWidget);
-      expect(find.text('Share'), findsOneWidget);
-
-      await tester.tap(find.text('Share'));
-      await tester.pumpAndSettle();
-      expect(shared, isNotNull, reason: 'Share did nothing without a photo');
+  group('selectedBandInOrder', () {
+    Photo photo(int ts) => Photo(
+      taskId: 't', taskName: 'T', dayKey: 'd', timestamp: ts, sessionSeconds: 1, photoUrl: '', storagePath: '',
+    );
+    test('keeps pool order whatever the tap order', () {
+      final pool = [photo(1), photo(2), photo(3)];
+      expect(selectedBandInOrder(pool, {pool[2].id, pool[0].id}).map((p) => p.timestamp), [1, 3]);
     });
   });
 }

@@ -126,9 +126,16 @@ class MemoryMilestoneHints implements MilestoneHints {
   }
 }
 
-final milestoneHintsProvider = Provider<MilestoneHints>(
-  (_) => PrefsMilestoneHints(),
-);
+final milestoneHintsProvider = Provider<MilestoneHints>((_) {
+  try {
+    return PrefsMilestoneHints();
+  } catch (e) {
+    // No preferences on this platform (a test, a preview): the hint is
+    // simply never shown, and a card never fails for it.
+    debugPrint('SONDR milestone hints unavailable: ${e.runtimeType}');
+    return MemoryMilestoneHints(const MilestoneHintState(tapped: true));
+  }
+});
 
 /// What the cards read. Refreshed by whoever writes, so every card on
 /// screen follows the first right-side tap at once.

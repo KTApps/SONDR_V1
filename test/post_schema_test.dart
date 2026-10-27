@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/features/feed/band_story.dart';
+import 'package:sondr/features/feed/collage_layout.dart';
 import 'package:sondr/features/feed/models/post.dart';
 
 void main() {
@@ -52,6 +53,19 @@ void main() {
     test('PostPhoto toMap/fromMap round-trips', () {
       const p = PostPhoto(url: 'x', storagePath: 'users/u/posts/x.jpg');
       expect(PostPhoto.fromMap(p.toMap()), p);
+      expect(p.toMap().containsKey('framing'), isFalse, reason: 'the plain crop is not written');
+    });
+
+    test('a photo\'s framing round-trips, and an old photo has the plain crop', () {
+      const framed = PostPhoto(
+        url: 'x',
+        storagePath: 'p',
+        framing: PhotoFraming(scale: 1.8, dx: 0.1, dy: -0.2),
+      );
+      expect(framed.toMap()['framing'], {'scale': 1.8, 'dx': 0.1, 'dy': -0.2});
+      expect(PostPhoto.fromMap(framed.toMap()), framed);
+      expect(PostPhoto.fromMap({'url': 'x', 'storagePath': 'p'}).framing, PhotoFraming.none);
+      expect(PostPhoto.fromMap({'url': 'x', 'storagePath': 'p', 'framing': 'junk'}).framing, PhotoFraming.none);
     });
   });
 
@@ -87,6 +101,18 @@ void main() {
       final post = Post.fromMap('p', map) as MilestonePost;
       expect(post.unit, isNull);
       expect(post.hasStory, isFalse);
+    });
+
+    test('a post still being shared reads as pending; every other post does not', () {
+      final pending = Post.fromMap('p', milestoneMap(const [])..['pending'] = true);
+      expect(pending.pending, isTrue);
+      expect(Post.fromMap('p', milestoneMap(const [])).pending, isFalse);
+      final session = Post.fromMap('s', {
+        'type': 'session', 'authorUid': 'u1', 'author': {}, 'createdAt': 1,
+        'caption': null, 'photos': [], 'taskName': 'Spanish', 'sessionSeconds': 60, 'pending': true,
+      });
+      expect(session, isA<SessionPost>());
+      expect(session.pending, isTrue);
     });
 
     test('the cover round-trips, and an old post has none', () {

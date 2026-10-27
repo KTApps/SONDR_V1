@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
-import 'package:sondr/features/feed/widgets/session_log_card.dart';
+import 'package:sondr/features/feed/widgets/session_card.dart';
 
 /// The feed shows a photo at the shape it was framed and stored at.
 ///
@@ -36,7 +36,7 @@ void main() {
     testWidgets('a session card', (tester) async {
       final rect = await pumpCard(
         tester,
-        SessionLogCard(
+        SessionCard(
           post: SessionPost(
             id: 'p1',
             authorUid: 'u',

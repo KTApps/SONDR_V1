@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,8 +26,13 @@ const List<Shadow> kTextShadows = [
 /// Bundled asset (mock feed) vs cached network (real Storage URL). The network
 /// branch goes through the shared cache so a milestone photo isn't re-fetched on
 /// every feed rebuild.
-ImageProvider postImageProvider(String url) =>
-    url.startsWith('assets/') ? AssetImage(url) : cachedPhotoProvider(url);
+ImageProvider postImageProvider(String url) {
+  if (url.startsWith('assets/')) return AssetImage(url);
+  // A photo not yet uploaded — the new shot, on the final look before the
+  // share — stands in as the file it was written to.
+  if (url.startsWith('file://')) return FileImage(File(Uri.parse(url).toFilePath()));
+  return cachedPhotoProvider(url);
+}
 
 /// Author avatar + name + relative time. [onPhoto] flips to light text with
 /// shadows for the photo-backdrop card.

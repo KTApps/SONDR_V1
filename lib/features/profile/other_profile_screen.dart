@@ -956,6 +956,7 @@ Widget postStripTile(Post post, {double? side}) {
       side: side,
       child: MilestoneCollageThumb(
         photoUrls: [for (final p in post.photos) p.url],
+        framings: [for (final p in post.photos) p.framing],
         thumbUrl: post.thumbUrl,
         saturation: kProfilePhotoSaturation,
         tint: kProfilePhotoTint,

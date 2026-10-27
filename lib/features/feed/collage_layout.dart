@@ -77,6 +77,27 @@ class PhotoFraming {
   final double dx;
   final double dy;
 
+  /// The zoom's range: the cover crop, up to three times it.
+  static const double minScale = 1;
+  static const double maxScale = 3;
+
+  /// The same framing with its zoom kept to the range and its nudge kept
+  /// to half a tile, so no part of the tile is ever left bare.
+  PhotoFraming clamped() => PhotoFraming(
+    scale: scale.clamp(minScale, maxScale),
+    dx: dx.clamp(-0.5, 0.5),
+    dy: dy.clamp(-0.5, 0.5),
+  );
+
+  Map<String, double> toMap() => {'scale': scale, 'dx': dx, 'dy': dy};
+
+  /// Null, or a malformed map, is the plain cover crop.
+  static PhotoFraming fromMap(dynamic map) {
+    if (map is! Map) return none;
+    double n(String k, double d) => map[k] is num ? (map[k] as num).toDouble() : d;
+    return PhotoFraming(scale: n('scale', 1), dx: n('dx', 0), dy: n('dy', 0));
+  }
+
   @override
   bool operator ==(Object other) =>
       other is PhotoFraming &&
@@ -86,6 +107,9 @@ class PhotoFraming {
 
   @override
   int get hashCode => Object.hash(scale, dx, dy);
+
+  @override
+  String toString() => 'PhotoFraming(scale: $scale, dx: $dx, dy: $dy)';
 }
 
 /// The part of an image of [image] size that shows in a tile of [tile]

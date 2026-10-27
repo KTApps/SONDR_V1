@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../band_story.dart' show SegmentUnit;
+import '../collage_layout.dart' show PhotoFraming;
 
 /// Feed posts. Two kinds give the feed its rhythm (big milestone cards and
 /// tiny session logs); a sealed hierarchy parsed by `type` lets the feed
@@ -44,6 +45,7 @@ class PostPhoto {
     required this.url,
     required this.storagePath,
     this.sessionIndex,
+    this.framing = PhotoFraming.none,
   });
 
   final String url;
@@ -54,10 +56,16 @@ class PostPhoto {
   /// on milestone posts written before stories.
   final int? sessionIndex;
 
+  /// How the photo is framed in its collage tile — the zoom and nudge the
+  /// author set when arranging. The plain cover crop when they set none,
+  /// and on every post from before.
+  final PhotoFraming framing;
+
   Map<String, dynamic> toMap() => {
     'url': url,
     'storagePath': storagePath,
     if (sessionIndex != null) 'sessionIndex': sessionIndex,
+    if (framing != PhotoFraming.none) 'framing': framing.toMap(),
   };
 
   factory PostPhoto.fromMap(Map<String, dynamic> map) => PostPhoto(
@@ -66,6 +74,7 @@ class PostPhoto {
     sessionIndex: map['sessionIndex'] is num
         ? (map['sessionIndex'] as num).toInt()
         : null,
+    framing: PhotoFraming.fromMap(map['framing']),
   );
 
   /// Value equality so a photo list round-trips (write → read → equal).
@@ -74,10 +83,11 @@ class PostPhoto {
       other is PostPhoto &&
       other.url == url &&
       other.storagePath == storagePath &&
-      other.sessionIndex == sessionIndex;
+      other.sessionIndex == sessionIndex &&
+      other.framing == framing;
 
   @override
-  int get hashCode => Object.hash(url, storagePath, sessionIndex);
+  int get hashCode => Object.hash(url, storagePath, sessionIndex, framing);
 }
 
 /// One segment of a milestone band's effort, as stored on the post.
@@ -133,11 +143,18 @@ sealed class Post {
     this.photos = const [],
     this.likeCount = 0,
     this.commentCount = 0,
+    this.pending = false,
   });
 
   final String id;
   final String authorUid;
   final PostAuthor author;
+
+  /// Still being shared: written the moment Share was tapped, with the
+  /// author alone in its audience and its photos still on the author's
+  /// phone, while the uploads finish in the background. Cleared by the
+  /// final update that lets friends see it.
+  final bool pending;
 
   /// Null only briefly between a local write and the server timestamp landing.
   final DateTime? createdAt;
@@ -166,6 +183,7 @@ sealed class Post {
     final photos = _parsePhotos(map['photos']);
     final likeCount = _int(map['likeCount']);
     final commentCount = _int(map['commentCount']);
+    final pending = map['pending'] == true;
 
     switch (map['type']) {
       case 'milestone':
@@ -178,6 +196,7 @@ sealed class Post {
           photos: photos,
           likeCount: likeCount,
           commentCount: commentCount,
+          pending: pending,
           taskName: (map['taskName'] as String?) ?? '',
           milestoneHours: _int(map['milestoneHours']),
           totalHours: _int(map['totalHours']),
@@ -201,6 +220,7 @@ sealed class Post {
           photos: photos,
           likeCount: likeCount,
           commentCount: commentCount,
+          pending: pending,
           taskName: (map['taskName'] as String?) ?? '',
           sessionSeconds: _int(map['sessionSeconds']),
           bandSeconds: map['bandSeconds'] is num
@@ -222,6 +242,7 @@ class MilestonePost extends Post {
     super.photos,
     super.likeCount,
     super.commentCount,
+    super.pending,
     required this.taskName,
     required this.milestoneHours,
     required this.totalHours,
@@ -284,6 +305,7 @@ class SessionPost extends Post {
     super.photos,
     super.likeCount,
     super.commentCount,
+    super.pending,
     required this.taskName,
     required this.sessionSeconds,
     this.bandSeconds,

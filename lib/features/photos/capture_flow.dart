@@ -1,21 +1,24 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../core/utils/date.dart';
+import '../../core/debug_flags.dart';
 import '../../shared/cached_photo.dart';
 import '../auth/profile_repository.dart';
-import '../feed/collage_layout.dart' show PhotoFraming, kCollageMax;
+import '../feed/collage_layout.dart' show PhotoFraming;
 import '../feed/cover_render.dart';
+import '../feed/firebase_share_backend.dart';
 import '../feed/models/post.dart';
+import '../feed/share_job.dart';
+import '../feed/share_trace.dart';
 import '../feed/story_builder.dart';
 import '../tasks/models/task.dart';
 import '../tasks/session_log.dart';
 import '../tasks/tasks_providers.dart';
-import '../feed/posts_repository.dart';
 import '../shell/main_shell.dart';
 import 'capture_crop.dart' show photoRequiredToPost;
 import 'capture_review_screen.dart';
@@ -25,7 +28,6 @@ import 'milestone_final_look_screen.dart';
 import 'models/photo.dart';
 import 'photo_refresh.dart';
 import 'auto_collage.dart';
-import 'collages_repository.dart';
 import 'photos_repository.dart';
 import 'sondr_camera.dart';
 
@@ -60,6 +62,8 @@ Future<void> runCaptureFlow(
   final coverStyles = CoverTextStyles.of(context);
   // A milestone's arrangement outlives a retake.
   Arrangement? arrangement;
+  // The share's timings, when the debug tools are on.
+  ShareTrace? trace;
   while (true) {
     final shot = await Navigator.of(context).push<Uint8List>(
       MaterialPageRoute(
@@ -96,7 +100,10 @@ Future<void> runCaptureFlow(
       if (!context.mounted) return;
       if (result.done) {
         // Land on Feed so the fresh post is right there.
-        if (result.shared) ref.read(selectedTabProvider.notifier).set(1);
+        if (result.shared) {
+          ref.read(selectedTabProvider.notifier).set(1);
+          result.trace?.feedShown();
+        }
         return;
       }
       arrangement = result.arrangement;
@@ -126,33 +133,24 @@ Future<void> runCaptureFlow(
             return saved != null;
           },
           onShare: (ref, caption, alsoPost) async {
-            Photo? lead;
-            if (shot != null) {
-              lead = await _savePrivately(
-                ref,
-                shot: shot,
-                taskId: taskId,
-                taskName: taskName,
-                sessionSeconds: sessionSeconds,
-                cumulativeSeconds: cumulativeSeconds,
-                milestoneHours: milestoneHours,
-              );
-              if (lead == null) return false;
-            }
-            return _post(
+            // A session post is its photo. The post goes out now, the
+            // upload behind it — the same job a milestone runs.
+            trace = await _beginShare(
               ref,
+              type: PostType.session,
               shot: shot,
-              lead: lead,
+              chosen: [
+                for (final p in alsoPost) (photo: p, framing: PhotoFraming.none),
+                if (shot != null) (photo: null, framing: PhotoFraming.none),
+              ],
               caption: caption,
-              alsoPost: alsoPost,
               taskId: taskId,
               taskName: taskName,
               sessionSeconds: sessionSeconds,
               cumulativeSeconds: cumulativeSeconds,
-              milestoneHours: milestoneHours,
-              totalHours: totalHours,
               coverStyles: coverStyles,
             );
+            return trace != null;
           },
         ),
       ),
@@ -161,6 +159,7 @@ Future<void> runCaptureFlow(
       if (outcome == ReviewOutcome.shared && context.mounted) {
         // Land on Feed so the fresh post is right there.
         ref.read(selectedTabProvider.notifier).set(1);
+        trace?.feedShown();
       }
       return;
     }
@@ -171,7 +170,7 @@ Future<void> runCaptureFlow(
 /// Arrange, then the final look, for a milestone. Returns whether the
 /// journey is over (kept or shared) or goes back to the camera (a retake,
 /// with the arrangement to carry on from).
-Future<({bool done, bool shared, Arrangement? arrangement})> _milestoneJourney(
+Future<({bool done, bool shared, Arrangement? arrangement, ShareTrace? trace})> _milestoneJourney(
   BuildContext context,
   WidgetRef ref, {
   required Uint8List? shot,
@@ -193,6 +192,7 @@ Future<({bool done, bool shared, Arrangement? arrangement})> _milestoneJourney(
   ];
   File? shotFile;
   var current = arrangement;
+  ShareTrace? trace;
 
   Future<bool> keep(WidgetRef ref) async {
     if (shot == null) return true;
@@ -220,13 +220,13 @@ Future<({bool done, bool shared, Arrangement? arrangement})> _milestoneJourney(
       ),
     );
     if (!context.mounted || arranged == null) {
-      return (done: true, shared: false, arrangement: current);
+      return (done: true, shared: false, arrangement: current, trace: null);
     }
     switch (arranged.kind) {
       case ArrangeOutcomeKind.retake:
-        return (done: false, shared: false, arrangement: arranged.arrangement);
+        return (done: false, shared: false, arrangement: arranged.arrangement, trace: null);
       case ArrangeOutcomeKind.kept:
-        return (done: true, shared: false, arrangement: arranged.arrangement);
+        return (done: true, shared: false, arrangement: arranged.arrangement, trace: null);
       case ArrangeOutcomeKind.next:
         current = arranged.arrangement;
     }
@@ -263,7 +263,7 @@ Future<({bool done, bool shared, Arrangement? arrangement})> _milestoneJourney(
         ),
     ];
     final profile = await ref.read(currentProfileProvider.future);
-    if (!context.mounted) return (done: true, shared: false, arrangement: current);
+    if (!context.mounted) return (done: true, shared: false, arrangement: current, trace: null);
 
     final look = await Navigator.of(context).push<FinalLookOutcome>(
       MaterialPageRoute(
@@ -276,51 +276,43 @@ Future<({bool done, bool shared, Arrangement? arrangement})> _milestoneJourney(
           unit: story?.unit,
           onKeep: keep,
           onShare: (ref, caption) async {
-            Photo? lead;
-            if (shot != null) {
-              lead = await _savePrivately(
-                ref,
-                shot: shot,
-                taskId: taskId,
-                taskName: taskName,
-                sessionSeconds: sessionSeconds,
-                cumulativeSeconds: cumulativeSeconds,
-                milestoneHours: milestoneHours,
-              );
-              if (lead == null) return false;
-            }
-            return _post(
+            // The post goes out now, as arranged; everything slow runs
+            // behind it as a job.
+            trace = await _beginShare(
               ref,
+              type: PostType.milestone,
               shot: shot,
-              lead: lead,
-              caption: caption,
-              alsoPost: const [],
-              arranged: [
+              chosen: [
                 for (final e in chosen)
-                  (photo: e.photo ?? lead!, framing: arrangementNow.framingOf(e.id)),
+                  (photo: e.photo, framing: arrangementNow.framingOf(e.id)),
               ],
+              caption: caption,
               taskId: taskId,
               taskName: taskName,
               sessionSeconds: sessionSeconds,
               cumulativeSeconds: cumulativeSeconds,
               milestoneHours: milestoneHours,
               totalHours: totalHours,
+              story: story,
+              handle: profile?.username ?? '',
+              displayName: profile?.displayName ?? '',
               coverStyles: coverStyles,
             );
+            return trace != null;
           },
         ),
       ),
     );
     if (!context.mounted || look == null) {
-      return (done: true, shared: false, arrangement: current);
+      return (done: true, shared: false, arrangement: current, trace: null);
     }
     switch (look.kind) {
       case FinalLookOutcomeKind.back:
         continue;
       case FinalLookOutcomeKind.kept:
-        return (done: true, shared: false, arrangement: current);
+        return (done: true, shared: false, arrangement: current, trace: null);
       case FinalLookOutcomeKind.shared:
-        return (done: true, shared: true, arrangement: current);
+        return (done: true, shared: true, arrangement: current, trace: trace);
     }
   }
 }
@@ -393,140 +385,93 @@ Future<Photo?> _savePrivately(
   }
 }
 
-/// Write the post. A milestone crossing posts as a milestone — with the
-/// band's story, built here from the task, the session log and the chosen
-/// photos, and its cover drawn from those photos and uploaded beside them
-/// — anything else as a session, with its seconds into the band.
+/// Share: the post is written at once and the job started. Returns the
+/// trace (a plain one when the debug tools are off), or null when there is
+/// nobody to share as.
 ///
-/// The photos are written in time order, the new one last: the collage's
-/// order, oldest first, the crossing photo closing it.
-///
-/// The cover is a nicety: a render or an upload that fails never fails
-/// the share — the post goes without one and the card draws the collage.
-Future<bool> _post(
+/// [chosen] is the post's photos in order — a band photo, or null for the
+/// new [shot] — each with its framing. [story] is the band's, already
+/// told for the final look, so it is not told again.
+Future<ShareTrace?> _beginShare(
   WidgetRef ref, {
+  required PostType type,
   required Uint8List? shot,
-  required Photo? lead,
+  required List<({Photo? photo, PhotoFraming framing})> chosen,
   required String? caption,
-  required List<Photo> alsoPost,
   required String taskId,
   required String taskName,
   required int sessionSeconds,
   required int cumulativeSeconds,
+  required CoverTextStyles coverStyles,
   int? milestoneHours,
   int? totalHours,
-  CoverTextStyles? coverStyles,
-  List<({Photo photo, PhotoFraming framing})>? arranged,
+  MilestoneStory? story,
+  String? handle,
+  String? displayName,
 }) async {
-  final repo = ref.read(postsRepositoryProvider);
-  if (repo == null) return false;
+  final runner = ref.read(shareJobRunnerProvider);
+  if (runner == null) return null;
   try {
-    // A milestone's photos come as arranged — the collage's order, each
-    // with its framing; a session's in time order.
-    final ordered = arranged != null
-        ? [for (final a in arranged) a.photo]
-        : ([...alsoPost, ?lead]..sort((a, b) => a.timestamp.compareTo(b.timestamp)));
-    final framings = [
-      for (final a in arranged ?? const <({Photo photo, PhotoFraming framing})>[])
-        a.framing,
-    ];
-    final sourceIds = [for (final p in ordered) p.id];
-
-    MilestoneStory? story;
-    if (milestoneHours != null) {
-      story = await _storyFor(ref, taskId: taskId, milestoneHours: milestoneHours, photos: ordered);
-    }
-
-    final photos = <PostPhoto>[];
-    // The first nine, decoded for the cover, as they go up.
-    final images = <ui.Image>[];
-    for (var i = 0; i < ordered.length; i++) {
-      final p = ordered[i];
-      final isLead = lead != null && p.id == lead.id && shot != null;
-      final bytes = isLead ? shot : await repo.photoBytes(p.storagePath);
-      final up = await repo.uploadPostPhoto(await _materialise(bytes, 'post$i'));
-      photos.add(
-        PostPhoto(
-          url: up.url,
-          storagePath: up.storagePath,
+    final now = DateTime.now();
+    final postId = runner.backend.newPostId();
+    final trace = ShareTrace(postId);
+    // The new shot, kept where a job can find it after a relaunch.
+    final shotPath = shot == null ? null : await _keepForShare(shot, postId);
+    final shotTs = now.microsecondsSinceEpoch;
+    final shotPhotoId = Photo.docId(taskId, shotTs);
+    final photos = <ShareJobPhoto>[
+      for (var i = 0; i < chosen.length; i++)
+        ShareJobPhoto(
+          id: chosen[i].photo?.id ?? shotPhotoId,
+          localPath: chosen[i].photo == null ? shotPath : null,
+          sourceStoragePath: chosen[i].photo?.storagePath,
+          sourceUrl: chosen[i].photo?.photoUrl,
+          framing: chosen[i].framing,
           sessionIndex: story?.photoIndices[i],
-          framing: i < framings.length ? framings[i] : PhotoFraming.none,
+          isNew: chosen[i].photo == null,
         ),
-      );
-      if (milestoneHours != null && images.length < kCollageMax) {
-        try {
-          images.add(await decodeForCover(bytes));
-        } catch (e) {
-          debugPrint('SONDR cover decode error: ${e.runtimeType} :: $e');
-        }
-      }
+    ];
+    final job = ShareJob(
+      postId: postId,
+      type: type,
+      taskId: taskId,
+      taskName: taskName,
+      sessionSeconds: sessionSeconds,
+      cumulativeSeconds: cumulativeSeconds,
+      photos: photos,
+      createdAtMs: now.millisecondsSinceEpoch,
+      milestoneHours: milestoneHours,
+      totalHours: totalHours,
+      caption: caption,
+      segments: story?.segments ?? const [],
+      unit: story?.unit,
+      shotTimestamp: shot == null ? null : shotTs,
+      bandSeconds: type == PostType.session ? bandSecondsAfter(cumulativeSeconds) : null,
+    );
+    var author = PostAuthor(username: handle ?? '', displayName: displayName ?? '');
+    if (handle == null) {
+      final profile = await ref.read(currentProfileProvider.future);
+      author = PostAuthor(username: profile?.username ?? '', displayName: profile?.displayName ?? '');
     }
-    if (milestoneHours != null) {
-      ({String url, String storagePath})? cover;
-      ({String url, String storagePath})? thumb;
-      if (images.isNotEmpty && coverStyles != null) {
-        try {
-          final jpeg = await renderMilestoneCover(
-            photos: images,
-            milestoneHours: milestoneHours,
-            styles: coverStyles,
-            framings: framings,
-          );
-          cover = await repo.uploadPostPhoto(await _materialise(jpeg, 'cover'));
-        } catch (e) {
-          debugPrint('SONDR cover render error: ${e.runtimeType} :: $e');
-        }
-        try {
-          final jpeg = await renderMilestoneThumb(photos: images, framings: framings);
-          thumb = await repo.uploadPostPhoto(await _materialise(jpeg, 'thumb'));
-        } catch (e) {
-          debugPrint('SONDR thumb render error: ${e.runtimeType} :: $e');
-        }
-      }
-      for (final image in images) {
-        image.dispose();
-      }
-      await repo.createMilestonePost(
-        taskName: taskName,
-        milestoneHours: milestoneHours,
-        totalHours: totalHours ?? 0,
-        caption: caption,
-        photos: photos,
-        segments: story?.segments ?? const [],
-        unit: story?.unit,
-        cover: cover,
-        thumb: thumb,
-      );
-      // The owner's own surfaces show the same images their friends see.
-      if (cover != null || thumb != null) {
-        try {
-          await ref.read(collagesRepositoryProvider)?.setCover(
-            taskId,
-            milestoneHours,
-            coverUrl: cover?.url,
-            thumbUrl: thumb?.url,
-          );
-        } catch (e) {
-          debugPrint('SONDR collage cover error: ${e.runtimeType} :: $e');
-        }
-      }
-    } else {
-      await repo.createSessionPost(
-        taskName: taskName,
-        sessionSeconds: sessionSeconds,
-        caption: caption,
-        photos: photos,
-        bandSeconds: bandSecondsAfter(cumulativeSeconds),
-      );
-    }
-    // The post is written. Tagging its sources is a nicety from here on and
-    // must never be able to fail the share — see [tagShared].
-    await tagShared(ref, sourceIds);
-    return true;
+    runner.coverStyles = coverStyles;
+    trace.mark('job built');
+    await runner.begin(job, author, trace: kDebugTools ? trace : null);
+    return trace;
   } catch (e) {
-    debugPrint('SONDR create post error: ${e.runtimeType} :: $e');
-    return false;
+    debugPrint('SONDR share begin error: ${e.runtimeType} :: $e');
+    return null;
   }
+}
+
+/// The shot, written under the app's own support directory — the temp
+/// directory can be emptied while the app is not running, and a job has
+/// to find its bytes after a relaunch.
+Future<String> _keepForShare(Uint8List bytes, String postId) async {
+  final base = await getApplicationSupportDirectory();
+  final dir = Directory('${base.path}/sondr_share/$postId')..createSync(recursive: true);
+  final file = File('${dir.path}/shot.jpg');
+  await file.writeAsBytes(bytes, flush: true);
+  return file.path;
 }
 
 /// The repositories upload files, and a capture is bytes in memory. One temp

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/backend.dart';
 import '../../photos/capture_crop.dart';
+import '../firebase_share_backend.dart';
+import '../share_job.dart';
+import 'milestone_card.dart' show kShareFailedText;
 
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/utils/relative_time.dart';
@@ -17,22 +22,29 @@ import 'post_chrome.dart';
 ///
 /// Time is [formatSessionDuration] (the shared helper; :30 rounds up). Visual
 /// polish of the photo card is deferred (Stage 5) — this is the functional shape.
-class SessionLogCard extends StatelessWidget {
+class SessionLogCard extends ConsumerWidget {
   const SessionLogCard({super.key, required this.post});
 
   final SessionPost post;
 
   @override
-  Widget build(BuildContext context) {
-    return post.photos.isNotEmpty ? _photo(context) : _slim(context);
+  Widget build(BuildContext context, WidgetRef ref) {
+    // A share of mine that has given up: the caption line says so, and a
+    // tap on it tries again.
+    final mine = post.authorUid == ref.watch(currentUidProvider);
+    final failed = post.pending &&
+        mine &&
+        ref.watch(shareJobStateProvider(post.id))?.status == ShareJobStatus.failed;
+    final retry = failed ? () => ref.read(shareJobRunnerProvider)?.retry(post.id) : null;
+    return post.photos.isNotEmpty ? _photo(context, retry) : _slim(context, retry);
   }
 
-  Widget _photo(BuildContext context) {
+  Widget _photo(BuildContext context, VoidCallback? retry) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final line =
         '${post.taskName} · ${formatSessionDuration(post.sessionSeconds)}';
-    final caption = post.caption;
+    final caption = retry != null ? kShareFailedText : post.caption;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -70,7 +82,11 @@ class SessionLogCard extends StatelessWidget {
             ),
             if (caption != null && caption.isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text(caption, style: theme.textTheme.bodyMedium),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: retry,
+                child: Text(caption, style: theme.textTheme.bodyMedium),
+              ),
             ],
             const SizedBox(height: 12),
             PostInteractions(post: post),
@@ -80,14 +96,14 @@ class SessionLogCard extends StatelessWidget {
     );
   }
 
-  Widget _slim(BuildContext context) {
+  Widget _slim(BuildContext context, VoidCallback? retry) {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final duration = formatSessionDuration(post.sessionSeconds);
     final initial = post.author.label.isNotEmpty
         ? post.author.label[0].toUpperCase()
         : '?';
-    final caption = post.caption;
+    final caption = retry != null ? kShareFailedText : post.caption;
     final hasCaption = caption != null && caption.isNotEmpty;
 
     return ClipRRect(
@@ -128,12 +144,16 @@ class SessionLogCard extends StatelessWidget {
                   // Optional caption as a second line beneath the middot line.
                   if (hasCaption) ...[
                     const SizedBox(height: 2),
-                    Text(
-                      caption,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: tokens.textSecondary,
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: retry,
+                      child: Text(
+                        caption,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: tokens.textSecondary,
+                        ),
                       ),
                     ),
                   ],

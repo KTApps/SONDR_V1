@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,7 +14,10 @@ import 'package:sondr/features/feed/widgets/deletable_post_card.dart';
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
 import 'package:sondr/features/feed/widgets/milestone_cover.dart';
 import 'package:sondr/features/feed/widgets/milestone_frame.dart';
+import 'package:sondr/features/feed/firebase_share_backend.dart';
+import 'package:sondr/features/feed/share_job.dart';
 import 'package:sondr/features/feed/widgets/milestone_ring.dart';
+import 'package:sondr/features/photos/models/photo.dart' as gallery;
 import 'package:sondr/shared/cached_photo.dart';
 
 import 'tiny_png.dart';
@@ -296,6 +302,57 @@ void main() {
     });
   });
 
+  group('a share that gave up', () {
+    testWidgets('the author sees "Couldn’t share. Try again" in place of the caption, and a tap retries', (tester) async {
+      final backend = _StuckBackend();
+      final store = MemoryShareJobStore();
+      final runner = ShareJobRunner(store: store, backend: backend, backoff: const [Duration.zero, Duration.zero, Duration.zero]);
+      runner.states.value = {'m1': const ShareJobState(ShareJobStatus.failed, attempts: 3)};
+      await store.save(ShareJob(
+        postId: 'm1', type: PostType.milestone, taskId: 't', taskName: 'Spanish',
+        sessionSeconds: 1, cumulativeSeconds: 1, createdAtMs: 1, milestoneHours: 20,
+        photos: const [], step: ShareStep.updated, attempts: 3,
+      ));
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+      final p = MilestonePost(
+        id: 'm1', authorUid: 'cass-uid', author: cass, createdAt: now, caption: 'Twenty.',
+        photos: [photo('a'), photo('b')], taskName: 'Spanish', milestoneHours: 20, totalHours: 20,
+        pending: true,
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUidProvider.overrideWithValue('cass-uid'),
+            milestoneHintsProvider.overrideWithValue(MemoryMilestoneHints(const MilestoneHintState(tapped: true))),
+            shareJobRunnerProvider.overrideWithValue(runner),
+          ],
+          child: MaterialApp(theme: AppTheme.dark(), home: Scaffold(body: ListView(children: [MilestoneCard(post: p)]))),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(kShareFailedText), findsOneWidget);
+      expect(find.text('Twenty.'), findsNothing);
+      await tester.tap(find.text(kShareFailedText));
+      await tester.pump();
+      expect(backend.retried, isTrue);
+      // Someone else's card never says it.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUidProvider.overrideWithValue('someone'),
+            milestoneHintsProvider.overrideWithValue(MemoryMilestoneHints(const MilestoneHintState(tapped: true))),
+            shareJobRunnerProvider.overrideWithValue(runner),
+          ],
+          child: MaterialApp(theme: AppTheme.dark(), home: Scaffold(body: ListView(children: [MilestoneCard(post: p)]))),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(kShareFailedText), findsNothing);
+    });
+  });
+
   group('the hint', () {
     testWidgets('on a fresh install the caption line says what to do, and the right third glows', (tester) async {
       final hints = MemoryMilestoneHints();
@@ -332,4 +389,40 @@ void main() {
       expect(find.text(kMilestoneHintText), findsNothing);
     });
   });
+}
+
+/// A backend that notes a retry and otherwise never answers.
+class _StuckBackend implements ShareBackend {
+  bool retried = false;
+  @override
+  String get uid => 'cass-uid';
+  @override
+  String newPostId() => 'x';
+  @override
+  Future<void> setPendingPost(String postId, Map<String, dynamic> doc) async {}
+  @override
+  Future<String> upload(String path, Uint8List bytes) => Completer<String>().future;
+  @override
+  Future<Uint8List> download(String storagePath) => Completer<Uint8List>().future;
+  @override
+  Future<void> savePhoto(gallery.Photo photo) async {}
+  @override
+  Future<void> attachCrossing(String taskId, int milestoneHours, String photoId) async {}
+  @override
+  Future<PostAuthor> author() async {
+    retried = true;
+    return Completer<PostAuthor>().future;
+  }
+  @override
+  Future<List<String>> audience() => Completer<List<String>>().future;
+  @override
+  Future<void> finishPost(String postId, Map<String, dynamic> update) async {}
+  @override
+  Future<void> notify(ShareJob job, List<String> friends, PostAuthor author) async {}
+  @override
+  Future<void> setCover(String taskId, int milestoneHours, {String? coverUrl, String? thumbUrl}) async {}
+  @override
+  Future<void> markShared(List<String> photoIds) async {}
+  @override
+  Future<void> deleteFiles(List<String> paths) async {}
 }

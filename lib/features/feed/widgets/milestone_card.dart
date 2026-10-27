@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/backend.dart';
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/utils/relative_time.dart';
 import '../../photos/capture_crop.dart';
 import '../../profile/other_profile_screen.dart';
+import '../firebase_share_backend.dart';
 import '../milestone_hints.dart';
 import '../milestone_pages.dart';
+import '../share_job.dart';
 import '../models/post.dart';
 import '../single_post_screen.dart';
 import 'milestone_cover.dart';
@@ -56,6 +59,10 @@ const double kMilestoneCardRadius = 24;
 
 /// What the caption line says while the hint is on.
 const String kMilestoneHintText = 'Tap the right side to see each session';
+
+/// What the caption line says, to the author alone, when a share has
+/// given up: a tap tries again.
+const String kShareFailedText = 'Couldn’t share. Try again';
 
 /// Air from the frame's edge to the text.
 const double _kInset = 18;
@@ -167,6 +174,12 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
     final page = pages[index];
     final hint = _hintOn(ref.watch(milestoneHintStateProvider).value);
     if (hint) _startHint();
+    // A share of mine that has given up: the author is told, and can try
+    // again from the card.
+    final mine = post.authorUid == ref.watch(currentUidProvider);
+    final shareFailed = post.pending &&
+        mine &&
+        ref.watch(shareJobStateProvider(post.id))?.status == ShareJobStatus.failed;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(kMilestoneCardRadius),
@@ -227,6 +240,8 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
                       pages: _multi ? pages.length : 1,
                       page: index,
                       hint: hint,
+                      shareFailed: shareFailed,
+                      onRetry: () => ref.read(shareJobRunnerProvider)?.retry(post.id),
                     ),
                   ),
                 ),
@@ -370,6 +385,8 @@ class _Bottom extends StatelessWidget {
     required this.pages,
     required this.page,
     required this.hint,
+    this.shareFailed = false,
+    this.onRetry,
   });
 
   final MilestonePost post;
@@ -377,9 +394,17 @@ class _Bottom extends StatelessWidget {
   final int page;
   final bool hint;
 
+  /// The share gave up: the caption line says so, and a tap on it retries.
+  final bool shareFailed;
+  final VoidCallback? onRetry;
+
   @override
   Widget build(BuildContext context) {
-    final caption = hint ? kMilestoneHintText : post.caption;
+    final caption = shareFailed
+        ? kShareFailedText
+        : hint
+            ? kMilestoneHintText
+            : post.caption;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -398,14 +423,26 @@ class _Bottom extends StatelessWidget {
         ),
         if (caption != null && caption.isNotEmpty) ...[
           const SizedBox(height: 3),
-          IgnorePointer(
-            child: Text(
-              caption,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13, color: _kTextCaption),
+          if (shareFailed)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onRetry,
+              child: Text(
+                caption,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: _kTextCaption),
+              ),
+            )
+          else
+            IgnorePointer(
+              child: Text(
+                caption,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: _kTextCaption),
+              ),
             ),
-          ),
         ],
         // Nothing declared: the actions' own 12 above the words is the 12.
         Row(

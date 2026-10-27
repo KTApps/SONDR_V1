@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../feed/share_trace.dart';
+
 import '../../core/backend.dart';
 import '../../core/utils/date.dart';
 import '../history/calendar_screen.dart';
@@ -335,6 +337,12 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
             _btn(
               "Open today's day-detail",
               () => showDayDetailSheet(context, DayKey.of(DateTime.now())),
+            ),
+
+            _section('Last share'),
+            Text(
+              ref.watch(lastShareTraceProvider)?.report() ?? 'No share yet.',
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
             ),
 
             _section('Danger'),

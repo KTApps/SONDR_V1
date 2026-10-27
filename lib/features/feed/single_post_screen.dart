@@ -6,12 +6,12 @@ import '../../core/utils/figma_scale.dart';
 import '../../shared/sondr_action.dart';
 import 'models/post.dart';
 import 'widgets/milestone_card.dart';
-import 'widgets/session_log_card.dart';
+import 'widgets/session_card.dart';
 
 /// One post, on its own page: the card the feed would show, with its Like
 /// and Comments where they always are — the cards carry both themselves, so
-/// this page is the card, air, and the way back. A milestone's caption,
-/// which the card cuts at two lines, is given in full beneath it.
+/// this page is the card, air, and the way back. A caption, which the
+/// card cuts at two lines, is given in full beneath it.
 ///
 /// Reached from a profile's strips and grids. A post nobody is allowed to
 /// see can never arrive here: the query that found it already required the
@@ -29,9 +29,9 @@ class SinglePostScreen extends StatelessWidget {
     final Widget card = switch (post) {
       // Already here: a tap on the card has nowhere further to go.
       final MilestonePost p => MilestoneCard(post: p, opensPost: false),
-      final SessionPost p => SessionLogCard(post: p),
+      final SessionPost p => SessionCard(post: p, opensPost: false),
     };
-    final caption = post is MilestonePost ? post.caption : null;
+    final caption = post.caption;
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(

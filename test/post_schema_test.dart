@@ -103,6 +103,18 @@ void main() {
       expect(post.hasStory, isFalse);
     });
 
+    test('a post still being shared reads as pending; every other post does not', () {
+      final pending = Post.fromMap('p', milestoneMap(const [])..['pending'] = true);
+      expect(pending.pending, isTrue);
+      expect(Post.fromMap('p', milestoneMap(const [])).pending, isFalse);
+      final session = Post.fromMap('s', {
+        'type': 'session', 'authorUid': 'u1', 'author': {}, 'createdAt': 1,
+        'caption': null, 'photos': [], 'taskName': 'Spanish', 'sessionSeconds': 60, 'pending': true,
+      });
+      expect(session, isA<SessionPost>());
+      expect(session.pending, isTrue);
+    });
+
     test('the cover round-trips, and an old post has none', () {
       final map = milestoneMap(const [])
         ..['coverUrl'] = 'https://x/cover.jpg'

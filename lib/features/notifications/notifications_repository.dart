@@ -72,6 +72,10 @@ class AppNotification {
 abstract class NotificationsWriter {
   /// Add the write to [batch]. Does nothing when [recipientUid] is the
   /// actor, or empty: nothing to yourself, nothing to nobody.
+  ///
+  /// [id] names the document. A share retried after a crash writes its
+  /// notices under the post's id, so a second attempt is refused by the
+  /// rules — a notice never lands twice — rather than landing again.
   void add(
     WriteBatch batch, {
     required String recipientUid,
@@ -81,6 +85,7 @@ abstract class NotificationsWriter {
     String? commentId,
     String? taskName,
     int? hours,
+    String? id,
   });
 }
 
@@ -121,13 +126,11 @@ class FirestoreNotificationsWriter implements NotificationsWriter {
     String? commentId,
     String? taskName,
     int? hours,
+    String? id,
   }) {
     if (recipientUid.isEmpty || recipientUid == uid) return;
-    final ref = db
-        .collection('notifications')
-        .doc(recipientUid)
-        .collection('items')
-        .doc();
+    final items = db.collection('notifications').doc(recipientUid).collection('items');
+    final ref = id == null ? items.doc() : items.doc(id);
     batch.set(
       ref,
       document(
@@ -157,6 +160,7 @@ class NoNotificationsWriter implements NotificationsWriter {
     String? commentId,
     String? taskName,
     int? hours,
+    String? id,
   }) {}
 }
 

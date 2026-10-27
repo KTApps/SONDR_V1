@@ -5,7 +5,9 @@ import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/feed/band_story.dart';
 import 'package:sondr/features/feed/collage_layout.dart';
 import 'package:sondr/features/feed/models/post.dart';
+import 'package:sondr/features/feed/widgets/comments_sheet.dart' show replyComposerClearance;
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
+import 'package:sondr/shared/sondr_action.dart';
 import 'package:sondr/features/photos/milestone_final_look_screen.dart';
 import 'package:sondr/shared/cached_photo.dart';
 
@@ -30,12 +32,15 @@ void main() {
     WidgetTester tester, {
     List<PostPhoto> items = photos,
     double keyboard = 0,
+    double textScale = 1.0,
     Future<bool> Function(WidgetRef, String?)? onShare,
     Future<bool> Function(WidgetRef)? onKeep,
   }) async {
     tester.view.physicalSize = const Size(w * 3, h * 3);
     tester.view.devicePixelRatio = 3.0;
-    tester.view.padding = const FakeViewPadding(top: 47 * 3, bottom: 34 * 3);
+    // As the engine reports it: with the keyboard over the home indicator
+    // the bottom padding is gone, the inset having swallowed it.
+    tester.view.padding = FakeViewPadding(top: 47 * 3, bottom: keyboard > 0 ? 0 : 34 * 3);
     if (keyboard > 0) tester.view.viewInsets = FakeViewPadding(bottom: keyboard * 3);
     addTearDown(tester.view.reset);
     final result = <FinalLookOutcome?>[];
@@ -44,6 +49,10 @@ void main() {
         child: MaterialApp(
           key: UniqueKey(),
           theme: AppTheme.dark(),
+          builder: (c, child) => MediaQuery(
+            data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           home: Builder(
             builder: (context) => TextButton(
               onPressed: () async {
@@ -132,14 +141,47 @@ void main() {
     expect(tester.widget<TextField>(find.byKey(kFinalLookCaptionKey)).controller?.text.length, 200);
   });
 
-  testWidgets('with the keyboard up the field stays above it', (tester) async {
-    await open(tester, keyboard: 336);
-    // The field starts below the keyboard's edge; taking the keyboard
-    // brings it up.
-    await tester.showKeyboard(find.byKey(kFinalLookCaptionKey));
-    await tester.pumpAndSettle();
-    final field = tester.getRect(find.byKey(kFinalLookCaptionKey));
-    expect(field.bottom, lessThanOrEqualTo(h - 336));
+  group('with the keyboard up', () {
+    Rect cursorBox(WidgetTester tester) => tester.getRect(
+      find.descendant(of: find.byKey(kFinalLookCaptionKey), matching: find.byType(EditableText)),
+    );
+
+    testWidgets('Share and Keep go while typing, and come back after', (tester) async {
+      await open(tester);
+      final shareBefore = tester.getRect(find.text('Share'));
+      final cardBefore = tester.getRect(card());
+      // The keyboard comes up.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 336 * 3);
+      tester.view.padding = const FakeViewPadding(top: 47 * 3, bottom: 0);
+      await tester.showKeyboard(find.byKey(kFinalLookCaptionKey));
+      await tester.pumpAndSettle();
+      expect(find.text('Share'), findsNothing);
+      expect(find.text('Keep'), findsNothing);
+      expect(find.byType(SondrAction), findsOneWidget, reason: 'only Back');
+      // Return: the keyboard goes and the actions return, where they were.
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.text('Share'), findsOneWidget);
+      expect(find.text('Keep'), findsOneWidget);
+      tester.view.viewInsets = FakeViewPadding.zero;
+      tester.view.padding = const FakeViewPadding(top: 47 * 3, bottom: 34 * 3);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.text('Share')), shareBefore);
+      expect(tester.getRect(card()), cardBefore);
+    });
+
+    for (final ts in [0.824, 1.0, 1.235]) {
+      testWidgets('at textScale $ts the field keeps the reply composer\'s clearance', (tester) async {
+        await open(tester, keyboard: 336, textScale: ts);
+        await tester.showKeyboard(find.byKey(kFinalLookCaptionKey));
+        await tester.pumpAndSettle();
+        final clearance = replyComposerClearance(tester.element(find.byKey(kFinalLookCaptionKey)));
+        final below = (h - 336) - cursorBox(tester).bottom;
+        // ignore: avoid_print
+        print('FINAL-LOOK ts=$ts clearance=${clearance.toStringAsFixed(2)} below=${below.toStringAsFixed(2)}');
+        expect(below, closeTo(clearance, 0.5));
+      });
+    }
   });
 
   testWidgets('Back goes back; Share posts with the caption; Keep keeps', (tester) async {

@@ -55,24 +55,40 @@ void main() {
   Future<void> pumpScreen(WidgetTester tester, Widget screen, {double keyboard = 0}) async {
     tester.view.physicalSize = const Size(w * 3, h * 3);
     tester.view.devicePixelRatio = 3.0;
-    tester.view.padding = const FakeViewPadding(top: 47 * 3, bottom: 34 * 3);
+    // As the engine reports it: with the keyboard over the home indicator
+    // the bottom padding is gone, the inset having swallowed it.
+    tester.view.padding = FakeViewPadding(top: 47 * 3, bottom: keyboard > 0 ? 0 : 34 * 3);
     if (keyboard > 0) tester.view.viewInsets = FakeViewPadding(bottom: keyboard * 3);
     addTearDown(tester.view.reset);
     late BuildContext ctx;
     await tester.pumpWidget(
       RepaintBoundary(
         key: key,
-        child: ProviderScope(
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.dark(),
-            home: Builder(
-              builder: (c) {
-                ctx = c;
-                return screen;
-              },
+        child: Stack(
+          textDirection: TextDirection.ltr,
+          children: [
+            ProviderScope(
+              child: MaterialApp(
+                debugShowCheckedModeBanner: false,
+                theme: AppTheme.dark(),
+                home: Builder(
+                  builder: (c) {
+                    ctx = c;
+                    return screen;
+                  },
+                ),
+              ),
             ),
-          ),
+            // The keyboard, drawn where the inset says it is.
+            if (keyboard > 0)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: keyboard,
+                child: const ColoredBox(color: Color(0xFF2C2C2E)),
+              ),
+          ],
         ),
       ),
     );

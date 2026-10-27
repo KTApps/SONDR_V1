@@ -8,6 +8,7 @@ import '../../shared/sondr_action.dart';
 import '../../shared/sondr_error.dart';
 import '../feed/band_story.dart' show SegmentUnit;
 import '../feed/models/post.dart';
+import '../feed/widgets/comments_sheet.dart' show replyComposerClearance;
 import '../feed/widgets/milestone_card.dart';
 import 'capture_review_screen.dart' show kCaptionMaxLength;
 import 'milestone_arrange_screen.dart' show kArrangeGutter, kArrangeTop;
@@ -28,6 +29,12 @@ class FinalLookOutcome {
 
 const String kCaptionHint = 'Add a caption';
 const Key kFinalLookCaptionKey = Key('sondr-final-look-caption');
+
+/// The field's own air above and below its text.
+const double kCaptionFieldPad = 8;
+
+/// How long Share and Keep take to go, and to come back.
+const Duration kFinalLookActionsFade = Duration(milliseconds: 150);
 
 class MilestoneFinalLookScreen extends ConsumerStatefulWidget {
   const MilestoneFinalLookScreen({
@@ -73,6 +80,10 @@ class _MilestoneFinalLookScreenState extends ConsumerState<MilestoneFinalLookScr
   _Working? _working;
   String? _error;
 
+  /// Whether the caption is being typed: the keyboard is up, Share and
+  /// Keep are gone, and the field keeps its clearance above the keyboard.
+  bool _typing = false;
+
   bool get _busy => _working != null;
 
   @override
@@ -80,10 +91,12 @@ class _MilestoneFinalLookScreenState extends ConsumerState<MilestoneFinalLookScr
     super.initState();
     // The card shows the caption as it is typed.
     _caption.addListener(() => setState(() {}));
-    // Typing must not put the field behind the keyboard: the card scrolls
-    // up to make room.
     _captionFocus.addListener(() {
-      if (!_captionFocus.hasFocus || !_scroll.hasClients) return;
+      final typing = _captionFocus.hasFocus;
+      if (typing != _typing) setState(() => _typing = typing);
+      if (!typing || !_scroll.hasClients) return;
+      // Typing must not put the field behind the keyboard: the card
+      // scrolls up to make room, the field landing its clearance above.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!_scroll.hasClients) return;
         _scroll.animateTo(
@@ -192,28 +205,49 @@ class _MilestoneFinalLookScreenState extends ConsumerState<MilestoneFinalLookScr
                     ),
                     SizedBox(height: 12 * scale),
                     _captionField(tokens, theme, scale),
-                    SizedBox(height: 12 * scale),
+                    // Typing: the field's cursor line ends the reply
+                    // composer's clearance above the keyboard, which is
+                    // where this list now ends. Otherwise its own air.
+                    SizedBox(
+                      height: _typing
+                          ? replyComposerClearance(context) - kCaptionFieldPad * scale
+                          : 12 * scale,
+                    ),
                   ],
                 ),
               ),
             ),
-            if (_error != null) ...[
-              SondrError(_error!, textAlign: TextAlign.center),
-              SizedBox(height: 6 * scale),
-            ],
-            // Share above Keep, where the review puts them.
-            Center(
-              child: SondrAction(
-                label: _working == _Working.sharing ? 'Sharing…' : 'Share',
-                onPressed: _busy ? null : _share,
-              ),
-            ),
-            Center(
-              child: SondrAction(
-                label: _working == _Working.keeping ? 'Keeping…' : 'Keep',
-                supporting: true,
-                onPressed: _busy ? null : _keep,
-              ),
+            // Share and Keep go while the caption is typed — out of the
+            // layout, not merely under the keyboard — and come back when it
+            // closes, each way in a short fade.
+            AnimatedSwitcher(
+              duration: kFinalLookActionsFade,
+              child: _typing
+                  ? const SizedBox.shrink(key: ValueKey('typing'))
+                  : Column(
+                      key: const ValueKey('actions'),
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_error != null) ...[
+                          SondrError(_error!, textAlign: TextAlign.center),
+                          SizedBox(height: 6 * scale),
+                        ],
+                        // Share above Keep, where the review puts them.
+                        Center(
+                          child: SondrAction(
+                            label: _working == _Working.sharing ? 'Sharing…' : 'Share',
+                            onPressed: _busy ? null : _share,
+                          ),
+                        ),
+                        Center(
+                          child: SondrAction(
+                            label: _working == _Working.keeping ? 'Keeping…' : 'Keep',
+                            supporting: true,
+                            onPressed: _busy ? null : _keep,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ],
         ),
@@ -245,7 +279,7 @@ class _MilestoneFinalLookScreenState extends ConsumerState<MilestoneFinalLookScr
         cursorColor: tokens.textPrimary,
         decoration: InputDecoration(
           isDense: true,
-          contentPadding: EdgeInsets.symmetric(vertical: 8 * scale),
+          contentPadding: EdgeInsets.symmetric(vertical: kCaptionFieldPad * scale),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,

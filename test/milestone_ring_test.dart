@@ -26,6 +26,11 @@ void main() {
     expect(big.extent, closeTo(onPhoto.extent * 3, 1e-9));
   });
 
+  test('the disc inside the band is tinted 30% over a photo, feathered a point', () {
+    expect(kMilestoneRingInnerTint, 0.30);
+    expect(kMilestoneRingInnerFeather, 1);
+  });
+
   test('the glow under the band is as specified', () {
     expect(kMilestoneRingGlowOpacity, 0.22);
     expect(kMilestoneRingGlowWidth, 1.35);

@@ -17,6 +17,12 @@ const double kMilestoneRingGlowOpacity = 0.22;
 const double kMilestoneRingGlowWidth = 1.35;
 const double kMilestoneRingGlowBlur = 10;
 
+/// Over a photo, the disc inside the band is darkened by this much under
+/// the figure — the same in the card and the rendered cover — with its
+/// edge feathered by [kMilestoneRingInnerFeather] points.
+const double kMilestoneRingInnerTint = 0.30;
+const double kMilestoneRingInnerFeather = 1;
+
 /// The ring's measurements. Pure, so the stroke, radius and extent are
 /// tested without a canvas, and so a canvas of any size can draw it.
 class MilestoneRingGeometry {
@@ -60,6 +66,17 @@ void paintMilestoneRing(
     ..strokeCap = StrokeCap.butt;
 
   if (geometry.onPhoto) {
+    // The disc inside the band, darkened so the figure reads on any photo.
+    canvas.drawCircle(
+      center,
+      geometry.radius - thickness / 2,
+      Paint()
+        ..color = Colors.black.withValues(alpha: kMilestoneRingInnerTint)
+        ..maskFilter = const MaskFilter.blur(
+          BlurStyle.normal,
+          kMilestoneRingInnerFeather,
+        ),
+    );
     // A soft dark glow under the band, so the ring reads as solid white on
     // a white photo and goes unnoticed on a dark one.
     canvas.drawArc(

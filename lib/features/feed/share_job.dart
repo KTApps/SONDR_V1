@@ -4,7 +4,6 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_foundation/shared_preferences_foundation.dart';
 
@@ -38,8 +37,9 @@ import 'share_trace.dart';
 /// confirmed; a rerun starts at the step after.
 enum ShareStep { created, prepared, uploaded, posted, done }
 
-/// What the UI needs to know about a job.
-enum ShareJobStatus { running, waiting, posted, failed }
+/// What the UI needs to know about a job. [discarded]: the job could not
+/// be finished and has been thrown away — said once, then dismissed.
+enum ShareJobStatus { running, waiting, posted, failed, discarded }
 
 /// How many times a job is tried before it asks for help, and how long
 /// it waits between tries.
@@ -145,6 +145,7 @@ class ShareJobPhoto {
 class ShareJob {
   const ShareJob({
     required this.postId,
+    this.uid,
     required this.type,
     required this.taskId,
     required this.taskName,
@@ -168,9 +169,15 @@ class ShareJob {
     this.thumbUrl,
     this.thumbStoragePath,
     this.bandSeconds,
+    this.lastError,
   });
 
   final String postId;
+
+  /// Whose job it is. Null on a record from before jobs were kept per
+  /// account, which cannot be finished: there is no knowing whose it was.
+  final String? uid;
+
   final PostType type;
   final String taskId;
   final String taskName;
@@ -210,6 +217,9 @@ class ShareJob {
   /// A session's seconds into its band, for its card's ring.
   final int? bandSeconds;
 
+  /// Why the last attempt failed, as a short code, for the debug panel.
+  final String? lastError;
+
   bool get isMilestone => type == PostType.milestone;
 
   ShareJobPhoto? get newShot => photos.where((p) => p.isNew).firstOrNull;
@@ -233,6 +243,7 @@ class ShareJob {
   ];
 
   ShareJob copyWith({
+    String? uid,
     List<ShareJobPhoto>? photos,
     ShareStep? step,
     int? attempts,
@@ -243,8 +254,10 @@ class ShareJob {
     String? coverStoragePath,
     String? thumbUrl,
     String? thumbStoragePath,
+    String? lastError,
   }) => ShareJob(
     postId: postId,
+    uid: uid ?? this.uid,
     type: type,
     taskId: taskId,
     taskName: taskName,
@@ -268,10 +281,12 @@ class ShareJob {
     thumbUrl: thumbUrl ?? this.thumbUrl,
     thumbStoragePath: thumbStoragePath ?? this.thumbStoragePath,
     bandSeconds: bandSeconds,
+    lastError: lastError ?? this.lastError,
   );
 
   Map<String, dynamic> toJson() => {
     'postId': postId,
+    'uid': ?uid,
     'type': type.name,
     'taskId': taskId,
     'taskName': taskName,
@@ -295,10 +310,12 @@ class ShareJob {
     'thumbUrl': ?thumbUrl,
     'thumbStoragePath': ?thumbStoragePath,
     'bandSeconds': ?bandSeconds,
+    'lastError': ?lastError,
   };
 
   factory ShareJob.fromJson(Map<String, dynamic> m) => ShareJob(
     postId: m['postId'] as String,
+    uid: m['uid'] as String?,
     type: m['type'] == 'session' ? PostType.session : PostType.milestone,
     taskId: m['taskId'] as String,
     taskName: (m['taskName'] as String?) ?? '',
@@ -328,7 +345,29 @@ class ShareJob {
     thumbUrl: m['thumbUrl'] as String?,
     thumbStoragePath: m['thumbStoragePath'] as String?,
     bandSeconds: (m['bandSeconds'] as num?)?.toInt(),
+    lastError: m['lastError'] as String?,
   );
+
+  /// Whether the job still needs a file on the phone that is not there.
+  /// Before it is prepared only the new shot has to be present — the
+  /// band photos have their originals to fetch; prepared, every photo
+  /// not yet uploaded, and the cover and the thumbnail not yet uploaded,
+  /// must be; uploaded, nothing on the phone is needed any more.
+  bool get filesMissing {
+    bool gone(String? path) => path == null || !File(path).existsSync();
+    if (step.index >= ShareStep.uploaded.index) return false;
+    for (final p in photos) {
+      final needed = step.index < ShareStep.prepared.index
+          ? p.isNew
+          : p.url == null || (p.isNew && !p.privateSaved);
+      if (needed && gone(p.localPath)) return true;
+    }
+    if (isMilestone && step.index >= ShareStep.prepared.index) {
+      if (coverUrl == null && gone(coverLocalPath)) return true;
+      if (thumbUrl == null && gone(thumbLocalPath)) return true;
+    }
+    return false;
+  }
 
   /// A job from before the post was written last: its "updated" was the
   /// post's final write, which is "posted" now.
@@ -378,15 +417,24 @@ class _CancelledJob implements Exception {
   const _CancelledJob();
 }
 
-/// Where jobs are kept between launches.
+/// Where one account's jobs are kept between launches. Each account has
+/// its own: signing out leaves them where they are, and signing in as
+/// somebody else never sees them.
 abstract class ShareJobStore {
   Future<List<ShareJob>> load();
   Future<void> save(ShareJob job);
   Future<void> remove(String postId);
+
+  /// Records from before jobs were kept per account — one list for the
+  /// phone, whoever was signed in. Nobody's now: they are thrown away at
+  /// the next launch, once.
+  Future<List<ShareJob>> loadLegacy();
+  Future<void> clearLegacy();
 }
 
 class MemoryShareJobStore implements ShareJobStore {
   final Map<String, ShareJob> jobs = {};
+  final List<ShareJob> legacy = [];
 
   @override
   Future<List<ShareJob>> load() async => jobs.values.toList();
@@ -396,24 +444,71 @@ class MemoryShareJobStore implements ShareJobStore {
 
   @override
   Future<void> remove(String postId) async => jobs.remove(postId);
+
+  @override
+  Future<List<ShareJob>> loadLegacy() async => List.of(legacy);
+
+  @override
+  Future<void> clearLegacy() async => legacy.clear();
 }
 
-/// The jobs in the App Group container, beside the running session.
-class PrefsShareJobStore implements ShareJobStore {
-  PrefsShareJobStore({SharedPreferencesAsync? prefs})
+/// Lists of strings by key: the preferences, or a map in a test.
+abstract class StringLists {
+  Future<List<String>?> read(String key);
+  Future<void> write(String key, List<String> value);
+  Future<void> delete(String key);
+}
+
+/// The App Group's preferences, beside the running session.
+class PrefsStringLists implements StringLists {
+  PrefsStringLists({SharedPreferencesAsync? prefs})
     : _prefs =
           prefs ??
           SharedPreferencesAsync(
             options: SharedPreferencesAsyncFoundationOptions(suiteName: kSessionAppGroup),
           );
 
-  static const String key = 'sondr.shareJobs';
   final SharedPreferencesAsync _prefs;
 
   @override
-  Future<List<ShareJob>> load() async {
+  Future<List<String>?> read(String key) => _prefs.getStringList(key);
+
+  @override
+  Future<void> write(String key, List<String> value) => _prefs.setStringList(key, value);
+
+  @override
+  Future<void> delete(String key) => _prefs.remove(key);
+}
+
+class MemoryStringLists implements StringLists {
+  final Map<String, List<String>> data = {};
+
+  @override
+  Future<List<String>?> read(String key) async => data[key];
+
+  @override
+  Future<void> write(String key, List<String> value) async => data[key] = List.of(value);
+
+  @override
+  Future<void> delete(String key) async => data.remove(key);
+}
+
+/// One account's jobs, under a key of its own.
+class PrefsShareJobStore implements ShareJobStore {
+  PrefsShareJobStore({required this.uid, StringLists? lists}) : _lists = lists ?? PrefsStringLists();
+
+  /// The one key every account once shared.
+  static const String legacyKey = 'sondr.shareJobs';
+  static String keyFor(String uid) => 'sondr.shareJobs.$uid';
+
+  final String uid;
+  final StringLists _lists;
+
+  String get _key => keyFor(uid);
+
+  Future<List<ShareJob>> _read(String key) async {
     try {
-      final raw = await _prefs.getStringList(key) ?? const [];
+      final raw = await _lists.read(key) ?? const [];
       return [
         for (final s in raw)
           ShareJob.fromJson(Map<String, dynamic>.from(jsonDecode(s) as Map)),
@@ -424,9 +519,12 @@ class PrefsShareJobStore implements ShareJobStore {
     }
   }
 
+  @override
+  Future<List<ShareJob>> load() => _read(_key);
+
   Future<void> _write(List<ShareJob> jobs) async {
     try {
-      await _prefs.setStringList(key, [for (final j in jobs) jsonEncode(j.toJson())]);
+      await _lists.write(_key, [for (final j in jobs) jsonEncode(j.toJson())]);
     } catch (e) {
       debugPrint('SONDR share jobs write error: ${e.runtimeType}');
     }
@@ -449,7 +547,22 @@ class PrefsShareJobStore implements ShareJobStore {
     final jobs = await load();
     await _write([for (final j in jobs) if (j.postId != postId) j]);
   }
+
+  @override
+  Future<List<ShareJob>> loadLegacy() => _read(legacyKey);
+
+  @override
+  Future<void> clearLegacy() async {
+    try {
+      await _lists.delete(legacyKey);
+    } catch (e) {
+      debugPrint('SONDR share jobs legacy clear error: ${e.runtimeType}');
+    }
+  }
 }
+
+/// What a job's post looks like on the server, for the launch triage.
+enum PostCheck { missing, pending, complete }
 
 /// Bytes sent so far on one upload.
 typedef UploadProgress = void Function(int sent);
@@ -480,6 +593,13 @@ abstract class ShareBackend {
   /// The post, complete. Set by id: a rerun writes the same post again.
   Future<void> createPost(String postId, Map<String, dynamic> doc);
 
+  /// Whether the post is there, and finished.
+  Future<PostCheck> checkPost(String postId);
+
+  /// A post written at the moment of Share by a build before, never
+  /// finished: taken down with the job that was to finish it.
+  Future<void> deletePendingPost(String postId);
+
   /// A milestone notice to each friend, under the post's id. Returns
   /// normally when the notices turn out to be there already.
   Future<void> notify(ShareJob job, List<String> friends, PostAuthor author);
@@ -506,10 +626,14 @@ class ShareJobState {
     this.attempts = 0,
     this.uploadedBytes = 0,
     this.totalBytes = 0,
+    this.lastError,
   });
 
   final ShareJobStatus status;
   final int attempts;
+
+  /// Why the last attempt failed, or why the job was discarded.
+  final String? lastError;
 
   /// How much of the job's bytes have gone up, over how many there are.
   final int uploadedBytes;
@@ -521,6 +645,7 @@ class ShareJobState {
         attempts: attempts ?? this.attempts,
         uploadedBytes: uploadedBytes ?? this.uploadedBytes,
         totalBytes: totalBytes ?? this.totalBytes,
+        lastError: lastError,
       );
 }
 
@@ -562,6 +687,7 @@ class ShareJobRunner {
   final Set<String> _running = {};
   final Set<String> _cancelled = {};
   final Map<String, ShareTrace> _traces = {};
+  bool _resuming = false;
 
   /// The save in progress, if any. Made as it is needed, never in the
   /// constructor: a future belongs to the zone it was made in, and a
@@ -602,6 +728,7 @@ class ShareJobRunner {
   /// and the job starts; returns once the preparation is done, which is
   /// what the review waits for. Throws when it cannot be prepared.
   Future<void> begin(ShareJob job, {ShareTrace? trace}) async {
+    job = job.copyWith(uid: backend.uid);
     if (trace != null) _traces[job.postId] = trace;
     _setState(job.postId, const ShareJobState(ShareJobStatus.running));
     try {
@@ -615,14 +742,98 @@ class ShareJobRunner {
     unawaited(_run(job));
   }
 
-  /// Every job left from before, run again from where it stopped.
+  /// Every job left from before, looked at before it is run: one whose
+  /// post is there and finished is done, and is cleared without a word;
+  /// one that cannot be finished — nobody's, its files gone, its post
+  /// deleted — is thrown away with its partial uploads, and said once;
+  /// the rest run again from where they stopped.
   Future<void> resume() async {
-    for (final job in await store.load()) {
-      if (_running.contains(job.postId)) continue;
-      final fresh = job.copyWith(attempts: 0);
-      await store.save(fresh);
-      _setState(job.postId, const ShareJobState(ShareJobStatus.running));
-      unawaited(_run(fresh));
+    if (_resuming) return;
+    _resuming = true;
+    try {
+      // Records from before jobs were kept per account are nobody's.
+      final legacy = await store.loadLegacy();
+      for (final job in legacy) {
+        await _discard(job, 'obsolete record', check: null);
+      }
+      if (legacy.isNotEmpty) await store.clearLegacy();
+
+      for (final job in await store.load()) {
+        if (_running.contains(job.postId)) continue;
+        final verdict = await triage(job);
+        switch (verdict.kind) {
+          case TriageKind.done:
+            await store.remove(job.postId);
+            await _deleteLocal(job);
+            _setState(job.postId, null);
+            debugPrint('SONDR share job ${job.postId}: post already complete, record cleared');
+          case TriageKind.discard:
+            await _discard(job, verdict.reason!, check: verdict.check);
+          case TriageKind.run:
+            final fresh = job.copyWith(attempts: 0);
+            await store.save(fresh);
+            _setState(job.postId, const ShareJobState(ShareJobStatus.running));
+            unawaited(_run(fresh));
+        }
+      }
+    } finally {
+      _resuming = false;
+    }
+  }
+
+  /// What to do with a job found at launch.
+  Future<Triage> triage(ShareJob job) async {
+    if (job.uid == null) return const Triage(TriageKind.discard, reason: 'obsolete record');
+    if (job.uid != backend.uid) return const Triage(TriageKind.discard, reason: 'another account');
+    PostCheck? check;
+    try {
+      check = await backend.checkPost(job.postId);
+    } catch (e) {
+      debugPrint('SONDR share job ${job.postId}: post check failed, ${e.runtimeType}');
+    }
+    if (check == PostCheck.complete) return const Triage(TriageKind.done);
+    if (check == PostCheck.missing && job.step.index >= ShareStep.posted.index) {
+      return Triage(TriageKind.discard, reason: 'post deleted', check: check);
+    }
+    if (job.filesMissing) return Triage(TriageKind.discard, reason: 'files missing', check: check);
+    return Triage(TriageKind.run, check: check);
+  }
+
+  /// Thrown away: the record, the files on the phone, what went up, and
+  /// a post a build before wrote at the moment of Share. Said once.
+  Future<void> _discard(ShareJob job, String reason, {required PostCheck? check}) async {
+    debugPrint('SONDR share job ${job.postId} discarded: $reason');
+    await store.remove(job.postId);
+    try {
+      await backend.deleteFiles(job.storagePaths(backend.uid));
+    } catch (e) {
+      debugPrint('SONDR share discard cleanup error: ${e.runtimeType}');
+    }
+    if (check == PostCheck.pending) {
+      try {
+        await backend.deletePendingPost(job.postId);
+      } catch (e) {
+        debugPrint('SONDR share discard pending post error: ${e.runtimeType}');
+      }
+    }
+    await _deleteLocal(job);
+    _setState(job.postId, ShareJobState(ShareJobStatus.discarded, lastError: reason));
+  }
+
+  /// The feed has said that a job was discarded: nothing more to show.
+  void dismiss(String postId) {
+    if (states.value[postId]?.status == ShareJobStatus.discarded) _setState(postId, null);
+  }
+
+  /// Every job that gave up, thrown away by its owner: the record, the
+  /// files, what went up.
+  Future<void> discardFailed() async {
+    final failed = [
+      for (final e in states.value.entries)
+        if (e.value.status == ShareJobStatus.failed) e.key,
+    ];
+    for (final id in failed) {
+      await cancel(id);
     }
   }
 
@@ -673,8 +884,6 @@ class ShareJobRunner {
         if (_cancelled.contains(id)) return;
         try {
           job = await _steps(job);
-          await _persisting;
-          await store.remove(id);
           _setState(id, null);
           await _deleteLocal(job);
           final trace = _traces.remove(id);
@@ -692,10 +901,11 @@ class ShareJobRunner {
           // began.
           await _persisting;
           final latest = (await store.load()).where((j) => j.postId == id).firstOrNull ?? job;
-          job = latest.copyWith(attempts: latest.attempts + 1);
+          final code = describeShareError(e);
+          job = latest.copyWith(attempts: latest.attempts + 1, lastError: code);
           await store.save(job);
           if (job.attempts >= kShareAttempts) {
-            _setState(id, ShareJobState(ShareJobStatus.failed, attempts: job.attempts));
+            _setState(id, ShareJobState(ShareJobStatus.failed, attempts: job.attempts, lastError: code));
             final trace = _traces[id];
             if (trace != null) {
               trace.mark('gave up: $e');
@@ -703,9 +913,9 @@ class ShareJobRunner {
             }
             return;
           }
-          _setState(id, ShareJobState(ShareJobStatus.waiting, attempts: job.attempts));
+          _setState(id, ShareJobState(ShareJobStatus.waiting, attempts: job.attempts, lastError: code));
           await Future<void>.delayed(backoff[(job.attempts - 1).clamp(0, backoff.length - 1)]);
-          _setState(id, ShareJobState(ShareJobStatus.running, attempts: job.attempts));
+          _setState(id, ShareJobState(ShareJobStatus.running, attempts: job.attempts, lastError: code));
         }
       }
     } finally {
@@ -778,6 +988,9 @@ class ShareJobRunner {
       trace?.mark('notices, collage, tags');
       job = job.copyWith(step: ShareStep.done);
     }
+    // Done IS the record gone: nothing is marked done and left behind.
+    await _persisting;
+    await store.remove(job.postId);
     return job;
   }
 
@@ -1034,12 +1247,33 @@ class ShareJobRunner {
   }
 }
 
-/// The store on the device, or memory where there are no preferences.
-final shareJobStoreProvider = Provider<ShareJobStore>((_) {
+/// What the launch triage decided.
+enum TriageKind { done, discard, run }
+
+@immutable
+class Triage {
+  const Triage(this.kind, {this.reason, this.check});
+  final TriageKind kind;
+  final String? reason;
+  final PostCheck? check;
+}
+
+/// A failure as a short code: the plugin's own where there is one.
+String describeShareError(Object e) {
+  final s = e.toString();
+  final m = RegExp(r'\[([a-z_]+/[a-z\-]+)\]').firstMatch(s);
+  if (m != null) return m.group(1)!;
+  final text = s.replaceFirst(RegExp(r'^(Bad state|Exception|Error): '), '');
+  return '${e.runtimeType}: ${text.length > 80 ? '${text.substring(0, 80)}…' : text}';
+}
+
+/// One account's store on the device, or memory where there are no
+/// preferences.
+ShareJobStore shareJobStoreFor(String uid) {
   try {
-    return PrefsShareJobStore();
+    return PrefsShareJobStore(uid: uid);
   } catch (e) {
     debugPrint('SONDR share job store unavailable: ${e.runtimeType}');
     return MemoryShareJobStore();
   }
-});
+}

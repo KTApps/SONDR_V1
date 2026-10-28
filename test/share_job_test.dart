@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -34,8 +35,9 @@ void main() {
     sessionSeconds: 60, photoUrl: 'https://x/private/$ts.jpg', storagePath: 'users/me/photos/t_$ts.jpg',
   );
 
-  ShareJob milestone({bool withShot = true, int bandPhotos = 2}) => ShareJob(
+  ShareJob milestone({bool withShot = true, int bandPhotos = 2, String? uid = 'me'}) => ShareJob(
     postId: 'post-1',
+    uid: uid,
     type: PostType.milestone,
     taskId: 't',
     taskName: 'Spanish',
@@ -195,6 +197,7 @@ void main() {
       await r.begin(job);
       await settle(r, 'post-1');
       expect(backend.uploads.keys.toSet(), {'users/me/posts/post-1/0.jpg', 'users/me/photos/t_999.jpg'});
+      expect(backend.posts['post-1']!['authorUid'], 'me');
       expect(backend.notices, isEmpty);
       expect(backend.covers, isEmpty);
       final doc = backend.posts['post-1']!;
@@ -298,10 +301,11 @@ void main() {
       expect(((backend.posts['post-1']!['photos'] as List)[0] as Map)['url'], 'u0');
     });
 
-    test('a crash after the post is written but before the notices: the rerun only notifies', () async {
+    test('a crash after the post is written: the post is complete, so at launch the record is cleared without a word', () async {
       final backend = withOriginals();
       final store = MemoryShareJobStore();
-      // As persisted the moment the write was confirmed.
+      // As persisted the moment the write was confirmed — and the post as
+      // the server has it.
       final after = milestone().copyWith(
         step: ShareStep.posted,
         audience: ['me', 'a', 'b'],
@@ -312,14 +316,14 @@ void main() {
         thumbStoragePath: 'tp',
       );
       await store.save(after);
+      backend.posts['post-1'] = {'audience': ['me', 'a', 'b'], 'photos': []};
       final r = runner(backend, store: store);
       await r.resume();
       await settle(r, 'post-1');
       expect(backend.uploads, isEmpty);
-      expect(backend.posts, isEmpty);
-      expect(backend.notices, [['a', 'b']]);
-      expect(backend.covers, ['c|t']);
+      expect(backend.calls, ['checkPost'], reason: 'nothing is run: the post is there and finished');
       expect(store.jobs, isEmpty);
+      expect(r.states.value, isEmpty, reason: 'and nothing is said');
     });
 
     test('notices the rules refuse as already there are taken as sent', () async {
@@ -431,6 +435,229 @@ void main() {
       ]);
       expect(backend.posts, isEmpty, reason: 'a cancelled job never writes the post');
       expect(jobDir('post-1').existsSync(), isFalse);
+    });
+  });
+
+  group('what a launch finds on record', () {
+    test('a post already complete with a record left behind: the record and the files go, nothing is said, nothing is run', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      final prepared = await runner(backend).prepare(milestone());
+      await store.save(prepared.copyWith(step: ShareStep.uploaded));
+      backend.posts['post-1'] = {'audience': ['me'], 'photos': [{'url': 'https://x/0.jpg'}]};
+      final r = runner(backend, store: store);
+      await r.resume();
+      await settle(r, 'post-1');
+      expect(store.jobs, isEmpty);
+      expect(jobDir('post-1').existsSync(), isFalse);
+      expect(backend.calls.where((c) => c == 'createPost'), isEmpty);
+      expect(backend.uploads, isEmpty);
+      expect(r.states.value, isEmpty);
+    });
+
+    test('falsified: a post that is there but pending is not complete — the job runs and finishes it', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      await store.save(await runner(backend).prepare(milestone()));
+      backend.posts['post-1'] = {'pending': true, 'audience': ['me']};
+      final r = runner(backend, store: store);
+      await r.resume();
+      await settle(r, 'post-1');
+      expect(backend.calls.where((c) => c == 'createPost').length, 1);
+      expect(backend.posts['post-1']!.containsKey('pending'), isFalse);
+      expect(store.jobs, isEmpty);
+    });
+
+    test('falsified: the check decides, not the step — a record at "posted" whose post is pending runs on', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      final prepared = await runner(backend).prepare(milestone());
+      await store.save(prepared.copyWith(
+        step: ShareStep.uploaded,
+        photos: [for (var i = 0; i < 3; i++) prepared.photos[i].uploaded('u$i', 'p$i').copyWith(privateSaved: true)],
+        coverUrl: 'c', coverStoragePath: 'cp', thumbUrl: 't', thumbStoragePath: 'tp',
+      ));
+      backend.checks['post-1'] = PostCheck.pending;
+      final r = runner(backend, store: store);
+      await r.resume();
+      await settle(r, 'post-1');
+      expect(backend.calls, contains('createPost'));
+      expect(store.jobs, isEmpty);
+    });
+
+    test('its files gone: discarded with its partial uploads, said once, and never again', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      final prepared = await runner(backend).prepare(milestone());
+      await store.save(prepared);
+      File(prepared.photos[0].localPath!).deleteSync();
+      final r = runner(backend, store: store);
+      await r.resume();
+      await settle(r, 'post-1');
+      expect(store.jobs, isEmpty);
+      expect(backend.deleted.single, prepared.storagePaths('me'));
+      expect(backend.posts, isEmpty);
+      expect(r.stateOf('post-1')?.status, ShareJobStatus.discarded);
+      expect(r.stateOf('post-1')?.lastError, 'files missing');
+      expect(jobDir('post-1').existsSync(), isFalse);
+      r.dismiss('post-1');
+      expect(r.states.value, isEmpty);
+      // The next launch finds nothing.
+      final again = runner(backend, store: store);
+      await again.resume();
+      expect(again.states.value, isEmpty);
+    });
+
+    test('the shot gone before the job was prepared: discarded too; a band photo gone is fetched, not missed', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      await store.save(milestone());
+      shot.deleteSync();
+      final r = runner(backend, store: store);
+      await r.resume();
+      await settle(r, 'post-1');
+      expect(r.stateOf('post-1')?.status, ShareJobStatus.discarded);
+      expect(store.jobs, isEmpty);
+    });
+
+    test('an obsolete record — from before jobs were kept per account — is discarded, and its pending post taken down', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      store.legacy.add(milestone(uid: null));
+      backend.posts['post-1'] = {'pending': true, 'audience': ['me']};
+      final r = runner(backend, store: store);
+      await r.resume();
+      expect(store.legacy, isEmpty);
+      expect(store.jobs, isEmpty);
+      expect(backend.deleted.single, milestone().storagePaths('me'));
+      expect(r.stateOf('post-1')?.status, ShareJobStatus.discarded);
+      expect(r.stateOf('post-1')?.lastError, 'obsolete record');
+      expect(backend.calls, isNot(contains('createPost')));
+    });
+
+    test('a record without an account in the account\'s own store is discarded as well', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      await store.save(milestone(uid: null));
+      final r = runner(backend, store: store);
+      await r.resume();
+      expect(store.jobs, isEmpty);
+      expect(r.stateOf('post-1')?.status, ShareJobStatus.discarded);
+    });
+
+    test('its post deleted after it was written: discarded, nothing re-posted', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      final prepared = await runner(backend).prepare(milestone());
+      await store.save(prepared.copyWith(step: ShareStep.posted, audience: ['me', 'a']));
+      final r = runner(backend, store: store);
+      await r.resume();
+      expect(store.jobs, isEmpty);
+      expect(backend.posts, isEmpty);
+      expect(backend.notices, isEmpty);
+      expect(r.stateOf('post-1')?.status, ShareJobStatus.discarded);
+      expect(r.stateOf('post-1')?.lastError, 'post deleted');
+    });
+
+    test('a job that failed for a passing reason is run again, not discarded', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      final prepared = await runner(backend).prepare(milestone());
+      await store.save(prepared.copyWith(attempts: 3, lastError: 'firebase_storage/retry-limit-exceeded'));
+      final r = runner(backend, store: store);
+      await r.resume();
+      await settle(r, 'post-1');
+      expect(backend.posts.keys, ['post-1']);
+      expect(store.jobs, isEmpty);
+    });
+
+    test('the record carries its last error', () async {
+      final backend = withOriginals()..failAt = 'createPost'..failTimes = 99;
+      final store = MemoryShareJobStore();
+      final r = runner(backend, store: store);
+      await r.begin(milestone());
+      await settle(r, 'post-1');
+      expect(store.jobs['post-1']?.lastError, 'StateError: createPost failed on purpose');
+      expect(r.stateOf('post-1')?.lastError, 'StateError: createPost failed on purpose');
+      expect(describeShareError(Exception('[firebase_storage/unauthorized] User does not have permission')),
+          'firebase_storage/unauthorized');
+    });
+
+    test('a finished job never leaves a record: it is gone before done is reported', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      final r = runner(backend, store: store);
+      final gone = <bool>[];
+      r.states.addListener(() {
+        if (r.states.value['post-1'] == null) gone.add(!store.jobs.containsKey('post-1'));
+      });
+      await r.begin(milestone());
+      await settle(r, 'post-1');
+      expect(gone, [true], reason: 'the record was already removed when the state went');
+    });
+
+    test('Discard throws a failed job away: the record, the files, what went up', () async {
+      final backend = withOriginals()..failAt = 'createPost'..failTimes = 99;
+      final store = MemoryShareJobStore();
+      final r = runner(backend, store: store);
+      await r.begin(milestone());
+      await settle(r, 'post-1');
+      expect(r.stateOf('post-1')?.status, ShareJobStatus.failed);
+      await r.discardFailed();
+      expect(store.jobs, isEmpty);
+      expect(backend.deleted.single, milestone().storagePaths('me'));
+      expect(jobDir('post-1').existsSync(), isFalse);
+      expect(r.states.value, isEmpty);
+      expect(backend.posts, isEmpty);
+    });
+  });
+
+  group('one store per account', () {
+    test('an account sees its own jobs and nobody else\'s; signing out leaves them', () async {
+      final lists = MemoryStringLists();
+      final mine = PrefsShareJobStore(uid: 'me', lists: lists);
+      final theirs = PrefsShareJobStore(uid: 'them', lists: lists);
+      await mine.save(milestone());
+      expect((await theirs.load()), isEmpty);
+      expect((await mine.load()).single.postId, 'post-1');
+      // Somebody else signs in and shares: nothing of mine moves.
+      await theirs.save(milestone().copyWith(uid: 'them'));
+      expect((await mine.load()).single.uid, 'me');
+      expect((await theirs.load()).single.uid, 'them');
+      await theirs.remove('post-1');
+      expect((await mine.load()), hasLength(1));
+      expect(lists.data.keys.toSet(), {PrefsShareJobStore.keyFor('me'), PrefsShareJobStore.keyFor('them')});
+    });
+
+    test('the one key every account once shared is read as legacy, and cleared', () async {
+      final lists = MemoryStringLists();
+      await lists.write(PrefsShareJobStore.legacyKey, [jsonEncode(milestone(uid: null).toJson())]);
+      final store = PrefsShareJobStore(uid: 'me', lists: lists);
+      expect(await store.load(), isEmpty);
+      expect((await store.loadLegacy()).single.uid, isNull);
+      await store.clearLegacy();
+      expect(await store.loadLegacy(), isEmpty);
+      expect(lists.data.containsKey(PrefsShareJobStore.legacyKey), isFalse);
+    });
+
+    test('a job begun is stamped with the account', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      final r = runner(backend, store: store);
+      await r.begin(milestone(uid: null));
+      expect(store.jobs['post-1']?.uid, 'me');
+      await settle(r, 'post-1');
+    });
+
+    test('a job of another account found in the store is discarded, not run as mine', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      await store.save(milestone(uid: 'them'));
+      final r = runner(backend, store: store);
+      await r.resume();
+      expect(store.jobs, isEmpty);
+      expect(backend.posts, isEmpty);
+      expect(r.stateOf('post-1')?.lastError, 'another account');
     });
   });
 

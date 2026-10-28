@@ -44,7 +44,7 @@ class PostsRepository {
         .limit(50)
         .snapshots()
         .map(
-          (snap) => snap.docs.map((d) => Post.fromMap(d.id, d.data())).toList(),
+          (snap) => withoutPending([for (final d in snap.docs) Post.fromMap(d.id, d.data())]),
         );
   }
 
@@ -70,7 +70,7 @@ class PostsRepository {
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .get(GetOptions(source: source));
-    return [for (final d in snap.docs) Post.fromMap(d.id, d.data())];
+    return withoutPending([for (final d in snap.docs) Post.fromMap(d.id, d.data())]);
   }
 
   /// A fresh post id, made on the client, so a post can be written by id
@@ -526,6 +526,12 @@ final postsRepositoryProvider = Provider<PostsRepository?>((ref) {
   if (!ref.watch(firebaseReadyProvider) || uid == null) return null;
   return PostsRepository(db: FirebaseFirestore.instance, uid: uid);
 });
+
+/// Everything in [posts] that is finished. A post is written once, complete,
+/// so none is pending now; a build from before wrote one at the moment of
+/// Share and finished it later, and one it never finished is still there,
+/// marked. Nobody is shown it — its own job finishes it on the next launch.
+List<Post> withoutPending(List<Post> posts) => [for (final p in posts) if (!p.pending) p];
 
 /// Everything in [items] whose author is not in [blockedUids].
 ///

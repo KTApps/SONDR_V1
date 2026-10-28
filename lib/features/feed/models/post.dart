@@ -150,10 +150,9 @@ sealed class Post {
   final String authorUid;
   final PostAuthor author;
 
-  /// Still being shared: written the moment Share was tapped, with the
-  /// author alone in its audience and its photos still on the author's
-  /// phone, while the uploads finish in the background. Cleared by the
-  /// final update that lets friends see it.
+  /// From a build before posts were written once, complete: a post written
+  /// the moment Share was tapped and never finished. Read so it can be
+  /// kept out of every list; nothing writes it any more.
   final bool pending;
 
   /// Null only briefly between a local write and the server timestamp landing.

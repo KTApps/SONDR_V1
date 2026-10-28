@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import 'feed_mocks.dart';
 import 'posts_repository.dart';
+import 'share_progress.dart';
 import '../notifications/notifications_page.dart';
 import 'widgets/feed_view.dart';
 
@@ -26,9 +27,15 @@ class FeedScreen extends ConsumerWidget {
           padding: const EdgeInsets.only(top: 8),
           child: Column(
             children: [
-              // One word, top right, above the first post. The list below
+              // One word, top right, above the first post — and, while a
+              // post is going up, its line at the left. The list below
               // moves down by this row's height and nothing else.
-              const NotificationsEntry(),
+              const Row(
+                children: [
+                  Expanded(child: ShareProgressLine()),
+                  NotificationsEntry(),
+                ],
+              ),
               Expanded(
                 child: kMockFeed
                     ? FeedView(posts: mockPosts())

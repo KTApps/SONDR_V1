@@ -44,6 +44,11 @@ before(async () => {
       host: '127.0.0.1',
       port: 8080,
     },
+    storage: {
+      rules: readFileSync(new URL('../../storage.rules', import.meta.url), 'utf8'),
+      host: '127.0.0.1',
+      port: 9199,
+    },
   });
 });
 
@@ -1392,5 +1397,72 @@ describe('who invited whom', () => {
     });
     await assertFails(deleteDoc(doc(as(A), 'invites/' + C)));
     await assertSucceeds(deleteDoc(doc(as(C), 'invites/' + C)));
+  });
+});
+
+/**
+ * Storage. The share job writes every file of a post under the post's id —
+ * `users/{uid}/posts/{postId}/0.jpg`, `cover.jpg`, `thumb.jpg` — which is one
+ * segment deeper than the posts of old, `users/{uid}/posts/{file}`. A match
+ * on `{file}` is ONE segment: it never matched the new paths, every upload
+ * was refused as unauthorized, and no post could be shared. These tests put
+ * the job's exact paths, as the job does.
+ */
+describe('storage: the share job\'s paths', () => {
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+  const meta = { contentType: 'image/jpeg' };
+  function bucket(uid) { return env.authenticatedContext(uid).storage(); }
+
+  it('the author may put a post\'s photos, cover and thumbnail under the post\'s id', async () => {
+    const s = bucket(A);
+    for (const name of ['0.jpg', '1.jpg', 'cover.jpg', 'thumb.jpg']) {
+      await assertSucceeds(s.ref(`users/${A}/posts/post1/${name}`).put(jpeg, meta));
+    }
+  });
+
+  it('a post\'s files are readable to anyone signed in, and to nobody who is not', async () => {
+    await assertSucceeds(bucket(A).ref(`users/${A}/posts/read1/0.jpg`).put(jpeg, meta));
+    await assertSucceeds(bucket(B).ref(`users/${A}/posts/read1/0.jpg`).getDownloadURL());
+    await assertFails(env.unauthenticatedContext().storage().ref(`users/${A}/posts/read1/0.jpg`).getDownloadURL());
+  });
+
+  it('nobody else may write into someone\'s post space', async () => {
+    await assertFails(bucket(B).ref(`users/${A}/posts/post2/0.jpg`).put(jpeg, meta));
+    await assertFails(bucket(B).ref(`users/${A}/posts/post2/cover.jpg`).put(jpeg, meta));
+  });
+
+  it('a file that is not an image is refused', async () => {
+    await assertFails(bucket(A).ref(`users/${A}/posts/post3/0.jpg`).put(jpeg, { contentType: 'text/plain' }));
+  });
+
+  it('the author may take a post\'s files down; nobody else may', async () => {
+    await assertSucceeds(bucket(A).ref(`users/${A}/posts/del1/0.jpg`).put(jpeg, meta));
+    await assertFails(bucket(B).ref(`users/${A}/posts/del1/0.jpg`).delete());
+    await assertSucceeds(bucket(A).ref(`users/${A}/posts/del1/0.jpg`).delete());
+  });
+
+  it('a post from before, at the flat path, still reads and still comes down', async () => {
+    await assertSucceeds(bucket(A).ref(`users/${A}/posts/old1.jpg`).put(jpeg, meta));
+    await assertSucceeds(bucket(B).ref(`users/${A}/posts/old1.jpg`).getDownloadURL());
+    await assertSucceeds(bucket(A).ref(`users/${A}/posts/old1.jpg`).delete());
+  });
+
+  it('the new shot\'s private copy is the owner\'s alone', async () => {
+    await assertSucceeds(bucket(A).ref(`users/${A}/photos/t_1.jpg`).put(jpeg, meta));
+    await assertFails(bucket(B).ref(`users/${A}/photos/t_1.jpg`).getDownloadURL());
+    await assertFails(bucket(B).ref(`users/${A}/photos/t_2.jpg`).put(jpeg, meta));
+  });
+
+  // A post's files are readable to anyone signed in, so their names are
+  // too; the private photos are the owner's alone, names included.
+  it('the owner may list their posts, each post\'s folder and their private photos — the sweep a leaving account runs; nobody else lists the private photos', async () => {
+    await assertSucceeds(bucket(A).ref(`users/${A}/posts/list1/0.jpg`).put(jpeg, meta));
+    await assertSucceeds(bucket(A).ref(`users/${A}/photos/t_list.jpg`).put(jpeg, meta));
+    const top = await assertSucceeds(bucket(A).ref(`users/${A}/posts`).listAll());
+    assert.ok(top.prefixes.some((p) => p.name === 'list1'), 'the post\'s folder is a prefix under posts');
+    const inner = await assertSucceeds(bucket(A).ref(`users/${A}/posts/list1`).listAll());
+    assert.deepEqual(inner.items.map((i) => i.name), ['0.jpg']);
+    await assertSucceeds(bucket(A).ref(`users/${A}/photos`).listAll());
+    await assertFails(bucket(B).ref(`users/${A}/photos`).listAll());
   });
 });

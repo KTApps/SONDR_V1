@@ -17,10 +17,12 @@ import '../posts_repository.dart';
 import 'comments_sheet.dart';
 import 'likes_sheet.dart';
 
-/// Soft dark halo behind text that sits over a photo (spec technique #3), so
-/// captions/usernames stay legible on bright images.
+/// The one soft shadow under every text that sits over a photo — the
+/// handle, the time, the task, the caption, the actions, the ring's
+/// figures — so they read on a bright image: down 1, blurred 3, black at
+/// 42%.
 const List<Shadow> kTextShadows = [
-  Shadow(blurRadius: 6, color: Colors.black87, offset: Offset(0, 1)),
+  Shadow(blurRadius: 3, color: Color(0x6B000000), offset: Offset(0, 1)),
 ];
 
 /// Bundled asset (mock feed) vs cached network (real Storage URL). The network

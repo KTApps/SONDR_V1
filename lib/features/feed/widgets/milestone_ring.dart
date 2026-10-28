@@ -5,17 +5,18 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/greyscale_tokens.dart';
 import 'post_chrome.dart';
 
-/// The milestone card's ring: the ring today's photo milestone card drew —
-/// Ø184, a stroke of 9% of that, the on-photo halos and a soft dark glow
-/// under the band — solid, everywhere. The same figures paint the card,
-/// the no-photo frame and the cover rendered at share time.
+/// The milestone card's ring — the collage cover's alone: Ø184, a stroke
+/// of 9% of that, one soft shadow under the band over a photo — solid,
+/// everywhere. The same figures paint the card, the no-photo frame and
+/// the cover rendered at share time.
 const double kMilestoneRingSize = 184;
 
-/// The glow under the band over a photo: its opacity, its width as a
-/// multiple of the stroke, and its blur radius.
-const double kMilestoneRingGlowOpacity = 0.22;
-const double kMilestoneRingGlowWidth = 1.35;
-const double kMilestoneRingGlowBlur = 10;
+/// The shadow under the band over a photo: black at this opacity, blurred
+/// by this much, this far down. In place of the two halo strokes and the
+/// glow the ring used to wear.
+const double kMilestoneRingShadowOpacity = 0.28;
+const double kMilestoneRingShadowBlur = 4;
+const double kMilestoneRingShadowDy = 1.5;
 
 /// The figure's size, the same on every page — "20", "120", "12h 59m":
 /// the largest at which the longest session a band can hold, "12h 59m",
@@ -44,7 +45,8 @@ class MilestoneRingGeometry {
   /// RingDial's outer weight: 9% of the dial.
   double get thickness => size * 0.090;
 
-  /// RingDial keeps the halo inside the box over a photo.
+  /// Room inside the box for the shadow over a photo — the pad the halos
+  /// once took, kept so the ring's size over a photo is what it was.
   double get haloPad => onPhoto ? thickness * 0.18 : 0;
 
   /// The stroke's centreline.
@@ -57,8 +59,9 @@ class MilestoneRingGeometry {
   double get inner => 2 * (radius - thickness / 2);
 }
 
-/// Draw the ring on [canvas] about [center]: over a photo, the glow and
-/// RingDial's two halos under the band; then the band itself in [fill].
+/// Draw the ring on [canvas] about [center]: over a photo, the tint
+/// inside and the one shadow under the band; then the band itself in
+/// [fill].
 void paintMilestoneRing(
   Canvas canvas,
   Offset center,
@@ -84,40 +87,21 @@ void paintMilestoneRing(
           kMilestoneRingInnerFeather,
         ),
     );
-    // A soft dark glow under the band, so the ring reads as solid white on
-    // a white photo and goes unnoticed on a dark one.
+    // One soft shadow under the band, so the ring reads as solid white
+    // on a white photo and goes unnoticed on a dark one.
     canvas.drawArc(
-      rect,
+      rect.shift(const Offset(0, kMilestoneRingShadowDy)),
       0,
       full,
       false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..color = Colors.black.withValues(alpha: kMilestoneRingGlowOpacity)
-        ..strokeWidth = thickness * kMilestoneRingGlowWidth
+        ..color = Colors.black.withValues(alpha: kMilestoneRingShadowOpacity)
+        ..strokeWidth = thickness
         ..maskFilter = const MaskFilter.blur(
           BlurStyle.normal,
-          kMilestoneRingGlowBlur,
+          kMilestoneRingShadowBlur,
         ),
-    );
-    // RingDial's two halos.
-    canvas.drawArc(
-      rect,
-      0,
-      full,
-      false,
-      stroke
-        ..color = Colors.white.withValues(alpha: 0.18)
-        ..strokeWidth = thickness * 1.18,
-    );
-    canvas.drawArc(
-      rect,
-      0,
-      full,
-      false,
-      stroke
-        ..color = Colors.black.withValues(alpha: 0.45)
-        ..strokeWidth = thickness * 1.3,
     );
   }
   canvas.drawArc(

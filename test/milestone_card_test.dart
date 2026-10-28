@@ -12,6 +12,8 @@ import 'package:sondr/features/feed/widgets/milestone_card.dart';
 import 'package:sondr/features/feed/widgets/milestone_cover.dart';
 import 'package:sondr/features/feed/widgets/milestone_frame.dart';
 import 'package:sondr/features/feed/widgets/milestone_ring.dart';
+import 'package:sondr/features/feed/widgets/mini_ring.dart';
+import 'package:sondr/features/feed/widgets/post_chrome.dart' show kTextShadows;
 import 'package:sondr/shared/cached_photo.dart';
 
 import 'tiny_png.dart';
@@ -143,12 +145,12 @@ void main() {
       expect(find.text('Spanish'), findsOneWidget);
     });
 
-    testWidgets('with no photo it is the surface and the ring, no scrim, no dots', (tester) async {
+    testWidgets('with no photo it is the surface and the ring, no scrim', (tester) async {
       await pump(tester, post(photos: const []));
       expect(find.byType(MilestoneNoPhotoFrame), findsOneWidget);
       expect(find.byType(Image), findsNothing);
       expect(scrim(), findsNothing);
-      expect(dots(), findsNothing);
+      expect(find.byType(MiniRing), findsNothing);
       expect(find.text('20'), findsOneWidget);
       expect(tester.widget<MilestoneRing>(find.byType(MilestoneRing)).onPhoto, isFalse);
     });
@@ -167,11 +169,13 @@ void main() {
       final like = tester.getRect(find.text('Like'));
       expect(like.left - r.left, closeTo(18, 0.5));
       expect(r.bottom - like.bottom, closeTo(16, 0.5));
-      // Dots at the right, on the same line.
-      final last = tester.getRect(dots().last);
-      expect(r.right - last.right, closeTo(18, 0.5));
-      expect(last.bottom, lessThanOrEqualTo(like.bottom));
-      expect(last.top, greaterThanOrEqualTo(like.top));
+      // No dots, and no ring on the cover.
+      expect(dots(), findsNothing);
+      expect(find.byType(MiniRing), findsNothing);
+      // Every word over the photo wears the one soft shadow.
+      for (final t in ['cass', '5h', 'Spanish', 'Twenty hours in. Starting to dream in it.', 'Like', 'Comments']) {
+        expect(tester.widget<Text>(find.text(t)).style?.shadows, kTextShadows, reason: t);
+      }
     });
 
     testWidgets('the author sees Likes', (tester) async {
@@ -188,23 +192,21 @@ void main() {
       return (texts[0], texts[1]);
     }
 
-    testWidgets('is one size on the cover and on every photo page', (tester) async {
+    testWidgets('is the hours over the word on the cover, at one size, with the shadow; a photo page has no ring text', (tester) async {
       await pump(tester, twoPhotos());
       final (coverFigure, coverUnit) = ringText(tester);
       expect(coverFigure.data, '20');
+      expect(coverUnit.data, 'hours');
       expect(coverFigure.style?.fontSize, kMilestoneFigureSize);
+      expect(coverFigure.style?.shadows, kTextShadows);
+      expect(coverUnit.style?.shadows, kTextShadows);
       expect(
         find.descendant(of: find.byType(MilestoneRingCentre), matching: find.byType(FittedBox)),
         findsNothing,
         reason: 'nothing is fitted per page',
       );
       await tapAt(tester, 0.9);
-      final (pageFigure, pageUnit) = ringText(tester);
-      expect(pageFigure.data, '2h');
-      expect(pageFigure.style?.fontSize, coverFigure.style?.fontSize);
-      expect(pageFigure.style?.fontWeight, coverFigure.style?.fontWeight);
-      expect(pageUnit.style?.fontSize, coverUnit.style?.fontSize);
-      expect(pageUnit.style?.fontWeight, coverUnit.style?.fontWeight);
+      expect(find.byType(MilestoneRingCentre), findsNothing);
     });
 
     testWidgets('"12h 59m" fits inside the ring at that size, with margin', (tester) async {
@@ -221,42 +223,66 @@ void main() {
   });
 
   group('stepping through', () {
-    testWidgets('a dot per page: the cover and each photo; one photo has none', (tester) async {
+    testWidgets('no dots, whatever the count', (tester) async {
       await pump(tester, twoPhotos());
-      expect(dots(), findsNWidgets(3));
+      expect(dots(), findsNothing);
       await pump(tester, post(photos: [photo('only', session: 2)]));
       expect(dots(), findsNothing);
     });
 
-    testWidgets('the right third steps to each photo, with its session in the ring; the left steps back', (tester) async {
+    testWidgets('the right third steps to each photo — the task line with its session, the small ring, no big ring, no date — and from the last round to the cover; the left steps back and the cover stays', (tester) async {
       await pump(tester, twoPhotos());
       expect(find.text('20'), findsOneWidget);
       await tapAt(tester, 0.9);
-      // Photo 1: the early one, session 0 — 2h on 6 Oct.
-      expect(find.text('2h'), findsOneWidget);
-      expect(find.text('6 Oct'), findsOneWidget);
+      // Photo 1: the early one, session 0 — 2h, nothing before it.
+      expect(find.text('Spanish · 2h'), findsOneWidget);
+      expect(find.byType(MilestoneRing), findsNothing);
+      expect(find.text('20'), findsNothing);
+      expect(find.text('6 Oct'), findsNothing);
       expect(find.byType(MilestoneCover), findsNothing);
       expect(scrim(), findsOneWidget);
+      var ring = tester.widget<MiniRing>(find.byType(MiniRing));
+      expect(ring.data, const MiniRingData(before: 0, seconds: 7200));
+      final r = tester.getRect(frame());
+      final like = tester.getRect(find.text('Like'));
+      final mini = tester.getRect(find.byType(MiniRing));
+      expect(r.right - mini.right, closeTo(18, 0.5));
+      expect(mini.bottom, lessThanOrEqualTo(like.bottom));
+      expect(mini.bottom, greaterThanOrEqualTo(like.top));
       await tapAt(tester, 0.9);
-      expect(find.text('1h 20m'), findsOneWidget);
-      expect(find.text('9 Oct'), findsOneWidget);
-      // The last page: another tap on the right stays put.
+      // Photo 2: the crossing, session 2 — 1h 20m, after 2h and 40m.
+      expect(find.text('Spanish · 1h 20m'), findsOneWidget);
+      ring = tester.widget<MiniRing>(find.byType(MiniRing));
+      expect(ring.data, const MiniRingData(before: 7200 + 2400, seconds: 4800));
+      // The last page: the right goes round to the cover.
       await tapAt(tester, 0.9);
-      expect(find.text('1h 20m'), findsOneWidget);
+      expect(find.text('20'), findsOneWidget);
+      expect(find.text('Spanish'), findsOneWidget);
+      expect(find.byType(MiniRing), findsNothing);
+      // The left on the cover stays put.
       await tapAt(tester, 0.1);
-      expect(find.text('2h'), findsOneWidget);
+      expect(find.text('20'), findsOneWidget);
+      // On, then back.
+      await tapAt(tester, 0.9);
+      await tapAt(tester, 0.9);
+      expect(find.text('Spanish · 1h 20m'), findsOneWidget);
+      await tapAt(tester, 0.1);
+      expect(find.text('Spanish · 2h'), findsOneWidget);
       await tapAt(tester, 0.1);
       expect(find.text('20'), findsOneWidget);
       expect(find.byType(MilestoneCover), findsOneWidget);
       expect(find.byType(SinglePostScreen), findsNothing);
     });
 
-    testWidgets('an old post pages through its photos with the hours on each', (tester) async {
+    testWidgets('an old post pages through its photos with the task alone and no ring', (tester) async {
       await pump(tester, post(photos: [photo('a'), photo('b'), photo('c')], story: false));
-      expect(dots(), findsNWidgets(4));
+      expect(dots(), findsNothing);
       await tapAt(tester, 0.9);
-      expect(find.text('20'), findsOneWidget);
-      expect(find.text('hours'), findsOneWidget);
+      expect(find.text('Spanish'), findsOneWidget);
+      expect(find.text('20'), findsNothing);
+      expect(find.text('hours'), findsNothing);
+      expect(find.byType(MiniRing), findsNothing);
+      expect(find.byType(MilestoneRing), findsNothing);
     });
 
     testWidgets('a vertical drag scrolls the feed', (tester) async {
@@ -277,9 +303,9 @@ void main() {
       expect(find.text('20'), findsOneWidget, reason: 'still the cover');
       // On a photo page the middle keeps the page; the thirds still step.
       await tapAt(tester, 0.9);
-      expect(find.text('2h'), findsOneWidget);
+      expect(find.text('Spanish · 2h'), findsOneWidget);
       await tapAt(tester, 0.5);
-      expect(find.text('2h'), findsOneWidget);
+      expect(find.text('Spanish · 2h'), findsOneWidget);
       expect(find.byType(SinglePostScreen), findsNothing);
     });
 

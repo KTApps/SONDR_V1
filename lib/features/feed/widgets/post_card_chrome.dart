@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/relative_time.dart';
 import '../../profile/other_profile_screen.dart';
 import '../models/post.dart';
+import 'post_chrome.dart' show kTextShadows;
 
 /// What every post card shares: the frame's numbers, the text over the
 /// photo, and the top row — the handle at the left, how long ago at the
@@ -59,6 +60,7 @@ class PostCardTopRow extends ConsumerWidget {
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: kPostCardText,
+                  shadows: kTextShadows,
                 ),
               ),
             ),
@@ -69,7 +71,7 @@ class PostCardTopRow extends ConsumerWidget {
           IgnorePointer(
             child: Text(
               RelativeTime.of(createdAt),
-              style: const TextStyle(fontSize: 13, color: kPostCardTextTime),
+              style: const TextStyle(fontSize: 13, color: kPostCardTextTime, shadows: kTextShadows),
             ),
           ),
         ],
@@ -101,8 +103,16 @@ class _PostCardCaptionState extends State<PostCardCaption> {
         widget.text,
         maxLines: _expanded ? null : 2,
         overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 13, color: kPostCardTextCaption),
+        style: const TextStyle(fontSize: 13, color: kPostCardTextCaption, shadows: kTextShadows),
       ),
     );
   }
 }
+
+/// The task line's style over a photo: 15, bold, with the shadow.
+const TextStyle kPostCardTaskStyle = TextStyle(
+  fontSize: 15,
+  fontWeight: FontWeight.w700,
+  color: kPostCardText,
+  shadows: kTextShadows,
+);

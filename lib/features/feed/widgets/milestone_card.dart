@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,9 +8,9 @@ import '../../photos/capture_crop.dart';
 import '../milestone_hints.dart';
 import '../milestone_pages.dart';
 import '../models/post.dart';
+import 'mini_ring.dart';
 import 'milestone_cover.dart';
 import 'milestone_frame.dart';
-import 'milestone_ring.dart';
 import 'post_card_chrome.dart';
 import 'post_chrome.dart';
 
@@ -19,8 +21,10 @@ import 'post_chrome.dart';
 /// The first page is the cover: the band's photos as a collage under the
 /// scrim and the ring, rendered once at share time and shown as one image,
 /// or drawn here for a post from before covers. A tap on the right third
-/// steps to the photos one by one — each full-bleed, the ring saying how
-/// long that session was and when — the left third steps back, and the
+/// steps to the photos one by one — each full-bleed under the scrim, the
+/// task line saying how long that session was and the small ring at the
+/// right how far into the band it stood — and from the last photo back to
+/// the cover; the left third steps back, and the cover stays put; the
 /// middle does nothing. The caption opens in place when tapped. No
 /// swiping: the feed owns the drag.
 ///
@@ -53,9 +57,7 @@ const String kMilestoneHintText = 'Tap the right side to see each session';
 const double _kInset = kPostCardInset;
 const double _kTop = kPostCardTop;
 const double _kBottom = kPostCardBottom;
-const Color _kText = kPostCardText;
 const Color _kTextCaption = kPostCardTextCaption;
-const Color _kDotOther = kPostCardDotOther;
 
 /// The hint's glow on the right third: white, to 14% at its brightest,
 /// easing in and out over 1.6 seconds, twice.
@@ -90,10 +92,12 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
 
   bool get _multi => widget.post.photos.length > 1;
 
+  /// On: the next photo, and from the last one round to the cover.
   void _next() {
-    if (_page < _pages.length - 1) setState(() => _page++);
+    setState(() => _page = _page < _pages.length - 1 ? _page + 1 : 0);
   }
 
+  /// Back: the previous page; the cover stays put.
   void _previous() {
     if (_page > 0) setState(() => _page--);
   }
@@ -208,8 +212,7 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
                     absorbing: widget.preview,
                     child: _Bottom(
                       post: post,
-                      pages: _multi ? pages.length : 1,
-                      page: index,
+                      page: page,
                       hint: hint,
                     ),
                   ),
@@ -228,7 +231,7 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
   }
 
   /// A page's ground. The cover as rendered, or drawn; a photo under the
-  /// scrim and the ring; the surface when there is nothing to show.
+  /// scrim; the surface when there is nothing to show.
   Widget _body(BuildContext context, MilestonePage page, Size size) {
     final post = widget.post;
     final tokens = GreyscaleTokens.of(context);
@@ -249,7 +252,6 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
         }
         return _drawnCover();
       case MilestonePageKind.photo:
-        final centre = ringCentre(page, post);
         final url = post.photos[page.photoIndex!].url;
         return Stack(
           fit: StackFit.expand,
@@ -266,18 +268,6 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
             const DecoratedBox(
               decoration: BoxDecoration(gradient: kMilestoneScrim),
             ),
-            Positioned(
-              top: milestoneRingTop(size.height),
-              left: (size.width - kMilestoneRingSize) / 2,
-              child: MilestoneRing(
-                onPhoto: true,
-                center: MilestoneRingCentre(
-                  figure: centre.figure,
-                  unit: centre.unit,
-                  onPhoto: true,
-                ),
-              ),
-            ),
           ],
         );
     }
@@ -293,38 +283,34 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
   }
 }
 
-/// The task, its caption — or the hint — and, on the actions' line, the
-/// actions at the left and the page dots at the right.
+/// The task — with the session's length on a photo's page — its caption
+/// or the hint, and, on the actions' line, the actions at the left and,
+/// on a photo's page, the small ring at the right.
 class _Bottom extends StatelessWidget {
   const _Bottom({
     required this.post,
-    required this.pages,
     required this.page,
     required this.hint,
   });
 
   final MilestonePost post;
-  final int pages;
-  final int page;
+  final MilestonePage page;
   final bool hint;
 
   @override
   Widget build(BuildContext context) {
     final caption = hint ? kMilestoneHintText : post.caption;
+    final session = pageSession(page, post);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         IgnorePointer(
           child: Text(
-            post.taskName,
+            pageTaskLine(page, post),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: _kText,
-            ),
+            style: kPostCardTaskStyle,
           ),
         ),
         if (caption != null && caption.isNotEmpty) ...[
@@ -335,7 +321,7 @@ class _Bottom extends StatelessWidget {
                 caption,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: _kTextCaption),
+                style: const TextStyle(fontSize: 13, color: _kTextCaption, shadows: kTextShadows),
               ),
             )
           else
@@ -347,48 +333,18 @@ class _Bottom extends StatelessWidget {
           children: [
             PostInteractions(post: post, onPhoto: true),
             const Spacer(),
-            if (pages > 1)
+            if (session != null)
               IgnorePointer(
                 child: Padding(
-                  // The dots stand on the words' baseline.
+                  // The ring stands on the words' baseline.
                   padding: EdgeInsets.only(
-                    top: PostInteractions.wordBaseline(context) - _PageDots.size,
+                    top: math.max(0, PostInteractions.wordBaseline(context) - kMiniRingSize),
                   ),
-                  child: _PageDots(count: pages, current: page),
+                  child: MiniRing(data: MiniRingData(before: session.before, seconds: session.seconds)),
                 ),
               ),
           ],
         ),
-      ],
-    );
-  }
-}
-
-class _PageDots extends StatelessWidget {
-  const _PageDots({required this.count, required this.current});
-
-  final int count;
-  final int current;
-
-  static const double size = 5;
-  static const double gap = 4;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < count; i++) ...[
-          if (i > 0) const SizedBox(width: gap),
-          Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: i == current ? _kText : _kDotOther,
-            ),
-          ),
-        ],
       ],
     );
   }

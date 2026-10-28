@@ -7,6 +7,7 @@ import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/single_post_screen.dart';
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
 import 'package:sondr/features/feed/widgets/milestone_frame.dart';
+import 'package:sondr/features/feed/widgets/mini_ring.dart';
 import 'package:sondr/features/feed/widgets/session_card.dart';
 import 'package:sondr/shared/cached_photo.dart';
 
@@ -95,11 +96,15 @@ void main() {
     expect(find.byType(PageView), findsNothing);
   });
 
-  testWidgets('the band ring at the right, on the words\' line, filled to the seconds into the band', (tester) async {
+  testWidgets('the small ring at the right, on the words\' line: grey to before this session, white for it', (tester) async {
     await pump(tester, SessionCard(post: post(bandSeconds: 36000)));
-    final ring = find.byType(SessionBandRing);
+    final ring = find.byType(MiniRing);
     expect(ring, findsOneWidget);
-    expect(tester.widget<SessionCard>(find.byType(SessionCard)).bandFill, closeTo(0.5, 1e-9));
+    // Stored: 36000 into the band after this 4800 session.
+    final data = tester.widget<MiniRing>(ring).data;
+    expect(data, const MiniRingData(before: 36000 - 4800, seconds: 4800));
+    expect(data.beforeFill, closeTo((36000 - 4800) / 72000, 1e-9));
+    expect(data.ownFill, closeTo(0.5, 1e-9));
     final r = tester.getRect(ring);
     final fr = tester.getRect(frame());
     final like = tester.getRect(find.text('Like'));
@@ -108,16 +113,16 @@ void main() {
     // On the words' baseline: the ring's bottom sits within the words' line.
     expect(r.bottom, lessThanOrEqualTo(like.bottom));
     expect(r.bottom, greaterThanOrEqualTo(like.top));
-    expect(tester.widget<Opacity>(find.descendant(of: ring, matching: find.byType(Opacity))).opacity, 0.85);
-    // The fill is the seconds into the band over the band, clamped.
-    expect(SessionCard(post: post(bandSeconds: 7200)).bandFill, closeTo(0.1, 1e-9));
-    expect(SessionCard(post: post(bandSeconds: 90000)).bandFill, 1.0);
-    expect(SessionCard(post: post(bandSeconds: 0)).bandFill, 0.0);
+    // A session that crossed into a fresh band: nothing before it; a
+    // figure beyond the band is clamped.
+    expect(sessionRing(post(bandSeconds: 600))!.before, 0);
+    expect(sessionRing(post(bandSeconds: 90000))!.ownFill, 1.0);
+    expect(sessionRing(post(bandSeconds: null)), isNull);
   });
 
   testWidgets('a post from before, without the figure, has no ring', (tester) async {
     await pump(tester, SessionCard(post: post(bandSeconds: null)));
-    expect(find.byType(SessionBandRing), findsNothing);
+    expect(find.byType(MiniRing), findsNothing);
     expect(find.text('Spanish · 1h 20m'), findsOneWidget);
   });
 

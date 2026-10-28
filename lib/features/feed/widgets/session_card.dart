@@ -76,7 +76,7 @@ class SessionCard extends StatelessWidget {
               bottom: kPostCardBottom - PostInteractions.verticalPad,
               child: AbsorbPointer(
                 absorbing: preview,
-                child: _Bottom(post: post, ring: ring),
+                child: _Bottom(post: post, ring: ring, onPhoto: onPhoto),
               ),
             ),
           ],
@@ -99,10 +99,11 @@ MiniRingData? sessionRing(SessionPost post) {
 /// The task and its length, the caption, and the actions at the left with
 /// the small ring at the right, on the words' baseline.
 class _Bottom extends StatelessWidget {
-  const _Bottom({required this.post, required this.ring});
+  const _Bottom({required this.post, required this.ring, required this.onPhoto});
 
   final SessionPost post;
   final MiniRingData? ring;
+  final bool onPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -137,7 +138,7 @@ class _Bottom extends StatelessWidget {
                   padding: EdgeInsets.only(
                     top: math.max(0, PostInteractions.wordBaseline(context) - kMiniRingSize),
                   ),
-                  child: MiniRing(data: ring!),
+                  child: MiniRing(data: ring!, onPhoto: onPhoto),
                 ),
               ),
           ],

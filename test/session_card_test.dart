@@ -8,6 +8,7 @@ import 'package:sondr/features/feed/single_post_screen.dart';
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
 import 'package:sondr/features/feed/widgets/milestone_frame.dart';
 import 'package:sondr/features/feed/widgets/mini_ring.dart';
+import 'package:sondr/features/feed/widgets/post_card_chrome.dart';
 import 'package:sondr/features/feed/widgets/session_card.dart';
 import 'package:sondr/shared/cached_photo.dart';
 
@@ -105,6 +106,7 @@ void main() {
     expect(data, const MiniRingData(before: 36000 - 4800, seconds: 4800));
     expect(data.beforeFill, closeTo((36000 - 4800) / 72000, 1e-9));
     expect(data.ownFill, closeTo(0.5, 1e-9));
+    expect(tester.widget<MiniRing>(ring).onPhoto, isTrue, reason: 'over a photo: the white palette');
     final r = tester.getRect(ring);
     final fr = tester.getRect(frame());
     final like = tester.getRect(find.text('Like'));
@@ -124,6 +126,25 @@ void main() {
     await pump(tester, SessionCard(post: post(bandSeconds: null)));
     expect(find.byType(MiniRing), findsNothing);
     expect(find.text('Spanish · 1h 20m'), findsOneWidget);
+  });
+
+  testWidgets('no photo with the figure: the grey ring on the surface', (tester) async {
+    await pump(tester, SessionCard(post: post(photos: const [], bandSeconds: 36000)));
+    expect(tester.widget<MiniRing>(find.byType(MiniRing)).onPhoto, isFalse);
+  });
+
+  testWidgets('the ring\'s palettes and stroke', (tester) async {
+    expect(kMiniRingSize, 26);
+    expect(kMiniRingStroke, 3);
+    expect(kMiniRingTrackOnPhoto, const Color(0x4DFFFFFF));
+    expect(kMiniRingBeforeOnPhoto, const Color(0x99FFFFFF));
+    expect(kMiniRingOwnOnPhoto, const Color(0xFFFAFAFA));
+    expect(kMiniRingTrack, const Color(0xE63A3A3A));
+    expect(kMiniRingBefore, const Color(0xFFADADAD));
+    expect(kMiniRingShadow, const Color(0x80000000));
+    expect(kMiniRingShadowBlur, 2);
+    expect(kMiniRingShadowDy, 1);
+    expect(kPostCardTextTime, const Color(0xD9FAFAFA), reason: 'the time at 85%');
   });
 
   testWidgets('no photo: the surface, no scrim, the same text', (tester) async {

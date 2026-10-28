@@ -22,7 +22,7 @@ const double kPostCardBottom = 16;
 /// Text over the photo. Fixed, not theme tokens: the ground is the photo,
 /// not the surface, and the scrim holds the contrast.
 const Color kPostCardText = Color(0xFFFAFAFA);
-const Color kPostCardTextTime = Color(0xB3FAFAFA); // 70%
+const Color kPostCardTextTime = Color(0xD9FAFAFA); // 85%
 const Color kPostCardTextCaption = Color(0xCCFAFAFA); // 80%
 const Color kPostCardDotOther = Color(0x59FAFAFA); // 35%
 

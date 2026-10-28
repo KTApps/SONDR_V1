@@ -243,6 +243,7 @@ void main() {
       expect(scrim(), findsOneWidget);
       var ring = tester.widget<MiniRing>(find.byType(MiniRing));
       expect(ring.data, const MiniRingData(before: 0, seconds: 7200));
+      expect(ring.onPhoto, isTrue, reason: 'over the photo: the white palette');
       final r = tester.getRect(frame());
       final like = tester.getRect(find.text('Like'));
       final mini = tester.getRect(find.byType(MiniRing));

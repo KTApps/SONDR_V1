@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../feed/firebase_share_backend.dart';
+import '../feed/share_job.dart';
 import '../feed/share_trace.dart';
 
 import '../../core/backend.dart';
@@ -345,6 +347,15 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
               style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
             ),
 
+            _section('Share jobs on record'),
+            Text(
+              shareJobsReport(
+                ref.watch(shareJobsDebugProvider).value ?? const [],
+                ref.watch(shareStatesProvider),
+              ),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+            ),
+
             _section('Danger'),
             _btn('Wipe my test data', _confirmWipe),
 
@@ -380,4 +391,17 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
       ),
     ),
   );
+}
+
+/// One line per job on record: its id, step, attempts, what the runner
+/// says it is doing, and the last error it met.
+String shareJobsReport(List<ShareJob> jobs, Map<String, ShareJobState> states) {
+  if (jobs.isEmpty) return 'No jobs on record.';
+  final b = StringBuffer();
+  for (final j in jobs) {
+    final s = states[j.postId];
+    b.writeln('${j.postId}  ${j.type.name}  step=${j.step.name}  attempts=${j.attempts}'
+        '  state=${s?.status.name ?? '-'}  error=${j.lastError ?? s?.lastError ?? '-'}');
+  }
+  return b.toString().trimRight();
 }

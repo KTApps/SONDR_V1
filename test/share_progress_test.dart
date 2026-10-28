@@ -44,6 +44,14 @@ void main() {
         const ShareLine(ShareLineKind.uploading, percent: 0),
       );
       expect(shareLineOf(const {'p': ShareJobState(ShareJobStatus.posted)}), const ShareLine(ShareLineKind.posted));
+      expect(shareLineOf(const {'p': ShareJobState(ShareJobStatus.discarded)}), const ShareLine(ShareLineKind.discarded));
+      expect(
+        shareLineOf(const {
+          'p': ShareJobState(ShareJobStatus.discarded),
+          'q': ShareJobState(ShareJobStatus.running, uploadedBytes: 1, totalBytes: 2),
+        }),
+        const ShareLine(ShareLineKind.uploading, percent: 50),
+      );
       expect(
         shareLineOf(const {
           'p': ShareJobState(ShareJobStatus.running, uploadedBytes: 50, totalBytes: 100),
@@ -163,7 +171,7 @@ void main() {
       final r = runner(backend, store: store);
       final shot = File('${dir.path}/shot.jpg')..writeAsBytesSync(tinyPng);
       await tester.runAsync(() => r.begin(ShareJob(
-        postId: 'p', type: PostType.session, taskId: 't', taskName: 'Spanish',
+        postId: 'p', uid: 'me', type: PostType.session, taskId: 't', taskName: 'Spanish',
         sessionSeconds: 60, cumulativeSeconds: 60, createdAtMs: 1,
         photos: [ShareJobPhoto(id: 't_1', localPath: shot.path, isNew: true)],
       )));
@@ -172,26 +180,68 @@ void main() {
       expect(backend.posts, isEmpty);
       await pumpLine(tester, r);
       final rich = find.byWidgetPredicate(
-        (w) => w is Text && w.textSpan != null && w.textSpan!.toPlainText() == kCouldNotPostText + kTryAgainText,
+        (w) => w is Text && w.textSpan != null &&
+            w.textSpan!.toPlainText() == '$kCouldNotPostText$kTryAgainText · $kDiscardText',
       );
       expect(rich, findsOneWidget);
       final span = tester.widget<Text>(rich).textSpan as TextSpan;
       expect(span.style?.color, GreyscaleTokens.dark.textSecondary);
-      final tryAgain = span.children!.single as TextSpan;
+      final tryAgain = span.children![0] as TextSpan;
       expect(tryAgain.text, kTryAgainText);
       expect(tryAgain.style?.color, GreyscaleTokens.dark.textPrimary);
       expect(tryAgain.style?.fontWeight, FontWeight.w700);
-      // The last word is the tap: at the right end of the line. It asks
-      // the runner for every failed job again — what that does is the
-      // runner's own test.
+      final discard = span.children![2] as TextSpan;
+      expect(discard.text, kDiscardText);
+      expect(discard.style?.fontWeight, FontWeight.w700);
+      // Try again is the tap just past the dot; it asks the runner for
+      // every failed job again — what that does is the runner's own test.
       final rect = tester.getRect(rich);
-      await tester.tapAt(Offset(rect.right - 8, rect.center.dy));
+      final painter = TextPainter(text: span, textDirection: TextDirection.ltr)..layout();
+      final tryAgainX = painter.getOffsetForCaret(
+        TextPosition(offset: kCouldNotPostText.length + 2), Rect.zero).dx;
+      final discardX = painter.getOffsetForCaret(
+        TextPosition(offset: '$kCouldNotPostText$kTryAgainText · '.length + 2), Rect.zero).dx;
+      painter.dispose();
+      await tester.tapAt(Offset(rect.left + tryAgainX, rect.center.dy));
       await tester.pump();
       expect(r.retriedFailed, 1);
-      // And nowhere else on the line is.
+      // The words before it are not.
       await tester.tapAt(Offset(rect.left + 8, rect.center.dy));
       await tester.pump();
       expect(r.retriedFailed, 1);
+      // Discard asks first, and Back does nothing.
+      await tester.tapAt(Offset(rect.left + discardX, rect.center.dy));
+      await tester.pumpAndSettle();
+      expect(find.text(kDiscardTitle), findsOneWidget);
+      expect(find.text(kDiscardBody), findsOneWidget);
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+      expect(r.discardedFailed, 0);
+      // Discard, confirmed, throws the failed jobs away.
+      await tester.tapAt(Offset(rect.left + discardX, rect.center.dy));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(kDiscardText).last);
+      await tester.pumpAndSettle();
+      expect(r.discardedFailed, 1);
+    });
+
+    testWidgets('a job thrown away at launch: "A post couldn’t be finished", quiet, for three seconds, once', (tester) async {
+      final r = runner(FakeShareBackend());
+      r.states.value = const {'p': ShareJobState(ShareJobStatus.discarded, lastError: 'files missing')};
+      await pumpLine(tester, r);
+      expect(find.text(kDiscardedText), findsOneWidget);
+      expect(colorOf(tester, kDiscardedText), GreyscaleTokens.dark.textTertiary);
+      final style = tester.widget<Text>(find.text(kDiscardedText)).style!;
+      expect(style.fontSize, 13 * figmaScale(tester.element(find.text(kDiscardedText))));
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text(kDiscardedText), findsOneWidget);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity, 0);
+      await tester.pump(kPostedFade);
+      await tester.pump();
+      expect(find.byType(Text), findsNothing);
+      expect(r.states.value, isEmpty, reason: 'dismissed with the runner: never said again');
     });
 
     testWidgets('after a relaunch with a job unfinished, the line is back and the job runs on', (tester) async {
@@ -199,7 +249,7 @@ void main() {
       final store = MemoryShareJobStore();
       final shot = File('${dir.path}/shot.jpg')..writeAsBytesSync(tinyPng);
       final job = ShareJob(
-        postId: 'p', type: PostType.session, taskId: 't', taskName: 'Spanish',
+        postId: 'p', uid: 'me', type: PostType.session, taskId: 't', taskName: 'Spanish',
         sessionSeconds: 60, cumulativeSeconds: 60, createdAtMs: 1,
         photos: [ShareJobPhoto(id: 't_1', localPath: shot.path, isNew: true)],
       );
@@ -255,9 +305,15 @@ class _SpyRunner extends ShareJobRunner {
       );
 
   int retriedFailed = 0;
+  int discardedFailed = 0;
 
   @override
   Future<void> retryFailed() async {
     retriedFailed++;
+  }
+
+  @override
+  Future<void> discardFailed() async {
+    discardedFailed++;
   }
 }

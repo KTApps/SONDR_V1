@@ -15,6 +15,7 @@ import '../timer/live_activity.dart';
 import '../timer/session_clock.dart';
 import '../timer/session_store.dart';
 import '../timer/timer_controller.dart';
+import 'account_switch.dart';
 import 'auth_repository.dart';
 
 /// How long to wait for the server to admit it has the time.
@@ -133,8 +134,10 @@ Future<SignOutResult> runSignOut(
   await timer.sync();
   if (!context.mounted) return (signedOut: false, error: null);
 
+  // Blank from before the sign-out until the guest's own data is in: no
+  // frame of this account is drawn after it.
   Future<void> signOutNow() =>
-      ref.read(authRepositoryProvider).signOut();
+      switchAccount(ref, () => ref.read(authRepositoryProvider).signOut());
 
   final clock = timer.clock;
   if (clock == null) {

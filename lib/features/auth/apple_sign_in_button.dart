@@ -9,6 +9,7 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../shared/sondr_error.dart';
 import '../../core/utils/figma_scale.dart';
+import 'account_switch.dart';
 import 'auth_repository.dart';
 import 'guest_prompts.dart';
 import 'handle_screen.dart';
@@ -87,8 +88,13 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
       final AppleSignInResult result;
       try {
         final auth = ref.read(authRepositoryProvider);
-        result = await auth.signInWithApple(
-          confirmReplaceGuest: () => confirmReplaceGuestData(context, ref),
+        // Blank until the account's own data is in: no frame of the
+        // guest's is drawn over it.
+        result = await switchAccount(
+          ref,
+          () => auth.signInWithApple(
+            confirmReplaceGuest: () => confirmReplaceGuestData(context, ref),
+          ),
         );
       } on SignInWithAppleAuthorizationException catch (e) {
         // The user backing out of the Apple sheet is not an error.

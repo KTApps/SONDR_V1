@@ -65,50 +65,47 @@ void main() {
     });
   });
 
-  group('what the ring says', () {
+  group('what a page says of its session', () {
     final p = post(
       photos: [photo('crossing', session: 2), photo('early', session: 0), photo('lost')],
       segments: sessions,
       unit: SegmentUnit.session,
     );
 
-    test('the hours on the cover', () {
-      expect(ringCentre(milestonePages(p).first, p), (figure: '20', unit: 'hours'));
+    test('the cover: the task alone, no ring', () {
+      expect(pageSession(milestonePages(p).first, p), isNull);
+      expect(pageTaskLine(milestonePages(p).first, p), 'Spanish');
       expect(sessionOf(milestonePages(p).first, p), isNull);
     });
 
-    test('a photo\'s session: its length over its day', () {
+    test('a photo\'s session: the band before it, its own length, and the task line with the length', () {
       final pages = milestonePages(p);
       expect(sessionOf(pages[1], p), 2);
-      expect(ringCentre(pages[1], p), (figure: '1h 20m', unit: '9 Oct'));
+      expect(pageSession(pages[1], p), (before: 7200 + 2400, seconds: 4800));
+      expect(pageTaskLine(pages[1], p), 'Spanish · 1h 20m');
       expect(sessionOf(pages[2], p), 0);
-      expect(ringCentre(pages[2], p), (figure: '2h', unit: '6 Oct'));
+      expect(pageSession(pages[2], p), (before: 0, seconds: 7200));
+      expect(pageTaskLine(pages[2], p), 'Spanish · 2h');
     });
 
-    test('a photo with no session says the hours, as the cover does', () {
+    test('a photo with no session: the task alone, no ring', () {
       final pages = milestonePages(p);
       expect(sessionOf(pages[3], p), isNull);
-      expect(ringCentre(pages[3], p), (figure: '20', unit: 'hours'));
+      expect(pageSession(pages[3], p), isNull);
+      expect(pageTaskLine(pages[3], p), 'Spanish');
     });
 
-    test('an old post says the hours on every page', () {
+    test('an old post: the task alone on every page', () {
       final old = post(photos: [photo('a', session: 1), photo('b')]);
       for (final page in milestonePages(old)) {
-        expect(ringCentre(page, old).figure, '20');
+        expect(pageSession(page, old), isNull);
+        expect(pageTaskLine(page, old), 'Spanish');
       }
     });
 
-    test('the no-photo frame says the hours', () {
+    test('the no-photo frame: the task alone', () {
       final none = post(photos: const [], segments: sessions, unit: SegmentUnit.session);
-      expect(ringCentre(milestonePages(none).single, none), (figure: '20', unit: 'hours'));
+      expect(pageTaskLine(milestonePages(none).single, none), 'Spanish');
     });
-  });
-
-  test('a session\'s date reads "6 Oct"', () {
-    expect(segmentDate(sessions[0]), '6 Oct');
-    expect(
-      segmentDate(PostSegment(at: DateTime(2026, 5, 31).millisecondsSinceEpoch, seconds: 1)),
-      '31 May',
-    );
   });
 }

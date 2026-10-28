@@ -7,6 +7,7 @@ import 'package:sondr/features/feed/collage_layout.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/comments_sheet.dart' show replyComposerClearance;
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
+import 'package:sondr/features/feed/widgets/mini_ring.dart';
 import 'package:sondr/shared/sondr_action.dart';
 import 'package:sondr/features/photos/milestone_final_look_screen.dart';
 import 'package:sondr/features/photos/share_review_scaffold.dart';
@@ -111,8 +112,8 @@ void main() {
     final r = tester.getRect(card());
     await tester.tapAt(Offset(r.left + r.width * 0.9, r.center.dy));
     await tester.pumpAndSettle();
-    expect(inCard('2h'), findsOneWidget);
-    expect(inCard('6 Oct'), findsOneWidget);
+    expect(inCard('Spanish · 2h'), findsOneWidget);
+    expect(find.byType(MiniRing), findsOneWidget);
     await tester.tap(inCard('Like'), warnIfMissed: false);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);

@@ -6,7 +6,7 @@ void main() {
   const onPhoto = MilestoneRingGeometry(onPhoto: true);
   const plain = MilestoneRingGeometry(onPhoto: false);
 
-  test('is the photo milestone card\'s ring: Ø184, 9% stroke, halo inside', () {
+  test('is the photo milestone card\'s ring: Ø184, 9% stroke, room for the shadow inside', () {
     expect(onPhoto.size, 184);
     expect(onPhoto.thickness, closeTo(16.56, 0.001));
     // RingDial: radius = size/2 − thickness/2 − 0.18 × thickness.
@@ -14,7 +14,7 @@ void main() {
     expect(onPhoto.radius, closeTo(80.739, 0.001));
     expect(onPhoto.extent, closeTo(178.04, 0.01));
     expect(onPhoto.inner, closeTo(144.92, 0.01));
-    // Off a photo there is no halo to keep inside.
+    // Off a photo there is no shadow to keep inside.
     expect(plain.radius, closeTo(83.72, 0.001));
     expect(plain.extent, 184);
   });
@@ -31,9 +31,9 @@ void main() {
     expect(kMilestoneRingInnerFeather, 1);
   });
 
-  test('the glow under the band is as specified', () {
-    expect(kMilestoneRingGlowOpacity, 0.22);
-    expect(kMilestoneRingGlowWidth, 1.35);
-    expect(kMilestoneRingGlowBlur, 10);
+  test('one soft shadow under the band: black 28%, blurred 4, down 1.5', () {
+    expect(kMilestoneRingShadowOpacity, 0.28);
+    expect(kMilestoneRingShadowBlur, 4);
+    expect(kMilestoneRingShadowDy, 1.5);
   });
 }

@@ -7,6 +7,7 @@ import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/comments_sheet.dart' show replyComposerClearance;
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
+import 'package:sondr/features/feed/widgets/mini_ring.dart';
 import 'package:sondr/features/feed/widgets/session_card.dart';
 import 'package:sondr/features/photos/capture_review_screen.dart';
 import 'package:sondr/features/photos/milestone_final_look_screen.dart';
@@ -105,8 +106,8 @@ void main() {
       expect(inCard('now'), findsOneWidget);
       expect(inCard('Spanish · 1h 20m'), findsOneWidget);
       expect(inCard('Like'), findsOneWidget);
-      expect(find.byType(SessionBandRing), findsOneWidget);
-      expect(tester.widget<SessionCard>(card()).bandFill, closeTo(0.5, 0.001));
+      expect(find.byType(MiniRing), findsOneWidget);
+      expect(tester.widget<SessionCard>(card()).ring, const MiniRingData(before: 36000 - 4800, seconds: 4800));
       final retake = tester.getRect(find.text('Retake'));
       expect(retake.right, greaterThan(w / 2));
       expect(find.text('Back'), findsNothing);

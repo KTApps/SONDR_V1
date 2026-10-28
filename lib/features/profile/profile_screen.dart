@@ -9,6 +9,7 @@ import '../../shared/cached_photo.dart';
 import '../../shared/ring/progress_ring.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../auth/account_screen.dart';
+import '../auth/account_switch.dart';
 import '../auth/guest_prompts.dart';
 import '../auth/models/profile.dart';
 import '../auth/profile_repository.dart';
@@ -132,6 +133,11 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // The account is changing hands: nothing of the old one is drawn,
+    // and nothing of the new one until its data is in.
+    if (ref.watch(accountSwitchingProvider)) {
+      return const Scaffold(body: SizedBox.expand());
+    }
     final lifetime = ref.watch(lifetimeDurationProvider);
     final streak = ref.watch(habitStreakProvider);
     final milestones = ref.watch(milestonesReachedProvider);

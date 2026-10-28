@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
 import 'package:sondr/features/feed/widgets/milestone_ring.dart';
+import 'package:sondr/features/feed/widgets/mini_ring.dart';
 import 'package:sondr/features/feed/widgets/session_card.dart';
 
 List<PostPhoto> _mockPhotos(int n) => [
@@ -103,7 +104,7 @@ void main() {
     expect(find.text('tom'), findsOneWidget);
     expect(find.byType(Image), findsNothing);
     expect(find.text('Like'), findsOneWidget);
-    expect(find.byType(SessionBandRing), findsNothing);
+    expect(find.byType(MiniRing), findsNothing);
   });
 
   testWidgets('SessionCard (with photo) renders the photo, the caption and the ring', (
@@ -131,6 +132,6 @@ void main() {
     expect(find.text('Like'), findsOneWidget);
     expect(find.text('nice'), findsOneWidget);
     expect(find.text('Spanish · 1h'), findsOneWidget);
-    expect(find.byType(SessionBandRing), findsOneWidget);
+    expect(find.byType(MiniRing), findsOneWidget);
   });
 }

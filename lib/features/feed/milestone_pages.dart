@@ -1,11 +1,10 @@
 import 'package:flutter/foundation.dart';
 
-import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
 import 'models/post.dart';
 
-/// What a milestone card steps through, and what the ring says on each
-/// page. Pure, so the page list and the centre text are tested without a
+/// What a milestone card steps through, and what each page says of its
+/// session. Pure, so the page list and the lines are tested without a
 /// widget.
 
 enum MilestonePageKind { cover, photo, noPhoto }
@@ -57,21 +56,23 @@ int? sessionOf(MilestonePage page, MilestonePost post) {
   return s;
 }
 
-/// What the ring says on a page: the milestone's hours, or on a photo's
-/// page that photo's session — how long it was, over its date. A photo
-/// whose session is unknown says the hours, as the cover does.
-({String figure, String unit}) ringCentre(MilestonePage page, MilestonePost post) {
+/// What a photo page's ring shows: the band's seconds before the photo's
+/// session — the sessions ahead of it in the story — and the session's
+/// own. Null when the session is unknown: no ring then.
+({int before, int seconds})? pageSession(MilestonePage page, MilestonePost post) {
   final s = sessionOf(page, post);
-  if (s == null) return (figure: '${post.milestoneHours}', unit: 'hours');
-  final segment = post.segments[s];
-  return (
-    figure: DurationFormat.hm(Duration(seconds: segment.seconds)),
-    unit: segmentDate(segment),
-  );
+  if (s == null) return null;
+  var before = 0;
+  for (var i = 0; i < s; i++) {
+    before += post.segments[i].seconds;
+  }
+  return (before: before, seconds: post.segments[s].seconds);
 }
 
-/// "6 Oct": the day a session began.
-String segmentDate(PostSegment segment) {
-  final d = DateTime.fromMillisecondsSinceEpoch(segment.at);
-  return '${d.day} ${DayKey.monthName(d.month).substring(0, 3)}';
+/// The task line on a page: the task alone on the cover — and on a photo
+/// whose session is unknown — or "Spanish · 2h 40m" on a photo's page.
+String pageTaskLine(MilestonePage page, MilestonePost post) {
+  final session = pageSession(page, post);
+  if (session == null) return post.taskName;
+  return '${post.taskName} · ${DurationFormat.hm(Duration(seconds: session.seconds))}';
 }

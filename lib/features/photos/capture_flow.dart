@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../core/utils/date.dart';
 import '../../core/debug_flags.dart';
@@ -139,8 +138,9 @@ Future<void> runCaptureFlow(
             return saved != null;
           },
           onShare: (ref, caption) async {
-            // A session post is its photo. The post goes out now, the
-            // upload behind it — the same job a milestone runs.
+            // A session post is its photo. The shot is kept for the job
+            // and the upload runs behind the feed — the same job a
+            // milestone runs.
             trace = await _beginShare(
               ref,
               type: PostType.session,
@@ -148,8 +148,6 @@ Future<void> runCaptureFlow(
               chosen: [
                 if (shot != null) (photo: null, framing: PhotoFraming.none),
               ],
-              handle: profile?.username ?? '',
-              displayName: profile?.displayName ?? '',
               caption: caption,
               taskId: taskId,
               taskName: taskName,
@@ -285,8 +283,9 @@ Future<({bool done, bool shared, Arrangement? arrangement, ShareTrace? trace})> 
           unit: story?.unit,
           onKeep: keep,
           onShare: (ref, caption) async {
-            // The post goes out now, as arranged; everything slow runs
-            // behind it as a job.
+            // The post is prepared on the phone, as arranged — the cover
+            // drawn, the bytes kept — and everything slow runs behind the
+            // feed as a job.
             trace = await _beginShare(
               ref,
               type: PostType.milestone,
@@ -303,8 +302,6 @@ Future<({bool done, bool shared, Arrangement? arrangement, ShareTrace? trace})> 
               milestoneHours: milestoneHours,
               totalHours: totalHours,
               story: story,
-              handle: profile?.username ?? '',
-              displayName: profile?.displayName ?? '',
               coverStyles: coverStyles,
             );
             return trace != null;
@@ -394,9 +391,11 @@ Future<Photo?> _savePrivately(
   }
 }
 
-/// Share: the post is written at once and the job started. Returns the
-/// trace (a plain one when the debug tools are off), or null when there is
-/// nobody to share as.
+/// Share: the post is prepared on the phone and the job started; returns
+/// once the preparation is done — the cover and the thumbnail drawn, the
+/// bytes kept — with the trace (a plain one when the debug tools are
+/// off), or null when there is nobody to share as or it could not be
+/// prepared.
 ///
 /// [chosen] is the post's photos in order — a band photo, or null for the
 /// new [shot] — each with its framing. [story] is the band's, already
@@ -415,8 +414,6 @@ Future<ShareTrace?> _beginShare(
   int? milestoneHours,
   int? totalHours,
   MilestoneStory? story,
-  String? handle,
-  String? displayName,
 }) async {
   final runner = ref.read(shareJobRunnerProvider);
   if (runner == null) return null;
@@ -424,8 +421,15 @@ Future<ShareTrace?> _beginShare(
     final now = DateTime.now();
     final postId = runner.backend.newPostId();
     final trace = ShareTrace(postId);
-    // The new shot, kept where a job can find it after a relaunch.
-    final shotPath = shot == null ? null : await _keepForShare(shot, postId);
+    // The new shot, in the job's own folder, where the job finds it
+    // after a relaunch.
+    String? shotPath;
+    if (shot != null) {
+      final dir = await runner.dirFor(postId);
+      final file = File('${dir.path}/shot.jpg');
+      await file.writeAsBytes(shot, flush: true);
+      shotPath = file.path;
+    }
     final shotTs = now.microsecondsSinceEpoch;
     final shotPhotoId = Photo.docId(taskId, shotTs);
     final photos = <ShareJobPhoto>[
@@ -457,30 +461,14 @@ Future<ShareTrace?> _beginShare(
       shotTimestamp: shot == null ? null : shotTs,
       bandSeconds: type == PostType.session ? bandSecondsAfter(cumulativeSeconds) : null,
     );
-    var author = PostAuthor(username: handle ?? '', displayName: displayName ?? '');
-    if (handle == null) {
-      final profile = await ref.read(currentProfileProvider.future);
-      author = PostAuthor(username: profile?.username ?? '', displayName: profile?.displayName ?? '');
-    }
     runner.coverStyles = coverStyles;
     trace.mark('job built');
-    await runner.begin(job, author, trace: kDebugTools ? trace : null);
+    await runner.begin(job, trace: kDebugTools ? trace : null);
     return trace;
   } catch (e) {
     debugPrint('SONDR share begin error: ${e.runtimeType} :: $e');
     return null;
   }
-}
-
-/// The shot, written under the app's own support directory — the temp
-/// directory can be emptied while the app is not running, and a job has
-/// to find its bytes after a relaunch.
-Future<String> _keepForShare(Uint8List bytes, String postId) async {
-  final base = await getApplicationSupportDirectory();
-  final dir = Directory('${base.path}/sondr_share/$postId')..createSync(recursive: true);
-  final file = File('${dir.path}/shot.jpg');
-  await file.writeAsBytes(bytes, flush: true);
-  return file.path;
 }
 
 /// The repositories upload files, and a capture is bytes in memory. One temp

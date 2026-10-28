@@ -19,12 +19,13 @@ import 'share_trace.dart';
 
 /// Sharing, as a job that outlives the screen.
 ///
-/// Share writes the post at once — the author alone in its audience, its
-/// photos still files on the phone — and the feed shows it the same
-/// moment. Everything slow runs behind it as a job: the new shot saved
-/// privately, every photo uploaded, the cover and the thumbnail rendered
-/// and uploaded, then ONE update of the post that gives it its final URLs
-/// and its friends, then the notices, the collage and the tags.
+/// Share PREPARES the post on the phone — every photo's bytes written to
+/// the job's own folder, the cover and the thumbnail rendered beside them
+/// — and only then lets the review go. Everything slow runs behind it as a
+/// job: every file uploaded, four at a time, with the bytes counted as
+/// they go; then ONE write of the post, complete — its final URLs, its
+/// cover, its thumbnail, its friends — so nobody ever sees a post that is
+/// not finished; then the notices, the collage and the tags.
 ///
 /// Every step is idempotent, so a job may be run again from wherever it
 /// stopped — after a crash, after the app was killed, after a lost
@@ -35,10 +36,10 @@ import 'share_trace.dart';
 
 /// Where a job has got to. Each step is persisted once its writes are
 /// confirmed; a rerun starts at the step after.
-enum ShareStep { created, uploaded, updated, done }
+enum ShareStep { created, prepared, uploaded, posted, done }
 
 /// What the UI needs to know about a job.
-enum ShareJobStatus { running, waiting, failed }
+enum ShareJobStatus { running, waiting, posted, failed }
 
 /// How many times a job is tried before it asks for help, and how long
 /// it waits between tries.
@@ -65,12 +66,14 @@ class ShareJobPhoto {
     this.isNew = false,
     this.url,
     this.storagePath,
+    this.privateSaved = false,
   });
 
   /// [Photo.id] — for the new shot, the id it will be saved under.
   final String id;
 
-  /// The bytes on the phone: the new shot's file, or nothing.
+  /// The bytes on the phone: the new shot's file, or — once the job is
+  /// prepared — the copy in the job's folder.
   final String? localPath;
 
   /// A band photo's private original, to fetch when it is not cached.
@@ -87,17 +90,29 @@ class ShareJobPhoto {
   final String? url;
   final String? storagePath;
 
-  ShareJobPhoto uploaded(String url, String storagePath) => ShareJobPhoto(
+  /// The new shot's private copy has landed, with its record.
+  final bool privateSaved;
+
+  ShareJobPhoto copyWith({
+    String? localPath,
+    String? url,
+    String? storagePath,
+    bool? privateSaved,
+  }) => ShareJobPhoto(
     id: id,
-    localPath: localPath,
+    localPath: localPath ?? this.localPath,
     sourceStoragePath: sourceStoragePath,
     sourceUrl: sourceUrl,
     framing: framing,
     sessionIndex: sessionIndex,
     isNew: isNew,
-    url: url,
-    storagePath: storagePath,
+    url: url ?? this.url,
+    storagePath: storagePath ?? this.storagePath,
+    privateSaved: privateSaved ?? this.privateSaved,
   );
+
+  ShareJobPhoto uploaded(String url, String storagePath) =>
+      copyWith(url: url, storagePath: storagePath);
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -109,6 +124,7 @@ class ShareJobPhoto {
     'isNew': isNew,
     'url': ?url,
     'storagePath': ?storagePath,
+    'privateSaved': privateSaved,
   };
 
   factory ShareJobPhoto.fromJson(Map<String, dynamic> m) => ShareJobPhoto(
@@ -121,13 +137,8 @@ class ShareJobPhoto {
     isNew: m['isNew'] == true,
     url: m['url'] as String?,
     storagePath: m['storagePath'] as String?,
+    privateSaved: m['privateSaved'] == true,
   );
-
-  /// What the author's card shows before the upload: the file itself, or
-  /// the private original, which the author can already read.
-  String get previewUrl => localPath != null
-      ? Uri.file(localPath!).toString()
-      : (sourceUrl ?? '');
 }
 
 @immutable
@@ -150,6 +161,8 @@ class ShareJob {
     this.step = ShareStep.created,
     this.attempts = 0,
     this.audience,
+    this.coverLocalPath,
+    this.thumbLocalPath,
     this.coverUrl,
     this.coverStoragePath,
     this.thumbUrl,
@@ -183,6 +196,11 @@ class ShareJob {
   /// The friends the post will reach, decided once and kept, so a retry
   /// reaches the same people.
   final List<String>? audience;
+
+  /// The cover and the thumbnail, rendered on the phone before the review
+  /// let go.
+  final String? coverLocalPath;
+  final String? thumbLocalPath;
 
   final String? coverUrl;
   final String? coverStoragePath;
@@ -219,6 +237,8 @@ class ShareJob {
     ShareStep? step,
     int? attempts,
     List<String>? audience,
+    String? coverLocalPath,
+    String? thumbLocalPath,
     String? coverUrl,
     String? coverStoragePath,
     String? thumbUrl,
@@ -241,6 +261,8 @@ class ShareJob {
     step: step ?? this.step,
     attempts: attempts ?? this.attempts,
     audience: audience ?? this.audience,
+    coverLocalPath: coverLocalPath ?? this.coverLocalPath,
+    thumbLocalPath: thumbLocalPath ?? this.thumbLocalPath,
     coverUrl: coverUrl ?? this.coverUrl,
     coverStoragePath: coverStoragePath ?? this.coverStoragePath,
     thumbUrl: thumbUrl ?? this.thumbUrl,
@@ -266,6 +288,8 @@ class ShareJob {
     'step': step.name,
     'attempts': attempts,
     'audience': ?audience,
+    'coverLocalPath': ?coverLocalPath,
+    'thumbLocalPath': ?thumbLocalPath,
     'coverUrl': ?coverUrl,
     'coverStoragePath': ?coverStoragePath,
     'thumbUrl': ?thumbUrl,
@@ -294,12 +318,11 @@ class ShareJob {
     ],
     unit: m['unit'] == 'session' ? SegmentUnit.session : null,
     shotTimestamp: (m['shotTimestamp'] as num?)?.toInt(),
-    step: ShareStep.values.firstWhere(
-      (s) => s.name == m['step'],
-      orElse: () => ShareStep.created,
-    ),
+    step: _stepFrom(m['step']),
     attempts: (m['attempts'] as num?)?.toInt() ?? 0,
     audience: (m['audience'] as List?)?.map((e) => '$e').toList(),
+    coverLocalPath: m['coverLocalPath'] as String?,
+    thumbLocalPath: m['thumbLocalPath'] as String?,
     coverUrl: m['coverUrl'] as String?,
     coverStoragePath: m['coverStoragePath'] as String?,
     thumbUrl: m['thumbUrl'] as String?,
@@ -307,10 +330,16 @@ class ShareJob {
     bandSeconds: (m['bandSeconds'] as num?)?.toInt(),
   );
 
-  /// The post as the author's feed shows it the moment Share is tapped:
-  /// everything the final post will have, the photos as the files on the
-  /// phone, the author alone in the audience, marked pending.
-  Map<String, dynamic> pendingDocument(String uid, PostAuthor author) => {
+  /// A job from before the post was written last: its "updated" was the
+  /// post's final write, which is "posted" now.
+  static ShareStep _stepFrom(Object? name) {
+    if (name == 'updated') return ShareStep.posted;
+    return ShareStep.values.firstWhere((s) => s.name == name, orElse: () => ShareStep.created);
+  }
+
+  /// The post, complete: written once, when every file is up. Throws when
+  /// a photo has not been uploaded — the post is never written short.
+  Map<String, dynamic> document(String uid, PostAuthor author, List<String> audience) => {
     'authorUid': uid,
     'author': author.toMap(),
     'type': type.name,
@@ -319,14 +348,13 @@ class ShareJob {
     'photos': [
       for (final p in photos)
         PostPhoto(
-          url: p.previewUrl,
-          storagePath: '',
+          url: p.url ?? (throw StateError('photo ${p.id} is not uploaded')),
+          storagePath: p.storagePath ?? '',
           sessionIndex: p.sessionIndex,
           framing: p.framing,
         ).toMap(),
     ],
-    'audience': [uid],
-    'pending': true,
+    'audience': audience,
     'likeCount': 0,
     'commentCount': 0,
     'taskName': taskName,
@@ -337,28 +365,12 @@ class ShareJob {
         'sessions': [for (final s in segments) s.toMap()],
         'unit': unit!.name,
       },
+      if (coverUrl != null) ...{'coverUrl': coverUrl, 'coverStoragePath': coverStoragePath},
+      if (thumbUrl != null) ...{'thumbUrl': thumbUrl, 'thumbStoragePath': thumbStoragePath},
     } else ...{
       'sessionSeconds': sessionSeconds,
       'bandSeconds': ?bandSeconds,
     },
-  };
-
-  /// The one update that finishes the post.
-  Map<String, dynamic> finalUpdate(PostAuthor author, List<String> audience) => {
-    'author': author.toMap(),
-    'photos': [
-      for (final p in photos)
-        PostPhoto(
-          url: p.url ?? p.previewUrl,
-          storagePath: p.storagePath ?? '',
-          sessionIndex: p.sessionIndex,
-          framing: p.framing,
-        ).toMap(),
-    ],
-    if (coverUrl != null) ...{'coverUrl': coverUrl, 'coverStoragePath': coverStoragePath},
-    if (thumbUrl != null) ...{'thumbUrl': thumbUrl, 'thumbStoragePath': thumbStoragePath},
-    'audience': audience,
-    'pending': false,
   };
 }
 
@@ -439,6 +451,9 @@ class PrefsShareJobStore implements ShareJobStore {
   }
 }
 
+/// Bytes sent so far on one upload.
+typedef UploadProgress = void Function(int sent);
+
 /// What the job talks to. A seam, so the runner's rules — the order, the
 /// retries, the idempotency — are tested against a backend that records
 /// and can be told to fail.
@@ -448,11 +463,9 @@ abstract class ShareBackend {
   /// A fresh post id, made on the client.
   String newPostId();
 
-  /// The post as the author sees it at once. Set by id.
-  Future<void> setPendingPost(String postId, Map<String, dynamic> doc);
-
-  /// Bytes to [path], returning the download URL. By path: a rerun overwrites.
-  Future<String> upload(String path, Uint8List bytes);
+  /// Bytes to [path], returning the download URL, saying how far it has
+  /// got as it goes. By path: a rerun overwrites.
+  Future<String> upload(String path, Uint8List bytes, {UploadProgress? onProgress});
 
   /// A band photo's private original.
   Future<Uint8List> download(String storagePath);
@@ -464,8 +477,8 @@ abstract class ShareBackend {
   Future<PostAuthor> author();
   Future<List<String>> audience();
 
-  /// The one update that lets friends see the post.
-  Future<void> finishPost(String postId, Map<String, dynamic> update);
+  /// The post, complete. Set by id: a rerun writes the same post again.
+  Future<void> createPost(String postId, Map<String, dynamic> doc);
 
   /// A milestone notice to each friend, under the post's id. Returns
   /// normally when the notices turn out to be there already.
@@ -474,24 +487,48 @@ abstract class ShareBackend {
   Future<void> setCover(String taskId, int milestoneHours, {String? coverUrl, String? thumbUrl});
   Future<void> markShared(List<String> photoIds);
 
-  /// The job's files, when the post is deleted before it finished.
+  /// The job's files, when it is cancelled before it finished.
   Future<void> deleteFiles(List<String> paths);
 }
 
 /// Bytes a photo's URL already has on the phone — the image cache.
 typedef CachedBytes = Future<Uint8List?> Function(String url);
 
+/// A job's own folder on the phone, where its bytes wait for the upload.
+/// Somewhere that survives a relaunch: the temp directory can be emptied
+/// while the app is not running.
+typedef ShareJobDir = Future<Directory> Function(String postId);
+
 @immutable
 class ShareJobState {
-  const ShareJobState(this.status, {this.attempts = 0});
+  const ShareJobState(
+    this.status, {
+    this.attempts = 0,
+    this.uploadedBytes = 0,
+    this.totalBytes = 0,
+  });
+
   final ShareJobStatus status;
   final int attempts;
+
+  /// How much of the job's bytes have gone up, over how many there are.
+  final int uploadedBytes;
+  final int totalBytes;
+
+  ShareJobState copyWith({ShareJobStatus? status, int? attempts, int? uploadedBytes, int? totalBytes}) =>
+      ShareJobState(
+        status ?? this.status,
+        attempts: attempts ?? this.attempts,
+        uploadedBytes: uploadedBytes ?? this.uploadedBytes,
+        totalBytes: totalBytes ?? this.totalBytes,
+      );
 }
 
 class ShareJobRunner {
   ShareJobRunner({
     required this.store,
     required this.backend,
+    required this.dirFor,
     this.encoder = const PlatformJpegEncoder(),
     this.cached,
     this.coverStyles,
@@ -502,6 +539,7 @@ class ShareJobRunner {
 
   final ShareJobStore store;
   final ShareBackend backend;
+  final ShareJobDir dirFor;
   final JpegEncoder encoder;
   final CachedBytes? cached;
 
@@ -511,19 +549,24 @@ class ShareJobRunner {
 
   final List<Duration> backoff;
 
-  /// Where a finished trace goes (debug tools).
+  /// Where a finished — or a failed — trace goes (debug tools).
   final void Function(ShareTrace trace)? onTrace;
 
   /// The new shot has landed in the private gallery: the surfaces that
   /// show it can be told.
   final VoidCallback? onPrivateSaved;
 
-  /// What each job is doing, for the cards.
+  /// What each job is doing, for the feed's line.
   final ValueNotifier<Map<String, ShareJobState>> states = ValueNotifier(const {});
 
   final Set<String> _running = {};
   final Set<String> _cancelled = {};
   final Map<String, ShareTrace> _traces = {};
+
+  /// The save in progress, if any. Made as it is needed, never in the
+  /// constructor: a future belongs to the zone it was made in, and a
+  /// runner is made on the screen but runs its job elsewhere.
+  Future<void>? _persisting;
 
   ShareJobState? stateOf(String postId) => states.value[postId];
 
@@ -537,20 +580,38 @@ class ShareJobRunner {
     states.value = next;
   }
 
-  /// Share: the pending post goes out now and the job starts; the caller
-  /// does not wait for either.
-  Future<void> begin(ShareJob job, PostAuthor author, {ShareTrace? trace}) async {
+  void _progress(String postId, int uploaded, int total) {
+    final s = states.value[postId];
+    if (s == null || s.status != ShareJobStatus.running) return;
+    _setState(postId, s.copyWith(uploadedBytes: uploaded, totalBytes: total));
+  }
+
+  /// Saves, one after another, so two uploads finishing together cannot
+  /// write over each other's record. A cancelled job is not written back
+  /// by an upload that was already in the air.
+  Future<void> _persist(ShareJob job) {
+    final done = (_persisting ?? Future<void>.value()).then((_) {
+      if (_cancelled.contains(job.postId)) return Future<void>.value();
+      return store.save(job);
+    });
+    _persisting = done.catchError((_) {});
+    return done;
+  }
+
+  /// Share: the post is prepared on the phone — bytes, cover, thumbnail —
+  /// and the job starts; returns once the preparation is done, which is
+  /// what the review waits for. Throws when it cannot be prepared.
+  Future<void> begin(ShareJob job, {ShareTrace? trace}) async {
     if (trace != null) _traces[job.postId] = trace;
-    await store.save(job);
     _setState(job.postId, const ShareJobState(ShareJobStatus.running));
-    unawaited(
-      backend
-          .setPendingPost(job.postId, job.pendingDocument(backend.uid, author))
-          .then((_) => trace?.mark('pending post written'))
-          .catchError((Object e) {
-        debugPrint('SONDR pending post write error: ${e.runtimeType} :: $e');
-      }),
-    );
+    try {
+      job = await prepare(job, trace);
+    } catch (e) {
+      _setState(job.postId, null);
+      _traces.remove(job.postId);
+      rethrow;
+    }
+    await store.save(job);
     unawaited(_run(job));
   }
 
@@ -558,20 +619,35 @@ class ShareJobRunner {
   Future<void> resume() async {
     for (final job in await store.load()) {
       if (_running.contains(job.postId)) continue;
-      _setState(job.postId, ShareJobState(ShareJobStatus.running, attempts: job.attempts));
-      unawaited(_run(job.copyWith(attempts: 0)));
+      final fresh = job.copyWith(attempts: 0);
+      await store.save(fresh);
+      _setState(job.postId, const ShareJobState(ShareJobStatus.running));
+      unawaited(_run(fresh));
     }
   }
 
-  /// Try a failed job again from where it stopped.
+  /// Try a failed job again from where it stopped — with its attempts
+  /// back at nought, in the record as well as in hand, or the first
+  /// stumble would end it.
   Future<void> retry(String postId) async {
     final job = (await store.load()).where((j) => j.postId == postId).firstOrNull;
     if (job == null || _running.contains(postId)) return;
-    await _run(job.copyWith(attempts: 0));
+    final fresh = job.copyWith(attempts: 0);
+    await store.save(fresh);
+    await _run(fresh);
   }
 
-  /// The post was deleted: stop the job, forget it, and take down what it
-  /// uploaded.
+  /// Every job that gave up, tried again.
+  Future<void> retryFailed() async {
+    final failed = [
+      for (final e in states.value.entries)
+        if (e.value.status == ShareJobStatus.failed) e.key,
+    ];
+    await Future.wait([for (final id in failed) retry(id)]);
+  }
+
+  /// The share is abandoned: stop the job, forget it, and take down what
+  /// it uploaded.
   Future<void> cancel(String postId) async {
     _cancelled.add(postId);
     final job = (await store.load()).where((j) => j.postId == postId).firstOrNull;
@@ -583,7 +659,7 @@ class ShareJobRunner {
       } catch (e) {
         debugPrint('SONDR share cancel cleanup error: ${e.runtimeType}');
       }
-      _deleteLocalFiles(job);
+      await _deleteLocal(job);
     }
   }
 
@@ -597,9 +673,10 @@ class ShareJobRunner {
         if (_cancelled.contains(id)) return;
         try {
           job = await _steps(job);
+          await _persisting;
           await store.remove(id);
           _setState(id, null);
-          _deleteLocalFiles(job);
+          await _deleteLocal(job);
           final trace = _traces.remove(id);
           if (trace != null) {
             trace.mark('done');
@@ -609,14 +686,21 @@ class ShareJobRunner {
         } catch (e, st) {
           if (e is _CancelledJob || _cancelled.contains(id)) return;
           debugPrint('SONDR share job error: ${e.runtimeType} :: $e\n$st');
+          _traces[id]?.mark('failed: ${e.runtimeType}');
           // Carry on from what the steps had already persisted — the
           // uploads that landed stay landed — not from where this attempt
           // began.
+          await _persisting;
           final latest = (await store.load()).where((j) => j.postId == id).firstOrNull ?? job;
           job = latest.copyWith(attempts: latest.attempts + 1);
           await store.save(job);
           if (job.attempts >= kShareAttempts) {
             _setState(id, ShareJobState(ShareJobStatus.failed, attempts: job.attempts));
+            final trace = _traces[id];
+            if (trace != null) {
+              trace.mark('gave up: $e');
+              onTrace?.call(trace);
+            }
             return;
           }
           _setState(id, ShareJobState(ShareJobStatus.waiting, attempts: job.attempts));
@@ -642,6 +726,12 @@ class ShareJobRunner {
     final uid = backend.uid;
     _checkCancelled(job.postId);
 
+    // A job from before the phone kept its bytes: prepared now.
+    if (job.step.index < ShareStep.prepared.index) {
+      job = await prepare(job, trace);
+      await _persist(job);
+    }
+
     // The reads, alongside the uploads: who I am, and who my friends are.
     final authorFuture = backend.author();
     final audienceFuture = job.audience != null
@@ -651,22 +741,23 @@ class ShareJobRunner {
     if (job.step.index < ShareStep.uploaded.index) {
       job = await _upload(job, trace);
       _checkCancelled(job.postId);
-      await store.save(job);
+      await _persist(job);
     }
 
-    if (job.step.index < ShareStep.updated.index) {
+    if (job.step.index < ShareStep.posted.index) {
       _checkCancelled(job.postId);
       final author = await authorFuture;
-      // The friends are decided and kept BEFORE the update, so a rerun
+      // The friends are decided and kept BEFORE the write, so a rerun
       // after a crash between the two reaches the same people.
       final audience = await audienceFuture;
       job = job.copyWith(audience: audience);
-      await store.save(job);
-      await backend.finishPost(job.postId, job.finalUpdate(author, audience));
-      trace?.mark('post updated');
+      await _persist(job);
+      await backend.createPost(job.postId, job.document(uid, author, audience));
+      trace?.mark('post written');
       trace?.friendsCanSee();
-      job = job.copyWith(step: ShareStep.updated);
-      await store.save(job);
+      job = job.copyWith(step: ShareStep.posted);
+      await _persist(job);
+      _setState(job.postId, ShareJobState(ShareJobStatus.posted, attempts: job.attempts));
     }
 
     if (job.step.index < ShareStep.done.index) {
@@ -690,16 +781,17 @@ class ShareJobRunner {
     return job;
   }
 
-  /// Every photo up, the new shot saved privately as well, and — for a
-  /// milestone — the cover and the thumbnail rendered from the same bytes
-  /// and uploaded, four at a time.
-  Future<ShareJob> _upload(ShareJob job, ShareTrace? trace) async {
-    final uid = backend.uid;
-    final bytes = List<Uint8List?>.filled(job.photos.length, null);
+  /// Everything the upload needs, on the phone: each photo's bytes in the
+  /// job's folder — the file on the phone, the image cache, or the
+  /// original, fetched — and, for a milestone, the cover and the
+  /// thumbnail rendered from the same bytes.
+  Future<ShareJob> prepare(ShareJob job, [ShareTrace? trace]) async {
+    final dir = await dirFor(job.postId);
+    final photos = [...job.photos];
+    final bytes = List<Uint8List?>.filled(photos.length, null);
 
-    // The bytes: the file on the phone, the image cache, or the original.
-    for (var i = 0; i < job.photos.length; i++) {
-      final p = job.photos[i];
+    for (var i = 0; i < photos.length; i++) {
+      final p = photos[i];
       if (p.localPath != null && File(p.localPath!).existsSync()) {
         bytes[i] = await File(p.localPath!).readAsBytes();
         continue;
@@ -710,69 +802,168 @@ class ShareJobRunner {
     }
     final missing = [for (var i = 0; i < bytes.length; i++) if (bytes[i] == null) i];
     await _inParallel(missing, (i) async {
-      final path = job.photos[i].sourceStoragePath;
-      if (path == null) throw StateError('photo ${job.photos[i].id} has no bytes and no source');
+      final path = photos[i].sourceStoragePath;
+      if (path == null) throw StateError('photo ${photos[i].id} has no bytes and no source');
       bytes[i] = await backend.download(path);
     });
+    for (var i = 0; i < photos.length; i++) {
+      final p = photos[i];
+      if (p.localPath != null && File(p.localPath!).existsSync()) continue;
+      final file = File('${dir.path}/$i.jpg');
+      await file.writeAsBytes(bytes[i]!, flush: true);
+      photos[i] = p.copyWith(localPath: file.path);
+    }
     trace?.mark('bytes gathered', bytes: bytes.fold<int>(0, (s, b) => s + (b?.length ?? 0)));
 
-    final uploads = <Future<void>>[];
-    final photos = [...job.photos];
-    // The photos, four at a time; the new shot goes to its private path
-    // too, from the same bytes.
-    uploads.add(_inParallel(List.generate(photos.length, (i) => i), (i) async {
-      final p = photos[i];
-      final data = bytes[i]!;
-      final path = ShareJob.photoPath(uid, job.postId, i);
-      final futures = <Future<void>>[
-        backend.upload(path, data).then((url) {
-          photos[i] = p.uploaded(url, path);
-        }),
-      ];
-      if (p.isNew && job.shotPhotoId != null) {
-        futures.add(_savePrivately(job, data));
+    String? coverLocal = job.coverLocalPath;
+    String? thumbLocal = job.thumbLocalPath;
+    if (job.isMilestone &&
+        (coverLocal == null || !File(coverLocal).existsSync() ||
+            thumbLocal == null || !File(thumbLocal).existsSync())) {
+      final images = <ui.Image>[];
+      for (final b in bytes.take(kCollageMax)) {
+        images.add(await decodeForCover(b!));
       }
-      await Future.wait(futures);
-    }));
-
-    String? coverUrl, coverPath, thumbUrl, thumbPath;
-    if (job.isMilestone) {
-      uploads.add(() async {
-        final images = <ui.Image>[];
-        for (final b in bytes.take(kCollageMax)) {
-          images.add(await decodeForCover(b!));
+      try {
+        final framings = [for (final p in photos) p.framing];
+        final cover = await renderMilestoneCover(
+          photos: images,
+          milestoneHours: job.milestoneHours!,
+          styles: coverStyles ?? const CoverTextStyles(figure: null, unit: null),
+          framings: framings,
+          encoder: encoder,
+        );
+        trace?.mark('cover rendered', bytes: cover.length);
+        final thumb = await renderMilestoneThumb(
+          photos: images,
+          framings: framings,
+          encoder: encoder,
+        );
+        trace?.mark('thumb rendered', bytes: thumb.length);
+        final coverFile = File('${dir.path}/cover.jpg');
+        final thumbFile = File('${dir.path}/thumb.jpg');
+        await coverFile.writeAsBytes(cover, flush: true);
+        await thumbFile.writeAsBytes(thumb, flush: true);
+        coverLocal = coverFile.path;
+        thumbLocal = thumbFile.path;
+      } finally {
+        for (final i in images) {
+          i.dispose();
         }
-        try {
-          final framings = [for (final p in job.photos) p.framing];
-          final cover = await renderMilestoneCover(
-            photos: images,
-            milestoneHours: job.milestoneHours!,
-            styles: coverStyles ?? const CoverTextStyles(figure: null, unit: null),
-            framings: framings,
-            encoder: encoder,
-          );
-          trace?.mark('cover rendered', bytes: cover.length);
-          final thumb = await renderMilestoneThumb(
-            photos: images,
-            framings: framings,
-            encoder: encoder,
-          );
-          trace?.mark('thumb rendered', bytes: thumb.length);
-          coverPath = ShareJob.coverPath(uid, job.postId);
-          thumbPath = ShareJob.thumbPath(uid, job.postId);
-          await Future.wait([
-            backend.upload(coverPath!, cover).then((u) => coverUrl = u),
-            backend.upload(thumbPath!, thumb).then((u) => thumbUrl = u),
-          ]);
-        } finally {
-          for (final i in images) {
-            i.dispose();
-          }
-        }
-      }());
+      }
     }
-    await Future.wait(uploads);
-    trace?.mark('uploads done', bytes: bytes.fold<int>(0, (s, b) => s + (b?.length ?? 0)));
+    trace?.mark('prepared');
+    return job.copyWith(
+      photos: photos,
+      step: ShareStep.prepared,
+      coverLocalPath: coverLocal,
+      thumbLocalPath: thumbLocal,
+    );
+  }
+
+  /// One thing to send: its bytes, and what to do with them.
+  ({int size, Future<void> Function(UploadProgress onProgress) send}) _unit(
+    int size,
+    Future<void> Function(UploadProgress onProgress) send,
+  ) => (size: size, send: send);
+
+  /// Every file up, four at a time, the bytes counted as they go: each
+  /// photo to its post path — the new shot to its private path as well,
+  /// from the same bytes — and, for a milestone, the cover and the
+  /// thumbnail. What has already landed is counted and not sent again;
+  /// each landing is recorded as it happens.
+  Future<ShareJob> _upload(ShareJob job, ShareTrace? trace) async {
+    final uid = backend.uid;
+    final photos = [...job.photos];
+    String? coverUrl = job.coverUrl, coverPath = job.coverStoragePath;
+    String? thumbUrl = job.thumbUrl, thumbPath = job.thumbStoragePath;
+
+    Future<Uint8List> read(String? path, String what) async {
+      if (path == null || !File(path).existsSync()) {
+        throw StateError('$what is not on the phone (${path ?? 'no path'})');
+      }
+      return File(path).readAsBytes();
+    }
+
+    int sizeOf(String? path) => path == null || !File(path).existsSync() ? 0 : File(path).lengthSync();
+
+    final units = <({int size, Future<void> Function(UploadProgress) send})>[];
+    var already = 0;
+    Future<void> record() => _persist(
+      job.copyWith(
+        photos: photos,
+        coverUrl: coverUrl,
+        coverStoragePath: coverPath,
+        thumbUrl: thumbUrl,
+        thumbStoragePath: thumbPath,
+      ),
+    );
+
+    for (var i = 0; i < photos.length; i++) {
+      final p = photos[i];
+      final size = sizeOf(p.localPath);
+      if (p.url == null) {
+        units.add(_unit(size, (onProgress) async {
+          final data = await read(p.localPath, 'photo ${p.id}');
+          final path = ShareJob.photoPath(uid, job.postId, i);
+          final url = await backend.upload(path, data, onProgress: onProgress);
+          photos[i] = photos[i].uploaded(url, path);
+          await record();
+        }));
+      } else {
+        already += size;
+      }
+      if (p.isNew && job.shotPhotoId != null) {
+        if (p.privateSaved) {
+          already += size;
+        } else {
+          units.add(_unit(size, (onProgress) async {
+            final data = await read(p.localPath, 'photo ${p.id}');
+            await _savePrivately(job, data, onProgress);
+            photos[i] = photos[i].copyWith(privateSaved: true);
+            await record();
+          }));
+        }
+      }
+    }
+    if (job.isMilestone) {
+      final coverSize = sizeOf(job.coverLocalPath);
+      final thumbSize = sizeOf(job.thumbLocalPath);
+      if (coverUrl == null) {
+        units.add(_unit(coverSize, (onProgress) async {
+          final data = await read(job.coverLocalPath, 'the cover');
+          coverPath = ShareJob.coverPath(uid, job.postId);
+          coverUrl = await backend.upload(coverPath!, data, onProgress: onProgress);
+          await record();
+        }));
+      } else {
+        already += coverSize;
+      }
+      if (thumbUrl == null) {
+        units.add(_unit(thumbSize, (onProgress) async {
+          final data = await read(job.thumbLocalPath, 'the thumbnail');
+          thumbPath = ShareJob.thumbPath(uid, job.postId);
+          thumbUrl = await backend.upload(thumbPath!, data, onProgress: onProgress);
+          await record();
+        }));
+      } else {
+        already += thumbSize;
+      }
+    }
+
+    final total = already + units.fold<int>(0, (s, u) => s + u.size);
+    final sent = List<int>.filled(units.length, 0);
+    void report() => _progress(job.postId, already + sent.fold<int>(0, (s, b) => s + b), total);
+    report();
+    await _inParallel(List.generate(units.length, (i) => i), (i) async {
+      await units[i].send((n) {
+        sent[i] = n.clamp(0, units[i].size);
+        report();
+      });
+      sent[i] = units[i].size;
+      report();
+    });
+    trace?.mark('uploads done', bytes: total);
     return job.copyWith(
       photos: photos,
       step: ShareStep.uploaded,
@@ -785,11 +976,11 @@ class ShareJobRunner {
 
   /// The new shot in the private gallery: its binary at its own path, its
   /// record set by id, and — at a crossing — into the milestone's collage.
-  Future<void> _savePrivately(ShareJob job, Uint8List data) async {
+  Future<void> _savePrivately(ShareJob job, Uint8List data, UploadProgress onProgress) async {
     final uid = backend.uid;
     final photoId = job.shotPhotoId!;
     final path = ShareJob.privatePhotoPath(uid, photoId);
-    final url = await backend.upload(path, data);
+    final url = await backend.upload(path, data, onProgress: onProgress);
     final when = DateTime.fromMicrosecondsSinceEpoch(job.shotTimestamp!);
     await backend.savePhoto(
       Photo(
@@ -824,15 +1015,22 @@ class ShareJobRunner {
     await Future.wait([for (var k = 0; k < kShareConcurrency; k++) worker()]);
   }
 
-  void _deleteLocalFiles(ShareJob job) {
-    for (final p in job.photos) {
-      final path = p.localPath;
-      if (path == null) continue;
+  /// The job's folder, and any file of its that lies elsewhere, gone.
+  Future<void> _deleteLocal(ShareJob job) async {
+    for (final path in [
+      for (final p in job.photos) ?p.localPath,
+      ?job.coverLocalPath,
+      ?job.thumbLocalPath,
+    ]) {
       try {
         final f = File(path);
         if (f.existsSync()) f.deleteSync();
       } catch (_) {}
     }
+    try {
+      final dir = await dirFor(job.postId);
+      if (dir.existsSync()) dir.deleteSync(recursive: true);
+    } catch (_) {}
   }
 }
 

@@ -1,18 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/backend.dart';
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../../core/utils/duration_format.dart';
 import '../../photos/capture_crop.dart';
 import '../../photos/collage_selection.dart' show kMilestoneBandSeconds;
-import '../firebase_share_backend.dart';
 import '../models/post.dart';
-import '../share_job.dart';
-import '../single_post_screen.dart';
-import 'milestone_card.dart' show kShareFailedText;
 import 'milestone_frame.dart' show kMilestoneScrim;
 import 'post_card_chrome.dart';
 import 'post_chrome.dart';
@@ -21,20 +15,17 @@ import 'post_chrome.dart';
 /// under the eased scrim, the handle and how long ago above, the task and
 /// its length, the caption and the actions below — and, where the dots
 /// would be, a small ring filled to how far into its band the task stood.
-/// One photo, no pages: a tap anywhere opens the post on its own page.
-/// A post from before, with no photo, is the surface with the same text.
-class SessionCard extends ConsumerWidget {
+/// One photo, no pages: a tap on the card does nothing; the caption opens
+/// in place when tapped. A post from before, with no photo, is the
+/// surface with the same text.
+class SessionCard extends StatelessWidget {
   const SessionCard({
     super.key,
     required this.post,
-    this.opensPost = true,
     this.preview = false,
   });
 
   final SessionPost post;
-
-  /// Whether a tap opens the post on its own page. Off on that page.
-  final bool opensPost;
 
   /// The review before a share: the handle and the actions are drawn as
   /// they will be but do nothing.
@@ -49,62 +40,49 @@ class SessionCard extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final photo = post.photos.isNotEmpty ? post.photos.first : null;
     final onPhoto = photo != null && photo.url.isNotEmpty;
-    final mine = post.authorUid == ref.watch(currentUidProvider);
-    final shareFailed = post.pending &&
-        mine &&
-        ref.watch(shareJobStateProvider(post.id))?.status == ShareJobStatus.failed;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(kPostCardRadius),
       child: AspectRatio(
         aspectRatio: kCaptureAspect,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: opensPost ? () => showSinglePost(context, post) : null,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (onPhoto)
-                Image(
-                  image: postImageProvider(photo.url),
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, _, _) => ColoredBox(color: tokens.surface),
-                )
-              else
-                ColoredBox(color: tokens.surface),
-              if (onPhoto)
-                const IgnorePointer(
-                  child: DecoratedBox(decoration: BoxDecoration(gradient: kMilestoneScrim)),
-                ),
-              Positioned(
-                left: kPostCardInset,
-                right: kPostCardInset,
-                top: kPostCardTop,
-                child: AbsorbPointer(absorbing: preview, child: PostCardTopRow(post: post)),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (onPhoto)
+              Image(
+                image: postImageProvider(photo.url),
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                errorBuilder: (_, _, _) => ColoredBox(color: tokens.surface),
+              )
+            else
+              ColoredBox(color: tokens.surface),
+            if (onPhoto)
+              const IgnorePointer(
+                child: DecoratedBox(decoration: BoxDecoration(gradient: kMilestoneScrim)),
               ),
-              Positioned(
-                left: kPostCardInset,
-                right: kPostCardInset,
-                // The actions carry 12 of their own below the words; the
-                // words' line ends 16 from the edge.
-                bottom: kPostCardBottom - PostInteractions.verticalPad,
-                child: AbsorbPointer(
-                  absorbing: preview,
-                  child: _Bottom(
-                    post: post,
-                    fill: bandFill,
-                    shareFailed: shareFailed,
-                    onRetry: () => ref.read(shareJobRunnerProvider)?.retry(post.id),
-                  ),
-                ),
+            Positioned(
+              left: kPostCardInset,
+              right: kPostCardInset,
+              top: kPostCardTop,
+              child: AbsorbPointer(absorbing: preview, child: PostCardTopRow(post: post)),
+            ),
+            Positioned(
+              left: kPostCardInset,
+              right: kPostCardInset,
+              // The actions carry 12 of their own below the words; the
+              // words' line ends 16 from the edge.
+              bottom: kPostCardBottom - PostInteractions.verticalPad,
+              child: AbsorbPointer(
+                absorbing: preview,
+                child: _Bottom(post: post, fill: bandFill),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -122,21 +100,14 @@ const double kSessionRingOpacity = 0.85;
 /// The task and its length, the caption, and the actions at the left with
 /// the band ring at the right, on the words' baseline.
 class _Bottom extends StatelessWidget {
-  const _Bottom({
-    required this.post,
-    required this.fill,
-    required this.shareFailed,
-    required this.onRetry,
-  });
+  const _Bottom({required this.post, required this.fill});
 
   final SessionPost post;
   final double? fill;
-  final bool shareFailed;
-  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final caption = shareFailed ? kShareFailedText : post.caption;
+    final caption = post.caption;
     final line = '${post.taskName} · ${DurationFormat.hm(Duration(seconds: post.sessionSeconds))}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,26 +123,7 @@ class _Bottom extends StatelessWidget {
         ),
         if (caption != null && caption.isNotEmpty) ...[
           const SizedBox(height: 3),
-          if (shareFailed)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onRetry,
-              child: Text(
-                caption,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: kPostCardTextCaption),
-              ),
-            )
-          else
-            IgnorePointer(
-              child: Text(
-                caption,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: kPostCardTextCaption),
-              ),
-            ),
+          PostCardCaption(text: caption),
         ],
         // Nothing declared: the actions' own 12 above the words is the 12.
         Row(

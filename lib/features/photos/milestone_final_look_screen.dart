@@ -90,7 +90,7 @@ class MilestoneFinalLookScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(const FinalLookOutcome(FinalLookOutcomeKind.back)),
         ),
       ),
-      card: (caption) => MilestoneCard(post: _preview(caption), opensPost: false, preview: true),
+      card: (caption) => MilestoneCard(post: _preview(caption), preview: true),
       lockedCopy: share.canShare ? null : share.lockedCopy,
       onShare: onShare,
       onKeep: onKeep,

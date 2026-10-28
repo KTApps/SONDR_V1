@@ -77,3 +77,32 @@ class PostCardTopRow extends ConsumerWidget {
     );
   }
 }
+
+/// The caption, two lines and cut, until it is tapped: then the whole
+/// of it, in place, and a tap folds it back. The same on every card.
+class PostCardCaption extends StatefulWidget {
+  const PostCardCaption({super.key, required this.text});
+
+  final String text;
+
+  @override
+  State<PostCardCaption> createState() => _PostCardCaptionState();
+}
+
+class _PostCardCaptionState extends State<PostCardCaption> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: Text(
+        widget.text,
+        maxLines: _expanded ? null : 2,
+        overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13, color: kPostCardTextCaption),
+      ),
+    );
+  }
+}

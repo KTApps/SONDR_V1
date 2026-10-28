@@ -49,10 +49,12 @@ class FirebaseAccountFiles implements AccountFiles {
 
   /// A page at a time, because `listAll` is one request per 1000 objects
   /// with no bound on how many it will make, and an account with a long
-  /// history has more photos than that.
+  /// history has more photos than that. A post's files sit in a folder
+  /// of its own under `posts`, so each folder found is listed in turn.
   @override
   Future<List<String>> list(String prefix) async {
     final found = <String>[];
+    final folders = <String>[];
     final root = _storage.ref(prefix);
     String? token;
     do {
@@ -60,8 +62,12 @@ class FirebaseAccountFiles implements AccountFiles {
         ListOptions(maxResults: 100, pageToken: token),
       );
       found.addAll([for (final item in page.items) item.fullPath]);
+      folders.addAll([for (final p in page.prefixes) p.fullPath]);
       token = page.nextPageToken;
     } while (token != null);
+    for (final folder in folders) {
+      found.addAll(await list(folder));
+    }
     return found;
   }
 

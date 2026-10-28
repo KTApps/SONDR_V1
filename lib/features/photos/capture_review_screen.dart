@@ -120,7 +120,7 @@ class CaptureReviewScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(ReviewOutcome.retake),
         ),
       ),
-      card: (caption) => SessionCard(post: _preview(caption), opensPost: false, preview: true),
+      card: (caption) => SessionCard(post: _preview(caption), preview: true),
       lockedCopy: share.canShare ? null : share.lockedCopy,
       onShare: onShare,
       onKeep: onKeep,

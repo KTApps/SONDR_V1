@@ -1,9 +1,11 @@
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../core/backend.dart';
 import '../notifications/notifications_repository.dart';
@@ -46,8 +48,9 @@ class FirebaseShareBackend implements ShareBackend {
   /// The post's createdAt is the client's clock as a Timestamp, not a
   /// number: Firestore orders numbers before timestamps, and the feed is
   /// ordered by createdAt — a number would put the new post at the end.
+  /// Set by id, so a rerun writes the same post over itself.
   @override
-  Future<void> setPendingPost(String postId, Map<String, dynamic> doc) {
+  Future<void> createPost(String postId, Map<String, dynamic> doc) {
     final createdAt = doc['createdAt'];
     return _posts.doc(postId).set({
       ...doc,
@@ -56,9 +59,20 @@ class FirebaseShareBackend implements ShareBackend {
   }
 
   @override
-  Future<String> upload(String path, Uint8List bytes) async {
+  Future<String> upload(String path, Uint8List bytes, {UploadProgress? onProgress}) async {
     final ref = storage.ref(path);
-    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+    final task = ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+    final sub = onProgress == null
+        ? null
+        : task.snapshotEvents.listen(
+            (s) => onProgress(s.bytesTransferred),
+            onError: (_) {},
+          );
+    try {
+      await task;
+    } finally {
+      await sub?.cancel();
+    }
     return ref.getDownloadURL();
   }
 
@@ -79,10 +93,6 @@ class FirebaseShareBackend implements ShareBackend {
 
   @override
   Future<List<String>> audience() => posts.audience();
-
-  @override
-  Future<void> finishPost(String postId, Map<String, dynamic> update) =>
-      _posts.doc(postId).update(update);
 
   /// One batch, every notice under the post's id. The rules allow a notice
   /// to be created and never updated, so a rerun of a batch that already
@@ -142,6 +152,14 @@ Future<Uint8List?> cachedBytesOf(String url) async {
   }
 }
 
+/// A job's folder under the app's own support directory — the temp
+/// directory can be emptied while the app is not running, and a job has
+/// to find its bytes after a relaunch.
+Future<Directory> shareJobDir(String postId) async {
+  final base = await getApplicationSupportDirectory();
+  return Directory('${base.path}/sondr_share/$postId')..createSync(recursive: true);
+}
+
 final shareBackendProvider = Provider<ShareBackend?>((ref) {
   final uid = ref.watch(currentUidProvider);
   final posts = ref.watch(postsRepositoryProvider);
@@ -170,19 +188,16 @@ final shareJobRunnerProvider = Provider<ShareJobRunner?>((ref) {
   return ShareJobRunner(
     store: ref.watch(shareJobStoreProvider),
     backend: backend,
+    dirFor: shareJobDir,
     cached: cachedBytesOf,
     onTrace: (t) => ref.read(lastShareTraceProvider.notifier).set(t),
     onPrivateSaved: () => invalidatePhotoViewsWith(ref),
   );
 });
 
-/// What the cards watch: a job's state by post id, null when there is no
-/// job for it.
-final shareJobStateProvider = Provider.family<ShareJobState?, String>((ref, postId) {
-  return ref.watch(_shareStatesProvider)[postId];
-});
-
-final _shareStatesProvider = Provider<Map<String, ShareJobState>>((ref) {
+/// What every job is doing, by post id, as the runner reports it. Empty
+/// when nothing is being shared.
+final shareStatesProvider = Provider<Map<String, ShareJobState>>((ref) {
   final runner = ref.watch(shareJobRunnerProvider);
   if (runner == null) return const {};
   void listener() => ref.invalidateSelf();

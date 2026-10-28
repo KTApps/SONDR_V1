@@ -130,17 +130,35 @@ void main() {
     expect(tester.getRect(frame()).width / tester.getRect(frame()).height, closeTo(3 / 4, 0.001));
   });
 
-  testWidgets('a tap anywhere opens the post on its own page, with the caption in full', (tester) async {
+  testWidgets('a tap on the card goes nowhere', (tester) async {
     await pump(tester, SessionCard(post: post()));
     final r = tester.getRect(frame());
-    await tester.tapAt(Offset(r.left + r.width * 0.9, r.center.dy));
+    for (final f in [0.1, 0.5, 0.9]) {
+      await tester.tapAt(Offset(r.left + r.width * f, r.center.dy));
+      await tester.pumpAndSettle();
+    }
+    expect(find.byType(SinglePostScreen), findsNothing);
+    expect(find.byType(SessionCard), findsOneWidget);
+  });
+
+  testWidgets('the caption opens in place when tapped, and folds back', (tester) async {
+    const long = 'Done for today. A long one that runs past the two lines the card '
+        'gives it, and on, and on, so that there is something to open up.';
+    await pump(tester, SessionCard(post: post(caption: long)));
+    Text caption() => tester.widget<Text>(find.text(long));
+    expect(caption().maxLines, 2);
+    final folded = tester.getRect(find.text(long));
+    final taskBefore = tester.getRect(find.text('Spanish · 1h 20m')).top;
+    await tester.tap(find.text(long));
     await tester.pumpAndSettle();
-    expect(find.byType(SinglePostScreen), findsOneWidget);
-    expect(find.text('Done for today.'), findsNWidgets(2));
-    // There, a tap goes nowhere further.
-    await tester.tapAt(Offset(r.left + r.width * 0.5, r.center.dy));
+    expect(caption().maxLines, isNull);
+    expect(tester.getRect(find.text(long)).height, greaterThan(folded.height));
+    // In place: the block grows upward over the photo; the frame is as it was.
+    expect(tester.getRect(find.text('Spanish · 1h 20m')).top, lessThan(taskBefore));
+    expect(tester.getRect(frame()).height, closeTo((390 - 32) * 4 / 3, 0.5));
+    await tester.tap(find.text(long));
     await tester.pumpAndSettle();
-    expect(find.byType(SinglePostScreen), findsOneWidget);
+    expect(caption().maxLines, 2);
   });
 
   testWidgets('the author sees Likes', (tester) async {

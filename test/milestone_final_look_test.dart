@@ -91,7 +91,6 @@ void main() {
     expect(card(), findsOneWidget);
     final c = tester.widget<MilestoneCard>(card());
     expect(c.preview, isTrue);
-    expect(c.opensPost, isFalse);
     expect(inCard('cass'), findsOneWidget);
     expect(inCard('now'), findsOneWidget);
     expect(inCard('Spanish'), findsOneWidget);

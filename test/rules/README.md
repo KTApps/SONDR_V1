@@ -1,4 +1,4 @@
-# Firestore rules tests
+# Firestore and Storage rules tests
 
 Rules are not filters: a query succeeds only if the rules can prove every
 matching document is readable. Get that wrong and a reader's whole feed
@@ -10,7 +10,7 @@ Run them against the emulator:
 
 ```bash
 cd test/rules && npm install
-npx -y firebase-tools@13.35.1 emulators:exec --only firestore --project demo-sondr \
+npx -y firebase-tools@13.35.1 emulators:exec --only firestore,storage --project demo-sondr \
   "node --test rules.test.mjs"
 ```
 

@@ -6,6 +6,23 @@ rules_version = '2';
 // (only friends ever receive the URL) rather than on `allow read` here.
 service firebase.storage {
   match /b/{bucket}/o {
+    // A post's files live under the post's id: `{postId}/0.jpg`, `1.jpg`,
+    // … `cover.jpg`, `thumb.jpg` — so a share can be retried by writing the
+    // same names again, and a post's folder can be taken down as one. A
+    // wildcard is ONE segment, so this match is its own: the flat match
+    // below it, kept for the posts of old, never saw these paths, and every
+    // upload of a new post was refused as unauthorized.
+    match /users/{uid}/posts/{postId}/{file} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+                   && request.auth.uid == uid
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null
+                    && request.auth.uid == uid;
+    }
+
+    // Posts from before the folders: one file at the flat path.
     match /users/{uid}/posts/{file} {
       allow read: if request.auth != null;
       // create/update carry an incoming file, so they're size/type-checked;
@@ -28,13 +45,15 @@ service firebase.storage {
     // create/update carry an incoming file, so they're size/type-checked; delete
     // has no `request.resource`, so it's gated on ownership alone (folding the
     // size/type checks into a blanket `write` would deny every delete).
-    // LISTING is checked against the prefix being listed, which neither
+    // LISTING is checked against the prefix being listed, which no
     // per-file match covers — `users/{uid}/posts` is one segment short of
-    // `users/{uid}/posts/{file}`. Deleting an account has to find every
-    // object it owns, including one whose Firestore document never landed,
-    // so the owner may list their own prefixes. Names only: reading the
-    // bytes is still governed by the matches above.
-    match /users/{uid}/{prefix} {
+    // `users/{uid}/posts/{file}`, and a post's own folder,
+    // `users/{uid}/posts/{postId}`, is a prefix too. Deleting an account
+    // has to find every object it owns, including one whose Firestore
+    // document never landed, so the owner may list any prefix of their own
+    // at any depth. Names only: reading the bytes is still governed by the
+    // matches above.
+    match /users/{uid}/{prefix=**} {
       allow list: if request.auth != null && request.auth.uid == uid;
     }
 

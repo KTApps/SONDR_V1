@@ -101,7 +101,6 @@ void main() {
       await open(tester);
       final c = tester.widget<SessionCard>(card());
       expect(c.preview, isTrue);
-      expect(c.opensPost, isFalse);
       expect(inCard('cass'), findsOneWidget);
       expect(inCard('now'), findsOneWidget);
       expect(inCard('Spanish · 1h 20m'), findsOneWidget);

@@ -143,7 +143,7 @@ reader gets a *shorter* feed, not an error.
 
 ```bash
 cd test/rules && npm install
-npx -y firebase-tools@13.35.1 emulators:exec --only firestore \
+npx -y firebase-tools@13.35.1 emulators:exec --only firestore,storage \
   --project demo-sondr "npm test"
 ```
 

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/features/feed/band_story.dart';
 import 'package:sondr/features/feed/collage_layout.dart';
 import 'package:sondr/features/feed/models/post.dart';
+import 'package:sondr/features/feed/posts_repository.dart';
 
 void main() {
   // A Firestore-shaped milestone map carrying the given photos (photos are
@@ -113,6 +114,9 @@ void main() {
       });
       expect(session, isA<SessionPost>());
       expect(session.pending, isTrue);
+      // And a pending post from before is kept out of every list.
+      final finished = Post.fromMap('f', milestoneMap(const []));
+      expect(withoutPending([pending, finished, session]), [finished]);
     });
 
     test('the cover round-trips, and an old post has none', () {

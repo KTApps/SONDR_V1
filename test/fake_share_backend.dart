@@ -17,7 +17,6 @@ class FakeShareBackend implements ShareBackend {
   /// Which call throws, and how many times, before working.
   String? failAt;
   int failTimes = 1;
-  bool noticesDenied = false;
 
   int ids = 0;
   final List<String> calls = [];
@@ -94,10 +93,26 @@ class FakeShareBackend implements ShareBackend {
     return ['me', 'a', 'b'];
   }
 
+  final Set<String> _noticed = {};
+
+  /// The post and the notices land together; as the rules make it, a
+  /// notice is created under the post's id and can never be updated, so
+  /// a rerun of a write that landed is refused — and, the post being
+  /// there, taken as done.
   @override
-  Future<void> createPost(String postId, Map<String, dynamic> doc) async {
+  Future<void> createPost(
+    ShareJob job,
+    Map<String, dynamic> doc, {
+    required PostAuthor author,
+    required List<String> friends,
+  }) async {
     _maybeFail('createPost');
-    posts[postId] = doc;
+    if (friends.isNotEmpty && !_noticed.add(job.postId)) {
+      if (posts.containsKey(job.postId)) return;
+      throw StateError('notices refused');
+    }
+    posts[job.postId] = doc;
+    if (friends.isNotEmpty) notices.add(friends);
   }
 
   @override
@@ -114,18 +129,6 @@ class FakeShareBackend implements ShareBackend {
     _maybeFail('deletePendingPost');
     deletedPending.add(postId);
     posts.remove(postId);
-  }
-
-  final Set<String> _noticed = {};
-
-  /// As the rules make it: a notice is created under the post's id and
-  /// can never be updated, so a second landing is refused — and taken as
-  /// already sent.
-  @override
-  Future<void> notify(ShareJob job, List<String> friends, PostAuthor author) async {
-    _maybeFail('notify');
-    if (noticesDenied || !_noticed.add(job.postId)) return;
-    notices.add(friends);
   }
 
   @override

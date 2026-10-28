@@ -14,7 +14,10 @@ import 'package:sondr/features/profile/profile_action_bar.dart';
 
 /// The word on the Feed, and the page it opens.
 void main() {
-  final now = DateTime.now();
+  // Midday today, not the clock: at a few minutes past midnight a like
+  // five minutes before now fell on yesterday, and the folding failed.
+  final today = DateTime.now();
+  final now = DateTime(today.year, today.month, today.day, 12);
   AppNotification n(String id, NotificationType type, {DateTime? at, String handle = 'cass', String? postId}) =>
       AppNotification(id: id, type: type, actorUid: 'u_$handle', actorHandle: handle, at: at ?? now, postId: postId);
 

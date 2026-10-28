@@ -23,8 +23,10 @@ import 'share_trace.dart';
 /// — and only then lets the review go. Everything slow runs behind it as a
 /// job: every file uploaded, four at a time, with the bytes counted as
 /// they go; then ONE write of the post, complete — its final URLs, its
-/// cover, its thumbnail, its friends — so nobody ever sees a post that is
-/// not finished; then the notices, the collage and the tags.
+/// cover, its thumbnail, its friends — with the friends' notices in the
+/// same write, so nobody ever sees a post that is not finished and a
+/// post that is there has told its friends; then the collage and the
+/// tags.
 ///
 /// Every step is idempotent, so a job may be run again from wherever it
 /// stopped — after a crash, after the app was killed, after a lost
@@ -590,8 +592,16 @@ abstract class ShareBackend {
   Future<PostAuthor> author();
   Future<List<String>> audience();
 
-  /// The post, complete. Set by id: a rerun writes the same post again.
-  Future<void> createPost(String postId, Map<String, dynamic> doc);
+  /// The post, complete, and — for a milestone — a notice to each of
+  /// [friends], in ONE write, so a post that is there has its notices
+  /// with it. Set by id: a rerun writes the same post again, and a rerun
+  /// of a write that already landed is taken as landed.
+  Future<void> createPost(
+    ShareJob job,
+    Map<String, dynamic> doc, {
+    required PostAuthor author,
+    required List<String> friends,
+  });
 
   /// Whether the post is there, and finished.
   Future<PostCheck> checkPost(String postId);
@@ -599,10 +609,6 @@ abstract class ShareBackend {
   /// A post written at the moment of Share by a build before, never
   /// finished: taken down with the job that was to finish it.
   Future<void> deletePendingPost(String postId);
-
-  /// A milestone notice to each friend, under the post's id. Returns
-  /// normally when the notices turn out to be there already.
-  Future<void> notify(ShareJob job, List<String> friends, PostAuthor author);
 
   Future<void> setCover(String taskId, int milestoneHours, {String? coverUrl, String? thumbUrl});
   Future<void> markShared(List<String> photoIds);
@@ -791,6 +797,7 @@ class ShareJobRunner {
     } catch (e) {
       debugPrint('SONDR share job ${job.postId}: post check failed, ${e.runtimeType}');
     }
+    // Complete means told as well: the notices land in the post's write.
     if (check == PostCheck.complete) return const Triage(TriageKind.done);
     if (check == PostCheck.missing && job.step.index >= ShareStep.posted.index) {
       return Triage(TriageKind.discard, reason: 'post deleted', check: check);
@@ -962,8 +969,14 @@ class ShareJobRunner {
       final audience = await audienceFuture;
       job = job.copyWith(audience: audience);
       await _persist(job);
-      await backend.createPost(job.postId, job.document(uid, author, audience));
-      trace?.mark('post written');
+      final friends = [for (final u in audience) if (u != uid) u];
+      await backend.createPost(
+        job,
+        job.document(uid, author, audience),
+        author: author,
+        friends: job.isMilestone ? friends : const [],
+      );
+      trace?.mark('post written, friends told');
       trace?.friendsCanSee();
       job = job.copyWith(step: ShareStep.posted);
       await _persist(job);
@@ -972,10 +985,7 @@ class ShareJobRunner {
 
     if (job.step.index < ShareStep.done.index) {
       _checkCancelled(job.postId);
-      final author = await authorFuture;
-      final friends = [for (final u in job.audience ?? const <String>[]) if (u != uid) u];
       await Future.wait([
-        if (job.isMilestone && friends.isNotEmpty) backend.notify(job, friends, author),
         if (job.isMilestone && (job.coverUrl != null || job.thumbUrl != null))
           backend.setCover(
             job.taskId,
@@ -985,7 +995,7 @@ class ShareJobRunner {
           ),
         backend.markShared([for (final p in job.photos) p.id]),
       ]);
-      trace?.mark('notices, collage, tags');
+      trace?.mark('collage, tags');
       job = job.copyWith(step: ShareStep.done);
     }
     // Done IS the record gone: nothing is marked done and left behind.

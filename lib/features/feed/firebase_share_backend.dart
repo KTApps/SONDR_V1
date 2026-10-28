@@ -49,14 +49,30 @@ class FirebaseShareBackend implements ShareBackend {
   /// The post's createdAt is the client's clock as a Timestamp, not a
   /// number: Firestore orders numbers before timestamps, and the feed is
   /// ordered by createdAt — a number would put the new post at the end.
-  /// Set by id, so a rerun writes the same post over itself.
+  /// Set by id, so a rerun writes the same post over itself; the friends'
+  /// notices go in the same batch.
   @override
-  Future<void> createPost(String postId, Map<String, dynamic> doc) {
+  Future<void> createPost(
+    ShareJob job,
+    Map<String, dynamic> doc, {
+    required PostAuthor author,
+    required List<String> friends,
+  }) {
     final createdAt = doc['createdAt'];
-    return _posts.doc(postId).set({
-      ...doc,
-      if (createdAt is int) 'createdAt': Timestamp.fromMillisecondsSinceEpoch(createdAt),
-    });
+    return writePostWithNotices(
+      db: db,
+      notifier: notifier,
+      postId: job.postId,
+      doc: {
+        ...doc,
+        if (createdAt is int) 'createdAt': Timestamp.fromMillisecondsSinceEpoch(createdAt),
+      },
+      friends: friends,
+      actorHandle: author.username,
+      taskName: job.taskName,
+      hours: job.milestoneHours,
+      landed: () async => await checkPost(job.postId) == PostCheck.complete,
+    );
   }
 
   @override
@@ -113,33 +129,6 @@ class FirebaseShareBackend implements ShareBackend {
   @override
   Future<List<String>> audience() => posts.audience();
 
-  /// One batch, every notice under the post's id. The rules allow a notice
-  /// to be created and never updated, so a rerun of a batch that already
-  /// landed is refused as a whole — which is the proof it landed, and is
-  /// taken as done.
-  @override
-  Future<void> notify(ShareJob job, List<String> friends, PostAuthor author) async {
-    final batch = db.batch();
-    for (final u in friends) {
-      notifier.add(
-        batch,
-        recipientUid: u,
-        type: NotificationType.milestone,
-        actorHandle: author.username,
-        postId: job.postId,
-        taskName: job.taskName,
-        hours: job.milestoneHours,
-        id: job.postId,
-      );
-    }
-    try {
-      await batch.commit();
-    } on FirebaseException catch (e) {
-      if (e.code != 'permission-denied') rethrow;
-      debugPrint('SONDR milestone notices already sent for ${job.postId}');
-    }
-  }
-
   @override
   Future<void> setCover(String taskId, int milestoneHours, {String? coverUrl, String? thumbUrl}) =>
       collages.setCover(taskId, milestoneHours, coverUrl: coverUrl, thumbUrl: thumbUrl);
@@ -156,6 +145,64 @@ class FirebaseShareBackend implements ShareBackend {
         if (e.code != 'object-not-found') rethrow;
       }
     }
+  }
+}
+
+/// How many writes one batch carries: the post and the first friends'
+/// notices together, under Firestore's 500.
+const int kPostBatchSize = 450;
+
+/// The post and its friends' notices, written together: the post and the
+/// first [kPostBatchSize] − 1 notices in one batch — so a post that is
+/// there has its notices with it — and any further friends in batches
+/// after. The rules let a notice be created and never updated, so a
+/// batch that already landed is refused as a whole on its rerun; when
+/// [landed] confirms the post is there, that refusal is taken as done.
+Future<void> writePostWithNotices({
+  required FirebaseFirestore db,
+  required NotificationsWriter notifier,
+  required String postId,
+  required Map<String, dynamic> doc,
+  required List<String> friends,
+  required String actorHandle,
+  required String taskName,
+  required int? hours,
+  required Future<bool> Function() landed,
+}) async {
+  void notice(WriteBatch batch, String u) => notifier.add(
+    batch,
+    recipientUid: u,
+    type: NotificationType.milestone,
+    actorHandle: actorHandle,
+    postId: postId,
+    taskName: taskName,
+    hours: hours,
+    id: postId,
+  );
+  Future<void> commit(WriteBatch batch) async {
+    try {
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied' || !await landed()) rethrow;
+      debugPrint('SONDR post $postId already written with its notices');
+    }
+  }
+
+  final first = db.batch();
+  first.set(db.collection('posts').doc(postId), doc);
+  final withPost = friends.take(kPostBatchSize - 1).toList();
+  for (final u in withPost) {
+    notice(first, u);
+  }
+  await commit(first);
+
+  final rest = friends.skip(withPost.length).toList();
+  for (var i = 0; i < rest.length; i += kPostBatchSize) {
+    final batch = db.batch();
+    for (final u in rest.skip(i).take(kPostBatchSize)) {
+      notice(batch, u);
+    }
+    await commit(batch);
   }
 }
 

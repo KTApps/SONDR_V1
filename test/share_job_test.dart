@@ -168,9 +168,9 @@ void main() {
       expect((photos[0] as Map)['framing'], {'scale': 1.2, 'dx': 0.0, 'dy': 0.0});
       expect(photos.every((p) => (p as Map)['url'].toString().startsWith('https://')), isTrue);
 
-      // The order: every upload before the post, the post before the notices.
+      // The order: every upload before the post; the notices land with it.
       expect(backend.calls.lastIndexOf('upload'), lessThan(backend.calls.indexOf('createPost')));
-      expect(backend.calls.indexOf('createPost'), lessThan(backend.calls.indexOf('notify')));
+      expect(backend.calls, isNot(contains('notify')));
       expect(backend.notices, [['a', 'b']]);
       expect(backend.covers, hasLength(1));
       expect(backend.tagged.single, ['t_0', 't_1', 't_999']);
@@ -267,7 +267,7 @@ void main() {
   });
 
   group('falsifying the idempotency', () {
-    for (final step in ['upload', 'createPost', 'notify', 'markShared', 'savePhoto']) {
+    for (final step in ['upload', 'createPost', 'markShared', 'savePhoto']) {
       test('a failure at $step, then a retry: one post, one file per path, one notice per friend', () async {
         final backend = withOriginals()..failAt = step;
         final store = MemoryShareJobStore();
@@ -326,17 +326,48 @@ void main() {
       expect(r.states.value, isEmpty, reason: 'and nothing is said');
     });
 
-    test('notices the rules refuse as already there are taken as sent', () async {
-      final backend = withOriginals()..noticesDenied = true;
+    test('a write that landed and is run again — the rules refusing its notices — is taken as done', () async {
+      final backend = withOriginals();
+      final store = MemoryShareJobStore();
+      // As persisted the moment before the write was confirmed: the
+      // write landed, the record did not say so.
+      final prepared = await runner(backend).prepare(milestone());
+      final uploaded = prepared.copyWith(
+        step: ShareStep.uploaded,
+        audience: ['me', 'a', 'b'],
+        photos: [for (var i = 0; i < 3; i++) prepared.photos[i].uploaded('u$i', 'p$i').copyWith(privateSaved: true)],
+        coverUrl: 'c', coverStoragePath: 'cp', thumbUrl: 't', thumbStoragePath: 'tp',
+      );
+      await store.save(uploaded);
+      final first = runner(backend, store: store);
+      await first.begin(uploaded.copyWith(step: ShareStep.prepared));
+      await settle(first, 'post-1');
+      expect(backend.notices, [['a', 'b']]);
+      // The rerun's write is refused as a whole, the post being there.
+      await store.save(uploaded);
+      backend.checks['post-1'] = PostCheck.pending; // not triaged away: let it run
+      final again = runner(backend, store: store);
+      await again.resume();
+      await settle(again, 'post-1');
+      expect(backend.notices, [['a', 'b']], reason: 'told once');
+      expect(again.stateOf('post-1'), isNull, reason: 'done, not failed');
+    });
+
+    test('a session post tells nobody', () async {
+      final backend = withOriginals();
       final r = runner(backend);
-      await r.begin(milestone());
+      await r.begin(ShareJob(
+        postId: 'post-1', uid: 'me', type: PostType.session, taskId: 't', taskName: 'Spanish',
+        sessionSeconds: 60, cumulativeSeconds: 60, createdAtMs: 1, shotTimestamp: 999,
+        photos: [ShareJobPhoto(id: 't_999', localPath: shot.path, isNew: true)],
+      ));
       await settle(r, 'post-1');
       expect(backend.notices, isEmpty);
-      expect(r.stateOf('post-1'), isNull, reason: 'done, not failed');
+      expect(backend.posts.keys, ['post-1']);
     });
 
     test('the audience is decided once: a rerun after the write reaches the same friends', () async {
-      final backend = withOriginals()..failAt = 'notify';
+      final backend = withOriginals()..failAt = 'markShared';
       final store = MemoryShareJobStore();
       final r = runner(backend, store: store);
       await r.begin(milestone());

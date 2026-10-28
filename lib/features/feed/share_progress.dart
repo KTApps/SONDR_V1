@@ -6,16 +6,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/figma_scale.dart';
+import '../../shared/sondr_prompt.dart';
 import 'firebase_share_backend.dart';
 import 'share_job.dart';
 
 /// The one line the feed gives a share, top left, where "Notifications"
 /// stands at the right and in its style: how far the upload has got, then
 /// "Posted" for a moment, or — when the job has given up — that it could
-/// not, and a word to try again. Nothing else of a share shows in the feed
-/// until the post itself does, complete.
+/// not, with a word to try again and a word to discard it; or, once, that
+/// a job left from before could not be finished and has been thrown
+/// away. Nothing else of a share shows in the feed until the post itself
+/// does, complete.
 
-enum ShareLineKind { uploading, posted, failed }
+enum ShareLineKind { uploading, posted, failed, discarded }
 
 @immutable
 class ShareLine {
@@ -35,7 +38,8 @@ class ShareLine {
 
 /// What the line says for [states]: a failure outranks everything, an
 /// upload in progress comes next (every running job's bytes together),
-/// and a post just written is "posted". Null when there is nothing.
+/// then a job thrown away, then a post just written. Null when there is
+/// nothing.
 ShareLine? shareLineOf(Map<String, ShareJobState> states) {
   if (states.isEmpty) return null;
   if (states.values.any((s) => s.status == ShareJobStatus.failed)) {
@@ -51,6 +55,9 @@ ShareLine? shareLineOf(Map<String, ShareJobState> states) {
     final percent = total == 0 ? 0 : (up * 100 ~/ total).clamp(0, 100);
     return ShareLine(ShareLineKind.uploading, percent: percent);
   }
+  if (states.values.any((s) => s.status == ShareJobStatus.discarded)) {
+    return const ShareLine(ShareLineKind.discarded);
+  }
   return const ShareLine(ShareLineKind.posted);
 }
 
@@ -59,10 +66,18 @@ String uploadingText(int percent) => 'Uploading your post $percent%';
 const String kPostedText = 'Posted';
 const String kCouldNotPostText = 'Couldn’t post · ';
 const String kTryAgainText = 'Try again';
+const String kDiscardText = 'Discard';
+const String kDiscardedText = 'A post couldn’t be finished';
 
-/// How long "Posted" stands, and how long it takes to go.
+/// What Discard asks before it does anything.
+const String kDiscardTitle = 'Discard this post?';
+const String kDiscardBody = 'Its photos stay in your milestones.';
+
+/// How long "Posted" stands, and how long it takes to go; how long the
+/// word about a discarded job stands.
 const Duration kPostedHold = Duration(seconds: 2);
 const Duration kPostedFade = Duration(milliseconds: 300);
+const Duration kDiscardedHold = Duration(seconds: 3);
 
 class ShareProgressLine extends ConsumerStatefulWidget {
   const ShareProgressLine({super.key});
@@ -81,10 +96,52 @@ class _ShareProgressLineState extends ConsumerState<ShareProgressLine> {
   bool _fading = false;
   Timer? _timer;
 
+  /// The jobs thrown away that the line is telling of, held and then
+  /// faded once, and dismissed with the runner so they are never told
+  /// of again.
+  final Set<String> _discarded = {};
+  bool _discardedShowing = false;
+  bool _discardedFading = false;
+  Timer? _discardedTimer;
+
   @override
   void dispose() {
     _timer?.cancel();
+    _discardedTimer?.cancel();
     super.dispose();
+  }
+
+  void _tellDiscarded() {
+    _discardedShowing = true;
+    _discardedFading = false;
+    _discardedTimer?.cancel();
+    _discardedTimer = Timer(kDiscardedHold, () {
+      if (!mounted) return;
+      setState(() => _discardedFading = true);
+      _discardedTimer = Timer(kPostedFade, () {
+        if (!mounted) return;
+        final runner = ref.read(shareJobRunnerProvider);
+        for (final id in _discarded) {
+          runner?.dismiss(id);
+        }
+        setState(() {
+          _discarded.clear();
+          _discardedShowing = false;
+          _discardedFading = false;
+        });
+      });
+    });
+  }
+
+  Future<void> _discard() async {
+    final yes = await showSondrConfirm(
+      context,
+      title: kDiscardTitle,
+      body: kDiscardBody,
+      confirmLabel: kDiscardText,
+    );
+    if (!yes || !mounted) return;
+    await ref.read(shareJobRunnerProvider)?.discardFailed();
   }
 
   void _posted() {
@@ -125,6 +182,11 @@ class _ShareProgressLineState extends ConsumerState<ShareProgressLine> {
     if (landed || (line?.kind == ShareLineKind.posted && _postedUntil == null)) {
       _posted();
     }
+    var newlyDiscarded = false;
+    for (final e in states.entries) {
+      if (e.value.status == ShareJobStatus.discarded && _discarded.add(e.key)) newlyDiscarded = true;
+    }
+    if (newlyDiscarded && !_discardedShowing) _tellDiscarded();
 
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
@@ -136,6 +198,7 @@ class _ShareProgressLineState extends ConsumerState<ShareProgressLine> {
     );
 
     Widget? text;
+    final word = style?.copyWith(color: tokens.textPrimary, fontWeight: FontWeight.w700);
     if (line?.kind == ShareLineKind.failed) {
       text = Text.rich(
         TextSpan(
@@ -144,15 +207,27 @@ class _ShareProgressLineState extends ConsumerState<ShareProgressLine> {
           children: [
             TextSpan(
               text: kTryAgainText,
-              style: style?.copyWith(color: tokens.textPrimary, fontWeight: FontWeight.w700),
+              style: word,
               recognizer: TapGestureRecognizer()
                 ..onTap = () => ref.read(shareJobRunnerProvider)?.retryFailed(),
+            ),
+            TextSpan(text: ' · ', style: style),
+            TextSpan(
+              text: kDiscardText,
+              style: word,
+              recognizer: TapGestureRecognizer()..onTap = _discard,
             ),
           ],
         ),
       );
     } else if (line?.kind == ShareLineKind.uploading) {
       text = Text(uploadingText(line!.percent), style: style);
+    } else if (_discardedShowing) {
+      text = AnimatedOpacity(
+        opacity: _discardedFading ? 0 : 1,
+        duration: kPostedFade,
+        child: Text(kDiscardedText, style: style?.copyWith(color: tokens.textTertiary)),
+      );
     } else if (_postedUntil != null) {
       text = AnimatedOpacity(
         opacity: _fading ? 0 : 1,

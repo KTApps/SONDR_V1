@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -56,6 +57,24 @@ class FirebaseShareBackend implements ShareBackend {
       ...doc,
       if (createdAt is int) 'createdAt': Timestamp.fromMillisecondsSinceEpoch(createdAt),
     });
+  }
+
+  @override
+  Future<PostCheck> checkPost(String postId) async {
+    final doc = await _posts.doc(postId).get();
+    final data = doc.data();
+    if (data == null) return PostCheck.missing;
+    if (data['pending'] == true) return PostCheck.pending;
+    final photos = data['photos'];
+    final urlsFinal = photos is! List ||
+        photos.every((p) => p is Map && '${p['url']}'.startsWith('http'));
+    return urlsFinal ? PostCheck.complete : PostCheck.pending;
+  }
+
+  @override
+  Future<void> deletePendingPost(String postId) async {
+    final doc = await _posts.doc(postId).get();
+    if (doc.data()?['pending'] == true) await _posts.doc(postId).delete();
   }
 
   @override
@@ -185,14 +204,27 @@ final shareBackendProvider = Provider<ShareBackend?>((ref) {
 final shareJobRunnerProvider = Provider<ShareJobRunner?>((ref) {
   final backend = ref.watch(shareBackendProvider);
   if (backend == null) return null;
-  return ShareJobRunner(
-    store: ref.watch(shareJobStoreProvider),
+  final runner = ShareJobRunner(
+    store: shareJobStoreFor(backend.uid),
     backend: backend,
     dirFor: shareJobDir,
     cached: cachedBytesOf,
     onTrace: (t) => ref.read(lastShareTraceProvider.notifier).set(t),
     onPrivateSaved: () => invalidatePhotoViewsWith(ref),
   );
+  // This account's jobs, picked up as soon as there is a runner for it —
+  // at launch, and again when somebody else signs in and back.
+  unawaited(runner.resume());
+  return runner;
+});
+
+/// Every job on record for this account, with what the runner says of
+/// it — the debug panel's list. Re-read whenever a job's state moves.
+final shareJobsDebugProvider = FutureProvider.autoDispose<List<ShareJob>>((ref) async {
+  final runner = ref.watch(shareJobRunnerProvider);
+  ref.watch(shareStatesProvider);
+  if (runner == null) return const [];
+  return runner.store.load();
 });
 
 /// What every job is doing, by post id, as the runner reports it. Empty

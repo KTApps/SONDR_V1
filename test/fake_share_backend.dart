@@ -23,6 +23,11 @@ class FakeShareBackend implements ShareBackend {
   final List<String> calls = [];
   final Map<String, int> uploads = {};
   final Map<String, Map<String, dynamic>> posts = {};
+
+  /// What [checkPost] answers for a post not in [posts], and the pending
+  /// posts [deletePendingPost] has taken down.
+  final Map<String, PostCheck> checks = {};
+  final List<String> deletedPending = [];
   final List<Photo> savedPhotos = [];
   final List<(String, int, String)> crossings = [];
   final List<List<String>> notices = [];
@@ -93,6 +98,22 @@ class FakeShareBackend implements ShareBackend {
   Future<void> createPost(String postId, Map<String, dynamic> doc) async {
     _maybeFail('createPost');
     posts[postId] = doc;
+  }
+
+  @override
+  Future<PostCheck> checkPost(String postId) async {
+    _maybeFail('checkPost');
+    if (checks.containsKey(postId)) return checks[postId]!;
+    final doc = posts[postId];
+    if (doc == null) return PostCheck.missing;
+    return doc['pending'] == true ? PostCheck.pending : PostCheck.complete;
+  }
+
+  @override
+  Future<void> deletePendingPost(String postId) async {
+    _maybeFail('deletePendingPost');
+    deletedPending.add(postId);
+    posts.remove(postId);
   }
 
   final Set<String> _noticed = {};

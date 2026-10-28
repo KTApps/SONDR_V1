@@ -1,10 +1,13 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import '../feed/posts_repository.dart';
 import '../friends/friends_repository.dart';
+import '../habits/habits_providers.dart';
+import '../notifications/notifications_repository.dart';
 import '../photos/collages_repository.dart';
 import '../photos/photo_refresh.dart';
 import '../photos/photos_repository.dart';
@@ -14,10 +17,10 @@ import 'profile_repository.dart';
 
 /// The account changing hands — a sign-out, a deletion, a sign-in — and
 /// the rule that goes with it: no frame of the old account's data is
-/// drawn after it. Every surface that shows an account's data goes blank
-/// the moment the change starts, and comes back only once the new
-/// account's own data is in. Loading is not empty: a figure still on its
-/// way is nothing to show, not the old one.
+/// drawn after it. Every surface that shows an account's data — Home,
+/// the Feed, Profile — goes blank the moment the change starts, and
+/// comes back only once the new account's own data is in. Loading is not
+/// empty: a figure still on its way is nothing to show, not the old one.
 
 /// How long the surfaces wait for the new account's data before they
 /// give up waiting and draw what there is.
@@ -74,7 +77,13 @@ final accountSwitchingProvider = Provider<bool>((ref) {
   final uid = ref.watch(currentUidProvider);
   if (s.changing || uid == s.fromUid) return true;
   final loading = [
+    // Home: the tasks, the dial's habits.
     ref.watch(tasksProvider).isLoading,
+    ref.watch(habitsProvider).isLoading,
+    // The Feed: the posts, the notices.
+    ref.watch(feedProvider).isLoading,
+    ref.watch(myNotificationsProvider).isLoading,
+    // Profile.
     ref.watch(currentProfileProvider).isLoading,
     ref.watch(galleryPreviewProvider).isLoading,
     ref.watch(milestoneStripProvider).isLoading,
@@ -96,8 +105,13 @@ void invalidateAccountViews(WidgetRef ref) {
   ref.invalidate(currentProfileProvider);
   ref.invalidate(milestoneStripProvider);
   ref.invalidate(tasksProvider);
+  ref.invalidate(habitsProvider);
   ref.invalidate(friendshipsProvider);
+  ref.invalidate(myNotificationsProvider);
 }
+
+/// The blank a gated surface draws while the account changes hands.
+const Widget kAccountSwitchBlank = Scaffold(body: SizedBox.expand());
 
 /// Run [change] — the auth call that moves the account — with the
 /// surfaces blank from before it starts until the new account's data is

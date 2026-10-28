@@ -37,6 +37,7 @@ import '../profile/profile_providers.dart';
 import '../shell/main_shell.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
+import '../auth/account_switch.dart';
 import 'centre_period.dart';
 import 'timer_controller.dart';
 import 'widgets/task_dropdown.dart';
@@ -233,6 +234,9 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
 
   @override
   Widget build(BuildContext context) {
+    // The account is changing hands: no task, dial or habit of the old
+    // one is drawn, and nothing of the new until its data is in.
+    if (ref.watch(accountSwitchingProvider)) return kAccountSwitchBlank;
     final tokens = GreyscaleTokens.of(context);
     final now = DateTime.now();
 

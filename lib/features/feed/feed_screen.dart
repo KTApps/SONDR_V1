@@ -4,6 +4,7 @@ import '../../shared/sondr_loading.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
+import '../auth/account_switch.dart';
 import 'feed_mocks.dart';
 import 'posts_repository.dart';
 import 'share_progress.dart';
@@ -18,6 +19,9 @@ class FeedScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // The account is changing hands: no post, notice or upload line of
+    // the old one is drawn, and nothing of the new until its data is in.
+    if (ref.watch(accountSwitchingProvider)) return kAccountSwitchBlank;
     return Scaffold(
       // No AppBar — the redundant "Feed" title is removed. SafeArea drops the
       // content just below the status bar / Dynamic Island; the small top inset

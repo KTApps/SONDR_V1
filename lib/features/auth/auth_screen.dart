@@ -10,6 +10,7 @@ import '../../shared/sondr_field.dart';
 import '../../shared/sondr_header.dart';
 import '../debug/position_readout.dart';
 import 'apple_sign_in_button.dart';
+import 'account_switch.dart';
 import 'auth_repository.dart';
 import 'guest_prompts.dart';
 import 'handle_screen.dart';
@@ -77,7 +78,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           MaterialPageRoute(builder: (_) => const HandleScreen(afterSignUp: true)),
         );
       } else {
-        await auth.signInWithEmail(_email.text, _password.text);
+        // Blank until the account's own data is in: no frame of the
+        // guest's is drawn over it.
+        await switchAccount(ref, () => auth.signInWithEmail(_email.text, _password.text));
         if (!mounted) return;
         // Land back on Home (the timer), dismissing the whole account flow.
         Navigator.of(context).popUntil((route) => route.isFirst);

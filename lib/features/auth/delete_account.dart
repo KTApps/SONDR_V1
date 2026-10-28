@@ -12,6 +12,7 @@ import '../timer/live_activity.dart';
 import '../timer/session_store.dart';
 import '../timer/timer_controller.dart';
 import 'account_cascade.dart';
+import 'account_switch.dart';
 import 'auth_repository.dart';
 
 /// What the question says. One sentence, naming everything that goes, and
@@ -211,10 +212,14 @@ Future<DeleteAccountOutcome> deleteAccount(
     // Step 4, then 5, then 6.
     step = DeleteStep.cascade;
     final photoUrls = await erasure.run();
-    step = DeleteStep.deleteUser;
-    await auth.deleteCurrentUser();
-    step = DeleteStep.signIn;
-    await auth.signInAnonymously();
+    // Blank from before the account goes until the fresh guest's own
+    // data is in: no frame of the deleted account is drawn after it.
+    await switchAccount(ref, () async {
+      step = DeleteStep.deleteUser;
+      await auth.deleteCurrentUser();
+      step = DeleteStep.signIn;
+      await auth.signInAnonymously();
+    });
     step = DeleteStep.caches;
     await ref.read(localCachesProvider).clear(photoUrls);
 

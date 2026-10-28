@@ -1,6 +1,3 @@
-import 'dart:async';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,10 +11,7 @@ import 'package:sondr/features/feed/widgets/deletable_post_card.dart';
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
 import 'package:sondr/features/feed/widgets/milestone_cover.dart';
 import 'package:sondr/features/feed/widgets/milestone_frame.dart';
-import 'package:sondr/features/feed/firebase_share_backend.dart';
-import 'package:sondr/features/feed/share_job.dart';
 import 'package:sondr/features/feed/widgets/milestone_ring.dart';
-import 'package:sondr/features/photos/models/photo.dart' as gallery;
 import 'package:sondr/shared/cached_photo.dart';
 
 import 'tiny_png.dart';
@@ -276,22 +270,44 @@ void main() {
   });
 
   group('taps', () {
-    testWidgets('the middle opens the post on its own page, with the caption in full', (tester) async {
+    testWidgets('the middle does nothing: no page, nowhere else', (tester) async {
       await pump(tester, twoPhotos());
       await tapAt(tester, 0.5);
-      expect(find.byType(SinglePostScreen), findsOneWidget);
-      expect(find.text('Twenty hours in. Starting to dream in it.'), findsNWidgets(2));
-      // There, the middle goes nowhere further; the right still steps.
-      await tapAt(tester, 0.5);
-      expect(find.byType(SinglePostScreen), findsOneWidget);
+      expect(find.byType(SinglePostScreen), findsNothing);
+      expect(find.text('20'), findsOneWidget, reason: 'still the cover');
+      // On a photo page the middle keeps the page; the thirds still step.
       await tapAt(tester, 0.9);
       expect(find.text('2h'), findsOneWidget);
+      await tapAt(tester, 0.5);
+      expect(find.text('2h'), findsOneWidget);
+      expect(find.byType(SinglePostScreen), findsNothing);
     });
 
-    testWidgets('with one photo the whole card opens the post', (tester) async {
+    testWidgets('with one photo a tap anywhere does nothing', (tester) async {
       await pump(tester, post(photos: [photo('only', session: 2)]));
-      await tapAt(tester, 0.9);
-      expect(find.byType(SinglePostScreen), findsOneWidget);
+      for (final f in [0.1, 0.5, 0.9]) {
+        await tapAt(tester, f);
+      }
+      expect(find.byType(SinglePostScreen), findsNothing);
+      expect(find.text('20'), findsOneWidget);
+    });
+
+    testWidgets('the caption opens in place when tapped, and folds back', (tester) async {
+      const long = 'Twenty hours in. Starting to dream in it, and in the dreams everyone '
+          'is patient with me, which is more than can be said for the waking ones.';
+      await pump(tester, post(photos: [photo('only', session: 2)], caption: long));
+      Text caption() => tester.widget<Text>(find.text(long));
+      expect(caption().maxLines, 2);
+      final folded = tester.getRect(find.text(long));
+      final frameBefore = tester.getRect(frame());
+      await tester.tap(find.text(long));
+      await tester.pumpAndSettle();
+      expect(caption().maxLines, isNull);
+      expect(tester.getRect(find.text(long)).height, greaterThan(folded.height));
+      expect(tester.getRect(frame()), frameBefore, reason: 'in place: the frame does not move');
+      await tester.tap(find.text(long));
+      await tester.pumpAndSettle();
+      expect(caption().maxLines, 2);
     });
 
     testWidgets('a long press still asks to delete your own post', (tester) async {
@@ -299,57 +315,6 @@ void main() {
       await tester.longPress(frame());
       await tester.pumpAndSettle();
       expect(find.text('Delete this post?'), findsOneWidget);
-    });
-  });
-
-  group('a share that gave up', () {
-    testWidgets('the author sees "Couldn’t share. Try again" in place of the caption, and a tap retries', (tester) async {
-      final backend = _StuckBackend();
-      final store = MemoryShareJobStore();
-      final runner = ShareJobRunner(store: store, backend: backend, backoff: const [Duration.zero, Duration.zero, Duration.zero]);
-      runner.states.value = {'m1': const ShareJobState(ShareJobStatus.failed, attempts: 3)};
-      await store.save(ShareJob(
-        postId: 'm1', type: PostType.milestone, taskId: 't', taskName: 'Spanish',
-        sessionSeconds: 1, cumulativeSeconds: 1, createdAtMs: 1, milestoneHours: 20,
-        photos: const [], step: ShareStep.updated, attempts: 3,
-      ));
-      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
-      tester.view.devicePixelRatio = 3.0;
-      addTearDown(tester.view.reset);
-      final p = MilestonePost(
-        id: 'm1', authorUid: 'cass-uid', author: cass, createdAt: now, caption: 'Twenty.',
-        photos: [photo('a'), photo('b')], taskName: 'Spanish', milestoneHours: 20, totalHours: 20,
-        pending: true,
-      );
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            currentUidProvider.overrideWithValue('cass-uid'),
-            milestoneHintsProvider.overrideWithValue(MemoryMilestoneHints(const MilestoneHintState(tapped: true))),
-            shareJobRunnerProvider.overrideWithValue(runner),
-          ],
-          child: MaterialApp(theme: AppTheme.dark(), home: Scaffold(body: ListView(children: [MilestoneCard(post: p)]))),
-        ),
-      );
-      await tester.pump();
-      expect(find.text(kShareFailedText), findsOneWidget);
-      expect(find.text('Twenty.'), findsNothing);
-      await tester.tap(find.text(kShareFailedText));
-      await tester.pump();
-      expect(backend.retried, isTrue);
-      // Someone else's card never says it.
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            currentUidProvider.overrideWithValue('someone'),
-            milestoneHintsProvider.overrideWithValue(MemoryMilestoneHints(const MilestoneHintState(tapped: true))),
-            shareJobRunnerProvider.overrideWithValue(runner),
-          ],
-          child: MaterialApp(theme: AppTheme.dark(), home: Scaffold(body: ListView(children: [MilestoneCard(post: p)]))),
-        ),
-      );
-      await tester.pump();
-      expect(find.text(kShareFailedText), findsNothing);
     });
   });
 
@@ -389,40 +354,4 @@ void main() {
       expect(find.text(kMilestoneHintText), findsNothing);
     });
   });
-}
-
-/// A backend that notes a retry and otherwise never answers.
-class _StuckBackend implements ShareBackend {
-  bool retried = false;
-  @override
-  String get uid => 'cass-uid';
-  @override
-  String newPostId() => 'x';
-  @override
-  Future<void> setPendingPost(String postId, Map<String, dynamic> doc) async {}
-  @override
-  Future<String> upload(String path, Uint8List bytes) => Completer<String>().future;
-  @override
-  Future<Uint8List> download(String storagePath) => Completer<Uint8List>().future;
-  @override
-  Future<void> savePhoto(gallery.Photo photo) async {}
-  @override
-  Future<void> attachCrossing(String taskId, int milestoneHours, String photoId) async {}
-  @override
-  Future<PostAuthor> author() async {
-    retried = true;
-    return Completer<PostAuthor>().future;
-  }
-  @override
-  Future<List<String>> audience() => Completer<List<String>>().future;
-  @override
-  Future<void> finishPost(String postId, Map<String, dynamic> update) async {}
-  @override
-  Future<void> notify(ShareJob job, List<String> friends, PostAuthor author) async {}
-  @override
-  Future<void> setCover(String taskId, int milestoneHours, {String? coverUrl, String? thumbUrl}) async {}
-  @override
-  Future<void> markShared(List<String> photoIds) async {}
-  @override
-  Future<void> deleteFiles(List<String> paths) async {}
 }

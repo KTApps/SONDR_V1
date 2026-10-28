@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/backend.dart';
 import '../../../core/theme/greyscale_tokens.dart';
 import '../../photos/capture_crop.dart';
-import '../firebase_share_backend.dart';
 import '../milestone_hints.dart';
 import '../milestone_pages.dart';
-import '../share_job.dart';
 import '../models/post.dart';
-import '../single_post_screen.dart';
 import 'milestone_cover.dart';
 import 'milestone_frame.dart';
 import 'milestone_ring.dart';
@@ -25,8 +21,8 @@ import 'post_chrome.dart';
 /// or drawn here for a post from before covers. A tap on the right third
 /// steps to the photos one by one — each full-bleed, the ring saying how
 /// long that session was and when — the left third steps back, and the
-/// middle opens the post on its own page. No swiping: the feed owns the
-/// drag.
+/// middle does nothing. The caption opens in place when tapped. No
+/// swiping: the feed owns the drag.
 ///
 /// Numbers here are the mockup's at the card's width and are not scaled,
 /// as the ring never was: the card is a fixed composition over a photo.
@@ -34,15 +30,10 @@ class MilestoneCard extends ConsumerStatefulWidget {
   const MilestoneCard({
     super.key,
     required this.post,
-    this.opensPost = true,
     this.preview = false,
   });
 
   final MilestonePost post;
-
-  /// Whether a tap in the middle opens the post on its own page. Off on
-  /// that page.
-  final bool opensPost;
 
   /// The final look before a share: the handle and the actions are drawn
   /// as they will be but do nothing — there is no post yet to like, and
@@ -58,10 +49,6 @@ const double kMilestoneCardRadius = kPostCardRadius;
 
 /// What the caption line says while the hint is on.
 const String kMilestoneHintText = 'Tap the right side to see each session';
-
-/// What the caption line says, to the author alone, when a share has
-/// given up: a tap tries again.
-const String kShareFailedText = 'Couldn’t share. Try again';
 
 const double _kInset = kPostCardInset;
 const double _kTop = kPostCardTop;
@@ -112,20 +99,16 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
   }
 
   /// Where a tap landed: the right third steps on, the left back, the
-  /// middle opens the post. A single photo has nowhere to step, so the
-  /// whole card opens the post.
+  /// middle nothing. A single photo has nowhere to step.
   void _tap(Offset at, double width) {
     final pages = _pages;
-    if (pages.length > 1 && at.dx > width * 2 / 3) {
+    if (pages.length < 2) return;
+    if (at.dx > width * 2 / 3) {
       _next();
       _foundTheGesture();
-      return;
-    }
-    if (pages.length > 1 && at.dx < width / 3) {
+    } else if (at.dx < width / 3) {
       _previous();
-      return;
     }
-    if (widget.opensPost) showSinglePost(context, widget.post);
   }
 
   /// The right side was tapped: the hint has done its job, on every card.
@@ -168,12 +151,6 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
     final page = pages[index];
     final hint = _hintOn(ref.watch(milestoneHintStateProvider).value);
     if (hint) _startHint();
-    // A share of mine that has given up: the author is told, and can try
-    // again from the card.
-    final mine = post.authorUid == ref.watch(currentUidProvider);
-    final shareFailed = post.pending &&
-        mine &&
-        ref.watch(shareJobStateProvider(post.id))?.status == ShareJobStatus.failed;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(kMilestoneCardRadius),
@@ -234,8 +211,6 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
                       pages: _multi ? pages.length : 1,
                       page: index,
                       hint: hint,
-                      shareFailed: shareFailed,
-                      onRetry: () => ref.read(shareJobRunnerProvider)?.retry(post.id),
                     ),
                   ),
                 ),
@@ -326,8 +301,6 @@ class _Bottom extends StatelessWidget {
     required this.pages,
     required this.page,
     required this.hint,
-    this.shareFailed = false,
-    this.onRetry,
   });
 
   final MilestonePost post;
@@ -335,17 +308,9 @@ class _Bottom extends StatelessWidget {
   final int page;
   final bool hint;
 
-  /// The share gave up: the caption line says so, and a tap on it retries.
-  final bool shareFailed;
-  final VoidCallback? onRetry;
-
   @override
   Widget build(BuildContext context) {
-    final caption = shareFailed
-        ? kShareFailedText
-        : hint
-            ? kMilestoneHintText
-            : post.caption;
+    final caption = hint ? kMilestoneHintText : post.caption;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -364,10 +329,8 @@ class _Bottom extends StatelessWidget {
         ),
         if (caption != null && caption.isNotEmpty) ...[
           const SizedBox(height: 3),
-          if (shareFailed)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onRetry,
+          if (hint)
+            IgnorePointer(
               child: Text(
                 caption,
                 maxLines: 2,
@@ -376,14 +339,7 @@ class _Bottom extends StatelessWidget {
               ),
             )
           else
-            IgnorePointer(
-              child: Text(
-                caption,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: _kTextCaption),
-              ),
-            ),
+            PostCardCaption(text: caption),
         ],
         // Nothing declared: the actions' own 12 above the words is the 12.
         Row(

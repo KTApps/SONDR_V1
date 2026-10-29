@@ -3,7 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/debug_flags.dart';
+import '../../core/debug_tools.dart';
 
 /// Whether the position readout is drawn. QA-only and OFF by default; toggled
 /// from the debug panel, and meaningless unless the build carries
@@ -122,7 +122,7 @@ class _PositionReadoutState extends ConsumerState<PositionReadout> {
   Widget build(BuildContext context) {
     // The guard is first and the return is the child itself: nothing is
     // wrapped, nothing is allocated, nothing can move.
-    if (!kDebugTools) return widget.child;
+    if (!ref.watch(debugToolsProvider)) return widget.child;
     if (!ref.watch(positionReadoutProvider)) return widget.child;
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _measure());

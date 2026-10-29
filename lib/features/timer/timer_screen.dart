@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
-import '../../core/debug_flags.dart';
+import '../../core/debug_tools.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/date.dart';
@@ -427,8 +427,9 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
             right: 24 * scale,
             child: _LastTenDays(now: now, scale: scale),
           ),
-          // Dev-only milestone primer (DEBUG_TOOLS builds only; off by default).
-          if (kDebugTools && selectedTask != null)
+          // Dev-only milestone primer: a DEBUG_TOOLS build, and the test
+          // account signed in — nobody else sees it.
+          if (ref.watch(debugToolsProvider) && selectedTask != null)
             Positioned(
               top: 116 * scale,
               left: 24 * scale,

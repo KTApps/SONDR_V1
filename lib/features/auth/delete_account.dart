@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/debug_flags.dart';
+import '../../core/debug_tools.dart';
 import '../../shared/blur_sheet.dart';
 import '../../shared/sondr_prompt.dart';
 import '../friends/content_prune.dart';
@@ -169,10 +170,14 @@ Future<DeleteAccountOutcome> deleteAccount(
 }) async {
   final auth = ref.read(authRepositoryProvider);
   final erasure = ref.read(accountCascadeProvider);
+  // The step and the code beside the sentence: for the test account
+  // alone, as every debug-only line is.
+  final withCode = ref.read(debugToolsProvider);
   if (erasure == null) {
     lastDeleteError = deleteErrorText(
       kDeleteAccountFailed,
       '${DeleteStep.cascade.label}: no-backend',
+      withCode: withCode,
     );
     return DeleteAccountOutcome.failed;
   }
@@ -188,7 +193,7 @@ Future<DeleteAccountOutcome> deleteAccount(
   if (!yes || !context.mounted) return DeleteAccountOutcome.cancelled;
 
   // Step 2. Nothing below this line has run yet.
-  final proved = await _prove(context, auth, within: within);
+  final proved = await _prove(context, auth, within: within, withCode: withCode);
   switch (proved) {
     case _Proof.cancelled:
       return DeleteAccountOutcome.cancelled;
@@ -232,6 +237,7 @@ Future<DeleteAccountOutcome> deleteAccount(
     lastDeleteError = deleteErrorText(
       kDeleteAccountFailed,
       '${step.label}: $code',
+      withCode: withCode,
     );
     return DeleteAccountOutcome.failed;
   }
@@ -243,6 +249,7 @@ Future<_Proof> _prove(
   BuildContext context,
   AuthRepository auth, {
   BlurSheetHandle? within,
+  required bool withCode,
 }) async {
   final providers = auth.providerIds;
 
@@ -269,6 +276,7 @@ Future<_Proof> _prove(
           : deleteErrorText(
               kDeleteAccountFailed,
               '${DeleteStep.reauth.label}: $code',
+              withCode: withCode,
             );
       return _Proof.failed;
     }
@@ -289,6 +297,7 @@ Future<_Proof> _prove(
       lastDeleteError = deleteErrorText(
         kDeleteAccountFailed,
         '${DeleteStep.reauth.label}: $code',
+        withCode: withCode,
       );
       return _Proof.failed;
     }
@@ -300,6 +309,7 @@ Future<_Proof> _prove(
   lastDeleteError = deleteErrorText(
     kDeleteAccountFailed,
     '${DeleteStep.reauth.label}: no-provider',
+    withCode: withCode,
   );
   return _Proof.failed;
 }

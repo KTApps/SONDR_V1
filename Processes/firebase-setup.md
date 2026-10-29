@@ -59,7 +59,8 @@ firebase projects:list
 ```
 
 You should see all Firebase projects you have access to, including:
-- **ProdApp** (prodapp-b90ac) - Our main project
+- **Sondr** (sondr-cd439) - Our project. Every deploy passes `--project sondr-cd439`.
+- **ProdApp** (prodapp-b90ac) - Legacy: the predecessor native app's project (`Prod1/`). Not used by the Flutter app; do not deploy to it.
 
 ---
 
@@ -98,17 +99,21 @@ Completely quit Cursor (`Cmd + Q`) and reopen it. This loads the new MCP server.
 
 ### Step 1: Configure Project
 
-In the project root, update `.firebaserc`:
+In the project root, `.firebaserc` names the project:
 
 ```json
 {
   "projects": {
-    "default": "prodapp-b90ac"
+    "default": "sondr-cd439"
   },
   "targets": {},
   "etags": {}
 }
 ```
+
+It used to say `prodapp-b90ac`, the legacy project, which sent a bare
+`firebase deploy` to the wrong place. Still pass `--project sondr-cd439`
+on every deploy.
 
 ### Step 2: Verify MCP Connection
 

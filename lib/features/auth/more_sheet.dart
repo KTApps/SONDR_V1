@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/debug_flags.dart';
+import '../../core/app_version.dart';
+import '../../core/debug_tools.dart';
+import '../../core/theme/greyscale_tokens.dart';
+import '../../core/utils/figma_scale.dart';
 import '../../shared/blur_sheet.dart';
 import '../../shared/legal.dart';
 import '../debug/debug_panel.dart';
@@ -49,13 +52,13 @@ const List<MoreChoice> kMorePages = [
 /// What the sheet offers, by who is asking.
 ///
 /// A guest has no account to sign out of and nothing to delete, so they are
-/// offered the pages alone. Debug is const-false in release builds, so that
-/// branch — and DebugPanel with it — tree-shakes out entirely.
-List<MoreChoice> moreChoicesFor({required bool signedIn}) => [
+/// offered the pages alone. Debug is for the listed test account in a
+/// DEBUG_TOOLS build and nobody else — see [debugToolsProvider].
+List<MoreChoice> moreChoicesFor({required bool signedIn, bool debug = false}) => [
   ...kMorePages,
   if (signedIn) MoreChoice.signOut,
   if (signedIn) MoreChoice.deleteAccount,
-  if (kDebugTools) MoreChoice.debug,
+  if (debug) MoreChoice.debug,
 ];
 
 /// The one word in the account block, and everything behind it.
@@ -69,6 +72,7 @@ Future<String?> showMoreSheet(
   required bool signedIn,
 }) async {
   String? said;
+  final debug = ref.read(debugToolsProvider);
 
   await showBlurSheet(context, (handle) {
     Future<void> choose(MoreChoice chosen) async {
@@ -109,8 +113,10 @@ Future<String?> showMoreSheet(
     }
 
     return BlurView(
+      // The build, at the very bottom, for anyone writing to us about it.
+      footer: const AppVersionLine(),
       items: [
-        for (final choice in moreChoicesFor(signedIn: signedIn))
+        for (final choice in moreChoicesFor(signedIn: signedIn, debug: debug))
           BlurItem(
             label: choice.label,
             // The two that act on the account, and Debug with them: the
@@ -125,4 +131,24 @@ Future<String?> showMoreSheet(
   });
 
   return said;
+}
+
+/// "sondr 1.0 (98)": 12, quiet, not a tap target. Nothing until the
+/// bundle has answered, which it has by the time anyone reads it.
+class AppVersionLine extends ConsumerWidget {
+  const AppVersionLine({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final line = ref.watch(appVersionLineProvider).value;
+    if (line == null) return const SizedBox.shrink();
+    final tokens = GreyscaleTokens.of(context);
+    return Text(
+      line,
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        fontSize: 12 * figmaScale(context),
+        color: tokens.textTertiary,
+      ),
+    );
+  }
 }

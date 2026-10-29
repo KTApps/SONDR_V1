@@ -33,6 +33,9 @@ const double kBlurListBottom = kBlurExitTop;
 /// carries above its own text.
 const double kBlurExitTop = 732 - kSpacingBase;
 
+/// The footer's air above the bottom inset.
+const double kBlurFooterBottom = 12;
+
 /// An item: the habit name's size and weight, with the habit row's
 /// padding either side of it.
 const double kBlurItemSize = 27;
@@ -72,6 +75,7 @@ class BlurView {
     this.items = const [],
     this.body,
     this.cancelLabel = 'Back',
+    this.footer,
   });
 
   /// On Home's title line, in Home's title type.
@@ -89,6 +93,10 @@ class BlurView {
   final Widget? body;
 
   final String cancelLabel;
+
+  /// A line at the very bottom of the view, under the exit, for nothing
+  /// more than a word about the build. Not a tap target.
+  final Widget? footer;
 }
 
 /// The sheet, from inside: how a view moves to the next one, and how it
@@ -262,9 +270,17 @@ class _ViewBody extends StatelessWidget {
     final theme = Theme.of(context);
     final scale = figmaScale(context);
     final screen = MediaQuery.sizeOf(context).height;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Stack(
       children: [
+        if (view.footer != null)
+          Positioned(
+            bottom: bottomInset + kBlurFooterBottom * scale,
+            left: 0,
+            right: 0,
+            child: Center(child: IgnorePointer(child: view.footer)),
+          ),
         if (view.title != null)
           Positioned(
             top: kBlurTitleTop * scale,

@@ -66,7 +66,7 @@ When documenting new repeatable processes:
 
 - **Project:** SONDR_V1 (iOS Habit Tracking App)
 - **Tech Stack:** SwiftUI, Firebase
-- **Firebase Project:** ProdApp (prodapp-b90ac)
+- **Firebase Project:** Sondr (sondr-cd439). ProdApp (prodapp-b90ac) is the legacy predecessor app's project and is not used.
 - **Xcode Project:** Prod1.xcodeproj
 - **Development Tools:** Cursor IDE with Firebase MCP & XcodeBuildMCP
 - **Development Branch:** Development

@@ -5,6 +5,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../core/backend.dart';
 import '../../core/debug_flags.dart';
+import '../../core/debug_tools.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../shared/sondr_error.dart';
@@ -160,7 +161,7 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
 
   void _report(String message, {String? code}) {
     if (!mounted) return;
-    final message_ = appleErrorText(message, code);
+    final message_ = appleErrorText(message, code, withCode: ref.read(debugToolsProvider));
     if (widget.onError != null) {
       widget.onError!(message_);
     } else {

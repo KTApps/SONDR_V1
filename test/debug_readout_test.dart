@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sondr/core/debug_tools.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/debug/position_readout.dart';
 
@@ -16,7 +17,7 @@ import 'support/app_viewport.dart';
 const _box = Key('probe-box');
 
 void main() {
-  Future<Rect> pump(WidgetTester tester, {required bool readoutOn}) async {
+  Future<Rect> pump(WidgetTester tester, {required bool readoutOn, bool debug = false}) async {
     useReferenceViewport(tester);
     // A fresh scope each time: Riverpod will not let the number of overrides
     // change under a mounted one.
@@ -24,6 +25,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          debugToolsProvider.overrideWithValue(debug),
           if (readoutOn)
             positionReadoutProvider.overrideWith(_AlwaysOn.new),
         ],
@@ -77,6 +79,13 @@ void main() {
     expect(find.textContaining('top/centre/bottom'), findsNothing);
     // Byte-for-byte the same geometry: the switch cannot reach the layout.
     expect(on, off);
+  });
+
+  testWidgets('draws for the listed test account in a DEBUG_TOOLS build, and for nobody else', (tester) async {
+    await pump(tester, readoutOn: true, debug: true);
+    expect(find.textContaining('box'), findsOneWidget);
+    await pump(tester, readoutOn: true, debug: false);
+    expect(find.textContaining('box'), findsNothing);
   });
 }
 

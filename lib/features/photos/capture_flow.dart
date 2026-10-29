@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/date.dart';
-import '../../core/debug_flags.dart';
+import '../../core/debug_tools.dart';
 import '../../shared/cached_photo.dart';
 import '../auth/profile_repository.dart';
 import '../feed/collage_layout.dart' show PhotoFraming;
@@ -463,7 +463,7 @@ Future<ShareTrace?> _beginShare(
     );
     runner.coverStyles = coverStyles;
     trace.mark('job built');
-    await runner.begin(job, trace: kDebugTools ? trace : null);
+    await runner.begin(job, trace: ref.read(debugToolsProvider) ? trace : null);
     return trace;
   } catch (e) {
     debugPrint('SONDR share begin error: ${e.runtimeType} :: $e');

@@ -2,9 +2,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sondr/core/debug_flags.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:sondr/core/app_version.dart';
+import 'package:sondr/core/debug_tools.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/theme/greyscale_tokens.dart';
+import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/auth/account_cascade.dart';
 import 'package:sondr/features/auth/account_screen.dart';
 import 'package:sondr/features/auth/auth_repository.dart';
@@ -119,12 +122,14 @@ void main() {
     double textScale = 1.0,
     User? user,
     AccountErasure? erasure,
+    bool debug = false,
   }) async {
     auth = _Auth(user);
     useReferenceViewport(tester);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          debugToolsProvider.overrideWithValue(debug),
           authRepositoryProvider.overrideWithValue(auth),
           legalPagesProvider.overrideWithValue(pages),
           sessionStoreProvider.overrideWithValue(_NoStore()),
@@ -232,7 +237,6 @@ void main() {
         'Terms',
         'Sign out',
         'Delete account',
-        if (kDebugTools) 'Debug',
         'Back',
       ]);
       // No rule any more: the view is a blur with nothing drawn on it,
@@ -257,7 +261,6 @@ void main() {
         'Support',
         'Privacy',
         'Terms',
-        if (kDebugTools) 'Debug',
         'Back',
       ]);
       expect(find.text('Delete account'), findsNothing);
@@ -351,13 +354,11 @@ void main() {
         MoreChoice.terms,
         MoreChoice.signOut,
         MoreChoice.deleteAccount,
-        if (kDebugTools) MoreChoice.debug,
       ]);
       expect(moreChoicesFor(signedIn: false), [
         MoreChoice.support,
         MoreChoice.privacy,
         MoreChoice.terms,
-        if (kDebugTools) MoreChoice.debug,
       ]);
       // A guest is never offered the deletion, whatever the build.
       expect(
@@ -366,16 +367,49 @@ void main() {
       );
     });
 
-    testWidgets('Debug is there only in a DEBUG_TOOLS build', (tester) async {
+    testWidgets('Debug is there for the listed test account alone; everyone else sees the release sheet', (tester) async {
       await pump(tester, user: _Account());
       await openSheet(tester);
-      expect(
-        find.text('Debug'),
-        kDebugTools ? findsOneWidget : findsNothing,
+      expect(find.text('Debug'), findsNothing);
+      expect(find.byType(DebugPanel), findsNothing);
+      expect(moreChoicesFor(signedIn: true), isNot(contains(MoreChoice.debug)));
+      expect(moreChoicesFor(signedIn: true, debug: true), contains(MoreChoice.debug));
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+
+      await pump(tester, user: _Account(), debug: true);
+      await openSheet(tester);
+      expect(find.text('Debug'), findsOneWidget);
+      final labels = sheetLabels(tester);
+      expect(labels.last, 'Back');
+      expect(labels[labels.length - 2], 'Debug', reason: 'last, above Back');
+      await tester.tap(find.text('Debug'));
+      await tester.pumpAndSettle();
+      expect(find.byType(DebugPanel), findsOneWidget);
+    });
+
+    testWidgets('the build, at the very bottom: "sondr 1.0 (98)", 12, quiet, not a tap', (tester) async {
+      PackageInfo.setMockInitialValues(
+        appName: 'sondr', packageName: 'com.tanakabere.sondr', version: '1.0.0',
+        buildNumber: '98', buildSignature: '', installerStore: null,
       );
-      if (!kDebugTools) {
-        expect(find.byType(DebugPanel), findsNothing);
-      }
+      await pump(tester, user: _Account());
+      await openSheet(tester);
+      final line = find.text('sondr 1.0 (98)');
+      expect(line, findsOneWidget);
+      final style = tester.widget<Text>(line).style!;
+      expect(style.fontSize, closeTo(12 * figmaScale(tester.element(line)), 0.01));
+      expect(style.color, GreyscaleTokens.dark.textTertiary);
+      // Under everything, Back included.
+      final back = tester.getRect(find.text('Back'));
+      final rect = tester.getRect(line);
+      expect(rect.top, greaterThan(back.bottom));
+      expect(rect.center.dx, closeTo(kRefWidth / 2, 1));
+      // Not a tap target: the nearest pointer gate above it ignores.
+      final gate = tester.widget<IgnorePointer>(find.ancestor(of: line, matching: find.byType(IgnorePointer)).first);
+      expect(gate.ignoring, isTrue);
+      expect(versionLine('1.0.0', '98'), 'sondr 1.0 (98)');
+      expect(versionLine('2.3.1', '120'), 'sondr 2.3 (120)');
     });
 
     testWidgets('Sign out reaches the sign-out flow, unchanged', (

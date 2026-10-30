@@ -523,44 +523,66 @@ class PostsRepository {
 /// Called by the author — deleting their post — and by the account
 /// cascade, which is the author too. The post document itself is NOT
 /// deleted here: it is what the rules for all of this are proved
-/// against, so it has to outlive its own contents and go last. An
-/// interrupted run leaves the post standing with less under it, and
-/// running again finishes the job; nothing here is a read-modify-write,
-/// so running again costs only the deletes that are left.
+/// against, so it has to outlive its own contents and go last.
 ///
-/// No counter is touched. The post carries the counts and the post is
-/// going.
+/// EVERY READ HAPPENS FIRST, then the writes. Each batch carries its own
+/// documents AND the counter they are counted by, so an interrupted
+/// delete leaves a post whose counts still match what is under it —
+/// never a post claiming a like with no like left to show. A batch that
+/// fails lands nothing, so running again reads what remains and carries
+/// on; a batch that landed has already taken its share off the counter,
+/// and the documents behind it are gone, so nothing is counted off
+/// twice.
+///
+/// A counter is only touched where the post has one: `increment` on a
+/// field that was never there would write a negative count onto a post
+/// from before counters existed.
 Future<void> deletePostContents(
   FirebaseFirestore db,
   String postId, {
   int batchLimit = 450,
 }) async {
   final postRef = db.collection('posts').doc(postId);
-  // Two writes per like — the copy under the post, and the liker's own
-  // mirror of it — so half a batch of likes fills a whole batch.
-  final likePage = batchLimit ~/ 2;
-  while (true) {
-    final page = await postRef.collection('likes').limit(likePage).get();
-    if (page.docs.isEmpty) break;
+
+  // The reads.
+  final post = await postRef.get();
+  if (!post.exists) return;
+  final fields = post.data() ?? const <String, dynamic>{};
+  final countsLikes = fields.containsKey('likeCount');
+  final countsComments = fields.containsKey('commentCount');
+  final likes = (await postRef.collection('likes').get()).docs;
+  final comments = (await postRef.collection('comments').get()).docs;
+
+  // The writes. A like is two documents — the copy under the post and
+  // the liker's own mirror of it — so a batch holds half as many of
+  // them, and one counter write for the lot.
+  final likesPerBatch = (batchLimit - 1) ~/ 2;
+  for (var i = 0; i < likes.length; i += likesPerBatch) {
+    final page = likes.skip(i).take(likesPerBatch).toList();
     final batch = db.batch();
-    for (final like in page.docs) {
+    for (final like in page) {
       batch.delete(like.reference);
       batch.delete(db.collection('users').doc(like.id).collection('likes').doc(postId));
     }
-    await batch.commit();
-    if (page.docs.length < likePage) break;
-  }
-  // Replies live in the same collection as the comments they answer, so
-  // one sweep takes both.
-  while (true) {
-    final page = await postRef.collection('comments').limit(batchLimit).get();
-    if (page.docs.isEmpty) break;
-    final batch = db.batch();
-    for (final comment in page.docs) {
-      batch.delete(comment.reference);
+    if (countsLikes) {
+      batch.update(postRef, {'likeCount': FieldValue.increment(-page.length)});
     }
     await batch.commit();
-    if (page.docs.length < batchLimit) break;
+  }
+
+  // Replies live in the same collection as the comments they answer, so
+  // one sweep takes both.
+  final commentsPerBatch = batchLimit - 1;
+  for (var i = 0; i < comments.length; i += commentsPerBatch) {
+    final page = comments.skip(i).take(commentsPerBatch).toList();
+    final batch = db.batch();
+    for (final comment in page) {
+      batch.delete(comment.reference);
+    }
+    if (countsComments) {
+      batch.update(postRef, {'commentCount': FieldValue.increment(-page.length)});
+    }
+    await batch.commit();
   }
 }
 

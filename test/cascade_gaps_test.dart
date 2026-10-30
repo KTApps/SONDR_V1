@@ -275,6 +275,62 @@ void main() {
       expect(await exists(db, 'users/$them/likes/p1'), isFalse);
     });
 
+    test('the counters come down with what they count', () async {
+      final db = FakeFirebaseFirestore();
+      await seedPost(db);
+      await PostsRepository(db: db, uid: me).deletePost(postP1());
+      // The post is gone, so the counters go with it — but they were
+      // right at every step on the way, which is what the next test is.
+      expect(await exists(db, 'posts/p1'), isFalse);
+    });
+
+    test('interrupted: the post still standing has counters that match what is under it', () async {
+      // The comments batch fails, so the likes have gone and the
+      // comments have not.
+      final db = _Flaky('posts/p1/comments/c1');
+      await seedPost(db);
+      final repo = PostsRepository(db: db, uid: me);
+      await expectLater(repo.deletePost(postP1()), throwsA(isA<FirebaseException>()));
+
+      final post = (await db.doc('posts/p1').get()).data()!;
+      final likes = (await db.collection('posts/p1/likes').get()).size;
+      final comments = (await db.collection('posts/p1/comments').get()).size;
+      expect(likes, 0, reason: 'the likes batch landed');
+      expect(post['likeCount'], 0, reason: 'and took its count with it');
+      expect(comments, 2, reason: 'the comments batch landed nothing');
+      expect(post['commentCount'], 2, reason: 'so its count is untouched');
+
+      // Run again: it finishes, and nothing is counted off twice.
+      await repo.deletePost(postP1());
+      expect(await exists(db, 'posts/p1'), isFalse);
+      expect((await db.collection('posts/p1/comments').get()).size, 0);
+      expect(await exists(db, 'users/$them/likes/p1'), isFalse);
+    });
+
+    test('a post from before counters existed is not given a negative one', () async {
+      final db = FakeFirebaseFirestore();
+      await db.doc('posts/old').set({
+        'authorUid': me, 'audience': [me, them],
+        'createdAt': Timestamp.fromDate(DateTime(2026, 6, 1)),
+        // No likeCount, no commentCount: the shape of an early post.
+        'photos': [],
+      });
+      await db.doc('posts/old/likes/$them').set({'at': 1});
+      await db.doc('users/$them/likes/old').set({'createdAt': 1});
+      await db.doc('posts/old/comments/c1').set({'authorUid': them, 'audience': [me], 'text': 'a'});
+      await deletePostContents(db, 'old');
+      final post = (await db.doc('posts/old').get()).data()!;
+      expect(post.containsKey('likeCount'), isFalse, reason: 'not invented');
+      expect(post.containsKey('commentCount'), isFalse);
+      expect((await db.collection('posts/old/likes').get()).size, 0);
+      expect(await exists(db, 'users/$them/likes/old'), isFalse);
+    });
+
+    test('a post that has already gone is not an error', () async {
+      final db = FakeFirebaseFirestore();
+      await deletePostContents(db, 'never-existed');
+    });
+
     test('a post with nothing under it deletes cleanly, and again', () async {
       final db = FakeFirebaseFirestore();
       await db.doc('posts/p1').set({

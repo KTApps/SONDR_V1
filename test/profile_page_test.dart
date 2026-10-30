@@ -482,24 +482,45 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('an in-progress ring names the target it climbs to', (
+    testWidgets('an in-progress ring says the task\'s own hours, floored; its fill is the band\'s', (
       tester,
     ) async {
       await pumpProfile(
         tester,
         tasks: [
-          _task('Spanish', seconds: 19 * 3600),
-          _task('Golf', seconds: 21 * 3600),
+          _task('Spanish', seconds: 19 * 3600 + 59 * 60),
+          _task('Golf', seconds: 20 * 3600),
+          _task('Piano', seconds: 23 * 3600 + 40 * 60),
         ],
       );
-      expect(find.text('Spanish'), findsOneWidget);
-      expect(find.text('Golf'), findsOneWidget);
-      // Targets, not totals: Spanish climbs to 20h, Golf to 40h.
+      // Totals, not targets.
+      expect(find.text('19h'), findsOneWidget);
       expect(find.text('20h'), findsOneWidget);
-      expect(find.text('40h'), findsOneWidget);
-      expect(find.text('19h'), findsNothing);
-      expect(find.text('21h'), findsNothing);
+      expect(find.text('23h'), findsOneWidget);
+      expect(find.text('40h'), findsNothing);
+      // The fill is unchanged: progress within the current 20h band. The
+      // tiles stand alphabetically: Golf, Piano, Spanish.
+      final rings = ringsOfSize(tester, kProfileRingTileSize).toList();
+      expect(rings, hasLength(3));
+      expect(rings[0].progress, closeTo(shownProgress(0), 1e-9), reason: 'Golf at exactly 20h: the next band, empty');
+      expect(rings[1].progress, closeTo(shownProgress((3 * 3600 + 40 * 60) / (20 * 3600)), 1e-9), reason: 'Piano');
+      expect(rings[2].progress, closeTo(shownProgress((19 * 3600 + 59 * 60) / (20 * 3600)), 1e-9), reason: 'Spanish');
       expectNoOverflow(tester);
+    });
+
+    testWidgets('"999h" fits inside the ring at every text size', (tester) async {
+      for (final ts in [0.824, 1.0, 1.235]) {
+        await pumpProfile(tester, tasks: [_task('Spanish', seconds: 999 * 3600)], textScale: ts);
+        final figure = find.text('999h');
+        expect(figure, findsOneWidget);
+        final ring = ringFinder(tester, kProfileRingTileSize).first;
+        final inner = tester.getRect(ring).width - 2 * (ringOfSize(tester, kProfileRingTileSize).stroke ?? 0);
+        final width = tester.getRect(figure).width;
+        // ignore: avoid_print
+        print('FIT textScale=$ts figure=${width.toStringAsFixed(1)} inner=${inner.toStringAsFixed(1)}');
+        expect(width, lessThan(inner), reason: 'at $ts');
+        expectNoOverflow(tester);
+      }
     });
 
     testWidgets('the milestone count is the same figure in both places', (

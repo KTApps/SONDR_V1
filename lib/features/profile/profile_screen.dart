@@ -894,11 +894,10 @@ class _TaskTile extends StatelessWidget {
               // — and clamped, so a first session shows and a last hour
               // doesn't read as finished.
               progress: shownProgress(task.milestoneProgress),
-              // The TARGET, not the total: the figure names the thing the
-              // ring is filling toward, which is what the ring is about.
-              // Lifetime hours are up in the figures at the top of the page.
+              // The task's own hours, floored — "19h" until 20h is crossed,
+              // "23h" after — while the ring fills through the current band.
               center: Text(
-                '${task.activeMilestoneHours}h',
+                '${task.wholeHours}h',
                 style: figureStyle,
               ),
             ),

@@ -1488,6 +1488,46 @@ describe('what a deletion may reach', () => {
   });
 });
 
+describe("a post's author reading the comments under it", () => {
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/p1'), { authorUid: A, audience: [A, B, C], createdAt: 1, likeCount: 0, commentCount: 2 });
+      await setDoc(doc(db, 'posts/p1/comments/c1'), { authorUid: B, audience: [A, B, C], text: 'seen', createdAt: 1 });
+      // B narrowed this one away from the author. The per-document rule
+      // hides it from A; the author's own rule does not.
+      await setDoc(doc(db, 'posts/p1/comments/c2'), { authorUid: B, audience: [B, C], text: 'hidden', createdAt: 2 });
+      await setDoc(doc(db, 'posts/p2'), { authorUid: C, audience: [A, C], createdAt: 2, likeCount: 0, commentCount: 0 });
+    });
+  });
+
+  it('lists every comment under it, unfiltered, including one narrowed away from them', async () => {
+    const snap = await assertSucceeds(getDocs(collection(as(A), 'posts/p1/comments')));
+    assert.equal(snap.size, 2);
+    assert.deepEqual(snap.docs.map((d) => d.id).sort(), ['c1', 'c2']);
+  });
+
+  it('and reads one of them on its own', async () => {
+    await assertSucceeds(getDoc(doc(as(A), 'posts/p1/comments/c2')));
+  });
+
+  it('somebody who is neither the author nor in the comment may not list them', async () => {
+    // D is a stranger to the post entirely.
+    await assertFails(getDocs(collection(as(D), 'posts/p1/comments')));
+    await assertFails(getDoc(doc(as(D), 'posts/p1/comments/c1')));
+    // C is in the post's audience but is not its author, so the per-document
+    // rule is all they have: a plain list is still refused.
+    await assertFails(getDocs(collection(as(C), 'posts/p1/comments')));
+    // With the filter the app's own reader carries, it works for them.
+    await assertSucceeds(getDocs(query(
+      collection(as(C), 'posts/p1/comments'), where('audience', 'array-contains', C), orderBy('createdAt'))));
+  });
+
+  it("and not over somebody else's post", async () => {
+    await assertFails(getDocs(collection(as(A), 'posts/p2/comments')));
+  });
+});
+
 describe('the notices an account leaves in other people\'s inboxes', () => {
   before(async () => {
     await env.clearFirestore();

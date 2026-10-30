@@ -440,6 +440,19 @@ service cloud.firestore {
                     && request.auth.uid in
                        get(/databases/$(database)/documents/posts/$(postId)).data.audience;
 
+        // The post's author, over their own post's comments. The rule
+        // above reads each document's own audience, which a plain list
+        // does not constrain — so it cannot be proved for a query and
+        // the whole query is refused, which is what stopped a post from
+        // being deleted at all. This one reads nothing but the post, so
+        // a list of its comments is provable: the author sees every
+        // comment under their post, including one whose writer has
+        // since narrowed it away from them, which is exactly what
+        // deleting the post has to be able to reach.
+        allow get, list: if request.auth != null
+                         && request.auth.uid ==
+                            get(/databases/$(database)/documents/posts/$(postId)).data.authorUid;
+
         // The audience must be the post's, exactly. A commenter cannot
         // invent an audience to reach people the post never reached.
         allow create: if request.auth != null

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/backend.dart';
+import '../feed/posts_repository.dart';
 import '../friends/content_prune.dart';
 
 /// Every subcollection under `users/{uid}`.
@@ -109,10 +110,17 @@ abstract interface class AccountErasure {
 ///    write time and belongs to the post's author; a uid in one is not
 ///    readable by anybody and names nothing once the account is gone.
 ///
-/// A third thing survives for the same reason as the first: comments other
-/// people wrote on a deleted post. The rules let a comment's author delete
-/// it and nobody else, and with the parent post gone the comment is
-/// unreadable to everyone — its read rule needs the post's audience.
+/// Comments other people wrote on their posts used to survive too, and no
+/// longer do: with the post gone such a comment is unreadable to everyone
+/// — its read rule needs the post's audience — so it was litter nobody
+/// could ever reach or remove. The post's author now clears what is under
+/// their own post before the post itself goes; see [deletePostContents]
+/// for the ordering, and firestore.rules for the grant it needs.
+///
+/// One thing under a post still cannot be reached: the mirror a liker
+/// keeps of a like made before the post kept its own copy of it. The
+/// author finds the likers through those copies, so a like with none is
+/// invisible to them. It names a post that no longer exists and is inert.
 class AccountCascade implements AccountErasure {
   AccountCascade({
     required this.db,
@@ -170,6 +178,7 @@ class AccountCascade implements AccountErasure {
     // Likes first: a like on one of MY posts needs that post to still be
     // there, or the counter write in its batch fails.
     await _notifications();
+    await _noticesISent();
     await _likes(myPostIds);
     await _comments(myComments, myPostIds);
     await _posts(myPostIds);
@@ -289,6 +298,41 @@ class AccountCascade implements AccountErasure {
     }
   }
 
+  /// A like is three documents: the mirror in their own space, the copy
+  /// under the post that the author's Likes sheet lists, and the count on
+  /// the post. All three move in ONE batch, so a re-run either finds the
+  /// mirror gone and does nothing, or repeats a batch that never landed —
+  /// the counter can never be taken off twice. The copy under the post is
+  /// deleted unconditionally: a like from before the post kept its own
+  /// copy has none, and deleting a document that is not there costs
+  /// nothing and fails nothing.
+  /// What they wrote into OTHER people's inboxes — a like, a comment, a
+  /// reply, a milestone. Their own inbox goes in [_notifications]; this is
+  /// the other side of it, so deleting an account takes its name out of
+  /// everyone else's notices too.
+  ///
+  /// A collection group over `items` by `actorUid`, which needs that
+  /// field indexed at collection-group scope (see firestore.indexes.json)
+  /// and the read granted to the actor as well as the recipient (see
+  /// firestore.rules).
+  Future<void> _noticesISent() async {
+    final sent = await db
+        .collectionGroup('items')
+        .where('actorUid', isEqualTo: uid)
+        .get();
+    final theirs = [
+      for (final d in sent.docs)
+        if (d.reference.parent.parent?.id != uid) d.reference,
+    ];
+    for (var i = 0; i < theirs.length; i += batchLimit) {
+      final batch = db.batch();
+      for (final ref in theirs.skip(i).take(batchLimit)) {
+        batch.delete(ref);
+      }
+      await batch.commit();
+    }
+  }
+
   Future<void> _likes(Set<String> myPostIds) async {
     final likes = await db
         .collection('users')
@@ -297,7 +341,8 @@ class AccountCascade implements AccountErasure {
         .get();
     for (final like in likes.docs) {
       final postId = like.id;
-      // My own posts are deleted whole, counters and all.
+      final onPost = db.collection('posts').doc(postId).collection('likes').doc(uid);
+      // My own posts are deleted whole, counters, copies and all.
       if (myPostIds.contains(postId)) {
         await like.reference.delete();
         continue;
@@ -305,15 +350,29 @@ class AccountCascade implements AccountErasure {
       try {
         final batch = db.batch();
         batch.delete(like.reference);
+        batch.delete(onPost);
         batch.update(db.collection('posts').doc(postId), {
           'likeCount': FieldValue.increment(-1),
         });
         await batch.commit();
       } on FirebaseException catch (e) {
-        // The post is gone, or no longer ours to read. The like is still
-        // ours to remove, and there is no counter left to put right.
+        // The post is gone, or no longer ours to reach. There is no
+        // counter left to put right, so the like is removed on its own.
+        //
+        // ONLY those two: anything else — a dropped connection, a
+        // contended document — is a batch that may yet land, and
+        // swallowing it here would delete the mirror and leave the count
+        // standing with nothing a retry could match it against. Those are
+        // rethrown with the mirror intact, so running again starts from
+        // the same place and finishes.
+        if (e.code != 'not-found' && e.code != 'permission-denied') rethrow;
         debugPrint('SONDR delete: like counter skipped (${e.code})');
         await like.reference.delete();
+        try {
+          await onPost.delete();
+        } on FirebaseException catch (e) {
+          debugPrint('SONDR delete: like copy skipped (${e.code})');
+        }
       }
     }
   }
@@ -341,8 +400,15 @@ class AccountCascade implements AccountErasure {
     }
   }
 
+  /// Their posts: what is under each one first — the likes, the mirrors
+  /// their likers keep, the comments other people left — then the
+  /// documents. Same order and same reason as [PostsRepository.deletePost]:
+  /// the post is what the rules for its own contents are proved against.
   Future<void> _posts(Set<String> ids) async {
     final all = ids.toList();
+    for (final id in all) {
+      await deletePostContents(db, id, batchLimit: batchLimit);
+    }
     for (var i = 0; i < all.length; i += batchLimit) {
       final batch = db.batch();
       for (final id in all.skip(i).take(batchLimit)) {

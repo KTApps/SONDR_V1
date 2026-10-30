@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/shared/blur_sheet.dart';
@@ -12,7 +13,8 @@ void main() {
     useReferenceViewport(tester);
     var acted = 0;
     await tester.pumpWidget(
-      MaterialApp(
+      ProviderScope(
+      child: MaterialApp(
         theme: AppTheme.dark(),
         home: Builder(
           builder: (context) => Scaffold(
@@ -30,6 +32,7 @@ void main() {
             ),
           ),
         ),
+      ),
       ),
     );
     await tester.tap(find.text('open'));

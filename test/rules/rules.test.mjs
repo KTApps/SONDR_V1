@@ -314,7 +314,10 @@ describe('replies', () => {
         authorUid: B, audience: [A, B, C], text: 'r', createdAt: 2, parentId: 'top',
       });
     });
-    await assertFails(deleteDoc(doc(as(C), 'posts/p1/comments/reply5')));
+    // D is a stranger to the post. C, who IS its author, may clear it —
+    // see "what a deletion may reach": a post's author takes down what is
+    // under their own post.
+    await assertFails(deleteDoc(doc(as(D), 'posts/p1/comments/reply5')));
   });
 });
 
@@ -423,14 +426,19 @@ describe('notifications', () => {
       { type: 'invite', actorUid: C, actorHandle: 'cass', at: serverTimestamp() }));
   });
 
-  it('only the recipient reads and deletes; nobody updates', async () => {
+  it('the recipient reads and deletes; an outsider does neither; nobody updates', async () => {
     const mine = await assertSucceeds(getDocs(query(
       collection(as(C), 'notifications/' + C + '/items'), orderBy('at', 'desc'), limit(100))));
     assert.ok(mine.size >= 1);
+    // The inbox is never browsable by anyone but its owner, actor or not.
     await assertFails(getDocs(collection(as(A), 'notifications/' + C + '/items')));
     await assertFails(updateDoc(doc(as(C), 'notifications/' + C + '/items/n1'), { type: 'reply' }));
     await assertSucceeds(deleteDoc(doc(as(C), 'notifications/' + C + '/items/n1')));
-    await assertFails(deleteDoc(doc(as(A), 'notifications/' + C + '/items/n7')));
+    // B neither received n7 nor caused it (A did), so it is not theirs.
+    await assertFails(deleteDoc(doc(as(B), 'notifications/' + C + '/items/n7')));
+    // A, who caused it, may take it back — see "the notices an account
+    // leaves in other people's inboxes".
+    await assertSucceeds(deleteDoc(doc(as(A), 'notifications/' + C + '/items/n7')));
   });
 });
 
@@ -1397,6 +1405,113 @@ describe('who invited whom', () => {
     });
     await assertFails(deleteDoc(doc(as(A), 'invites/' + C)));
     await assertSucceeds(deleteDoc(doc(as(C), 'invites/' + C)));
+  });
+});
+
+describe('what a deletion may reach', () => {
+  // A: the post's author. B and C: two people the post reaches.
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/p1'), { authorUid: A, audience: [A, B, C], createdAt: 1, likeCount: 2 });
+      await setDoc(doc(db, 'posts/p1/likes/' + B), { at: 1 });
+      await setDoc(doc(db, 'posts/p1/likes/' + C), { at: 2 });
+      await setDoc(doc(db, 'users/' + B + '/likes/p1'), { createdAt: 1 });
+      await setDoc(doc(db, 'users/' + C + '/likes/p1'), { createdAt: 2 });
+      await setDoc(doc(db, 'posts/p1/comments/c1'), { authorUid: B, audience: [A, B, C], text: 't', createdAt: 1 });
+      await setDoc(doc(db, 'posts/p1/comments/c2'), { authorUid: C, audience: [A, B, C], text: 'r', createdAt: 2, parentId: 'c1' });
+      // Somebody else's post, with a like of B's on it.
+      await setDoc(doc(db, 'posts/p2'), { authorUid: C, audience: [A, B, C], createdAt: 2, likeCount: 1 });
+      await setDoc(doc(db, 'posts/p2/likes/' + B), { at: 1 });
+      await setDoc(doc(db, 'users/' + B + '/likes/p2'), { createdAt: 1 });
+    });
+  });
+
+  it('a liker takes their own like, its copy under the post and the count, in one batch', async () => {
+    const db = as(B);
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'users/' + B + '/likes/p2'));
+    batch.delete(doc(db, 'posts/p2/likes/' + B));
+    batch.update(doc(db, 'posts/p2'), { likeCount: 0 });
+    await assertSucceeds(batch.commit());
+  });
+
+  it("the post's author may clear a like, a comment and a reply under their own post", async () => {
+    const db = as(A);
+    await assertSucceeds(deleteDoc(doc(db, 'posts/p1/likes/' + B)));
+    await assertSucceeds(deleteDoc(doc(db, 'posts/p1/comments/c2')));
+    await assertSucceeds(deleteDoc(doc(db, 'posts/p1/comments/c1')));
+  });
+
+  it("the post's author may remove the liker's own mirror of a like on their post — that document and no other", async () => {
+    const db = as(A);
+    await assertSucceeds(deleteDoc(doc(db, 'users/' + B + '/likes/p1')));
+    // Only that one document: nothing else of B's is reachable.
+    await assertFails(getDoc(doc(db, 'users/' + B + '/likes/p1')));
+    await assertFails(setDoc(doc(db, 'users/' + B + '/likes/p1'), { createdAt: 9 }));
+    await assertFails(deleteDoc(doc(db, 'users/' + B + '/meta/profile')));
+    await assertFails(deleteDoc(doc(db, 'users/' + B + '/tasks/t1')));
+    await assertFails(getDoc(doc(db, 'users/' + B + '/likes/p2')));
+  });
+
+  it('a mirror for somebody ELSE\'s post is not the author\'s to touch', async () => {
+    // p2 is C's post, so A may not reach B's mirror of it.
+    await assertFails(deleteDoc(doc(as(A), 'users/' + B + '/likes/p2')));
+  });
+
+  it('a stranger may clear nothing of it', async () => {
+    await assertFails(deleteDoc(doc(as(D), 'posts/p1/likes/' + C)));
+    await assertFails(deleteDoc(doc(as(D), 'users/' + C + '/likes/p1')));
+    await assertFails(deleteDoc(doc(as(B), 'users/' + C + '/likes/p1')));
+  });
+
+  it('a reader of the post may not clear somebody else\'s like or comment on it', async () => {
+    // B is in the audience but is not the author.
+    await assertFails(deleteDoc(doc(as(B), 'posts/p1/likes/' + C)));
+    await assertFails(deleteDoc(doc(as(B), 'users/' + C + '/likes/p1')));
+  });
+});
+
+describe('the notices an account leaves in other people\'s inboxes', () => {
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'notifications/' + A + '/items/n1'), { type: 'like', actorUid: B, actorHandle: 'b', postId: 'p1', at: 1 });
+      await setDoc(doc(db, 'notifications/' + C + '/items/n2'), { type: 'like', actorUid: B, actorHandle: 'b', postId: 'p1', at: 2 });
+      await setDoc(doc(db, 'notifications/' + A + '/items/n3'), { type: 'like', actorUid: C, actorHandle: 'c', postId: 'p1', at: 3 });
+    });
+  });
+
+  it('the actor can find every notice they caused, wherever it landed', async () => {
+    const q = query(collectionGroup(as(B), 'items'), where('actorUid', '==', B));
+    const snap = await assertSucceeds(getDocs(q));
+    assert.equal(snap.size, 2);
+  });
+
+  it('and take them back', async () => {
+    await assertSucceeds(deleteDoc(doc(as(B), 'notifications/' + A + '/items/n1')));
+    await assertSucceeds(deleteDoc(doc(as(B), 'notifications/' + C + '/items/n2')));
+  });
+
+  it('the recipient still has theirs, and can still clear it', async () => {
+    await assertSucceeds(getDoc(doc(as(A), 'notifications/' + A + '/items/n3')));
+    await assertSucceeds(deleteDoc(doc(as(A), 'notifications/' + A + '/items/n3')));
+  });
+
+  it('nobody else reaches a notice they neither received nor caused', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'notifications/' + A + '/items/n4'), { type: 'like', actorUid: C, actorHandle: 'c', postId: 'p1', at: 4 });
+    });
+    await assertFails(getDoc(doc(as(B), 'notifications/' + A + '/items/n4')));
+    await assertFails(deleteDoc(doc(as(B), 'notifications/' + A + '/items/n4')));
+    await assertFails(getDocs(query(collectionGroup(as(B), 'items'), where('actorUid', '==', C))));
+    // And the whole inbox is still not browsable by an outsider.
+    await assertFails(getDocs(collection(as(B), 'notifications/' + A + '/items')));
+  });
+
+  it('a notice is still never updated, by anyone', async () => {
+    await assertFails(updateDoc(doc(as(B), 'notifications/' + A + '/items/n4'), { actorHandle: 'x' }));
+    await assertFails(updateDoc(doc(as(A), 'notifications/' + A + '/items/n4'), { actorHandle: 'x' }));
   });
 });
 

@@ -15,6 +15,18 @@ service cloud.firestore {
                          && request.auth.uid == userId;
     }
 
+    // A like leaves a mirror in the liker's own space, named by the post.
+    // When the author deletes that post, the mirror is the one piece of it
+    // standing in somebody else's space — so the author may remove THAT
+    // document and nothing else: delete only, no read, no write, and only
+    // the mirror whose name is a post of theirs. The lookup needs the post
+    // to still exist, which is why a deletion removes it last.
+    match /users/{ownerUid}/likes/{postId} {
+      allow delete: if request.auth != null
+                    && request.auth.uid ==
+                       get(/databases/$(database)/documents/posts/$(postId)).data.authorUid;
+    }
+
     // Unique handle index. Anyone signed in can read it (to check availability
     // and, later, look up friends by handle). A handle can be created only by
     // its owner and is immutable once claimed — so it can't be stolen or
@@ -155,6 +167,18 @@ service cloud.firestore {
     match /{path=**}/comments/{commentId} {
       allow read: if request.auth != null
                   && resource.data.authorUid == request.auth.uid;
+    }
+
+    // The same shape, for the notices an account caused: a leaving
+    // account finds them with a collection-group query over `items`
+    // filtered by actorUid, and a group query matches only a rule written
+    // with the recursive wildcard — the per-inbox rule below does not
+    // answer for one. Read only, and only the ones you caused: the filter
+    // is provable from the query, so it returns them rather than failing.
+    // Taking them down is the per-inbox rule's business.
+    match /{path=**}/items/{itemId} {
+      allow read: if request.auth != null
+                  && resource.data.actorUid == request.auth.uid;
     }
 
     // Reports.
@@ -309,8 +333,16 @@ service cloud.firestore {
     // who asked, an invite to the one who invited. Never to yourself. The
     // keys are exact per kind, and `at` is the server's clock.
     match /notifications/{recipientUid}/items/{itemId} {
+      // The recipient, and the person who caused it. The actor's grant is
+      // what lets a leaving account take its name out of everyone else's
+      // notices — and it is provable for the collection-group query the
+      // cascade runs (`items` where actorUid == me), because the query
+      // constrains the very field the rule reads. Nothing else is opened:
+      // a notice is still never updated, and still only created by its
+      // own actor.
       allow read, delete: if request.auth != null
-                          && request.auth.uid == recipientUid;
+                          && (request.auth.uid == recipientUid
+                              || request.auth.uid == resource.data.actorUid);
       allow update: if false;
       allow create: if request.auth != null
                     && request.resource.data.actorUid == request.auth.uid
@@ -445,6 +477,11 @@ service cloud.firestore {
                           && get(/databases/$(database)/documents/posts/$(postId)/comments/$(resource.data.parentId)).data.authorUid
                              == request.auth.uid
                         )
+                        // The post's author, clearing what is under their
+                        // own post as they delete it. Delete only, and only
+                        // while the post still stands.
+                        || get(/databases/$(database)/documents/posts/$(postId)).data.authorUid
+                           == request.auth.uid
                       );
       }
 
@@ -461,6 +498,13 @@ service cloud.firestore {
                               && likerUid == request.auth.uid
                               && request.auth.uid in
                                  get(/databases/$(database)/documents/posts/$(postId)).data.audience;
+        // Deleting a post takes what is under it, and a like under it is
+        // the author's to clear. Delete only, and only while the post is
+        // still there to prove it — which is why the post document is the
+        // last thing a deletion removes.
+        allow delete: if request.auth != null
+                      && request.auth.uid ==
+                         get(/databases/$(database)/documents/posts/$(postId)).data.authorUid;
       }
     }
   }

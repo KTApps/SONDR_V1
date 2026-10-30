@@ -1,9 +1,12 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/backend.dart';
 import 'package:sondr/core/theme/app_theme.dart';
+import 'package:sondr/core/theme/greyscale_tokens.dart';
+import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/deletable_post_card.dart';
 import 'package:sondr/shared/blur_sheet.dart';
@@ -126,6 +129,45 @@ void main() {
     await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
     expect(deleted?.id, 'p1');
+    expect(find.byType(BlurSheet), findsNothing);
+  });
+
+  testWidgets('a delete that fails keeps the question up and says so; trying again clears the line', (tester) async {
+    var attempts = 0;
+    await _pump(
+      tester,
+      viewerUid: 'me',
+      post: _post(authorUid: 'me'),
+      onDelete: (_) async {
+        attempts++;
+        if (attempts == 1) {
+          throw FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied');
+        }
+      },
+    );
+    await tester.longPress(find.byType(DeletablePostCard));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    // Still open, and saying what happened, in the app's error style.
+    expect(find.byType(BlurSheet), findsOneWidget);
+    expect(find.text(kDeleteFailed), findsOneWidget);
+    final style = tester.widget<Text>(find.text(kDeleteFailed)).style!;
+    expect(style.fontWeight, FontWeight.w700);
+    expect(style.color, GreyscaleTokens.dark.textPrimary);
+    expect(style.fontSize, closeTo(13 * figmaScale(tester.element(find.text(kDeleteFailed))), 0.01));
+    // Above the answers.
+    expect(
+      tester.getRect(find.text(kDeleteFailed)).bottom,
+      lessThan(tester.getRect(find.text('Delete')).top),
+    );
+
+    // The second attempt works: the line clears and the question closes.
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(attempts, 2);
+    expect(find.text(kDeleteFailed), findsNothing);
     expect(find.byType(BlurSheet), findsNothing);
   });
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/backend.dart';
@@ -234,6 +235,30 @@ void main() {
       await reveal(tester, 'a comment by me');
       expect(find.text('Delete'), findsOneWidget);
       expect(find.text('Report'), findsNothing);
+    });
+
+    testWidgets('the swipe is felt as a light impact at the point the tray is revealed, once', (tester) async {
+      final haptics = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'HapticFeedback.vibrate') haptics.add('${call.arguments}');
+        return null;
+      });
+      addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+      await openSheet(
+        tester,
+        keyboard: false,
+        comments: [comment('c1', 'them')],
+      );
+      // A short pull that does not reach the point: nothing.
+      await tester.drag(find.text('a comment by them'), const Offset(-10, 0));
+      await tester.pumpAndSettle();
+      expect(haptics, isEmpty);
+      await reveal(tester, 'a comment by them');
+      expect(find.text('Report'), findsOneWidget);
+      expect(haptics, ['HapticFeedbackType.lightImpact']);
+      // Already open: another swipe is not felt again.
+      await reveal(tester, 'a comment by them');
+      expect(haptics, ['HapticFeedbackType.lightImpact']);
     });
 
     testWidgets("somebody else's offers Report, not Delete", (tester) async {

@@ -427,13 +427,20 @@ class PostsRepository {
     return bytes;
   }
 
-  /// Delete a post and its posts-space photo binaries: each [PostPhoto]'s
-  /// Storage object first (best-effort — a missing object is fine), then the
-  /// doc. Touches **only** the post's own copies under the author's posts space;
+  /// Delete a post: everything under it, then its posts-space photo
+  /// binaries (best-effort — a missing object is fine), then the document.
+  /// Touches **only** the post's own copies under the author's posts space;
   /// never the private gallery originals (`users/{uid}/photos`) or any logged
-  /// time. Author-only is enforced at the rules layer. (The long-press delete
-  /// UX lands in a later stage; this is the plumbing.)
+  /// time. Author-only is enforced at the rules layer.
+  ///
+  /// THE DOCUMENT IS LAST, and that is the whole of the ordering. Every
+  /// rule that lets the author reach inside the post — its likes, its
+  /// comments, each liker's mirror — is proved by a `get()` on the post
+  /// itself, so while it stands an interrupted run can be run again and
+  /// finish what it started. Delete it first and its subcollections are
+  /// unreachable by anyone, for good.
   Future<void> deletePost(Post post) async {
+    await deletePostContents(db, post.id);
     final binaries = [
       for (final photo in post.photos) photo.storagePath,
       // The cover and the thumbnail went up beside the photos and come
@@ -507,6 +514,54 @@ class PostsRepository {
     caption: caption,
     photos: photos,
   );
+}
+
+/// Everything that lives under a post, taken down before the post is:
+/// every like, the mirror each liker keeps of it in their own space, and
+/// every comment and reply.
+///
+/// Called by the author — deleting their post — and by the account
+/// cascade, which is the author too. The post document itself is NOT
+/// deleted here: it is what the rules for all of this are proved
+/// against, so it has to outlive its own contents and go last. An
+/// interrupted run leaves the post standing with less under it, and
+/// running again finishes the job; nothing here is a read-modify-write,
+/// so running again costs only the deletes that are left.
+///
+/// No counter is touched. The post carries the counts and the post is
+/// going.
+Future<void> deletePostContents(
+  FirebaseFirestore db,
+  String postId, {
+  int batchLimit = 450,
+}) async {
+  final postRef = db.collection('posts').doc(postId);
+  // Two writes per like — the copy under the post, and the liker's own
+  // mirror of it — so half a batch of likes fills a whole batch.
+  final likePage = batchLimit ~/ 2;
+  while (true) {
+    final page = await postRef.collection('likes').limit(likePage).get();
+    if (page.docs.isEmpty) break;
+    final batch = db.batch();
+    for (final like in page.docs) {
+      batch.delete(like.reference);
+      batch.delete(db.collection('users').doc(like.id).collection('likes').doc(postId));
+    }
+    await batch.commit();
+    if (page.docs.length < likePage) break;
+  }
+  // Replies live in the same collection as the comments they answer, so
+  // one sweep takes both.
+  while (true) {
+    final page = await postRef.collection('comments').limit(batchLimit).get();
+    if (page.docs.isEmpty) break;
+    final batch = db.batch();
+    for (final comment in page.docs) {
+      batch.delete(comment.reference);
+    }
+    await batch.commit();
+    if (page.docs.length < batchLimit) break;
+  }
 }
 
 /// One like on a post: who, and when. The name comes from their public

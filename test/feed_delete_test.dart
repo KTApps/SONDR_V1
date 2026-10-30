@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/backend.dart';
@@ -51,13 +52,26 @@ Future<void> _pump(
   ),
 );
 
+/// Every haptic the platform is asked for, by kind.
+List<String> recordHaptics(WidgetTester tester) {
+  final log = <String>[];
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+    if (call.method == 'HapticFeedback.vibrate') log.add('${call.arguments}');
+    return null;
+  });
+  addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+  return log;
+}
+
 void main() {
-  testWidgets('own post: a long-press asks whether to delete it', (
+  testWidgets('own post: a long-press asks whether to delete it, and is felt as a medium impact', (
     tester,
   ) async {
+    final haptics = recordHaptics(tester);
     await _pump(tester, viewerUid: 'me', post: _post(authorUid: 'me'));
     await tester.longPress(find.byType(DeletablePostCard));
     await tester.pumpAndSettle();
+    expect(haptics, ['HapticFeedbackType.mediumImpact']);
     // The app's frosted question, not a panel over the card.
     expect(find.byType(BlurSheet), findsOneWidget);
     expect(find.text('Delete this post?'), findsOneWidget);
@@ -66,7 +80,8 @@ void main() {
     expect(find.text('Report'), findsNothing);
   });
 
-  testWidgets("someone else's post: a long-press asks why", (tester) async {
+  testWidgets("someone else's post: a long-press asks why, and is felt as a medium impact", (tester) async {
+    final haptics = recordHaptics(tester);
     await _pump(
       tester,
       viewerUid: 'me',
@@ -75,6 +90,7 @@ void main() {
     );
     await tester.longPress(find.byType(DeletablePostCard));
     await tester.pumpAndSettle();
+    expect(haptics, ['HapticFeedbackType.mediumImpact']);
     // Straight to the reasons: there is only one thing a long-press on
     // somebody else's post can mean.
     expect(find.text('Why are you reporting this?'), findsOneWidget);
@@ -86,8 +102,11 @@ void main() {
   testWidgets('no viewer uid (logged out): long-press does nothing', (
     tester,
   ) async {
+    final haptics = recordHaptics(tester);
     await _pump(tester, viewerUid: null, post: _post(authorUid: 'me'));
     await tester.longPress(find.byType(DeletablePostCard));
+    await tester.pumpAndSettle();
+    expect(haptics, isEmpty, reason: 'nothing opens, nothing is felt');
     await tester.pumpAndSettle();
     // Not ours, so it is reported rather than deleted — and with no
     // backend behind it the reasons still open and go nowhere.

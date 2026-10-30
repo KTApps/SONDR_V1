@@ -13,6 +13,7 @@ import '../photos/photo_refresh.dart';
 import '../photos/photos_repository.dart';
 import '../profile/milestone_strip.dart';
 import '../tasks/tasks_providers.dart';
+import 'auth_repository.dart';
 import 'profile_repository.dart';
 
 /// The account changing hands — a sign-out, a deletion, a sign-in — and
@@ -26,9 +27,16 @@ import 'profile_repository.dart';
 /// give up waiting and draw what there is.
 const Duration kAccountSwitchTimeout = Duration(seconds: 8);
 
+/// How long the new account's data must have been in, with the account
+/// unchanged, before the surfaces draw: a sign-out is two auth events —
+/// nobody, then a fresh guest — and between them every source answers
+/// at once for nobody, with the local repository's seed. A moment's
+/// hold outlasts that gap.
+const Duration kAccountSwitchSettle = Duration(milliseconds: 80);
+
 @immutable
 class AccountSwitchState {
-  const AccountSwitchState({required this.fromUid, required this.changing});
+  const AccountSwitchState({required this.fromUid, required this.changing, this.toUid});
 
   /// Whose data was on screen when the change began.
   final String? fromUid;
@@ -36,31 +44,55 @@ class AccountSwitchState {
   /// Whether the change itself — the auth call — is still running.
   final bool changing;
 
-  AccountSwitchState changed() => AccountSwitchState(fromUid: fromUid, changing: false);
+  /// Whom the auth object names once the change has run: the account the
+  /// stream has to catch up with before anything is drawn.
+  final String? toUid;
+
+  AccountSwitchState changed(String? toUid) =>
+      AccountSwitchState(fromUid: fromUid, changing: false, toUid: toUid);
 }
 
 class AccountSwitch extends Notifier<AccountSwitchState?> {
   Timer? _timeout;
+  Timer? _settle;
 
   @override
   AccountSwitchState? build() {
-    ref.onDispose(() => _timeout?.cancel());
+    ref.onDispose(() {
+      _timeout?.cancel();
+      _settle?.cancel();
+    });
     return null;
   }
 
   void begin(String? fromUid) {
+    _settle?.cancel();
+    _settle = null;
     state = AccountSwitchState(fromUid: fromUid, changing: true);
     _timeout?.cancel();
     _timeout = Timer(kAccountSwitchTimeout, end);
   }
 
-  void changed() {
+  void changed(String? toUid) {
     final s = state;
-    if (s != null) state = s.changed();
+    if (s != null) state = s.changed(toUid);
+  }
+
+  /// The new account's data is in. Held a moment: if the account moves
+  /// again, or a source goes back to loading, the hold starts over.
+  void readySeen() {
+    _settle ??= Timer(kAccountSwitchSettle, end);
+  }
+
+  void readyLost() {
+    _settle?.cancel();
+    _settle = null;
   }
 
   void end() {
     _timeout?.cancel();
+    _settle?.cancel();
+    _settle = null;
     state = null;
   }
 }
@@ -68,14 +100,19 @@ class AccountSwitch extends Notifier<AccountSwitchState?> {
 final accountSwitchProvider = NotifierProvider<AccountSwitch, AccountSwitchState?>(AccountSwitch.new);
 
 /// Whether the account's surfaces must stay blank: the change is still
-/// running, the auth has not moved on from the old account yet, or the
-/// new account's data is still loading. Once nothing is, the switch is
-/// over and the surfaces draw.
+/// running, the stream has not caught up with the account the change
+/// ended in, the new account's data is still loading, or it has only
+/// just come in. Once it has been in a moment, the switch is over and
+/// the surfaces draw.
 final accountSwitchingProvider = Provider<bool>((ref) {
   final s = ref.watch(accountSwitchProvider);
   if (s == null) return false;
+  final notifier = ref.read(accountSwitchProvider.notifier);
   final uid = ref.watch(currentUidProvider);
-  if (s.changing || uid == s.fromUid) return true;
+  if (s.changing || uid != s.toUid) {
+    notifier.readyLost();
+    return true;
+  }
   final loading = [
     // Home: the tasks, the dial's habits.
     ref.watch(tasksProvider).isLoading,
@@ -90,11 +127,14 @@ final accountSwitchingProvider = Provider<bool>((ref) {
     ref.watch(collagesListProvider).isLoading,
     ref.watch(friendshipsProvider).isLoading,
   ];
-  if (loading.any((l) => l)) return true;
-  // Everything is in for the new account: the switch is over — said
-  // after this read, not inside it.
-  Future.microtask(() => ref.read(accountSwitchProvider.notifier).end());
-  return false;
+  if (loading.any((l) => l)) {
+    notifier.readyLost();
+    return true;
+  }
+  // Everything is in for the new account: a moment more, then the switch
+  // is over — ended by the notifier, not inside this read.
+  notifier.readySeen();
+  return true;
 });
 
 /// Every provider that holds one account's data, told to let it go.
@@ -117,13 +157,28 @@ const Widget kAccountSwitchBlank = Scaffold(body: SizedBox.expand());
 /// surfaces blank from before it starts until the new account's data is
 /// in. Returns what [change] returns; a failure ends the switch so the
 /// surfaces come back.
-Future<T> switchAccount<T>(WidgetRef ref, Future<T> Function() change) async {
+///
+/// [endsAs] names the account the change ends in. By default it is read
+/// from the auth object, which is ahead of its own stream — the stream
+/// has to catch up with it before anything is drawn. Where there is no
+/// auth object (the local backend, a test), the account on record is
+/// taken as it stands.
+Future<T> switchAccount<T>(
+  WidgetRef ref,
+  Future<T> Function() change, {
+  String? Function()? endsAs,
+}) async {
   final notifier = ref.read(accountSwitchProvider.notifier);
   notifier.begin(ref.read(currentUidProvider));
   try {
     final result = await change();
     invalidateAccountViews(ref);
-    notifier.changed();
+    final toUid = endsAs != null
+        ? endsAs()
+        : (kUseFirebase && ref.read(firebaseInitializedProvider))
+            ? ref.read(authRepositoryProvider).currentUser?.uid
+            : ref.read(currentUidProvider);
+    notifier.changed(toUid);
     return result;
   } catch (e) {
     notifier.end();

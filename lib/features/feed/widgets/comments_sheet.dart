@@ -450,6 +450,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
     final own = c.authorUid == uid;
     return SondrSwipeRow(
       trayInset: kSpacingPair,
+      haptic: true,
       actions: [
         SondrAction(
           label: own ? 'Delete' : 'Report',

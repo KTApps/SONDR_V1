@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/backend.dart';
 import '../core/theme/greyscale_tokens.dart';
+import '../features/auth/account_switch.dart';
 import '../core/theme/spacing.dart';
 import '../core/utils/figma_scale.dart';
 import 'sondr_action.dart';
@@ -178,15 +179,34 @@ class _BlurSheetState extends ConsumerState<BlurSheet> implements BlurSheetHandl
     });
   }
 
+  /// The sheet is to go once the account's surfaces are ready to be
+  /// seen: its blur stays over the blank until then.
+  bool _closeWhenSettled = false;
+
   @override
   void close() {
-    if (mounted) Navigator.of(context).maybePop();
+    if (!mounted) return;
+    if (ref.read(accountSwitchingProvider)) {
+      _closeWhenSettled = true;
+      return;
+    }
+    Navigator.of(context).maybePop();
   }
 
   /// The account has changed hands under the sheet — a sign-out, a
   /// deletion, a sign-in — so whatever it was asking is over: it goes,
-  /// wherever it is in the stack, and the guest state is what is left.
+  /// wherever it is in the stack. Not before the new account's surfaces
+  /// are ready, though: until then its blur is what covers the blank.
   void _accountChanged() {
+    if (!mounted) return;
+    if (ref.read(accountSwitchingProvider)) {
+      _closeWhenSettled = true;
+      return;
+    }
+    _dismiss();
+  }
+
+  void _dismiss() {
     if (!mounted) return;
     final route = ModalRoute.of(context);
     if (route == null) return;
@@ -209,6 +229,9 @@ class _BlurSheetState extends ConsumerState<BlurSheet> implements BlurSheetHandl
   Widget build(BuildContext context) {
     ref.listen<String?>(currentUidProvider, (previous, next) {
       if (previous != next) _accountChanged();
+    });
+    ref.listen<bool>(accountSwitchingProvider, (previous, switching) {
+      if (!switching && _closeWhenSettled) _dismiss();
     });
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);

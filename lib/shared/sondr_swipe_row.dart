@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/utils/figma_scale.dart';
 
@@ -32,7 +33,12 @@ class SondrSwipeRow extends StatefulWidget {
     required this.actions,
     this.side = SondrSwipeSide.trailing,
     this.trayInset = defaultTrayInset,
+    this.haptic = false,
   });
+
+  /// Whether the swipe is felt as the tray is revealed: a light impact at
+  /// the point where it opens. Comments only.
+  final bool haptic;
 
   /// The tray's own outer inset, on the edge it is uncovered from.
   ///
@@ -112,11 +118,22 @@ class _SondrSwipeRowState extends State<SondrSwipeRow>
     _open.value = (_open.value + delta).clamp(0.0, 1.0);
   }
 
+  /// How open the tray was when the swipe began: a swipe that reveals a
+  /// tray already revealed is not felt again.
+  double _openAtStart = 0;
+
+  void _began(DragStartDetails _) => _openAtStart = _open.value;
+
   void _settle(DragEndDetails d) {
     final flung = _sign * d.velocity.pixelsPerSecond.dx;
-    if (flung > 250) return _open.forward().ignore();
-    if (flung < -250) return _open.reverse().ignore();
-    (_open.value > 0.5 ? _open.forward() : _open.reverse()).ignore();
+    final opens = flung > 250 || (flung >= -250 && _open.value > 0.5);
+    if (opens) {
+      // The swipe has reached the point where the tray is revealed.
+      if (widget.haptic && _openAtStart < 1) HapticFeedback.lightImpact();
+      _open.forward().ignore();
+    } else {
+      _open.reverse().ignore();
+    }
   }
 
   @override
@@ -135,6 +152,7 @@ class _SondrSwipeRowState extends State<SondrSwipeRow>
         final revealed = _open.value * _trayWidth;
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: _began,
           onHorizontalDragUpdate: _drag,
           onHorizontalDragEnd: _settle,
           // A tap anywhere on an open row closes it, so the gesture is

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/backend.dart';
@@ -96,7 +97,14 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
       // not a panel over the card: a card-sized overlay could not hold a
       // sentence without overflowing a slim session card, and the answer
       // to "delete this?" belongs nowhere near the thing it is about.
-      onLongPress: _busy ? null : (_own ? _confirmDelete : _report),
+      onLongPress: _busy || uid == null
+          ? null
+          : () {
+              // Felt as the press is recognised, before the sheet moves:
+              // a menu is opening.
+              HapticFeedback.mediumImpact();
+              (_own ? _confirmDelete : _report)();
+            },
       child: widget.child,
     );
   }

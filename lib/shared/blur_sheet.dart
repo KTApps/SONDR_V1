@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/backend.dart';
 import '../core/theme/greyscale_tokens.dart';
 import '../core/theme/spacing.dart';
 import '../core/utils/figma_scale.dart';
@@ -139,16 +141,16 @@ Future<void> showBlurSheet(
 }
 
 @visibleForTesting
-class BlurSheet extends StatefulWidget {
+class BlurSheet extends ConsumerStatefulWidget {
   const BlurSheet({super.key, required this.first});
 
   final BlurView Function(BlurSheetHandle handle) first;
 
   @override
-  State<BlurSheet> createState() => _BlurSheetState();
+  ConsumerState<BlurSheet> createState() => _BlurSheetState();
 }
 
-class _BlurSheetState extends State<BlurSheet> implements BlurSheetHandle {
+class _BlurSheetState extends ConsumerState<BlurSheet> implements BlurSheetHandle {
   late BlurView _view = widget.first(this);
 
   final Completer<void> _closed = Completer<void>();
@@ -181,6 +183,20 @@ class _BlurSheetState extends State<BlurSheet> implements BlurSheetHandle {
     if (mounted) Navigator.of(context).maybePop();
   }
 
+  /// The account has changed hands under the sheet — a sign-out, a
+  /// deletion, a sign-in — so whatever it was asking is over: it goes,
+  /// wherever it is in the stack, and the guest state is what is left.
+  void _accountChanged() {
+    if (!mounted) return;
+    final route = ModalRoute.of(context);
+    if (route == null) return;
+    if (route.isCurrent) {
+      Navigator.of(context).maybePop();
+    } else {
+      Navigator.of(context).removeRoute(route);
+    }
+  }
+
   void _pullUpdate(DragUpdateDetails d) => _pull += d.primaryDelta ?? 0;
 
   void _pullEnd(DragEndDetails d) {
@@ -191,6 +207,9 @@ class _BlurSheetState extends State<BlurSheet> implements BlurSheetHandle {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<String?>(currentUidProvider, (previous, next) {
+      if (previous != next) _accountChanged();
+    });
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);

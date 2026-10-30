@@ -72,7 +72,8 @@ void main() {
     iPhone13Pro(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpWidget(
-      MaterialApp(
+      ProviderScope(
+      child: MaterialApp(
         theme: AppTheme.dark(),
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context)
@@ -98,6 +99,7 @@ void main() {
             ),
           ),
         ),
+      ),
       ),
     );
     await tester.tap(find.text('open'));

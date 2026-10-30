@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/shared/blur_sheet.dart';
@@ -20,7 +21,8 @@ void main() {
     addTearDown(tester.view.reset);
     T? result;
     await tester.pumpWidget(
-      MaterialApp(
+      ProviderScope(
+      child: MaterialApp(
         theme: AppTheme.dark(),
         home: Builder(
           builder: (context) => Scaffold(
@@ -32,6 +34,7 @@ void main() {
             ),
           ),
         ),
+      ),
       ),
     );
     await tester.tap(find.text('open'));
@@ -189,7 +192,8 @@ void chained() {
     bool? said;
     var reached = false;
     await tester.pumpWidget(
-      MaterialApp(
+      ProviderScope(
+      child: MaterialApp(
         theme: AppTheme.dark(),
         home: Builder(
           builder: (context) => Scaffold(
@@ -221,6 +225,7 @@ void chained() {
           ),
         ),
       ),
+      ),
     );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
@@ -248,7 +253,8 @@ void chained() {
     addTearDown(tester.view.reset);
     bool? said;
     await tester.pumpWidget(
-      MaterialApp(
+      ProviderScope(
+      child: MaterialApp(
         theme: AppTheme.dark(),
         home: Builder(
           builder: (context) => Scaffold(
@@ -278,6 +284,7 @@ void chained() {
             ),
           ),
         ),
+      ),
       ),
     );
     await tester.tap(find.text('open'));

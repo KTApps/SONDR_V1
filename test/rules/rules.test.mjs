@@ -1443,8 +1443,24 @@ describe('what a deletion may reach', () => {
     await assertSucceeds(deleteDoc(doc(db, 'posts/p1/comments/c1')));
   });
 
-  it("the post's author may remove the liker's own mirror of a like on their post — that document and no other", async () => {
+  it("the post's author may not take the mirror on its own, while the like it mirrors is still there", async () => {
+    await assertFails(deleteDoc(doc(as(A), 'users/' + C + '/likes/p1')));
+    // Still there, and still C's.
+    await assertSucceeds(getDoc(doc(as(C), 'users/' + C + '/likes/p1')));
+  });
+
+  it('the mirror goes in the same batch as the like it mirrors', async () => {
     const db = as(A);
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'posts/p1/likes/' + C));
+    batch.delete(doc(db, 'users/' + C + '/likes/p1'));
+    await assertSucceeds(batch.commit());
+  });
+
+  it("the post's author may remove the liker's own mirror once the like is gone — that document and no other", async () => {
+    const db = as(A);
+    // B's like under the post was cleared by the test above, so the
+    // mirror is now the author's to take.
     await assertSucceeds(deleteDoc(doc(db, 'users/' + B + '/likes/p1')));
     // Only that one document: nothing else of B's is reachable.
     await assertFails(getDoc(doc(db, 'users/' + B + '/likes/p1')));

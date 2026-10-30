@@ -21,10 +21,19 @@ service cloud.firestore {
     // document and nothing else: delete only, no read, no write, and only
     // the mirror whose name is a post of theirs. The lookup needs the post
     // to still exist, which is why a deletion removes it last.
+    //
+    // And only together with the like it mirrors: `existsAfter` reads the
+    // state the write leaves behind, so the copy under the post must
+    // already be gone or be going in the same batch. An author cannot
+    // reach into somebody's space to take the mirror on its own and
+    // leave them "liked" with nothing to show for it; the only shape this
+    // allows is the one a deletion actually writes.
     match /users/{ownerUid}/likes/{postId} {
       allow delete: if request.auth != null
                     && request.auth.uid ==
-                       get(/databases/$(database)/documents/posts/$(postId)).data.authorUid;
+                       get(/databases/$(database)/documents/posts/$(postId)).data.authorUid
+                    && !existsAfter(
+                         /databases/$(database)/documents/posts/$(postId)/likes/$(ownerUid));
     }
 
     // Unique handle index. Anyone signed in can read it (to check availability

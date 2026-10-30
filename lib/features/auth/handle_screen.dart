@@ -15,6 +15,7 @@ import '../../shared/sondr_header.dart';
 import 'invited_screen.dart';
 import 'profile_repository.dart';
 import '../profile/public_profile.dart';
+import 'auth_landing.dart';
 
 /// What the handle screen says under its header.
 ///
@@ -31,11 +32,18 @@ class HandleScreen extends ConsumerStatefulWidget {
     super.key,
     this.suggestedDisplayName,
     this.afterSignUp = false,
+    this.landing = AuthLanding.home,
   });
+
+  /// Where finishing leaves the person. Pushed as the tail of a sign-up
+  /// it carries that flow's landing; pushed on its own, by an account
+  /// that already exists, the caller says where it wants them back.
 
   /// Pre-fills the profile display name (e.g. the name Apple returned on first
   /// sign-in). The handle itself is always chosen by the user.
   final String? suggestedDisplayName;
+
+  final AuthLanding landing;
 
   /// True on the two paths that reach here straight from a sign-up, and
   /// only those: the account is new, so it is asked once who invited it.
@@ -96,14 +104,14 @@ class _HandleScreenState extends ConsumerState<HandleScreen> {
       if (!mounted) return;
       if (widget.afterSignUp) {
         // One more question, asked once, while the account is new. It
-        // lands on Home itself, whichever way it is answered.
+        // lands where this screen would have, whichever way it is
+        // answered.
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const InvitedScreen()),
+          MaterialPageRoute(builder: (_) => InvitedScreen(landing: widget.landing)),
         );
         return;
       }
-      // Land on Home (the timer) after finishing sign-up + handle setup.
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      landAfterAuth(context, ref, widget.landing);
     } on HandleTakenException {
       setState(() => _error = 'That handle is taken. Try another.');
     } catch (_) {

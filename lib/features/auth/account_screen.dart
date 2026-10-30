@@ -9,6 +9,7 @@ import '../../shared/sondr_error.dart';
 import '../../shared/sondr_loading.dart';
 import '../../core/utils/figma_scale.dart';
 import 'apple_sign_in_button.dart';
+import 'auth_landing.dart';
 import 'auth_repository.dart';
 import 'auth_screen.dart';
 import 'handle_screen.dart';
@@ -210,7 +211,11 @@ class _SignedInView extends ConsumerWidget {
               child: SondrAction(
                 label: 'Set your handle',
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const HandleScreen()),
+                  MaterialPageRoute(
+                    // Not a sign-in: an account that is already here,
+                    // naming itself. It comes back to this page.
+                    builder: (_) => const HandleScreen(landing: AuthLanding.back),
+                  ),
                 ),
               ),
             );

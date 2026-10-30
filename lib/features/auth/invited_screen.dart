@@ -11,6 +11,7 @@ import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_header.dart';
 import '../friends/friends_repository.dart';
+import 'auth_landing.dart';
 import 'handle_screen.dart' show kHandlePrompt;
 import '../links/invite_link.dart';
 import '../links/invite_link_listener.dart'
@@ -34,7 +35,11 @@ const String kThatsYou = "That's you.";
 /// field, the error under it, the primary action, and the supporting one
 /// beneath that — Skip, where the handle screen puts Back.
 class InvitedScreen extends ConsumerStatefulWidget {
-  const InvitedScreen({super.key});
+  const InvitedScreen({super.key, this.landing = AuthLanding.home});
+
+  /// Where finishing leaves the person: the landing of the sign-up this
+  /// is the last question of.
+  final AuthLanding landing;
 
   @override
   ConsumerState<InvitedScreen> createState() => _InvitedScreenState();
@@ -65,7 +70,7 @@ class _InvitedScreenState extends ConsumerState<InvitedScreen> {
   /// Done with the question, however it was answered.
   Future<void> _leave() async {
     await ref.read(pendingInviterProvider).clear();
-    if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+    if (mounted) landAfterAuth(context, ref, widget.landing);
   }
 
   Future<void> _submit() async {

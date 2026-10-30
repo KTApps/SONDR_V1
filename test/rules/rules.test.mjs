@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { after, before, describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
   initializeTestEnvironment,
@@ -8,7 +8,8 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   arrayRemove, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs,
-  limit, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  increment, limit, orderBy, query, serverTimestamp, setDoc, updateDoc, where,
+  writeBatch,
 } from 'firebase/firestore';
 
 /**
@@ -1568,6 +1569,320 @@ describe('the notices an account leaves in other people\'s inboxes', () => {
   it('a notice is still never updated, by anyone', async () => {
     await assertFails(updateDoc(doc(as(B), 'notifications/' + A + '/items/n4'), { actorHandle: 'x' }));
     await assertFails(updateDoc(doc(as(A), 'notifications/' + A + '/items/n4'), { actorHandle: 'x' }));
+  });
+});
+
+/**
+ * End to end, against the real rules: the two deletions the app runs, in
+ * the order and the batch shapes the Dart runs them in. Not a rule
+ * checked in isolation — the whole sequence, as a client with no special
+ * powers, asserting that what should go has gone and what should stay
+ * has stayed.
+ */
+const BATCH = 450;
+
+/// deletePostContents, as lib/features/feed/posts_repository.dart has it:
+/// every read first, then batches that carry their own counter.
+async function deletePostContents(db, postId) {
+  const postRef = doc(db, 'posts/' + postId);
+  const post = await getDoc(postRef);
+  if (!post.exists()) return;
+  const countsLikes = post.get('likeCount') !== undefined;
+  const countsComments = post.get('commentCount') !== undefined;
+  const likes = (await getDocs(collection(db, 'posts/' + postId + '/likes'))).docs;
+  const comments = (await getDocs(collection(db, 'posts/' + postId + '/comments'))).docs;
+
+  const likesPerBatch = Math.floor((BATCH - 1) / 2);
+  for (let i = 0; i < likes.length; i += likesPerBatch) {
+    const page = likes.slice(i, i + likesPerBatch);
+    const batch = writeBatch(db);
+    for (const like of page) {
+      batch.delete(like.ref);
+      batch.delete(doc(db, 'users/' + like.id + '/likes/' + postId));
+    }
+    if (countsLikes) batch.update(postRef, { likeCount: increment(-page.length) });
+    await batch.commit();
+  }
+  const commentsPerBatch = BATCH - 1;
+  for (let i = 0; i < comments.length; i += commentsPerBatch) {
+    const page = comments.slice(i, i + commentsPerBatch);
+    const batch = writeBatch(db);
+    for (const c of page) batch.delete(c.ref);
+    if (countsComments) batch.update(postRef, { commentCount: increment(-page.length) });
+    await batch.commit();
+  }
+}
+
+async function deletePost(db, postId) {
+  await deletePostContents(db, postId);
+  await deleteDoc(doc(db, 'posts/' + postId));
+}
+
+describe('deleting a post, end to end against the rules', () => {
+  /// [like] a friend's like, [perPost] its copy under the post (an old
+  /// like has none), [comment] a friend's comment, [reply] a friend's
+  /// reply to it, [counters] whether the post carries them at all.
+  async function makePost(id, { like = true, perPost = true, comment = true, reply = false, counters = true } = {}) {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/' + id), {
+        authorUid: A, audience: [A, B], createdAt: 1,
+        ...(counters ? { likeCount: like ? 1 : 0, commentCount: (comment ? 1 : 0) + (reply ? 1 : 0) } : {}),
+      });
+      if (like) {
+        await setDoc(doc(db, 'users/' + B + '/likes/' + id), { createdAt: 1 });
+        if (perPost) await setDoc(doc(db, 'posts/' + id + '/likes/' + B), { at: 1 });
+      }
+      if (comment) {
+        await setDoc(doc(db, 'posts/' + id + '/comments/c1'), { authorUid: B, audience: [A, B], text: 'nice', createdAt: 1 });
+      }
+      if (reply) {
+        await setDoc(doc(db, 'posts/' + id + '/comments/r1'), { authorUid: B, audience: [A, B], text: 'more', createdAt: 2, parentId: 'c1' });
+      }
+    });
+  }
+
+  /// Nothing of the post left anywhere, checked with the rules off.
+  async function assertGone(id) {
+    await seed(async (db) => {
+      assert.equal((await getDoc(doc(db, 'posts/' + id))).exists(), false, 'the post');
+      assert.equal((await getDocs(collection(db, 'posts/' + id + '/likes'))).size, 0, 'its likes');
+      assert.equal((await getDocs(collection(db, 'posts/' + id + '/comments'))).size, 0, 'its comments');
+      assert.equal((await getDoc(doc(db, 'users/' + B + '/likes/' + id))).exists(), false, "the liker's mirror");
+    });
+  }
+
+  beforeEach(async () => { await env.clearFirestore(); });
+
+  it('a like and a comment from a friend — the shape that failed on the device', async () => {
+    await makePost('p1');
+    await assertSucceeds(deletePost(as(A), 'p1'));
+    await assertGone('p1');
+  });
+
+  it('with a reply as well', async () => {
+    await makePost('p2', { reply: true });
+    await assertSucceeds(deletePost(as(A), 'p2'));
+    await assertGone('p2');
+  });
+
+  it('a like and no comments', async () => {
+    await makePost('p3', { comment: false });
+    await assertSucceeds(deletePost(as(A), 'p3'));
+    await assertGone('p3');
+  });
+
+  it('an older like: a mirror with no copy under the post', async () => {
+    await makePost('p4', { perPost: false });
+    await assertSucceeds(deletePost(as(A), 'p4'));
+    // The mirror of a like the post never kept a copy of cannot be found
+    // by the author, so it stays — naming a post that no longer exists.
+    await seed(async (db) => {
+      assert.equal((await getDoc(doc(db, 'posts/p4'))).exists(), false);
+      assert.equal((await getDoc(doc(db, 'users/' + B + '/likes/p4'))).exists(), true);
+    });
+  });
+
+  it('nothing under it at all', async () => {
+    await makePost('p5', { like: false, comment: false });
+    await assertSucceeds(deletePost(as(A), 'p5'));
+    await assertGone('p5');
+  });
+
+  it('a post from before counters existed', async () => {
+    await makePost('p6', { counters: false });
+    await assertSucceeds(deletePost(as(A), 'p6'));
+    await assertGone('p6');
+  });
+
+  it('a comment the writer narrowed away from the author still goes', async () => {
+    await makePost('p7', { comment: false });
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/p7/comments/hidden'), { authorUid: B, audience: [B], text: 'x', createdAt: 1 });
+    });
+    await assertSucceeds(deletePost(as(A), 'p7'));
+    await assertGone('p7');
+  });
+
+  it('halfway through, the counts still match what is under the post', async () => {
+    await makePost('p8');
+    const db = as(A);
+    // The likes batch only: what an interruption before the comments
+    // leaves behind.
+    const postRef = doc(db, 'posts/p8');
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'posts/p8/likes/' + B));
+    batch.delete(doc(db, 'users/' + B + '/likes/p8'));
+    batch.update(postRef, { likeCount: increment(-1) });
+    await assertSucceeds(batch.commit());
+    await seed(async (raw) => {
+      const p = await getDoc(doc(raw, 'posts/p8'));
+      assert.equal(p.get('likeCount'), 0);
+      assert.equal((await getDocs(collection(raw, 'posts/p8/likes'))).size, 0);
+      assert.equal(p.get('commentCount'), 1);
+      assert.equal((await getDocs(collection(raw, 'posts/p8/comments'))).size, 1);
+    });
+    // And running the whole thing again finishes it.
+    await assertSucceeds(deletePost(as(A), 'p8'));
+    await assertGone('p8');
+  });
+
+  it('nobody else can run it', async () => {
+    await makePost('p9');
+    await assertFails(deletePost(as(B), 'p9'));
+    await assertFails(deletePost(as(D), 'p9'));
+    await seed(async (db) => {
+      assert.equal((await getDoc(doc(db, 'posts/p9'))).exists(), true);
+    });
+  });
+});
+
+describe('deleting an account, end to end against the rules', () => {
+  // ME is leaving. They liked and commented on a friend's post, were
+  // liked and commented on in return, and left notices in two inboxes.
+  const ME = A;
+  const FRIEND = B;
+  const OTHER = C;
+
+  beforeEach(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      // Their own space.
+      await setDoc(doc(db, 'users/' + ME + '/meta/profile'), { username: 'ada' });
+      await setDoc(doc(db, 'users/' + ME + '/tasks/t1'), { name: 'Golf' });
+      await setDoc(doc(db, 'usernames/ada'), { uid: ME });
+      await setDoc(doc(db, 'publicProfiles/' + ME), { handle: 'ada', hours: 3 });
+      await setDoc(doc(db, 'publicProfiles/' + ME + '/friends/' + FRIEND), { since: 1 });
+      await setDoc(doc(db, 'publicProfiles/' + FRIEND + '/friends/' + ME), { since: 1 });
+      await setDoc(doc(db, 'friendships/' + pairId(ME, FRIEND)), {
+        users: [ME, FRIEND].sort(), requestedBy: ME, status: 'accepted',
+      });
+      await setDoc(doc(db, 'invites/' + ME), { invitedBy: FRIEND, invitedByHandle: 'cass', at: 1 });
+
+      // A post of theirs, liked and commented on by the friend.
+      await setDoc(doc(db, 'posts/mine'), {
+        authorUid: ME, audience: [ME, FRIEND], createdAt: 2, likeCount: 1, commentCount: 1,
+      });
+      await setDoc(doc(db, 'posts/mine/likes/' + FRIEND), { at: 1 });
+      await setDoc(doc(db, 'users/' + FRIEND + '/likes/mine'), { createdAt: 1 });
+      await setDoc(doc(db, 'posts/mine/comments/theirs'), {
+        authorUid: FRIEND, audience: [ME, FRIEND], text: 'nice', createdAt: 1,
+      });
+
+      // The friend's post, which they liked and commented on.
+      await setDoc(doc(db, 'posts/theirs'), {
+        authorUid: FRIEND, audience: [ME, FRIEND], createdAt: 1, likeCount: 1, commentCount: 1,
+      });
+      await setDoc(doc(db, 'posts/theirs/likes/' + ME), { at: 1 });
+      await setDoc(doc(db, 'users/' + ME + '/likes/theirs'), { createdAt: 1 });
+      await setDoc(doc(db, 'posts/theirs/comments/by-me'), {
+        authorUid: ME, audience: [ME, FRIEND], text: 'ta', createdAt: 1,
+      });
+
+      // Notices: two they caused, one they received, one of neither.
+      await setDoc(doc(db, 'notifications/' + FRIEND + '/items/n1'), { type: 'like', actorUid: ME, actorHandle: 'ada', postId: 'theirs', at: 1 });
+      await setDoc(doc(db, 'notifications/' + OTHER + '/items/n2'), { type: 'like', actorUid: ME, actorHandle: 'ada', postId: 'x', at: 2 });
+      await setDoc(doc(db, 'notifications/' + ME + '/items/n3'), { type: 'like', actorUid: FRIEND, actorHandle: 'cass', postId: 'mine', at: 3 });
+      await setDoc(doc(db, 'notifications/' + OTHER + '/items/n4'), { type: 'like', actorUid: FRIEND, actorHandle: 'cass', postId: 'y', at: 4 });
+    });
+  });
+
+  /// AccountCascade.run, in its order, as a client.
+  async function runCascade(db, uid) {
+    const myPosts = await getDocs(query(collection(db, 'posts'),
+      where('authorUid', '==', uid), where('audience', 'array-contains', uid), orderBy('createdAt', 'desc')));
+    const myPostIds = new Set(myPosts.docs.map((d) => d.id));
+    const myComments = (await getDocs(query(collectionGroup(db, 'comments'), where('authorUid', '==', uid)))).docs;
+    const handle = (await getDoc(doc(db, 'users/' + uid + '/meta/profile'))).get('username') ?? '';
+
+    // Their inbox, then the notices they left elsewhere.
+    for (const d of (await getDocs(collection(db, 'notifications/' + uid + '/items'))).docs) {
+      await deleteDoc(d.ref);
+    }
+    for (const d of (await getDocs(query(collectionGroup(db, 'items'), where('actorUid', '==', uid)))).docs) {
+      if (d.ref.parent.parent.id !== uid) await deleteDoc(d.ref);
+    }
+
+    // Their likes: mirror, copy under the post, and the count, together.
+    for (const like of (await getDocs(collection(db, 'users/' + uid + '/likes'))).docs) {
+      const postId = like.id;
+      if (myPostIds.has(postId)) { await deleteDoc(like.ref); continue; }
+      const batch = writeBatch(db);
+      batch.delete(like.ref);
+      batch.delete(doc(db, 'posts/' + postId + '/likes/' + uid));
+      batch.update(doc(db, 'posts/' + postId), { likeCount: increment(-1) });
+      await batch.commit();
+    }
+
+    // Their comments, wherever they are, with the counts they hold up.
+    for (const c of myComments) {
+      const postId = c.ref.path.split('/')[1];
+      const batch = writeBatch(db);
+      batch.delete(c.ref);
+      if (!myPostIds.has(postId)) {
+        batch.update(doc(db, 'posts/' + postId), { commentCount: increment(-1) });
+      }
+      await batch.commit();
+    }
+
+    // Their posts, contents first.
+    for (const id of myPostIds) await deletePost(db, id);
+
+    // The mirror both ways, the friendships, the public profile, the
+    // invite, the handle, then their own space.
+    for (const f of (await getDocs(collection(db, 'publicProfiles/' + uid + '/friends'))).docs) {
+      await deleteDoc(doc(db, 'publicProfiles/' + f.id + '/friends/' + uid));
+      await deleteDoc(f.ref);
+    }
+    for (const f of (await getDocs(query(collection(db, 'friendships'), where('users', 'array-contains', uid)))).docs) {
+      await deleteDoc(f.ref);
+    }
+    await deleteDoc(doc(db, 'publicProfiles/' + uid));
+    await deleteDoc(doc(db, 'invites/' + uid));
+    if (handle) await deleteDoc(doc(db, 'usernames/' + handle));
+    for (const name of ['meta', 'tasks', 'habitDays', 'photos', 'collages', 'likes', 'hidden', 'sessions']) {
+      for (const d of (await getDocs(collection(db, 'users/' + uid + '/' + name))).docs) await deleteDoc(d.ref);
+    }
+    await deleteDoc(doc(db, 'users/' + uid));
+  }
+
+  it('leaves nothing of theirs, and the counters right', async () => {
+    await assertSucceeds(runCascade(as(ME), ME));
+    await seed(async (db) => {
+      // Theirs, gone.
+      for (const path of [
+        'users/' + ME, 'users/' + ME + '/meta/profile', 'users/' + ME + '/tasks/t1',
+        'usernames/ada', 'publicProfiles/' + ME, 'publicProfiles/' + ME + '/friends/' + FRIEND,
+        'publicProfiles/' + FRIEND + '/friends/' + ME, 'friendships/' + pairId(ME, FRIEND),
+        'invites/' + ME, 'posts/mine', 'posts/mine/likes/' + FRIEND, 'posts/mine/comments/theirs',
+        'users/' + FRIEND + '/likes/mine', 'posts/theirs/likes/' + ME, 'users/' + ME + '/likes/theirs',
+        'posts/theirs/comments/by-me', 'notifications/' + ME + '/items/n3',
+        'notifications/' + FRIEND + '/items/n1', 'notifications/' + OTHER + '/items/n2',
+      ]) {
+        assert.equal((await getDoc(doc(db, path))).exists(), false, path + ' should be gone');
+      }
+      // The friend's own things, untouched, and their counts put right.
+      const theirs = await getDoc(doc(db, 'posts/theirs'));
+      assert.equal(theirs.exists(), true);
+      assert.equal(theirs.get('likeCount'), 0, 'the like came off the count');
+      assert.equal(theirs.get('commentCount'), 0, 'and so did the comment');
+      assert.equal((await getDocs(collection(db, 'posts/theirs/likes'))).size, 0);
+      assert.equal((await getDocs(collection(db, 'posts/theirs/comments'))).size, 0);
+      assert.equal((await getDoc(doc(db, 'notifications/' + OTHER + '/items/n4'))).exists(), true, 'not theirs to take');
+    });
+  });
+
+  it('run again over a finished account, and nothing moves', async () => {
+    await assertSucceeds(runCascade(as(ME), ME));
+    await assertSucceeds(runCascade(as(ME), ME));
+    await seed(async (db) => {
+      const theirs = await getDoc(doc(db, 'posts/theirs'));
+      assert.equal(theirs.get('likeCount'), 0, 'never twice');
+      assert.equal(theirs.get('commentCount'), 0);
+    });
+  });
+
+  it('nobody can run it over somebody else', async () => {
+    await assertFails(runCascade(as(FRIEND), ME));
   });
 });
 

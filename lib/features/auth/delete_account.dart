@@ -34,7 +34,7 @@ const String kDeleteAccountFailed =
 
 /// The one failure worth naming in every build: it is the person's own
 /// mistake and the fix is obvious.
-const String kWrongPassword = "That password isn't right.";
+const String kWrongPassword = 'Wrong password. Try again.';
 
 /// The user-facing line with the failing step and the provider's own code
 /// appended, for us.
@@ -55,6 +55,31 @@ String deleteErrorText(
 }) => (withCode && detail != null && detail.isNotEmpty)
     ? '$message ($detail)'
     : message;
+
+/// What the deleting says of itself while it runs, in place of the
+/// answer that started it.
+const String kDeleteAccountWorking = 'Deleting…';
+
+/// Too many wrong answers in a row: Firebase stops taking them for a
+/// while, and saying "wrong password" again would be a lie.
+const String kTooManyAttempts = 'Too many attempts. Try again later.';
+
+/// What the password step says when the password was not accepted.
+///
+/// A wrong password is the person's own mistake and the fix is obvious,
+/// so it is named in every build; a rate limit is named too, because
+/// trying harder is exactly the wrong response to it. Anything else is
+/// ours, and carries its code for the account that can read one.
+@visibleForTesting
+String reauthErrorText(String code, {required bool withCode}) {
+  if (_wrongPassword(code)) return kWrongPassword;
+  if (code == 'too-many-requests') return kTooManyAttempts;
+  return deleteErrorText(
+    kDeleteAccountFailed,
+    '${DeleteStep.reauth.label}: $code',
+    withCode: withCode,
+  );
+}
 
 /// The step a deletion stopped on, named for the message.
 enum DeleteStep {
@@ -256,30 +281,27 @@ Future<_Proof> _prove(
   if (providers.contains('password')) {
     // The same blur the question was asked on, with the field where the
     // answers were — not a card dropped over a flow that began here.
-    final password = await showBlurPassword(
+    // The step keeps itself: a password that was not right is said on
+    // the step, where the field still is, and the next attempt is a
+    // second try rather than a second journey.
+    final ok = await showBlurPasswordStep(
       context,
       title: kPasswordPrompt,
       confirmLabel: kDeleteAccountConfirm,
+      busyLabel: kDeleteAccountWorking,
       within: within,
+      onSubmit: (password) async {
+        try {
+          await auth.reauthenticateWithPassword(password);
+          return null;
+        } catch (e) {
+          final code = deleteErrorCode(e) ?? '${e.runtimeType}';
+          debugPrint('SONDR delete re-auth failed: $code');
+          return reauthErrorText(code, withCode: withCode);
+        }
+      },
     );
-    if (password == null) return _Proof.cancelled;
-    try {
-      await auth.reauthenticateWithPassword(password);
-      return _Proof.ok;
-    } catch (e) {
-      final code = deleteErrorCode(e) ?? '${e.runtimeType}';
-      debugPrint('SONDR delete re-auth failed: $code');
-      // A wrong password is the person's own mistake and the fix is
-      // obvious, so it is named in every build. Anything else is ours.
-      lastDeleteError = _wrongPassword(code)
-          ? kWrongPassword
-          : deleteErrorText(
-              kDeleteAccountFailed,
-              '${DeleteStep.reauth.label}: $code',
-              withCode: withCode,
-            );
-      return _Proof.failed;
-    }
+    return ok ? _Proof.ok : _Proof.cancelled;
   }
 
   if (providers.contains('apple.com')) {

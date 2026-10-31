@@ -7,6 +7,7 @@ import '../core/theme/spacing.dart';
 import '../core/utils/figma_scale.dart';
 import 'blur_sheet.dart';
 import 'sondr_action.dart';
+import 'sondr_error.dart';
 import 'sondr_field.dart';
 
 /// Asks for one short piece of text, in the app's own language.
@@ -177,84 +178,101 @@ Future<bool> showSondrConfirm(
   return said;
 }
 
-/// Asks for a password over the blur, with the field where the answers
-/// would be.
+/// Where the deletion's answer stands on the password step: the centre
+/// of its word, in reference points.
 ///
-/// The one question in the app that needs typing and still belongs on
-/// this surface: it is the middle of a flow that started on it, and
-/// dropping to a card halfway through would read as two apps. The field
-/// keeps its ordinary style; the blur lifts by whatever the keyboard
-/// covers of the exit, and by nothing when there is no keyboard.
+/// Fixed, and not the centred list's doing, because nothing above it may
+/// move it: the field sits under the title and the error appears between
+/// them, and both used to push this down the screen. Measured off the
+/// layout it replaces, so putting it here moved nothing.
+const double kBlurPasswordActionCentre = 443.6;
+
+/// The gap between the title and the field, which is Add friends' own.
+const double kBlurPasswordFieldGap = 24;
+
+/// The gap between the field and anything the step has to say about it.
+const double kBlurPasswordErrorGap = 12;
+
+/// How much of a password there has to be before the answer is offered.
+/// Six is Firebase's own floor, so anything shorter cannot be right.
+const int kPasswordMinLength = 6;
+
+/// Ask for a password on the blur and keep asking until [onSubmit] says
+/// it was right, or the sheet is dismissed.
 ///
-/// Returns what was typed, or null if it was dismissed. Whitespace-only
-/// returns null, so callers need not re-check.
-Future<String?> showBlurPassword(
+/// Everything stands where it stands: the title where the sheet puts it,
+/// the field under it, the answer on its own line, and the exit at the
+/// bottom where the keyboard covers it. Nothing moves when the keyboard
+/// opens and nothing moves when the step has something to say — the line
+/// it says it on is already there, empty.
+///
+/// [onSubmit] returns null when the password was right, or the line to
+/// show when it was not. Returns true when it was right.
+Future<bool> showBlurPasswordStep(
   BuildContext context, {
   required String title,
   required String confirmLabel,
+  required String busyLabel,
+  required Future<String?> Function(String password) onSubmit,
   BlurSheetHandle? within,
 }) async {
-  final answered = Completer<String?>();
-  // The text, as typed. Held here rather than in a controller this
-  // function owns: a controller disposed when the function returns is
-  // still being rebuilt by the closing animation — the bug the prompt
-  // card had, and the reason its field lives in a widget of its own.
-  var typed = '';
-
-  void answer() {
-    if (!answered.isCompleted) {
-      final trimmed = typed.trim();
-      answered.complete(trimmed.isEmpty ? null : trimmed);
-    }
+  final done = Completer<bool>();
+  void finish(bool ok) {
+    if (!done.isCompleted) done.complete(ok);
   }
 
   BlurView view(BlurSheetHandle handle) => BlurView(
     title: title,
-    body: _BlurPasswordField(
-      onChanged: (value) => typed = value,
-      onSubmitted: () {
-        answer();
+    fixed: true,
+    pinned: (context, titleBottom) => _PasswordStep(
+      titleBottom: titleBottom,
+      confirmLabel: confirmLabel,
+      busyLabel: busyLabel,
+      onSubmit: onSubmit,
+      onDone: () {
+        finish(true);
         if (within == null) handle.close();
       },
     ),
-    items: [
-      BlurItem(
-        label: confirmLabel,
-        quiet: true,
-        onTap: () {
-          answer();
-          if (within == null) handle.close();
-        },
-      ),
-    ],
   );
 
   if (within != null) {
     within.show(view(within));
-    within.closed.then((_) {
-      if (!answered.isCompleted) answered.complete(null);
-    });
-    return answered.future;
+    within.closed.then((_) => finish(false));
+    return done.future;
   }
   await showBlurSheet(context, view);
-  if (!answered.isCompleted) answered.complete(null);
-  return answered.future;
+  finish(false);
+  return done.future;
 }
 
-/// The field itself, owning its controller for exactly as long as it is
-/// on screen.
-class _BlurPasswordField extends StatefulWidget {
-  const _BlurPasswordField({required this.onChanged, required this.onSubmitted});
+/// The step's own contents, each at a place of its own.
+class _PasswordStep extends StatefulWidget {
+  const _PasswordStep({
+    required this.titleBottom,
+    required this.confirmLabel,
+    required this.busyLabel,
+    required this.onSubmit,
+    required this.onDone,
+  });
 
-  final ValueChanged<String> onChanged;
-  final VoidCallback onSubmitted;
+  final double titleBottom;
+  final String confirmLabel;
+  final String busyLabel;
+  final Future<String?> Function(String password) onSubmit;
+  final VoidCallback onDone;
 
   @override
-  State<_BlurPasswordField> createState() => _BlurPasswordFieldState();
+  State<_PasswordStep> createState() => _PasswordStepState();
 }
 
-class _BlurPasswordFieldState extends State<_BlurPasswordField> {
+class _PasswordStepState extends State<_PasswordStep> {
   final TextEditingController _controller = TextEditingController();
+  String _typed = '';
+  String? _error;
+  bool _busy = false;
+
+  bool get _enough => _typed.length >= kPasswordMinLength;
 
   @override
   void dispose() {
@@ -262,20 +280,96 @@ class _BlurPasswordFieldState extends State<_BlurPasswordField> {
     super.dispose();
   }
 
+  Future<void> _submit() async {
+    if (!_enough || _busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final said = await widget.onSubmit(_typed);
+    if (!mounted) return;
+    if (said == null) {
+      widget.onDone();
+      return;
+    }
+    setState(() {
+      _busy = false;
+      _error = said;
+    });
+  }
+
   @override
-  Widget build(BuildContext context) => SondrField(
-    controller: _controller,
-    filled: false,
-    centered: true,
-    autofocus: true,
-    obscureText: true,
-    autocorrect: false,
-    textCapitalization: TextCapitalization.none,
-    textInputAction: TextInputAction.done,
-    onChanged: widget.onChanged,
-    onSubmitted: (_) => widget.onSubmitted(),
-  );
+  Widget build(BuildContext context) {
+    final scale = figmaScale(context);
+    final fieldTop = widget.titleBottom + kBlurPasswordFieldGap * scale;
+    final errorTop = fieldTop +
+        SondrField.lineHeightOf(context) +
+        kBlurPasswordErrorGap * scale;
+
+    return Stack(
+      children: [
+        Positioned(
+          top: fieldTop,
+          left: kBlurSideInset * scale,
+          right: kBlurSideInset * scale,
+          child: SondrField(
+            controller: _controller,
+            enabled: !_busy,
+            filled: false,
+            centered: true,
+            obscureText: true,
+            autocorrect: false,
+            // Opened by a tap, never on arrival: the step is read before
+            // it is answered, and a keyboard over it reads as a demand.
+            autofocus: false,
+            textCapitalization: TextCapitalization.none,
+            textInputAction: TextInputAction.done,
+            hint: 'Here',
+            onChanged: (value) => setState(() {
+              _typed = value;
+              // Whatever was wrong is being put right.
+              _error = null;
+            }),
+            // Return puts the keyboard away and does nothing else: the
+            // answer is a word on the screen, and it is tapped.
+            onSubmitted: (_) => FocusScope.of(context).unfocus(),
+          ),
+        ),
+        if (_error != null)
+          Positioned(
+            top: errorTop,
+            left: kBlurSideInset * scale,
+            right: kBlurSideInset * scale,
+            child: SondrError(_error!, textAlign: TextAlign.center),
+          ),
+        Positioned(
+          top: kBlurPasswordActionCentre * scale,
+          left: 0,
+          right: 0,
+          child: FractionalTranslation(
+            // Centred on its line, so its own height — which the reader's
+            // text size decides — never moves where the line is.
+            translation: const Offset(0, -0.5),
+            child: BlurAnswer(
+              scale: scale,
+              item: BlurItem(
+                label: _busy ? widget.busyLabel : widget.confirmLabel,
+                // Quiet until there is enough of a password to be one.
+                quiet: !_enough || _busy,
+                // Grey is not a disabled button, it is a word that is
+                // not an answer yet: a tap on it does nothing at all.
+                onTap: () {
+                  if (_enough && !_busy) unawaited(_submit());
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
+
 
 /// Show [view] in an open sheet and wait for its answer, or for the sheet
 /// to go without one.

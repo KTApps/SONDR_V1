@@ -269,6 +269,56 @@ void main() {
       await tester.pump(kPostedHold + kPostedFade + const Duration(milliseconds: 50));
     });
 
+    testWidgets('a deleted post says so, in the same slot and for the same two seconds as "Posted"', (tester) async {
+      final r = runner(FakeShareBackend());
+      await pumpLine(tester, r);
+      expect(find.byType(Text), findsNothing);
+
+      final container = ProviderScope.containerOf(tester.element(find.byType(ShareProgressLine)));
+      container.read(postDeletedProvider.notifier).say();
+      await tester.pump();
+      expect(find.text(kPostDeletedText), findsOneWidget);
+      final style = tester.widget<Text>(find.text(kPostDeletedText)).style!;
+      expect(style.color, GreyscaleTokens.dark.textPrimary, reason: 'the bright tone, as "Posted"');
+      expect(style.fontWeight, FontWeight.w600);
+      expect(style.fontSize, 13 * figmaScale(tester.element(find.text(kPostDeletedText))));
+
+      // Two seconds, then three hundred milliseconds of going.
+      await tester.pump(const Duration(seconds: 2) - const Duration(milliseconds: 1));
+      expect(tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity, 1);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity, 0);
+      await tester.pump(kPostedFade);
+      await tester.pump();
+      expect(find.byType(Text), findsNothing);
+    });
+
+    testWidgets('a delete done elsewhere is still said once the Feed is looked at', (tester) async {
+      final r = runner(FakeShareBackend());
+      await pumpLine(tester, r);
+      final container = ProviderScope.containerOf(tester.element(find.byType(ShareProgressLine)));
+      // Twice over, as two deletes from another screen.
+      container.read(postDeletedProvider.notifier).say();
+      container.read(postDeletedProvider.notifier).say();
+      await tester.pump();
+      expect(find.text(kPostDeletedText), findsOneWidget);
+      await tester.pump(kPostedHold + kPostedFade + const Duration(milliseconds: 50));
+      expect(find.byType(Text), findsNothing, reason: 'said once, not once per delete');
+    });
+
+    testWidgets('an upload in progress outranks it, as it outranks "Posted"', (tester) async {
+      final r = runner(FakeShareBackend());
+      r.states.value = const {'p': ShareJobState(ShareJobStatus.running, uploadedBytes: 1, totalBytes: 2)};
+      await pumpLine(tester, r);
+      final container = ProviderScope.containerOf(tester.element(find.byType(ShareProgressLine)));
+      container.read(postDeletedProvider.notifier).say();
+      await tester.pump();
+      expect(find.text('Uploading your post 50%'), findsOneWidget);
+      expect(find.text(kPostDeletedText), findsNothing);
+      await tester.pump(kPostedHold + kPostedFade + const Duration(milliseconds: 50));
+    });
+
     testWidgets('nothing to say: nothing drawn', (tester) async {
       await pumpLine(tester, runner(FakeShareBackend()));
       expect(find.byType(Text), findsNothing);

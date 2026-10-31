@@ -69,6 +69,10 @@ const String kTryAgainText = 'Try again';
 const String kDiscardText = 'Discard';
 const String kDiscardedText = 'A post couldn’t be finished';
 
+/// What the line says when a post has been deleted — wherever the delete
+/// was done from, read on the Feed when the person next looks at it.
+const String kPostDeletedText = 'Post deleted';
+
 /// What Discard asks before it does anything.
 const String kDiscardTitle = 'Discard this post?';
 const String kDiscardBody = 'Its photos stay in your milestones.';
@@ -78,6 +82,19 @@ const String kDiscardBody = 'Its photos stay in your milestones.';
 const Duration kPostedHold = Duration(seconds: 2);
 const Duration kPostedFade = Duration(milliseconds: 300);
 const Duration kDiscardedHold = Duration(seconds: 3);
+
+/// A post was deleted. The Feed's line says so once, in the same place
+/// and for the same two seconds as "Posted", whichever screen the delete
+/// was done from: the count moves, the line reads it, and the line is
+/// the only thing that holds how long it shows.
+class PostDeleted extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void say() => state = state + 1;
+}
+
+final postDeletedProvider = NotifierProvider<PostDeleted, int>(PostDeleted.new);
 
 class ShareProgressLine extends ConsumerStatefulWidget {
   const ShareProgressLine({super.key});
@@ -91,10 +108,15 @@ class _ShareProgressLineState extends ConsumerState<ShareProgressLine> {
   /// two frames still gets its "Posted".
   final Set<String> _uploading = {};
 
-  /// "Posted" is held until this, then fades.
-  DateTime? _postedUntil;
+  /// The word being held — "Posted", or "Post deleted" — until it fades.
+  /// Null when there is none.
+  String? _flashText;
   bool _fading = false;
   Timer? _timer;
+
+  /// The last delete the line has already spoken for, so a rebuild for
+  /// any other reason does not say it again.
+  int _deletesSaid = 0;
 
   /// The jobs thrown away that the line is telling of, held and then
   /// faded once, and dismissed with the runner so they are never told
@@ -144,8 +166,9 @@ class _ShareProgressLineState extends ConsumerState<ShareProgressLine> {
     await ref.read(shareJobRunnerProvider)?.discardFailed();
   }
 
-  void _posted() {
-    _postedUntil = DateTime.now().add(kPostedHold);
+  /// Two seconds of [text], then three hundred milliseconds of going.
+  void _flash(String text) {
+    _flashText = text;
     _fading = false;
     _timer?.cancel();
     _timer = Timer(kPostedHold, () {
@@ -154,7 +177,7 @@ class _ShareProgressLineState extends ConsumerState<ShareProgressLine> {
       _timer = Timer(kPostedFade, () {
         if (!mounted) return;
         setState(() {
-          _postedUntil = null;
+          _flashText = null;
           _fading = false;
         });
       });
@@ -178,9 +201,18 @@ class _ShareProgressLineState extends ConsumerState<ShareProgressLine> {
         _uploading.add(e.key);
       }
     }
+    // A delete, from wherever it was done. Counted rather than flagged,
+    // so one that happens while the Feed is off screen is still said the
+    // moment it comes back.
+    final deletes = ref.watch(postDeletedProvider);
+    if (deletes != _deletesSaid) {
+      _deletesSaid = deletes;
+      _flash(kPostDeletedText);
+    }
+
     final line = shareLineOf(states);
-    if (landed || (line?.kind == ShareLineKind.posted && _postedUntil == null)) {
-      _posted();
+    if (landed || (line?.kind == ShareLineKind.posted && _flashText == null)) {
+      _flash(kPostedText);
     }
     var newlyDiscarded = false;
     for (final e in states.entries) {
@@ -228,11 +260,11 @@ class _ShareProgressLineState extends ConsumerState<ShareProgressLine> {
         duration: kPostedFade,
         child: Text(kDiscardedText, style: style?.copyWith(color: tokens.textTertiary)),
       );
-    } else if (_postedUntil != null) {
+    } else if (_flashText != null) {
       text = AnimatedOpacity(
         opacity: _fading ? 0 : 1,
         duration: kPostedFade,
-        child: Text(kPostedText, style: style?.copyWith(color: tokens.textPrimary)),
+        child: Text(_flashText!, style: style?.copyWith(color: tokens.textPrimary)),
       );
     }
     if (text == null) return const SizedBox.shrink();

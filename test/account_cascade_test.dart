@@ -249,9 +249,8 @@ void main() {
     // Their own invite, which happens to name the leaving account: their
     // document, their record of how they arrived.
     'invites/$them',
-    // The two leftovers, both of them somebody else's document.
+    // The one leftover: somebody else's document, about them.
     'blocks/${them}__$me',
-    'posts/mine/comments/by-them',
   ];
 
   Future<List<String>> surviving(

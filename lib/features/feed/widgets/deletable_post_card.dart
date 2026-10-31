@@ -1,12 +1,17 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/backend.dart';
-import '../../../shared/sondr_prompt.dart';
 import '../../reports/report.dart';
+import '../../../core/debug_tools.dart';
+import '../../../core/theme/spacing.dart';
+import '../../../shared/blur_sheet.dart';
+import '../../../shared/sondr_error.dart';
 import '../../reports/report_flow.dart';
 import '../models/post.dart';
+import '../share_progress.dart';
 import '../posts_repository.dart';
 
 /// A feed card that answers a long-press.
@@ -19,6 +24,11 @@ import '../posts_repository.dart';
 /// card. A card-sized overlay could not hold a sentence without
 /// overflowing a slim session card, and an answer to "delete this?"
 /// should not land where the finger that asked it was.
+/// What the question says when the deleting failed. A card still
+/// standing was taken as the message, and it is not one: a post that
+/// refuses to go looks exactly like a tap that missed.
+const String kDeleteFailed = 'Couldn’t delete. Try again.';
+
 class DeletablePostCard extends ConsumerStatefulWidget {
   const DeletablePostCard({
     super.key,
@@ -48,17 +58,44 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
       'It will be removed from your friends\' feeds. Your photos and your '
       "logged time stay. This can't be undone.";
 
+  /// Ask, and stay open to say so if it does not work. The line clears
+  /// the moment they try again.
   Future<void> _confirmDelete() async {
-    final yes = await showSondrConfirm(
-      context,
-      title: kDeletePostTitle,
-      body: kDeletePostBody,
-      confirmLabel: 'Delete',
-    );
-    if (yes && mounted) await _delete();
+    String? failure;
+    await showBlurSheet(context, (handle) {
+      BlurView question() => BlurView(
+        title: kDeletePostTitle,
+        explanation: kDeletePostBody,
+        // Above the answers, in the app's one error style.
+        body: failure == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(bottom: kSpacingBase),
+                child: SondrError(failure!, textAlign: TextAlign.center),
+              ),
+        items: [
+          BlurItem(
+            label: 'Delete',
+            onTap: () async {
+              failure = null;
+              if (mounted) handle.show(question());
+              final said = await _delete();
+              if (said == null) {
+                handle.close();
+                return;
+              }
+              failure = said;
+              if (mounted) handle.show(question());
+            },
+          ),
+        ],
+      );
+      return question();
+    });
   }
 
-  Future<void> _delete() async {
+  /// Deletes, and returns the line to show when it did not work.
+  Future<String?> _delete() async {
     setState(() => _busy = true);
     try {
       final del =
@@ -69,13 +106,18 @@ class _DeletablePostCardState extends ConsumerState<DeletablePostCard> {
             await repo.deletePost(p);
           };
       await del(widget.post);
+      // Said on the Feed, wherever this was done from.
+      ref.read(postDeletedProvider.notifier).say();
       // Success: the feed stream drops this post and the widget unmounts.
       if (mounted) setState(() => _busy = false);
+      return null;
     } catch (e) {
       debugPrint('SONDR delete post error: $e');
-      // There is no panel to hold a line any more, and a card that is
-      // still there IS the message: the post did not go.
       if (mounted) setState(() => _busy = false);
+      final code = e is FirebaseException ? e.code : '${e.runtimeType}';
+      return ref.read(debugToolsProvider)
+          ? '$kDeleteFailed ($code)'
+          : kDeleteFailed;
     }
   }
 

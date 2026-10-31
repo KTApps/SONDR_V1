@@ -427,13 +427,20 @@ class PostsRepository {
     return bytes;
   }
 
-  /// Delete a post and its posts-space photo binaries: each [PostPhoto]'s
-  /// Storage object first (best-effort — a missing object is fine), then the
-  /// doc. Touches **only** the post's own copies under the author's posts space;
+  /// Delete a post: everything under it, then its posts-space photo
+  /// binaries (best-effort — a missing object is fine), then the document.
+  /// Touches **only** the post's own copies under the author's posts space;
   /// never the private gallery originals (`users/{uid}/photos`) or any logged
-  /// time. Author-only is enforced at the rules layer. (The long-press delete
-  /// UX lands in a later stage; this is the plumbing.)
+  /// time. Author-only is enforced at the rules layer.
+  ///
+  /// THE DOCUMENT IS LAST, and that is the whole of the ordering. Every
+  /// rule that lets the author reach inside the post — its likes, its
+  /// comments, each liker's mirror — is proved by a `get()` on the post
+  /// itself, so while it stands an interrupted run can be run again and
+  /// finish what it started. Delete it first and its subcollections are
+  /// unreachable by anyone, for good.
   Future<void> deletePost(Post post) async {
+    await deletePostContents(db, post.id);
     final binaries = [
       for (final photo in post.photos) photo.storagePath,
       // The cover and the thumbnail went up beside the photos and come
@@ -507,6 +514,76 @@ class PostsRepository {
     caption: caption,
     photos: photos,
   );
+}
+
+/// Everything that lives under a post, taken down before the post is:
+/// every like, the mirror each liker keeps of it in their own space, and
+/// every comment and reply.
+///
+/// Called by the author — deleting their post — and by the account
+/// cascade, which is the author too. The post document itself is NOT
+/// deleted here: it is what the rules for all of this are proved
+/// against, so it has to outlive its own contents and go last.
+///
+/// EVERY READ HAPPENS FIRST, then the writes. Each batch carries its own
+/// documents AND the counter they are counted by, so an interrupted
+/// delete leaves a post whose counts still match what is under it —
+/// never a post claiming a like with no like left to show. A batch that
+/// fails lands nothing, so running again reads what remains and carries
+/// on; a batch that landed has already taken its share off the counter,
+/// and the documents behind it are gone, so nothing is counted off
+/// twice.
+///
+/// A counter is only touched where the post has one: `increment` on a
+/// field that was never there would write a negative count onto a post
+/// from before counters existed.
+Future<void> deletePostContents(
+  FirebaseFirestore db,
+  String postId, {
+  int batchLimit = 450,
+}) async {
+  final postRef = db.collection('posts').doc(postId);
+
+  // The reads.
+  final post = await postRef.get();
+  if (!post.exists) return;
+  final fields = post.data() ?? const <String, dynamic>{};
+  final countsLikes = fields.containsKey('likeCount');
+  final countsComments = fields.containsKey('commentCount');
+  final likes = (await postRef.collection('likes').get()).docs;
+  final comments = (await postRef.collection('comments').get()).docs;
+
+  // The writes. A like is two documents — the copy under the post and
+  // the liker's own mirror of it — so a batch holds half as many of
+  // them, and one counter write for the lot.
+  final likesPerBatch = (batchLimit - 1) ~/ 2;
+  for (var i = 0; i < likes.length; i += likesPerBatch) {
+    final page = likes.skip(i).take(likesPerBatch).toList();
+    final batch = db.batch();
+    for (final like in page) {
+      batch.delete(like.reference);
+      batch.delete(db.collection('users').doc(like.id).collection('likes').doc(postId));
+    }
+    if (countsLikes) {
+      batch.update(postRef, {'likeCount': FieldValue.increment(-page.length)});
+    }
+    await batch.commit();
+  }
+
+  // Replies live in the same collection as the comments they answer, so
+  // one sweep takes both.
+  final commentsPerBatch = batchLimit - 1;
+  for (var i = 0; i < comments.length; i += commentsPerBatch) {
+    final page = comments.skip(i).take(commentsPerBatch).toList();
+    final batch = db.batch();
+    for (final comment in page) {
+      batch.delete(comment.reference);
+    }
+    if (countsComments) {
+      batch.update(postRef, {'commentCount': FieldValue.increment(-page.length)});
+    }
+    await batch.commit();
+  }
 }
 
 /// One like on a post: who, and when. The name comes from their public

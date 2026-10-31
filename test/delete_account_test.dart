@@ -37,7 +37,10 @@ class _Auth implements AuthRepository {
 
   final _Steps steps;
   final Set<String> providers;
-  final bool reauthThrows;
+
+  /// Not final: a step that keeps itself can be answered again, and the
+  /// second answer is the one that works.
+  bool reauthThrows;
   final String reauthCode;
   final List<String> passwords = [];
 
@@ -189,8 +192,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// The confirm, then the password prompt, then the deletion.
-  Future<void> throughIt(WidgetTester tester, {String password = 'pw'}) async {
+  /// The confirm, then the password step, then the deletion. The
+  /// password is six characters or the answer is not offered at all.
+  Future<void> throughIt(WidgetTester tester, {String password = 'hunter22'}) async {
     await tester.tap(find.text(kDeleteAccountConfirm));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), password);
@@ -246,13 +250,32 @@ void main() {
       expect(outcome, DeleteAccountOutcome.cancelled);
     });
 
-    testWidgets('a wrong password deletes nothing and says so', (tester) async {
+    testWidgets('a wrong password deletes nothing, and the step keeps itself to say so', (tester) async {
       await pump(tester, reauthThrows: true);
-      await throughIt(tester, password: 'wrong');
+      await throughIt(tester, password: 'wrongun');
 
-      expect(auth.passwords, ['wrong']);
+      expect(auth.passwords, ['wrongun']);
       expect(steps.order, ['reauth:password']);
       expect(erasure.runs, 0, reason: 'it deleted data on a failed re-auth');
+      // Still on the step, with the field and the line both there.
+      expect(find.text(kPasswordPrompt), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text(kWrongPassword), findsOneWidget);
+    });
+
+    testWidgets('and trying again from the same step gets through', (tester) async {
+      await pump(tester, reauthThrows: true);
+      await throughIt(tester, password: 'wrongun');
+      expect(find.text(kWrongPassword), findsOneWidget);
+      // The next keystroke clears the line.
+      await tester.enterText(find.byType(TextField), 'hunter2');
+      await tester.pumpAndSettle();
+      expect(find.text(kWrongPassword), findsNothing);
+      auth.reauthThrows = false;
+      await tester.tap(find.text(kDeleteAccountConfirm));
+      await tester.pumpAndSettle();
+      expect(erasure.runs, 1);
+      expect(auth.passwords, ['wrongun', 'hunter2']);
     });
 
     testWidgets('an Apple account goes through Apple, with no password', (
@@ -390,35 +413,35 @@ void main() {
       expect(deleteErrorCode(StateError('no code')), isNull);
     });
 
-    testWidgets('a wrong password is named in EVERY build', (tester) async {
-      await pump(tester, reauthThrows: true);
-      await throughIt(tester, password: 'wrong');
-      expect(lastDeleteError, kWrongPassword);
-      expect(kWrongPassword, "That password isn't right.");
+    test('a wrong password is named in every build, under either code', () {
+      expect(kWrongPassword, 'Wrong password. Try again.');
+      expect(reauthErrorText('wrong-password', withCode: false), kWrongPassword);
+      expect(reauthErrorText('invalid-credential', withCode: false), kWrongPassword);
+      expect(reauthErrorText('wrong-password', withCode: true), kWrongPassword,
+          reason: 'no code on a mistake whose fix is obvious');
     });
 
-    testWidgets('and so is the same mistake under its newer code', (
-      tester,
-    ) async {
-      await pump(tester, reauthThrows: true, reauthCode: 'invalid-credential');
-      await throughIt(tester, password: 'wrong');
-      expect(lastDeleteError, kWrongPassword);
+    test('too many tries is named too: trying harder is the wrong answer', () {
+      expect(kTooManyAttempts, 'Too many attempts. Try again later.');
+      expect(reauthErrorText('too-many-requests', withCode: false), kTooManyAttempts);
+      expect(reauthErrorText('too-many-requests', withCode: true), kTooManyAttempts);
     });
 
-    testWidgets('any other re-auth failure carries its step and code', (
-      tester,
-    ) async {
-      await pump(tester, reauthThrows: true, reauthCode: 'network-error');
-      await throughIt(tester, password: 'pw');
-      expect(lastDeleteError, contains(kDeleteAccountFailed));
-      // kDebugTools is false in a plain test run, so the code is withheld
-      // exactly as a release build withholds it.
+    test('any other re-auth failure is ours, and carries its code for us', () {
+      expect(reauthErrorText('network-error', withCode: false), kDeleteAccountFailed);
       expect(
-        lastDeleteError,
-        kDebugTools
-            ? contains('reauth: network-error')
-            : kDeleteAccountFailed,
+        reauthErrorText('network-error', withCode: true),
+        contains('reauth: network-error'),
       );
+    });
+
+    testWidgets('a wrong password says so ON the step, and leaves the screen nothing to say', (
+      tester,
+    ) async {
+      await pump(tester, reauthThrows: true);
+      await throughIt(tester, password: 'wrongun');
+      expect(find.text(kWrongPassword), findsOneWidget);
+      expect(lastDeleteError, isNull, reason: 'the step said it; the screen has no line');
     });
 
     testWidgets('a cascade that fails names the cascade', (tester) async {

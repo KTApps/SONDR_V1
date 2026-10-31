@@ -79,6 +79,8 @@ class BlurView {
     this.body,
     this.cancelLabel = 'Back',
     this.footer,
+    this.pinned,
+    this.fixed = false,
   });
 
   /// On Home's title line, in Home's title type.
@@ -100,6 +102,49 @@ class BlurView {
   /// A line at the very bottom of the view, under the exit, for nothing
   /// more than a word about the build. Not a tap target.
   final Widget? footer;
+
+  /// A view that places its own contents, over the whole sheet, instead
+  /// of handing them to the centred list. For the one screen whose
+  /// pieces must not move when something appears between them — see the
+  /// deletion's password step.
+  ///
+  /// Given where the title finished, which is the one measurement the
+  /// sheet owns: the title is laid out here, wraps here, and grows here
+  /// with the reader's text size, so anything meant to sit under it has
+  /// to be told where it ended.
+  final Widget Function(BuildContext context, double titleBottom)? pinned;
+
+  /// Whether the view holds still when the keyboard opens. A view that
+  /// places its own contents has already decided where they go, so
+  /// lifting it would be the one thing it was written to prevent: the
+  /// keyboard simply covers the exit.
+  final bool fixed;
+}
+
+/// Where the title's last line ends, in logical pixels down the screen —
+/// measured as the sheet draws it: its own style, its own width, and
+/// however many lines that takes at the reader's text size.
+double _titleBottom(BuildContext context, BlurView view, double scale) {
+  final title = view.title;
+  if (title == null) return kBlurTitleTop * scale;
+  final width = MediaQuery.sizeOf(context).width - 2 * kBlurSideInset * scale;
+  final painter = TextPainter(
+    text: TextSpan(
+      text: title,
+      // The title's own style, from _ViewBody: unscaled by the canvas,
+      // as Home's title is.
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+        fontSize: kBlurTitleSize,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+    textAlign: TextAlign.center,
+    textScaler: MediaQuery.textScalerOf(context),
+  )..layout(maxWidth: width);
+  final height = painter.height;
+  painter.dispose();
+  return kBlurTitleTop * scale + height;
 }
 
 /// The sheet, from inside: how a view moves to the next one, and how it
@@ -245,7 +290,7 @@ class _BlurSheetState extends ConsumerState<BlurSheet> implements BlurSheetHandl
     final exitBottom = (kBlurExitTop + kBlurItemPad) * scale +
         _lineHeight(context, theme, 15 * scale) +
         kBlurItemPad * scale;
-    final lift = inset == 0
+    final lift = (inset == 0 || _view.fixed)
         ? 0.0
         : math.max(0.0, exitBottom - (screen - inset));
 
@@ -370,12 +415,18 @@ class _ViewBody extends StatelessWidget {
                 children: [
                   if (view.body != null) view.body!,
                   for (final item in view.items)
-                    _Answer(item: item, scale: scale),
+                    BlurAnswer(item: item, scale: scale),
                 ],
               ),
             ),
           ),
         ),
+        if (view.pinned != null)
+          Positioned.fill(
+            child: Builder(
+              builder: (context) => view.pinned!(context, _titleBottom(context, view, scale)),
+            ),
+          ),
         Positioned(
           top: kBlurExitTop * scale,
           left: 0,
@@ -395,9 +446,11 @@ class _ViewBody extends StatelessWidget {
   }
 }
 
-/// One answer, in the habit name's clothes.
-class _Answer extends StatelessWidget {
-  const _Answer({required this.item, required this.scale});
+/// One answer, in the habit name's clothes. Public so a view that places
+/// its own contents can put an answer exactly where it wants one and
+/// have it look like every other.
+class BlurAnswer extends StatelessWidget {
+  const BlurAnswer({super.key, required this.item, required this.scale});
 
   final BlurItem item;
   final double scale;

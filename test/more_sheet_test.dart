@@ -455,20 +455,19 @@ void main() {
       // opened the sheet is what says so.
       expect(find.text(kPasswordPrompt), findsOneWidget);
       expect(find.text(kDeleteAccountConfirm), findsOneWidget);
-      await tester.enterText(find.byType(TextField), 'pw');
-      // Submitted from the keyboard. Tapping the answer works the same
-      // way — both call the same thing — but a focused field in a test
-      // puts a selection toolbar over everything below it.
-      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.enterText(find.byType(TextField), 'hunter22');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(kDeleteAccountConfirm));
       await tester.pumpAndSettle();
 
       expect(erasure.runs, 0);
-      // This fake refuses the password, so the line is the one named in
-      // every build rather than the generic sentence.
+      // This fake refuses the password, and the step keeps itself to say
+      // so: the line is on the step, over the blur, not under More.
       expect(find.text(kWrongPassword), findsOneWidget);
+      expect(find.text(kPasswordPrompt), findsOneWidget);
       final line = tester.getRect(find.text(kWrongPassword));
-      final word = tester.getRect(find.text('More'));
-      expect(line.top, greaterThan(word.bottom));
+      final field = tester.getRect(find.byType(TextField));
+      expect(line.top, greaterThan(field.bottom));
     });
 
     test('the words themselves', () {

@@ -11,6 +11,7 @@ import '../../core/theme/spacing.dart';
 import '../../shared/sondr_error.dart';
 import '../../core/utils/figma_scale.dart';
 import 'account_switch.dart';
+import 'auth_landing.dart';
 import 'auth_repository.dart';
 import 'guest_prompts.dart';
 import 'handle_screen.dart';
@@ -62,10 +63,19 @@ String? _codeOf(Object error) {
 /// (which the mutation would perturb, deadlocking the future): no handle yet →
 /// [HandleScreen], otherwise back to Home.
 class AppleSignInButton extends ConsumerStatefulWidget {
-  const AppleSignInButton({super.key, this.enabled = true, this.onError});
+  const AppleSignInButton({
+    super.key,
+    this.enabled = true,
+    this.onError,
+    this.landing = AuthLanding.home,
+  });
 
   /// Disabled while a sibling action (e.g. the email form) is busy.
   final bool enabled;
+
+  /// Where finishing leaves the person: Home, or the flow that opened the
+  /// screen this button sits on.
+  final AuthLanding landing;
 
   /// If provided, errors are reported here so the host screen can place them;
   /// otherwise the button shows them beneath itself. User cancellation is
@@ -131,10 +141,11 @@ class _AppleSignInButtonState extends ConsumerState<AppleSignInButton> {
             builder: (_) => HandleScreen(
               suggestedDisplayName: result.displayName,
               afterSignUp: true,
+              landing: widget.landing,
             ),
           ));
         } else {
-          Navigator.of(context).popUntil((route) => route.isFirst);
+          landAfterAuth(context, ref, widget.landing);
         }
       } catch (e, stack) {
         debugPrint(

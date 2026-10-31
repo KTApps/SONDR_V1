@@ -14,6 +14,7 @@ import '../links/invite_link.dart';
 import '../../shared/sondr_error.dart';
 import '../../shared/sondr_field.dart';
 import '../../shared/sondr_swipe_row.dart';
+import '../auth/auth_landing.dart';
 import '../auth/handle_screen.dart';
 import '../profile/other_profile_screen.dart';
 import '../auth/profile_repository.dart';
@@ -794,7 +795,11 @@ class _HandleGate extends StatelessWidget {
             child: SondrAction(
               label: 'Choose a handle',
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const HandleScreen()),
+                MaterialPageRoute(
+                  // Not a sign-in: a signed-in account naming itself so
+                  // it can be found here. It comes back here.
+                  builder: (_) => const HandleScreen(landing: AuthLanding.back),
+                ),
               ),
             ),
           ),

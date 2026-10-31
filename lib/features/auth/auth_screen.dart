@@ -11,6 +11,7 @@ import '../../shared/sondr_header.dart';
 import '../debug/position_readout.dart';
 import 'apple_sign_in_button.dart';
 import 'account_switch.dart';
+import 'auth_landing.dart';
 import 'auth_repository.dart';
 import 'guest_prompts.dart';
 import 'handle_screen.dart';
@@ -22,9 +23,16 @@ import 'handle_screen.dart';
 /// Sign in with Apple will be added beneath the form later as an alternate
 /// action — the form and its flows don't need to change.
 class AuthScreen extends ConsumerStatefulWidget {
-  const AuthScreen({super.key, required this.startInSignUp});
+  const AuthScreen({
+    super.key,
+    required this.startInSignUp,
+    this.landing = AuthLanding.home,
+  });
 
   final bool startInSignUp;
+
+  /// Where finishing leaves the person: Home, or the flow that opened it.
+  final AuthLanding landing;
 
   @override
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
@@ -73,17 +81,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       if (_signUp) {
         await auth.signUpWithEmail(_email.text, _password.text);
         if (!mounted) return;
-        // A brand-new account never has a handle yet → straight to setup.
+        // A brand-new account never has a handle yet → straight to setup,
+        // which carries the landing on to the end of the flow.
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HandleScreen(afterSignUp: true)),
+          MaterialPageRoute(
+            builder: (_) => HandleScreen(afterSignUp: true, landing: widget.landing),
+          ),
         );
       } else {
         // Blank until the account's own data is in: no frame of the
         // guest's is drawn over it.
         await switchAccount(ref, () => auth.signInWithEmail(_email.text, _password.text));
         if (!mounted) return;
-        // Land back on Home (the timer), dismissing the whole account flow.
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        landAfterAuth(context, ref, widget.landing);
       }
     } on FirebaseAuthException catch (e) {
       setState(() => _error = _messageFor(e.code));
@@ -215,6 +225,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               AppleSignInButton(
                 enabled: !_busy,
                 onError: (message) => setState(() => _error = message),
+                // The same door, so the same landing.
+                landing: widget.landing,
               ),
               // 12, so the gap you SEE below the Apple button matches the
               // 24 above it: this one declares 12 and "Back" adds its own 12

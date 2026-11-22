@@ -328,7 +328,8 @@ void main() {
         )
         .map((t) => t.data)
         .whereType<String>()
-        .where((t) => t != 'Archive' && t != 'Unarchive')
+        // The tray's words, built (clipped shut) beside every pill.
+        .where((t) => t != 'Rename' && t != 'Archive' && t != 'Unarchive')
         .toList();
 
     testWidgets('the pills read as a person would expect', (tester) async {

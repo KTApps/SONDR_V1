@@ -237,6 +237,7 @@ void main() {
         'Privacy',
         'Terms',
         'Camera access',
+        'How sondr works',
         'Sign out',
         'Delete account',
         'Back',
@@ -264,6 +265,7 @@ void main() {
         'Privacy',
         'Terms',
         'Camera access',
+        'How sondr works',
         'Back',
       ]);
       expect(find.text('Delete account'), findsNothing);
@@ -356,6 +358,7 @@ void main() {
         MoreChoice.privacy,
         MoreChoice.terms,
         MoreChoice.cameraAccess,
+        MoreChoice.howItWorks,
         MoreChoice.signOut,
         MoreChoice.deleteAccount,
       ]);
@@ -364,6 +367,7 @@ void main() {
         MoreChoice.privacy,
         MoreChoice.terms,
         MoreChoice.cameraAccess,
+        MoreChoice.howItWorks,
       ]);
       // A guest is never offered the deletion, whatever the build.
       expect(

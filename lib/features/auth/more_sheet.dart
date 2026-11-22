@@ -12,6 +12,7 @@ import '../../shared/legal.dart';
 import '../debug/debug_panel.dart';
 import '../photos/camera_access.dart';
 import '../photos/open_app_settings.dart';
+import '../shell/how_it_works.dart';
 import 'delete_account.dart';
 import 'sign_out_action.dart';
 
@@ -27,6 +28,7 @@ enum MoreChoice {
   privacy,
   terms,
   cameraAccess,
+  howItWorks,
   signOut,
   deleteAccount,
   debug;
@@ -36,6 +38,7 @@ enum MoreChoice {
     MoreChoice.privacy => 'Privacy',
     MoreChoice.terms => 'Terms',
     MoreChoice.cameraAccess => 'Camera access',
+    MoreChoice.howItWorks => kHowSondrWorks,
     MoreChoice.signOut => 'Sign out',
     MoreChoice.deleteAccount => 'Delete account',
     MoreChoice.debug => 'Debug',
@@ -65,6 +68,7 @@ List<MoreChoice> moreChoicesFor({required bool signedIn, bool debug = false}) =>
   ...kMorePages,
   // A guest takes photos too.
   MoreChoice.cameraAccess,
+  MoreChoice.howItWorks,
   if (signedIn) MoreChoice.signOut,
   if (signedIn) MoreChoice.deleteAccount,
   if (debug) MoreChoice.debug,
@@ -88,8 +92,11 @@ Future<String?> showMoreSheet(
   unawaited(camera.refresh());
   BlurSheetHandle? open;
   late BlurView Function() view;
+  // Only while the list is what is showing: a status read on the way back
+  // from Settings must not pull How sondr works out from under the reader.
+  var onList = true;
   final following = ref.listenManual(cameraAccessProvider, (_, _) {
-    open?.update(view());
+    if (onList) open?.update(view());
   });
 
   await showBlurSheet(context, (handle) {
@@ -132,6 +139,10 @@ Future<String?> showMoreSheet(
           } else {
             await ref.read(appSettingsOpenerProvider)();
           }
+        case MoreChoice.howItWorks:
+          // In the same blur: the list cross-fades to the three tabs.
+          onList = false;
+          handle.show(kHowSondrWorksView);
         case MoreChoice.support:
         case MoreChoice.privacy:
         case MoreChoice.terms:

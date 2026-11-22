@@ -75,6 +75,21 @@ extension CaptureFlashX on CaptureFlash {
 /// Why there is no viewfinder.
 enum CameraTrouble { denied, unavailable }
 
+/// The camera plugin's codes for a camera this app may not use: refused at
+/// the prompt, refused before (so no prompt came), or barred by a rule such
+/// as Screen Time. None of them says "permission", which is what this used
+/// to look for — so every refusal read as a phone with no camera.
+const Set<String> kCameraRefusedCodes = {
+  'CameraAccessDenied',
+  'CameraAccessDeniedWithoutPrompt',
+  'CameraAccessRestricted',
+};
+
+/// Why the camera would not open, from the plugin's error [code].
+CameraTrouble cameraTroubleOf(String code) => kCameraRefusedCodes.contains(code)
+    ? CameraTrouble.denied
+    : CameraTrouble.unavailable;
+
 /// The camera, as the screen needs it.
 ///
 /// An interface rather than a CameraController directly, because a controller
@@ -150,9 +165,7 @@ class DeviceCameraSession implements CameraSession {
       return null;
     } on CameraException catch (e) {
       debugPrint('SONDR camera error: ${e.code} :: ${e.description}');
-      return e.code.toLowerCase().contains('permission')
-          ? CameraTrouble.denied
-          : CameraTrouble.unavailable;
+      return cameraTroubleOf(e.code);
     } catch (e) {
       debugPrint('SONDR camera error: ${e.runtimeType} :: $e');
       return CameraTrouble.unavailable;

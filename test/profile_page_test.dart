@@ -45,6 +45,12 @@ import 'tiny_png.dart';
 /// A task list we choose, so "nearest milestone" can be checked exactly
 /// instead of against whatever the local seed happens to hold.
 class _FakeTasks implements TasksRepository {
+
+  @override
+  Future<void> rename(String taskId, String name) async {
+    final i = tasks.indexWhere((t) => t.id == taskId);
+    if (i != -1) tasks[i] = tasks[i].renamed(name);
+  }
   @override
   Future<void> delete(String taskId) async {}
 
@@ -53,7 +59,9 @@ class _FakeTasks implements TasksRepository {
   final List<Task> tasks;
 
   @override
-  Future<List<Task>> fetchAll() async => tasks;
+  // A fresh list each time, as the real stores return: the same instance
+  // twice would read as no change.
+  Future<List<Task>> fetchAll() async => List.of(tasks);
 
   @override
   Future<Task> create(String name) async => throw UnimplementedError();
@@ -364,6 +372,18 @@ void main() {
         expect(tester.getTopLeft(rings.at(i)).dy, closeTo(firstTop, 0.5));
       }
       expectNoOverflow(tester);
+    });
+
+    testWidgets('a renamed task is called its new name on Profile', (
+      tester,
+    ) async {
+      await pumpProfile(tester, tasks: [_task('Spanish', seconds: 3 * 3600)]);
+      expect(find.textContaining('Spanish'), findsWidgets);
+      final c = ProviderScope.containerOf(tester.element(find.byType(ProfileScreen)));
+      await c.read(tasksProvider.notifier).renameTask('Spanish', 'Español');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Español'), findsWidgets);
+      expect(find.textContaining('Spanish'), findsNothing);
     });
 
     testWidgets('the ring row is one tile tall whatever the count', (

@@ -392,6 +392,9 @@ class _MemoryStore implements SessionStore {
 }
 
 class _FakeTasks implements TasksRepository {
+
+  @override
+  Future<void> rename(String taskId, String name) async {}
   @override
   Future<void> delete(String taskId) async {}
 

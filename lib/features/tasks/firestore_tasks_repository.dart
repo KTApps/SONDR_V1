@@ -34,6 +34,35 @@ class FirestoreTasksRepository implements TasksRepository {
     return task;
   }
 
+  /// The task document first, so the name the app reads is right the
+  /// moment this returns to it; then every private photo of the task that
+  /// still carries another name, at most [batchLimit] to a batch.
+  ///
+  /// Safe to run again: a photo already carrying [name] is left alone, so
+  /// a rename cut off partway is finished by the next one.
+  @override
+  Future<void> rename(String taskId, String name, {int batchLimit = 450}) async {
+    final value = name.trim();
+    await _col.doc(taskId).update({'name': value});
+    final photos = await db
+        .collection('users')
+        .doc(uid)
+        .collection('photos')
+        .where('taskId', isEqualTo: taskId)
+        .get();
+    final stale = [
+      for (final d in photos.docs)
+        if (d.data()['taskName'] != value) d.reference,
+    ];
+    for (var i = 0; i < stale.length; i += batchLimit) {
+      final batch = db.batch();
+      for (final ref in stale.skip(i).take(batchLimit)) {
+        batch.update(ref, {'taskName': value});
+      }
+      await batch.commit();
+    }
+  }
+
   @override
   Future<void> delete(String taskId) async {
     await _col.doc(taskId).delete();

@@ -59,6 +59,12 @@ class LocalTasksRepository implements TasksRepository {
   }
 
   @override
+  Future<void> rename(String taskId, String name) async {
+    final i = _tasks.indexWhere((t) => t.id == taskId);
+    if (i != -1) _tasks[i] = _tasks[i].renamed(name.trim());
+  }
+
+  @override
   Future<void> delete(String taskId) async {
     _tasks.removeWhere((t) => t.id == taskId);
   }

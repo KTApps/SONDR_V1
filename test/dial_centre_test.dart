@@ -16,6 +16,9 @@ import 'package:sondr/features/timer/timer_screen.dart';
 import 'package:sondr/shared/ring/segmented_dial.dart';
 
 class _FakeTasks implements TasksRepository {
+
+  @override
+  Future<void> rename(String taskId, String name) async {}
   _FakeTasks(this.tasks);
   final List<Task> tasks;
   @override

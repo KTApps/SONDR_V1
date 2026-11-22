@@ -86,6 +86,9 @@ class _Log implements SessionLog {
 }
 
 class _FakeTasks implements TasksRepository {
+
+  @override
+  Future<void> rename(String taskId, String name) async {}
   _FakeTasks(this.tasks);
 
   final List<Task> tasks;

@@ -477,6 +477,12 @@ class BlurAnswer extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
 
+    final style = theme.textTheme.displayMedium?.copyWith(
+      fontSize: kBlurItemSize * scale,
+      fontWeight: FontWeight.w600,
+      color: item.quiet ? tokens.textTertiary : tokens.textPrimary,
+    );
+
     // The LABEL is the target: its own bounds plus a tier of tap padding
     // (12 above and below, 24 either side), never less than 44 tall. The
     // rest of the row absorbs a tap and does nothing — it is not the blur,
@@ -502,27 +508,26 @@ class BlurAnswer extends StatelessWidget {
                   // without this fills the row, and the whole row would be
                   // the target again.
                   widthFactor: 1,
-                  child: Text.rich(
-                    TextSpan(
-                      text: item.label,
-                      children: [
-                        if (item.detail != null)
+                  // Plain text unless there is a word after the label, so
+                  // every answer without one is exactly what it was.
+                  child: item.detail == null
+                      ? Text(item.label, textAlign: TextAlign.center, style: style)
+                      : Text.rich(
                           TextSpan(
-                            text: ' ${item.detail}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w400,
-                              color: tokens.textTertiary,
-                            ),
+                            text: item.label,
+                            children: [
+                              TextSpan(
+                                text: ' ${item.detail}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w400,
+                                  color: tokens.textTertiary,
+                                ),
+                              ),
+                            ],
                           ),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.displayMedium?.copyWith(
-                      fontSize: kBlurItemSize * scale,
-                      fontWeight: FontWeight.w600,
-                      color: item.quiet ? tokens.textTertiary : tokens.textPrimary,
-                    ),
-                  ),
+                          textAlign: TextAlign.center,
+                          style: style,
+                        ),
                 ),
               ),
             ),

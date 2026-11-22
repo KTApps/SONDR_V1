@@ -111,7 +111,7 @@ void main() {
       );
     });
 
-    testWidgets('a request offers Accept, and the row says so after', (tester) async {
+    Future<(FakeFirebaseFirestore, FriendsRepository)> pending() async {
       final db = FakeFirebaseFirestore();
       await db.collection('users').doc('me').collection('meta').doc('profile').set({'username': 'ada', 'displayName': 'Ada'});
       await db.collection('friendships').doc(Friendship.pairId('me', 'u_cass')).set({
@@ -123,15 +123,96 @@ void main() {
         widener: AudienceWidener(uid: 'me', audiences: _NoAudiences(), blocked: () async => const {}),
         notifier: const NoNotificationsWriter(),
       );
+      return (db, friends);
+    }
+
+    Future<void> pumpWith(WidgetTester tester, List<Friendship> friendships) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUidProvider.overrideWithValue('me'),
+            myNotificationsProvider.overrideWith((ref) => Stream.value([n('r', NotificationType.request)])),
+            friendshipsProvider.overrideWith((ref) => Stream.value(friendships)),
+          ],
+          child: MaterialApp(theme: AppTheme.dark(), home: const NotificationsPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Friendship withCass(FriendshipStatus status) => Friendship(
+      id: Friendship.pairId('me', 'u_cass'),
+      users: const ['me', 'u_cass'],
+      requestedBy: 'u_cass',
+      status: status,
+      profiles: const {'u_cass': FriendIdentity(username: 'cass', displayName: 'Cass')},
+    );
+
+    testWidgets('a request waiting on me offers Accept; accepting turns it to Friends', (tester) async {
+      final (db, friends) = await pending();
       await pumpPage(tester, [n('r', NotificationType.request)], friends: friends);
       await tester.pumpAndSettle();
       expect(find.textContaining('wants to be friends'), findsOneWidget);
-      await tester.tap(find.text('Accept'));
+      expect(find.text(kAcceptWord), findsOneWidget);
+      await tester.tap(find.text(kAcceptWord));
       await tester.pumpAndSettle();
-      expect(find.textContaining("You're now friends with cass"), findsOneWidget);
-      expect(find.text('Accept'), findsNothing);
+      expect(find.text(kAcceptWord), findsNothing);
+      expect(find.text(kFriendsWord), findsOneWidget);
       final doc = await db.collection('friendships').doc(Friendship.pairId('me', 'u_cass')).get();
       expect(doc.data()?['status'], 'accepted');
+    });
+
+    testWidgets('reopening the page after accepting still says Friends', (tester) async {
+      final (_, friends) = await pending();
+      await pumpPage(tester, [n('r', NotificationType.request)], friends: friends);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(kAcceptWord));
+      await tester.pumpAndSettle();
+      // A new page, a new scope: nothing of the last one remembered.
+      await tester.pumpWidget(const SizedBox());
+      await pumpPage(tester, [n('r', NotificationType.request)], friends: friends);
+      await tester.pumpAndSettle();
+      expect(find.text(kFriendsWord), findsOneWidget);
+      expect(find.text(kAcceptWord), findsNothing);
+    });
+
+    testWidgets('accepted somewhere else shows Friends, quiet, bold and not a button', (tester) async {
+      await pumpWith(tester, [withCass(FriendshipStatus.accepted)]);
+      expect(find.text(kAcceptWord), findsNothing);
+      final word = tester.widget<Text>(find.text(kFriendsWord));
+      expect(word.style?.color, const Color(0xFF6E6E6E), reason: 'textTertiary');
+      expect(word.style?.fontWeight, FontWeight.w700);
+      // Its nearest gesture is the row's own, which opens their profile.
+      final nearest = tester.widget<GestureDetector>(
+        find.ancestor(of: find.text(kFriendsWord), matching: find.byType(GestureDetector)).first,
+      );
+      expect(nearest.onTap, isNotNull);
+      expect(
+        find.ancestor(of: find.text(kFriendsWord), matching: find.byType(GestureDetector)),
+        findsOneWidget,
+        reason: 'only the row',
+      );
+    });
+
+    testWidgets('a request withdrawn, declined or removed shows no word', (tester) async {
+      await pumpWith(tester, const []);
+      expect(find.textContaining('wants to be friends'), findsOneWidget);
+      expect(find.text(kAcceptWord), findsNothing);
+      expect(find.text(kFriendsWord), findsNothing);
+    });
+
+    testWidgets('a request I sent the other way is not mine to accept', (tester) async {
+      await pumpWith(tester, [
+        Friendship(
+          id: Friendship.pairId('me', 'u_cass'),
+          users: const ['me', 'u_cass'],
+          requestedBy: 'me',
+          status: FriendshipStatus.pending,
+          profiles: const {},
+        ),
+      ]);
+      expect(find.text(kAcceptWord), findsNothing);
+      expect(find.text(kFriendsWord), findsNothing);
     });
   });
 }

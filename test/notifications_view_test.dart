@@ -77,7 +77,6 @@ void main() {
       expect(text(NotificationType.reply), 'replied to your comment');
       expect(text(NotificationType.milestone, task: 'Spanish', hours: 20), 'reached 20 hours of Spanish');
       expect(text(NotificationType.invite), 'joined from your invite');
-      expect(acceptedText('cass'), "You're now friends with cass");
     });
 
     test('where a tap goes', () {

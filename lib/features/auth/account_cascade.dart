@@ -28,7 +28,11 @@ const List<String> kUserSubcollections = [
 
 /// The Storage prefixes an account owns, under which every object of theirs
 /// lives (see storage.rules).
-const List<String> kUserStoragePrefixes = ['photos', 'posts'];
+const List<String> kUserStoragePrefixes = ['photos', 'posts', 'profile'];
+
+/// The one file the profile photo is, by name — deleted whether or not any
+/// document still points at it.
+String profilePhotoPathOf(String uid) => 'users/$uid/profile/photo.jpg';
 
 /// The account's files in Storage, as a seam.
 ///
@@ -221,7 +225,9 @@ class AccountCascade implements AccountErasure {
   }
 
   /// Every Storage object Firestore knows this account owns: the binary
-  /// behind each gallery photo, and each image attached to a post.
+  /// behind each gallery photo, each image attached to a post, and the
+  /// chosen profile photo — that last one by its fixed name, since a copy
+  /// whose document never landed is still theirs.
   ///
   /// Read up front and deleted by path, so the files go even if listing is
   /// refused — see [_storage].
@@ -249,6 +255,7 @@ class AccountCascade implements AccountErasure {
     for (final photo in photos.docs) {
       add(photo.data()['storagePath']);
     }
+    add(profilePhotoPathOf(uid));
     return paths;
   }
 

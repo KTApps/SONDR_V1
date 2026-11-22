@@ -201,7 +201,9 @@ void main() {
     'users/$me/posts/mine.jpg',
     // An upload whose document never landed — only a listing finds this.
     'users/$me/posts/orphan.jpg',
+    'users/$me/profile/photo.jpg',
     'users/$them/photos/theirs.jpg',
+    'users/$them/profile/photo.jpg',
   ]);
 
   setUp(() async {
@@ -360,9 +362,15 @@ void main() {
 
     test('their files, including one Firestore never knew about', () async {
       await cascade.run();
-      expect(files.deleted, containsAll(['users/$me/photos/ph1.jpg']));
-      expect(files.objects, ['users/$them/photos/theirs.jpg']);
-      expect(files.listed, ['users/$me/photos', 'users/$me/posts']);
+      expect(files.deleted, containsAll(['users/$me/photos/ph1.jpg', 'users/$me/profile/photo.jpg']));
+      expect(files.objects, ['users/$them/photos/theirs.jpg', 'users/$them/profile/photo.jpg']);
+      expect(files.listed, ['users/$me/photos', 'users/$me/posts', 'users/$me/profile']);
+    });
+
+    test('an account with no profile photo is not a failure', () async {
+      final none = _Files([for (final o in myFiles().objects) if (o != 'users/$me/profile/photo.jpg') o]);
+      await cascadeOn(db, none).run();
+      expect((await db.doc('users/$me').get()).exists, isFalse);
     });
 
     test('a refused listing still takes the recorded files', () async {
@@ -370,9 +378,11 @@ void main() {
       await cascadeOn(db, blind).run();
       // Everything Firestore named is gone; only the orphan nothing refers
       // to is left, because no listing could find it.
+      // The profile photo goes by its name, listing or no listing.
       expect(blind.objects, [
         'users/$me/posts/orphan.jpg',
         'users/$them/photos/theirs.jpg',
+        'users/$them/profile/photo.jpg',
       ]);
       expect((await db.doc('users/$me').get()).exists, isFalse);
     });

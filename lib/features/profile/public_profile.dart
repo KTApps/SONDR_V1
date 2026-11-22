@@ -29,7 +29,15 @@ class PublicProfile {
     required this.hours,
     this.seconds,
     this.ringProgress = 0,
+    this.photoUrl,
+    this.photoPath,
   });
+
+  /// The photo they chose for their profile, a square copy readable by
+  /// anyone signed in. Null when none is chosen; a document from before
+  /// the field reads the same.
+  final String? photoUrl;
+  final String? photoPath;
 
   final String uid;
   final String handle;
@@ -81,6 +89,10 @@ class PublicProfile {
     'hours': hours,
     if (seconds != null) 'seconds': seconds,
     'ringProgress': ringProgress,
+    // Written as null when cleared: the publish merges, so leaving a key
+    // out would leave the old photo standing.
+    'photoUrl': photoUrl,
+    'photoPath': photoPath,
   };
 
   factory PublicProfile.fromMap(String uid, Map<String, dynamic> map) =>
@@ -92,7 +104,11 @@ class PublicProfile {
         seconds: (map['seconds'] as num?)?.toInt(),
         ringProgress: ((map['ringProgress'] as num?)?.toDouble() ?? 0)
             .clamp(0.0, 1.0),
+        photoUrl: _nonEmpty(map['photoUrl']),
+        photoPath: _nonEmpty(map['photoPath']),
       );
+
+  static String? _nonEmpty(Object? v) => v is String && v.isNotEmpty ? v : null;
 
   /// Whether the published copy would say anything new.
   bool sameAs(PublicProfile? other) =>
@@ -101,7 +117,9 @@ class PublicProfile {
       other.displayName == displayName &&
       other.hours == hours &&
       other.seconds == seconds &&
-      other.ringProgress == ringProgress;
+      other.ringProgress == ringProgress &&
+      other.photoUrl == photoUrl &&
+      other.photoPath == photoPath;
 }
 
 /// Where a published profile is read back and written.
@@ -266,6 +284,8 @@ PublicProfile? profileToPublish({
     hours: wholeHoursOf(tasks),
     seconds: lifetimeSecondsOf(tasks),
     ringProgress: ringProgressOf(tasks),
+    photoUrl: profile.photoUrl,
+    photoPath: profile.photoPath,
   );
   return mine.sameAs(published) ? null : mine;
 }

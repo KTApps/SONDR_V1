@@ -120,6 +120,44 @@ void main() {
         'hours': 20,
         'seconds': 20 * 3600 + 60,
         'ringProgress': mine.ringProgress,
+        'photoUrl': null,
+        'photoPath': null,
+      });
+    });
+
+    group('the chosen photo', () {
+      Profile withPhoto(String? url) => Profile(
+        uid: 'me',
+        username: 'ada',
+        displayName: 'Ada',
+        photoUrl: url,
+        photoPath: url == null ? null : 'users/me/profile/photo.jpg',
+      );
+      final tasks = [_task('a', seconds: 3600)];
+
+      test('is published, and a new one is something new to say', () {
+        final first = profileToPublish(uid: 'me', profile: withPhoto('https://x/1'), tasks: tasks, published: null)!;
+        expect(first.toMap()['photoUrl'], 'https://x/1');
+        expect(first.toMap()['photoPath'], 'users/me/profile/photo.jpg');
+        expect(profileToPublish(uid: 'me', profile: withPhoto('https://x/1'), tasks: tasks, published: first), isNull);
+        expect(profileToPublish(uid: 'me', profile: withPhoto('https://x/2'), tasks: tasks, published: first), isNotNull);
+      });
+
+      test('clearing it is written as null, so the merge cannot keep the old one', () {
+        final had = profileToPublish(uid: 'me', profile: withPhoto('https://x/1'), tasks: tasks, published: null)!;
+        final cleared = profileToPublish(uid: 'me', profile: withPhoto(null), tasks: tasks, published: had)!;
+        expect(cleared.toMap().containsKey('photoUrl'), isTrue);
+        expect(cleared.toMap()['photoUrl'], isNull);
+        expect(cleared.toMap()['photoPath'], isNull);
+      });
+
+      test('reads back, and a document from before reads as none', () {
+        final back = PublicProfile.fromMap('me', {'handle': 'ada', 'photoUrl': 'https://x/1', 'photoPath': 'p'});
+        expect(back.photoUrl, 'https://x/1');
+        expect(back.photoPath, 'p');
+        final old = PublicProfile.fromMap('me', {'handle': 'ada'});
+        expect(old.photoUrl, isNull);
+        expect(PublicProfile.fromMap('me', {'handle': 'ada', 'photoUrl': null}).photoUrl, isNull);
       });
     });
 

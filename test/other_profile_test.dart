@@ -270,6 +270,47 @@ void main() {
       expect(find.text('Block'), findsOneWidget);
     });
 
+    testWidgets('a stranger sees the photo they chose, not their initial', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        published: const PublicProfile(
+          uid: them,
+          handle: 'cass',
+          displayName: 'Cass',
+          hours: 41,
+          photoUrl: 'https://example.invalid/profile.jpg',
+          photoPath: 'users/them/profile/photo.jpg',
+        ),
+      );
+      expect(find.text('Add'), findsOneWidget, reason: 'still a stranger');
+      final photo = tester.widget<SondrPhoto>(find.byType(SondrPhoto));
+      expect(photo.url, 'https://example.invalid/profile.jpg');
+      expect(find.text('C'), findsNothing);
+      // The rest of a stranger's page is unchanged.
+      expect(find.text('Milestones'), findsNothing);
+    });
+
+    testWidgets('a friend\'s chosen photo stands in the ring over their newest milestone', (
+      tester,
+    ) async {
+      const chosen = 'https://example.invalid/profile.jpg';
+      await pump(
+        tester,
+        friendships: [_friendship()],
+        posts: [_milestonePost(0), _milestonePost(1)],
+        published: const PublicProfile(
+          uid: them, handle: 'cass', displayName: 'Cass', hours: 41,
+          photoUrl: chosen, photoPath: 'users/them/profile/photo.jpg',
+        ),
+      );
+      final ring = find.byWidgetPredicate(
+        (w) => w is SondrPhoto && w.url == chosen,
+      );
+      expect(ring, findsOneWidget);
+    });
+
     testWidgets('someone who has blocked me is a stranger, exactly', (
       tester,
     ) async {

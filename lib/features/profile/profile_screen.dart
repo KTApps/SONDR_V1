@@ -26,6 +26,7 @@ import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'milestone_strip.dart';
 import 'profile_metrics.dart';
+import 'profile_photo.dart';
 import 'profile_providers.dart';
 
 // Photo tints — the near-raw whisper the day-detail thumbnails use, so the
@@ -351,6 +352,9 @@ class _Section extends StatelessWidget {
 /// The centre is the newest photo across ALL tasks, which means it changes
 /// itself as captures happen; before there is one it is your initial. The ring
 /// works from the first day either way.
+/// The hero's photo, as the thing a tap on it opens the picker from.
+const Key kProfileHeroPhotoKey = Key('profile-hero-photo');
+
 class _HeroEmblem extends ConsumerWidget {
   const _HeroEmblem();
 
@@ -387,15 +391,26 @@ class _HeroEmblem extends ConsumerWidget {
     final galleryAsync = ref.watch(galleryPreviewProvider);
     final recent = galleryAsync.value ?? const <Photo>[];
     final newest = recent.isEmpty ? null : recent.first;
+    // The photo chosen for the profile, when there is one; the newest
+    // capture otherwise.
+    final chosen = profile?.photoUrl;
+    final shownUrl = chosen ?? newest?.photoUrl;
     // Until the newest photo is known, the disc is a fixed, quiet surface —
     // the same size and tone as the photo's own placeholder — never the
     // initial, which is an answer ("there is no photo") the frame does not
-    // yet have.
-    final heroKnown = galleryAsync.hasValue;
+    // yet have. A chosen photo is known the moment the profile is.
+    final heroKnown = chosen != null || galleryAsync.hasValue;
+    // Only someone with a profile to put it on can choose one.
+    final canChoose = (profile?.username ?? '').isNotEmpty &&
+        ref.watch(profilePhotoChooserProvider) != null;
 
     return Column(
       children: [
-        ProgressRing(
+        GestureDetector(
+          key: kProfileHeroPhotoKey,
+          behavior: HitTestBehavior.opaque,
+          onTap: canChoose ? () => showProfilePhotoSheet(context, ref) : null,
+          child: ProgressRing(
           size: _ring * scale,
           stroke: ringStroke(scale),
           // An empty grey track when there is nothing to climb, and never a
@@ -406,7 +421,7 @@ class _HeroEmblem extends ConsumerWidget {
             height: _photo * scale,
             child: !heroKnown
                 ? ClipOval(child: ColoredBox(color: tokens.surface))
-                : newest == null
+                : shownUrl == null
                 ? Center(
                     child: Text(
                       initialOf(profile),
@@ -419,13 +434,14 @@ class _HeroEmblem extends ConsumerWidget {
                   )
                 : ClipOval(
                     child: SondrPhoto(
-                      url: newest.photoUrl,
+                      url: shownUrl,
                       saturation: _kPhotoSaturation,
                       tint: _kPhotoTint,
                       placeholder: (_) => ColoredBox(color: tokens.surface),
                       error: (_) => ColoredBox(color: tokens.surface),
                     ),
                   ),
+          ),
           ),
         ),
       ],

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +21,7 @@ import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/profile/milestone_strip.dart';
 import 'package:sondr/features/profile/profile_metrics.dart';
 import 'package:sondr/features/profile/profile_providers.dart';
+import 'package:sondr/features/profile/profile_photo.dart';
 import 'package:sondr/features/profile/profile_screen.dart';
 import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/tasks/tasks_providers.dart';
@@ -176,6 +179,7 @@ void main() {
       List<Photo> milestonePhotos = const [],
       double textScale = 1.0,
       List<Friendship> friendships = const [],
+      List extra = const [],
     }) async {
       ignoreFirebaseAbsence();
       await tester.pumpWidget(
@@ -221,6 +225,7 @@ void main() {
             friendshipsProvider.overrideWith(
               (ref) => Stream.value(friendships),
             ),
+            ...extra.cast(),
           ],
           child: MaterialApp(
             theme: AppTheme.dark(),
@@ -500,6 +505,63 @@ void main() {
       expect(find.byType(ClipOval), findsOneWidget);
       expect(find.text('T'), findsNothing); // the monogram has given way
       expectNoOverflow(tester);
+    });
+
+    testWidgets('a chosen photo stands in the hero over the newest capture', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        recent: [_photo(3000)],
+        profile: const Profile(
+          uid: 'me', username: 'tanaka', displayName: 'T',
+          photoUrl: 'https://example.invalid/chosen.jpg',
+          photoPath: 'users/me/profile/photo.jpg',
+        ),
+      );
+      final hero = find.descendant(of: find.byKey(kProfileHeroPhotoKey), matching: find.byType(SondrPhoto));
+      expect(tester.widget<SondrPhoto>(hero).url, 'https://example.invalid/chosen.jpg');
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('without one, the newest capture, as before', (tester) async {
+      await pumpProfile(
+        tester,
+        recent: [_photo(3000), _photo(2000)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+      );
+      final hero = find.descendant(of: find.byKey(kProfileHeroPhotoKey), matching: find.byType(SondrPhoto));
+      expect(tester.widget<SondrPhoto>(hero).url, _photo(3000).photoUrl);
+    });
+
+    testWidgets('tapping the hero photo opens the picker; a guest\'s does nothing', (
+      tester,
+    ) async {
+      await pumpProfile(
+        tester,
+        recent: [_photo(3000)],
+        profile: const Profile(uid: 'me', username: 'tanaka', displayName: 'T'),
+        extra: [
+          profilePhotoChooserProvider.overrideWithValue(_NoChooser()),
+          profilePhotoChoicesProvider.overrideWith((ref) async => [_photo(3000)]),
+        ],
+      );
+      await tester.tap(find.byKey(kProfileHeroPhotoKey));
+      await tester.pumpAndSettle();
+      expect(find.text(kProfilePhotoTitle), findsOneWidget);
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+
+      // A new scope: the override count differs from the last one.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await pumpProfile(
+        tester,
+        recent: [_photo(3000)],
+        extra: [profilePhotoChooserProvider.overrideWithValue(_NoChooser())],
+      );
+      await tester.tap(find.byKey(kProfileHeroPhotoKey));
+      await tester.pumpAndSettle();
+      expect(find.text(kProfilePhotoTitle), findsNothing);
     });
 
     testWidgets('an in-progress ring says the task\'s own hours, floored; its fill is the band\'s', (
@@ -1740,4 +1802,12 @@ class _Account implements User {
 
   @override
   dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
+class _NoChooser implements ProfilePhotoChooser {
+  @override
+  Future<bool> choose(Photo photo, {Uint8List? bytes}) async => true;
+
+  @override
+  Future<bool> clear() async => true;
 }

@@ -1845,6 +1845,51 @@ describe('deleting an account, end to end against the rules', () => {
     await deleteDoc(doc(db, 'users/' + uid));
   }
 
+  /// AccountCascade._storage, as a client: the chosen profile photo by its
+  /// name (gone already is not a failure), then the sweep of every prefix
+  /// the account owns.
+  async function sweepFiles(bucket, uid) {
+    try {
+      await bucket.ref('users/' + uid + '/profile/photo.jpg').delete();
+    } catch (e) {
+      if (e.code !== 'storage/object-not-found') throw e;
+    }
+    for (const prefix of ['photos', 'posts', 'profile']) {
+      const listing = await bucket.ref('users/' + uid + '/' + prefix).listAll();
+      for (const item of listing.items) await item.delete();
+    }
+  }
+
+  async function profilePhotoExists(uid) {
+    let exists = true;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      try {
+        await ctx.storage().ref('users/' + uid + '/profile/photo.jpg').getMetadata();
+      } catch (e) {
+        exists = false;
+      }
+    });
+    return exists;
+  }
+
+  it('takes the chosen profile photo with it, and leaves the friend\'s', async () => {
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    const meta = { contentType: 'image/jpeg' };
+    await assertSucceeds(env.authenticatedContext(ME).storage().ref('users/' + ME + '/profile/photo.jpg').put(jpeg, meta));
+    await assertSucceeds(env.authenticatedContext(FRIEND).storage().ref('users/' + FRIEND + '/profile/photo.jpg').put(jpeg, meta));
+    assert.equal(await profilePhotoExists(ME), true);
+    // Nobody else may sweep them.
+    await assertFails(sweepFiles(env.authenticatedContext(FRIEND).storage(), ME));
+    assert.equal(await profilePhotoExists(ME), true);
+
+    await assertSucceeds(runCascade(as(ME), ME));
+    await assertSucceeds(sweepFiles(env.authenticatedContext(ME).storage(), ME));
+    assert.equal(await profilePhotoExists(ME), false, 'their profile photo should be gone');
+    assert.equal(await profilePhotoExists(FRIEND), true, 'not theirs to take');
+    // And again, over nothing: still no failure.
+    await assertSucceeds(sweepFiles(env.authenticatedContext(ME).storage(), ME));
+  });
+
   it('leaves nothing of theirs, and the counters right', async () => {
     await assertSucceeds(runCascade(as(ME), ME));
     await seed(async (db) => {
@@ -1894,6 +1939,52 @@ describe('deleting an account, end to end against the rules', () => {
  * was refused as unauthorized, and no post could be shared. These tests put
  * the job's exact paths, as the job does.
  */
+describe('storage: the profile photo', () => {
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+  const meta = { contentType: 'image/jpeg' };
+  const path = (uid) => 'users/' + uid + '/profile/photo.jpg';
+  function bucket(uid) { return env.authenticatedContext(uid).storage(); }
+
+  beforeEach(async () => {
+    await env.clearStorage();
+  });
+
+  it('the owner may put it there, replace it and take it down', async () => {
+    await assertSucceeds(bucket(A).ref(path(A)).put(jpeg, meta));
+    await assertSucceeds(bucket(A).ref(path(A)).put(jpeg, meta));
+    await assertSucceeds(bucket(A).ref(path(A)).delete());
+  });
+
+  it('anyone signed in may read someone else\'s, a stranger included', async () => {
+    await assertSucceeds(bucket(A).ref(path(A)).put(jpeg, meta));
+    await assertSucceeds(bucket(C).ref(path(A)).getDownloadURL());
+    await assertSucceeds(bucket(B).ref(path(A)).getMetadata());
+  });
+
+  it('nobody signed out may read it', async () => {
+    await assertSucceeds(bucket(A).ref(path(A)).put(jpeg, meta));
+    await assertFails(env.unauthenticatedContext().storage().ref(path(A)).getDownloadURL());
+  });
+
+  it('a stranger may neither put one there nor take it down', async () => {
+    await assertFails(bucket(B).ref(path(A)).put(jpeg, meta));
+    await assertSucceeds(bucket(A).ref(path(A)).put(jpeg, meta));
+    await assertFails(bucket(B).ref(path(A)).put(jpeg, meta));
+    await assertFails(bucket(B).ref(path(A)).delete());
+    await assertFails(env.unauthenticatedContext().storage().ref(path(A)).put(jpeg, meta));
+  });
+
+  it('only an image, and only by that one name', async () => {
+    await assertFails(bucket(A).ref(path(A)).put(jpeg, { contentType: 'text/plain' }));
+    await assertFails(bucket(A).ref('users/' + A + '/profile/other.jpg').put(jpeg, meta));
+  });
+
+  it('the private photos stay private beside it', async () => {
+    await assertSucceeds(bucket(A).ref('users/' + A + '/photos/t_1.jpg').put(jpeg, meta));
+    await assertFails(bucket(B).ref('users/' + A + '/photos/t_1.jpg').getDownloadURL());
+  });
+});
+
 describe('storage: the share job\'s paths', () => {
   const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
   const meta = { contentType: 'image/jpeg' };

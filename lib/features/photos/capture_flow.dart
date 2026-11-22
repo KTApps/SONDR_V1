@@ -126,7 +126,7 @@ Future<void> runCaptureFlow(
           share: share,
           onKeep: (ref) async {
             if (shot == null) return true;
-            final saved = await _savePrivately(
+            final saved = await savePhotoPrivately(
               ref,
               shot: shot,
               taskId: taskId,
@@ -202,7 +202,7 @@ Future<({bool done, bool shared, Arrangement? arrangement, ShareTrace? trace})> 
 
   Future<bool> keep(WidgetRef ref) async {
     if (shot == null) return true;
-    final saved = await _savePrivately(
+    final saved = await savePhotoPrivately(
       ref,
       shot: shot,
       taskId: taskId,
@@ -345,7 +345,7 @@ Future<MilestoneStory?> _storyFor(
 
 /// Upload the binary and write the private photo doc. Returns the photo,
 /// or null if it could not be saved.
-Future<Photo?> _savePrivately(
+Future<Photo?> savePhotoPrivately(
   WidgetRef ref, {
   required Uint8List shot,
   required String taskId,

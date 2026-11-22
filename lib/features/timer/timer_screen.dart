@@ -527,9 +527,8 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
         lifetime >= kGuestNudgeSeconds &&
         lifetime - outcome.loggedSeconds < kGuestNudgeSeconds;
 
-    // One entrance for every ordinary stop: the camera. Sharing needs 20
-    // hours on the task and an account; without them the review screen is
-    // keep-only and says so.
+    // One entrance for every ordinary stop: the camera. Sharing needs an
+    // account; without one the review screen is keep-only and says so.
     if (creditedTaskId != null) {
       await runCaptureFlow(
         context,
@@ -549,13 +548,9 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
           loggedSeconds: outcome.loggedSeconds,
           hasTask: true,
           isGuest: isGuest,
-          taskTotalSeconds: outcome.totalSeconds,
-          milestoneBandSeconds: kMilestoneBandSeconds,
         ).canShare
             ? ShareState.allowed
-            // Two reasons sharing can be shut, and the review screen says
-            // which: an account is a different ask from twenty hours.
-            : (isGuest ? ShareState.guest : ShareState.underTwentyHours),
+            : ShareState.guest,
       );
       if (crossedGuestNudge && context.mounted) {
         await showCreateAccountPrompt(

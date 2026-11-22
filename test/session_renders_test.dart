@@ -137,7 +137,7 @@ void main() {
   }, skip: !enabled);
 
   testWidgets('render review-locked', (tester) async {
-    await pumpApp(tester, review(share: ShareState.underTwentyHours), wholeScreen: true);
+    await pumpApp(tester, review(share: ShareState.guest), wholeScreen: true);
     await capture(tester, 'review-locked');
   }, skip: !enabled);
 }

@@ -99,8 +99,8 @@ class CaptureDecision {
   /// that credited no task — a photo must never exist without one.
   final bool openCamera;
 
-  /// Sharing needs an account and 20 hours on the task. False means the
-  /// review screen is keep-only and says why.
+  /// Sharing needs an account, and nothing else: a session can be shared
+  /// at any total. False means the review screen is keep-only and says why.
   final bool canShare;
 
   static const CaptureDecision none = CaptureDecision(
@@ -124,14 +124,12 @@ CaptureDecision decideAfterStop({
   required int loggedSeconds,
   required bool hasTask,
   required bool isGuest,
-  required int taskTotalSeconds,
-  required int milestoneBandSeconds,
 }) {
   if (!hasTask || loggedSeconds < kMinimumCaptureSeconds) {
     return CaptureDecision.none;
   }
   return CaptureDecision(
     openCamera: true,
-    canShare: !isGuest && taskTotalSeconds >= milestoneBandSeconds,
+    canShare: !isGuest,
   );
 }

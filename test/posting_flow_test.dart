@@ -11,18 +11,14 @@ void main() {
   });
 
   group('what a finished session leads to', () {
-    const band = 20 * 3600;
     CaptureDecision decide({
       int logged = 120,
       bool hasTask = true,
       bool isGuest = false,
-      int total = band,
     }) => decideAfterStop(
       loggedSeconds: logged,
       hasTask: hasTask,
       isGuest: isGuest,
-      taskTotalSeconds: total,
-      milestoneBandSeconds: band,
     );
 
     test('under a minute opens no camera', () {
@@ -42,20 +38,16 @@ void main() {
       expect(decide(hasTask: false, logged: 7200).openCamera, isFalse);
     });
 
-    test('a guest can never share, however long the task', () {
-      expect(decide(isGuest: true, total: band * 5).openCamera, isTrue);
-      expect(decide(isGuest: true, total: band * 5).canShare, isFalse);
+    test('a guest can never share', () {
+      expect(decide(isGuest: true).openCamera, isTrue);
+      expect(decide(isGuest: true).canShare, isFalse);
     });
 
-    test('under 20h cannot share, signed in or not', () {
-      expect(decide(total: band - 1).canShare, isFalse);
-      expect(decide(total: 0).canShare, isFalse);
-      expect(decide(isGuest: true, total: band - 1).canShare, isFalse);
-    });
-
-    test('20h and an account is the only way to share', () {
-      expect(decide(total: band).canShare, isTrue);
-      expect(decide(total: band * 3).canShare, isTrue);
+    test('signed in can share at any total, the first minute included', () {
+      // Nothing about the task's hours is asked any more.
+      expect(decide().canShare, isTrue);
+      expect(decide(logged: 60).canShare, isTrue);
+      expect(decide(logged: 6 * 3600).canShare, isTrue);
     });
 
     test('a decision that opens no camera never shares', () {
@@ -84,13 +76,11 @@ void main() {
     });
     test('the stop rules are unchanged by it', () {
       expect(
-        decideAfterStop(loggedSeconds: 59, hasTask: true, isGuest: false,
-            taskTotalSeconds: 72000, milestoneBandSeconds: 72000).openCamera,
+        decideAfterStop(loggedSeconds: 59, hasTask: true, isGuest: false).openCamera,
         isFalse,
       );
       expect(
-        decideAfterStop(loggedSeconds: 600, hasTask: false, isGuest: false,
-            taskTotalSeconds: 72000, milestoneBandSeconds: 72000).openCamera,
+        decideAfterStop(loggedSeconds: 600, hasTask: false, isGuest: false).openCamera,
         isFalse,
       );
     });

@@ -529,6 +529,52 @@ describe('publicProfiles', () => {
       handle: 'cass', displayName: 'Cass', hours: 1, updatedAt: 1,
     }));
   });
+
+  describe('the photo', () => {
+    const bucket = 'https://firebasestorage.googleapis.com/v0/b/sondr-cd439.firebasestorage.app/o/';
+    const pathOf = (uid) => 'users/' + uid + '/profile/photo.jpg';
+    const urlOf = (uid) =>
+      bucket + 'users%2F' + uid + '%2Fprofile%2Fphoto.jpg?alt=media&token=abc-123';
+    const ada = (photo) => setDoc(doc(as(A), 'publicProfiles/' + A), {
+      handle: 'ada', displayName: 'Ada', hours: 42, updatedAt: 4, ...photo,
+    }, { merge: true });
+
+    it('its own profile copy is allowed', async () => {
+      await assertSucceeds(ada({ photoUrl: urlOf(A), photoPath: pathOf(A) }));
+    });
+
+    it("another uid's copy is refused, by path or by address", async () => {
+      await assertFails(ada({ photoUrl: urlOf(C), photoPath: pathOf(C) }));
+      await assertFails(ada({ photoUrl: urlOf(A), photoPath: pathOf(C) }));
+      await assertFails(ada({ photoUrl: urlOf(C), photoPath: pathOf(A) }));
+    });
+
+    it('any other address is refused', async () => {
+      for (const url of [
+        'https://example.com/ada.jpg',
+        'https://example.com/' + urlOf(A),
+        urlOf(A).replace('sondr-cd439', 'prodapp-b90ac'),
+        bucket + 'users%2F' + A + '%2Fphotos%2Fp1.jpg?alt=media',
+        bucket + 'users%2F' + A + '%2Fprofile%2Fphoto.jpg.evil',
+      ]) {
+        await assertFails(ada({ photoUrl: url, photoPath: pathOf(A) }));
+      }
+    });
+
+    it('one without the other is refused', async () => {
+      await assertFails(ada({ photoUrl: urlOf(A), photoPath: null }));
+      await assertFails(ada({ photoUrl: null, photoPath: pathOf(A) }));
+    });
+
+    it('removing both is allowed, as null or as gone', async () => {
+      await assertSucceeds(ada({ photoUrl: urlOf(A), photoPath: pathOf(A) }));
+      await assertSucceeds(ada({ photoUrl: null, photoPath: null }));
+      await assertSucceeds(ada({ photoUrl: urlOf(A), photoPath: pathOf(A) }));
+      await assertSucceeds(setDoc(doc(as(A), 'publicProfiles/' + A), {
+        handle: 'ada', displayName: 'Ada', hours: 42, updatedAt: 5,
+      }));
+    });
+  });
 });
 
 describe('the friend mirror', () => {

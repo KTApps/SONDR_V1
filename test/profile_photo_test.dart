@@ -23,6 +23,7 @@ import 'package:sondr/features/tasks/models/task.dart';
 import 'package:sondr/features/tasks/tasks_providers.dart';
 import 'package:sondr/features/profile/profile_photo.dart';
 import 'package:sondr/features/profile/public_profile.dart';
+import 'package:sondr/shared/blur_sheet.dart' show BlurAnswer;
 import 'package:sondr/shared/cached_photo.dart';
 
 import 'tiny_png.dart';
@@ -132,24 +133,12 @@ void main() {
       expect(published, 0);
     });
 
-    test('the newest again: the choice forgotten, published, the copy taken down', () async {
-      await chooser.choose(photo(4));
-      expect(await chooser.clear(), isTrue);
-      final doc = await profileDoc();
-      expect(doc.containsKey('photoUrl'), isFalse);
-      expect(doc.containsKey('photoPath'), isFalse);
-      expect(doc.containsKey('photoSourceId'), isFalse);
-      expect(files.removed, ['users/me/profile/photo.jpg']);
-      expect(published, 2);
-      expect(Profile.fromMap('me', doc).photoUrl, isNull);
-    });
-
     test('the original deleted later leaves the copy', () async {
       final p = photo(5);
       await chooser.choose(p);
       // The private photo goes; nothing here touches the profile's file.
       await db.doc('users/me/photos/${p.id}').delete();
-      expect(files.removed, isEmpty);
+      expect(files.stored.keys, ['users/me/profile/photo.jpg']);
       expect((await profileDoc())['photoUrl'], isNotNull);
     });
   });
@@ -252,25 +241,35 @@ void main() {
       expect(find.text(kProfilePhotoTitle), findsNothing, reason: 'done, and closed');
     });
 
-    testWidgets('Use my newest photo clears the choice, in the supporting tone', (tester) async {
-      await open(tester, chosen: photos[1].id);
-      final tokens = GreyscaleTokens.of(tester.element(find.text(kUseMyNewestPhoto)));
-      expect(tone(tester, kUseMyNewestPhoto), tokens.textSecondary);
-      expect(tone(tester, kTakeANewOne), tokens.textPrimary);
-      await tester.tap(find.text(kUseMyNewestPhoto));
-      await tester.pumpAndSettle();
-      expect(chooser.cleared, 1);
-      expect(find.text(kProfilePhotoTitle), findsNothing);
-    });
+    // The way back to an automatic photo is gone, by design: someone who
+    // has chosen picks another.
+    Map<String, Rect> answers(WidgetTester tester) => {
+      for (final label in [kUseThisPhoto, kTakeANewOne, 'Back'])
+        label: tester.getRect(find.text(label)),
+    };
 
-    testWidgets('with nothing chosen there is nothing to clear', (tester) async {
+    testWidgets('two answers and Back, never a third — with or without a chosen photo', (tester) async {
       await open(tester);
-      expect(find.text(kUseMyNewestPhoto), findsNothing);
-      expect(find.text(kUseThisPhoto), findsOneWidget);
-      expect(find.text(kTakeANewOne), findsOneWidget);
+      final none = answers(tester);
+      expect(find.text('Use my newest photo'), findsNothing);
+      expect(find.byType(BlurAnswer), findsNWidgets(2));
       for (final p in photos) {
         expect(ringOf(tester, p), isNull);
       }
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await open(tester, chosen: photos[1].id);
+      expect(find.text('Use my newest photo'), findsNothing);
+      expect(find.byType(BlurAnswer), findsNWidgets(2));
+      expect(ringOf(tester, photos[1]), isNotNull);
+      final tokens = GreyscaleTokens.of(tester.element(find.text(kTakeANewOne)));
+      expect(tone(tester, kTakeANewOne), tokens.textPrimary);
+      // The same layout either way.
+      final chosen = answers(tester);
+      for (final label in none.keys) {
+        expect(chosen[label], none[label], reason: label);
+      }
+      expect(tester.getRect(cell(photos[5])), isNotNull);
     });
 
     testWidgets('Take a new one: the camera says Profile photo alone, and the shot goes to the profile only', (tester) async {
@@ -325,10 +324,10 @@ void main() {
         await tester.pumpAndSettle();
         final lastRow = tester.getRect(cell(photos[5]));
         final use = tester.getRect(find.text(kUseThisPhoto));
-        final newest = tester.getRect(find.text(kUseMyNewestPhoto));
+        final take = tester.getRect(find.text(kTakeANewOne));
         final back = tester.getRect(find.text('Back'));
         expect(use.top, greaterThan(lastRow.bottom));
-        expect(newest.bottom, lessThan(back.top));
+        expect(take.bottom, lessThan(back.top));
         expect(tester.takeException(), isNull);
       });
     }
@@ -423,7 +422,6 @@ void main() {
 class _Files implements ProfilePhotoFiles {
   final List<String> read = [];
   final Map<String, Uint8List> stored = {};
-  final List<String> removed = [];
   bool failPut = false;
 
   @override
@@ -438,15 +436,11 @@ class _Files implements ProfilePhotoFiles {
     stored[path] = jpeg;
     return 'https://storage.invalid/$path';
   }
-
-  @override
-  Future<void> remove(String path) async => removed.add(path);
 }
 
 class _Chooser implements ProfilePhotoChooser {
   final List<String> chosen = [];
   final List<Uint8List> shots = [];
-  int cleared = 0;
   bool ok = true;
 
   @override
@@ -458,12 +452,6 @@ class _Chooser implements ProfilePhotoChooser {
   @override
   Future<bool> useShot(Uint8List shot) async {
     if (ok) shots.add(shot);
-    return ok;
-  }
-
-  @override
-  Future<bool> clear() async {
-    cleared++;
     return ok;
   }
 }

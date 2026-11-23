@@ -59,13 +59,8 @@ class BlurItem {
     required this.label,
     required this.onTap,
     this.quiet = false,
-    this.secondary = false,
     this.detail,
   });
-
-  /// The supporting tone: an answer that is offered but is not the main
-  /// one — the way back to no choice, under the choice itself.
-  final bool secondary;
 
   final String label;
   final VoidCallback onTap;
@@ -485,11 +480,7 @@ class BlurAnswer extends StatelessWidget {
     final style = theme.textTheme.displayMedium?.copyWith(
       fontSize: kBlurItemSize * scale,
       fontWeight: FontWeight.w600,
-      color: item.quiet
-          ? tokens.textTertiary
-          : item.secondary
-          ? tokens.textSecondary
-          : tokens.textPrimary,
+      color: item.quiet ? tokens.textTertiary : tokens.textPrimary,
     );
 
     // The LABEL is the target: its own bounds plus a tier of tap padding

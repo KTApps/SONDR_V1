@@ -37,7 +37,6 @@ const int kProfilePhotoChoices = 60;
 const String kProfilePhotoTitle = 'Profile photo';
 const String kUseThisPhoto = 'Use this photo';
 const String kTakeANewOne = 'Take a new one';
-const String kUseMyNewestPhoto = 'Use my newest photo';
 const String kProfilePhotoFailed = 'Couldn’t change your photo. Try again.';
 
 /// What the camera says above the viewfinder when the shot is for the
@@ -75,9 +74,6 @@ abstract interface class ProfilePhotoFiles {
 
   /// Put the copy at [path]; returns its download URL.
   Future<String> put(String path, Uint8List jpeg);
-
-  /// Take the copy down. Already gone is not a failure.
-  Future<void> remove(String path);
 }
 
 class FirebaseProfilePhotoFiles implements ProfilePhotoFiles {
@@ -96,22 +92,13 @@ class FirebaseProfilePhotoFiles implements ProfilePhotoFiles {
     await ref.putData(jpeg, SettableMetadata(contentType: 'image/jpeg'));
     return ref.getDownloadURL();
   }
-
-  @override
-  Future<void> remove(String path) async {
-    try {
-      await _storage.ref(path).delete();
-    } on FirebaseException catch (e) {
-      if (e.code != 'object-not-found') rethrow;
-    }
-  }
 }
 
 final profilePhotoFilesProvider = Provider<ProfilePhotoFiles>(
   (ref) => FirebaseProfilePhotoFiles(),
 );
 
-/// Choosing and clearing, in one place, behind a seam so the sheet's tests
+/// Choosing, in one place, behind a seam so the sheet's tests
 /// need neither Storage nor Firestore.
 abstract interface class ProfilePhotoChooser {
   /// Make [photo] the profile photo, read from the original. Returns
@@ -121,9 +108,6 @@ abstract interface class ProfilePhotoChooser {
   /// Make a shot just taken the profile photo. It goes nowhere else: no
   /// task, no photo of yours, only the profile copy.
   Future<bool> useShot(Uint8List shot);
-
-  /// No chosen photo: the newest stands in the ring again.
-  Future<bool> clear();
 }
 
 class FirebaseProfilePhotoChooser implements ProfilePhotoChooser {
@@ -182,22 +166,6 @@ class FirebaseProfilePhotoChooser implements ProfilePhotoChooser {
     await publish();
     return true;
   }
-
-  @override
-  Future<bool> clear() async {
-    try {
-      await profiles.clearPhoto(uid);
-      changed();
-      await publish();
-      // The file last: a failure to remove it leaves a copy nobody points
-      // at, not a profile pointing at nothing.
-      await files.remove(profilePhotoPathOf(uid));
-      return true;
-    } catch (e) {
-      debugPrint('SONDR profile photo clear error: ${e.runtimeType} :: $e');
-      return false;
-    }
-  }
 }
 
 /// [squareProfileJpeg] off the UI thread.
@@ -229,14 +197,13 @@ final profilePhotoChoicesProvider = FutureProvider.autoDispose<List<Photo>>((ref
 ///
 /// Your photos as circles, three across, the chosen one ringed; tap one to
 /// pick it. "Use this photo" once the pick differs from what is chosen,
-/// "Take a new one" for the camera, "Use my newest photo" to go back to no
-/// choice, and Back.
+/// "Take a new one" for the camera, and Back. There is no way back to no
+/// choice: someone who has chosen picks another.
 Future<void> showProfilePhotoSheet(BuildContext context, WidgetRef ref) async {
   final chooser = ref.read(profilePhotoChooserProvider);
   if (chooser == null) return;
   final profile = ref.read(currentProfileProvider).value;
   final chosen = profile?.photoSourceId;
-  final hasChoice = profile?.photoUrl != null;
   final photos = await ref.read(profilePhotoChoicesProvider.future);
   if (!context.mounted) return;
 
@@ -306,12 +273,6 @@ Future<void> showProfilePhotoSheet(BuildContext context, WidgetRef ref) async {
             return chooser.useShot(shot);
           }),
         ),
-        if (hasChoice)
-          BlurItem(
-            label: kUseMyNewestPhoto,
-            secondary: true,
-            onTap: () => run(handle, chooser.clear),
-          ),
       ],
     );
   };

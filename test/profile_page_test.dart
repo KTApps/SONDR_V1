@@ -1810,7 +1810,4 @@ class _NoChooser implements ProfilePhotoChooser {
 
   @override
   Future<bool> useShot(Uint8List shot) async => true;
-
-  @override
-  Future<bool> clear() async => true;
 }

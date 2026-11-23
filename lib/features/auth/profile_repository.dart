@@ -38,13 +38,6 @@ class ProfileRepository {
     'photoSourceId': sourceId ?? FieldValue.delete(),
   }, SetOptions(merge: true));
 
-  /// Forget the chosen photo; the newest one stands in the ring again.
-  Future<void> clearPhoto(String uid) => _profileDoc(uid).set({
-    'photoUrl': FieldValue.delete(),
-    'photoPath': FieldValue.delete(),
-    'photoSourceId': FieldValue.delete(),
-  }, SetOptions(merge: true));
-
   /// Atomically reserve [handle] for [uid] and write the profile. The handle
   /// index (`usernames/{handle}`) and the profile doc are written in one
   /// transaction; if the handle is already taken the transaction aborts with

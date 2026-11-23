@@ -28,7 +28,6 @@ class SondrAction extends StatelessWidget {
     this.supporting = false,
     this.weight,
     this.fontSize = 15,
-    this.quiet = false,
   });
 
   final String label;
@@ -49,10 +48,6 @@ class SondrAction extends StatelessWidget {
   /// embedded in a row pass [kRowActionSize]. Every other caller is
   /// unaffected.
   final double fontSize;
-
-  /// A live action in the inert tone: tappable, at the action's own size and
-  /// weight, but a step quieter than a choice — an offer, not a verdict.
-  final bool quiet;
 
   /// An action with no [onPressed] is inert, and has to look it.
   ///
@@ -116,7 +111,7 @@ class SondrAction extends StatelessWidget {
                 weight ?? (supporting ? FontWeight.w400 : FontWeight.w700),
             color: supporting
                 ? tokens.textSecondary
-                : (_disabled || quiet ? tokens.textTertiary : tokens.textPrimary),
+                : (_disabled ? tokens.textTertiary : tokens.textPrimary),
           ),
         ),
       ),

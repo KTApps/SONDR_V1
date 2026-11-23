@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
-import 'package:sondr/core/theme/greyscale_tokens.dart';
 import 'package:sondr/features/feed/models/post.dart';
 import 'package:sondr/features/feed/widgets/comments_sheet.dart' show replyComposerClearance;
 import 'package:sondr/features/feed/widgets/milestone_card.dart';
@@ -192,52 +191,13 @@ void main() {
       expect(reason.center.dx, closeTo(w / 2, 1));
     });
 
-    testWidgets('no photo, signed in: "Take a photo to share" in Share\'s slot, quiet, at Share\'s size and weight', (tester) async {
-      await open(tester, share: ShareState.allowed);
-      final share = tester.widget<Text>(find.text('Share')).style!;
-      final shareRect = tester.getRect(find.widgetWithText(SondrAction, 'Share'));
-
+    testWidgets('no photo, signed in: no Share — a session post is its photo', (tester) async {
       await open(tester, withShot: false, share: ShareState.allowed);
       expect(find.text('Share'), findsNothing);
       expect(find.text('Keep'), findsOneWidget);
       expect(find.byKey(kShareReviewCaptionKey), findsNothing);
-      final label = tester.widget<Text>(find.text(kTakeAPhotoToShare)).style!;
-      final tokens = GreyscaleTokens.of(tester.element(find.text(kTakeAPhotoToShare)));
-      expect(label.color, tokens.textTertiary);
-      expect(label.fontSize, share.fontSize);
-      expect(label.fontWeight, share.fontWeight);
-      // Where Share sits: above Keep, centred.
-      final slot = tester.getRect(find.widgetWithText(SondrAction, kTakeAPhotoToShare));
-      final keepRect = tester.getRect(find.text('Keep'));
-      expect(slot.bottom, lessThanOrEqualTo(keepRect.top));
-      expect(slot.center.dx, closeTo(w / 2, 1));
-      expect(slot.height, closeTo(shareRect.height, 0.01));
-      // Keep as it was with no photo: alone in white.
       final keep = tester.widget<SondrAction>(find.widgetWithText(SondrAction, 'Keep'));
       expect(keep.supporting, isFalse);
-    });
-
-    testWidgets('tapping "Take a photo to share" goes back to the camera, as Retake does', (tester) async {
-      var kept = 0;
-      await open(tester, withShot: false, onKeep: (_) async {
-        kept++;
-        return true;
-      });
-      await tester.tap(find.text(kTakeAPhotoToShare));
-      await tester.pumpAndSettle();
-      expect(await pushed(), ReviewOutcome.retake);
-      expect(kept, 0);
-    });
-
-    testWidgets('a guest with no photo: unchanged — the account reason, no camera offer', (tester) async {
-      await open(tester, withShot: false, share: ShareState.guest);
-      expect(find.text(kTakeAPhotoToShare), findsNothing);
-      expect(find.text('Create an account to share'), findsOneWidget);
-    });
-
-    testWidgets('with a photo there is no camera offer', (tester) async {
-      await open(tester);
-      expect(find.text(kTakeAPhotoToShare), findsNothing);
     });
 
     testWidgets('a guest on the milestone\'s final look sees the same', (tester) async {

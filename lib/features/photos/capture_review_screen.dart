@@ -51,15 +51,12 @@ enum ReviewOutcome {
   shared,
 }
 
-/// Where Share would stand on a signed-in session with no photo.
-const String kTakeAPhotoToShare = 'Take a photo to share';
-
 /// A session's review: its final look. Retake at the top right; the
 /// session card exactly as friends will see it — the handle, "now", the
 /// task and its length, the caption as typed, the band ring — with the
 /// bare caption field beneath; Share over Keep. As a guest the reason
-/// stands where Share would and Keep is the one action; with no photo,
-/// "Take a photo to share" stands there and goes back to the camera.
+/// stands where Share would and Keep is the one action; with no photo
+/// there is nothing to post, and Keep is the one action too.
 class CaptureReviewScreen extends StatelessWidget {
   const CaptureReviewScreen({
     super.key,
@@ -121,21 +118,12 @@ class CaptureReviewScreen extends StatelessWidget {
         ),
       ),
       card: (caption) => SessionCard(post: _preview(caption), preview: true),
-      // A session post is its photo: without one, nothing to share until
-      // one is taken — which is what Retake does.
+      // A session post is its photo: without one, nothing to share — and
+      // nothing to explain, since the camera's Skip is what led here.
       lockedCopy: !share.canShare
           ? share.lockedCopy
           : shotUrl == null
           ? ''
-          : null,
-      lockedAction: share.canShare && shotUrl == null
-          ? Builder(
-              builder: (context) => SondrAction(
-                label: kTakeAPhotoToShare,
-                quiet: true,
-                onPressed: () => Navigator.of(context).pop(ReviewOutcome.retake),
-              ),
-            )
           : null,
       onShare: onShare,
       onKeep: onKeep,

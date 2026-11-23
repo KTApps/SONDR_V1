@@ -44,6 +44,7 @@ class ShareReviewScaffold extends ConsumerStatefulWidget {
     this.leading,
     this.trailing,
     this.lockedCopy,
+    this.lockedAction,
     this.onShare,
     this.onKeep,
   });
@@ -61,6 +62,10 @@ class ShareReviewScaffold extends ConsumerStatefulWidget {
   /// Why sharing is not offered, or null when it is. Locked, there is no
   /// caption to write either.
   final String? lockedCopy;
+
+  /// Stands in Share's slot in place of [lockedCopy] where something can be
+  /// done about it.
+  final Widget? lockedAction;
 
   /// Posts with the caption. Returns false to keep the screen up.
   final Future<bool> Function(WidgetRef ref, String? caption)? onShare;
@@ -217,6 +222,8 @@ class ShareReviewScaffoldState extends ConsumerState<ShareReviewScaffold> {
                               onPressed: busy ? null : _share,
                             ),
                           )
+                        else if (widget.lockedAction != null)
+                          Center(child: widget.lockedAction)
                         else
                           Padding(
                             padding: EdgeInsets.symmetric(vertical: 12 * scale),

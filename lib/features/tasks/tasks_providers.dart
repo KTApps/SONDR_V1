@@ -46,6 +46,20 @@ class TasksController extends AsyncNotifier<List<Task>> {
     return task;
   }
 
+  /// Calls [taskId] [name], then refreshes the list. Returns whether
+  /// anything changed: an empty name, the name it already has, or a task
+  /// that is not there is a cancel, not a write.
+  Future<bool> renameTask(String taskId, String name) async {
+    final value = name.trim();
+    if (value.isEmpty) return false;
+    final current = state.value ?? await _repo.fetchAll();
+    final task = current.where((t) => t.id == taskId).firstOrNull;
+    if (task == null || task.name == value) return false;
+    await _repo.rename(taskId, value);
+    state = AsyncData(await _repo.fetchAll());
+    return true;
+  }
+
   /// Archives [taskId] (or restores it), then refreshes the list.
   ///
   /// A no-op when the task is already in that state, so a double tap on the

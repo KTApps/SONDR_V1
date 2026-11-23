@@ -22,6 +22,8 @@ void main() {
     bool captureFails = false,
     Future<void> Function()? onOpenSettings,
     _FakeFlash? screenFlash,
+    String? taskName = 'Spanish',
+    String sessionLabel = '1h 20m',
   }) async {
     tester.view.physicalSize = const Size(w13 * 3, h13 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -47,8 +49,8 @@ void main() {
           child: child!,
         ),
         home: SondrCameraScreen(
-          taskName: 'Spanish',
-          sessionLabel: '1h 20m',
+          taskName: taskName,
+          sessionLabel: sessionLabel,
           ringProgress: 0.4,
           session: fake,
           onOpenSettings: onOpenSettings,
@@ -79,6 +81,14 @@ void main() {
     final task = tester.getRect(find.textContaining('Spanish'));
     expect(task.top, closeTo(top13 + 12 * scale, 0.6));
     expect(finder.top - task.bottom, closeTo(16 * scale, 0.6));
+  });
+
+  testWidgets('a shot for no task: the header is the label alone', (
+    tester,
+  ) async {
+    await pumpCamera(tester, taskName: null, sessionLabel: 'Profile photo');
+    expect(find.text('Profile photo'), findsOneWidget);
+    expect(find.textContaining('·'), findsNothing);
   });
 
   testWidgets('the shutter is the ring, at the shared weight', (tester) async {

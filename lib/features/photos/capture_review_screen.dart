@@ -24,14 +24,11 @@ List<Photo> selectedBandInOrder(List<Photo> pool, Set<String> selectedIds) => [
 /// A bool said only that Share was absent; the screen has to say what would
 /// make it appear, and the two answers are different sentences.
 enum ShareState {
-  /// Signed in and past 20 hours on this task.
+  /// Signed in. Any total: a session can be shared from its first minute.
   allowed,
 
-  /// A guest. An account is what is missing, not hours.
-  guest,
-
-  /// Signed in, but the task has not reached its first milestone.
-  underTwentyHours;
+  /// A guest. An account is what is missing.
+  guest;
 
   bool get canShare => this == ShareState.allowed;
 
@@ -39,7 +36,6 @@ enum ShareState {
   String get lockedCopy => switch (this) {
     ShareState.allowed => '',
     ShareState.guest => 'Create an account to share',
-    ShareState.underTwentyHours => 'Sharing unlocks at 20h',
   };
 }
 
@@ -58,8 +54,9 @@ enum ReviewOutcome {
 /// A session's review: its final look. Retake at the top right; the
 /// session card exactly as friends will see it — the handle, "now", the
 /// task and its length, the caption as typed, the band ring — with the
-/// bare caption field beneath; Share over Keep. Under 20 hours, or as a
-/// guest, the reason stands where Share would and Keep is the one action.
+/// bare caption field beneath; Share over Keep. As a guest the reason
+/// stands where Share would and Keep is the one action; with no photo
+/// there is nothing to post, and Keep is the one action too.
 class CaptureReviewScreen extends StatelessWidget {
   const CaptureReviewScreen({
     super.key,
@@ -121,7 +118,13 @@ class CaptureReviewScreen extends StatelessWidget {
         ),
       ),
       card: (caption) => SessionCard(post: _preview(caption), preview: true),
-      lockedCopy: share.canShare ? null : share.lockedCopy,
+      // A session post is its photo: without one, nothing to share — and
+      // nothing to explain, since the camera's Skip is what led here.
+      lockedCopy: !share.canShare
+          ? share.lockedCopy
+          : shotUrl == null
+          ? ''
+          : null,
       onShare: onShare,
       onKeep: onKeep,
       onFinished: (result) => Navigator.of(context).pop(

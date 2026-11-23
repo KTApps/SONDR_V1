@@ -84,6 +84,9 @@ class _Uid extends Notifier<String?> {
 final _uidProvider = NotifierProvider<_Uid, String?>(() => _Uid(null));
 
 class _FakeTasks implements TasksRepository {
+
+  @override
+  Future<void> rename(String taskId, String name) async {}
   _FakeTasks(this.tasks);
   final List<Task> tasks;
   @override

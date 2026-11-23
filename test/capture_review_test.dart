@@ -166,26 +166,38 @@ void main() {
   });
 
   group('locked', () {
-    testWidgets('under 20h: the reason where Share would be, Keep alone and white, no caption', (tester) async {
-      await open(tester, share: ShareState.underTwentyHours);
+    testWidgets('signed in at 6h: Share over Keep, with the caption — no hours asked', (tester) async {
+      // The default review is a 1h 20m session; nothing on it knows the
+      // task's total, and nothing needs to.
+      await open(tester, share: ShareState.allowed);
+      expect(find.text('Share'), findsOneWidget);
+      expect(find.text('Keep'), findsOneWidget);
+      expect(find.byKey(kShareReviewCaptionKey), findsOneWidget);
+      expect(find.textContaining('20h'), findsNothing);
+      expect(ShareState.values, [ShareState.allowed, ShareState.guest]);
+    });
+
+    testWidgets('a guest: the reason where Share would be, Keep alone and white, no caption', (tester) async {
+      await open(tester, share: ShareState.guest);
       expect(find.text('Share'), findsNothing);
-      expect(find.text('Sharing unlocks at 20h'), findsOneWidget);
+      expect(find.text('Create an account to share'), findsOneWidget);
       expect(find.byKey(kShareReviewCaptionKey), findsNothing);
       final keep = tester.widget<SondrAction>(find.widgetWithText(SondrAction, 'Keep'));
       expect(keep.supporting, isFalse);
       // Where Share sits: above Keep, centred.
-      final reason = tester.getRect(find.text('Sharing unlocks at 20h'));
+      final reason = tester.getRect(find.text('Create an account to share'));
       final keepRect = tester.getRect(find.text('Keep'));
       expect(reason.bottom, lessThan(keepRect.top));
       expect(reason.center.dx, closeTo(w / 2, 1));
     });
 
-    testWidgets('a guest is told what is missing, and it is not hours', (tester) async {
-      await open(tester, share: ShareState.guest);
-      expect(find.text('Create an account to share'), findsOneWidget);
-      expect(find.text('Sharing unlocks at 20h'), findsNothing);
+    testWidgets('no photo, signed in: no Share — a session post is its photo', (tester) async {
+      await open(tester, withShot: false, share: ShareState.allowed);
       expect(find.text('Share'), findsNothing);
       expect(find.text('Keep'), findsOneWidget);
+      expect(find.byKey(kShareReviewCaptionKey), findsNothing);
+      final keep = tester.widget<SondrAction>(find.widgetWithText(SondrAction, 'Keep'));
+      expect(keep.supporting, isFalse);
     });
 
     testWidgets('a guest on the milestone\'s final look sees the same', (tester) async {
@@ -268,7 +280,7 @@ void main() {
     });
 
     testWidgets('a session whose camera was skipped is the surface with the same text', (tester) async {
-      await open(tester, withShot: false, share: ShareState.underTwentyHours);
+      await open(tester, withShot: false, share: ShareState.guest);
       expect(find.byType(Image), findsNothing);
       expect(inCard('Spanish · 1h 20m'), findsOneWidget);
     });

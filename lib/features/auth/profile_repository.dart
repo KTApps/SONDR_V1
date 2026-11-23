@@ -24,6 +24,20 @@ class ProfileRepository {
     return Profile.fromMap(uid, doc.data()!);
   }
 
+  /// Record the photo chosen for [uid]'s profile.
+  Future<void> setPhoto(
+    String uid, {
+    required String url,
+    required String path,
+    String? sourceId,
+  }) => _profileDoc(uid).set({
+    'photoUrl': url,
+    'photoPath': path,
+    // A fresh shot has no original among your photos; the old choice's
+    // ring must not stay on one.
+    'photoSourceId': sourceId ?? FieldValue.delete(),
+  }, SetOptions(merge: true));
+
   /// Atomically reserve [handle] for [uid] and write the profile. The handle
   /// index (`usernames/{handle}`) and the profile doc are written in one
   /// transaction; if the handle is already taken the transaction aborts with

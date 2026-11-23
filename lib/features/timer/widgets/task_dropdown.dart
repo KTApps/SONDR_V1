@@ -9,6 +9,7 @@ import '../../tasks/models/task.dart';
 import '../../tasks/tasks_providers.dart';
 import '../../../shared/sondr_prompt.dart';
 import '../../tasks/delete_task.dart';
+import '../../photos/photo_refresh.dart';
 import '../timer_controller.dart';
 
 /// Top-of-screen task switcher.
@@ -181,9 +182,15 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
   final TextEditingController _draft = TextEditingController();
   final ScrollController _scroll = ScrollController();
 
+  /// The task whose pill is being renamed, if one is. Its pill is the
+  /// draft's field, holding the name it has.
+  String? _renaming;
+  final TextEditingController _rename = TextEditingController();
+
   @override
   void dispose() {
     _draft.dispose();
+    _rename.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -195,6 +202,7 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
     setState(() {
       _draft.clear();
       _drafting = true;
+      _renaming = null;
     });
     // Past six tasks the list scrolls, and a draft inserted at the top of a
     // scrolled list is off-screen behind the keyboard.
@@ -222,6 +230,29 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
     final task = await ref.read(tasksProvider.notifier).addTask(name);
     if (!mounted) return;
     Navigator.of(context).pop(task.id);
+  }
+
+  /// Turn [task]'s pill into the draft's field, holding its name with the
+  /// cursor at the end. One at a time, and never beside an open draft.
+  void _openRename(Task task) {
+    setState(() {
+      _drafting = false;
+      _renaming = task.id;
+      _rename.value = TextEditingValue(
+        text: task.name,
+        selection: TextSelection.collapsed(offset: task.name.length),
+      );
+    });
+  }
+
+  /// Return on a renamed pill. A changed, non-empty name is saved; nothing
+  /// typed, or the name it already had, is a cancel. Either way the pill
+  /// is a pill again and the sheet stays open.
+  Future<void> _submitRename(Task task, String raw) async {
+    setState(() => _renaming = null);
+    final changed = await ref.read(tasksProvider.notifier).renameTask(task.id, raw);
+    // The photos carry the name too, and every view of them is cached.
+    if (changed && mounted) invalidatePhotoViews(ref);
   }
 
   /// Put [task] away, or bring it back.
@@ -422,8 +453,19 @@ class _TaskMenuPanelState extends ConsumerState<_TaskMenuPanel> {
                           alignment: Alignment.topCenter,
                           child: _leaving.contains(task.id)
                               ? const SizedBox(height: 0, width: double.infinity)
+                              : _renaming == task.id
+                              ? _DraftPill(
+                                  scale: scale,
+                                  controller: _rename,
+                                  onSubmitted: (raw) => _submitRename(task, raw),
+                                )
                               : SondrSwipeRow(
                           actions: [
+                            if (!_archived)
+                              _PillTrayAction(
+                                label: 'Rename',
+                                onTap: () => _openRename(task),
+                              ),
                             _PillTrayAction(
                               label: _archived ? 'Unarchive' : 'Archive',
                               onTap: () => _setArchived(task, !_archived),

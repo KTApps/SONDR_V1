@@ -1,4 +1,5 @@
 import ActivityKit
+import AVFoundation
 import Flutter
 import Foundation
 import UIKit
@@ -45,6 +46,19 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
     registrar.addSceneDelegate(self)
   }
 
+  /// The name Dart reads for each status. An unknown future case is
+  /// reported as denied: the More sheet then offers Settings, which is
+  /// right whatever the new state turns out to mean.
+  static func cameraStatusName(_ status: AVAuthorizationStatus) -> String {
+    switch status {
+    case .notDetermined: return "notDetermined"
+    case .authorized: return "authorized"
+    case .denied: return "denied"
+    case .restricted: return "restricted"
+    @unknown default: return "denied"
+    }
+  }
+
   // MARK: - Dart asking
 
   private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -73,6 +87,21 @@ final class SessionActivityChannel: NSObject, FlutterSceneLifeCycleDelegate {
     case "clear":
       if #available(iOS 17.0, *) { clear() }
       result(nil)
+
+    // The camera's permission, read without prompting, for the More
+    // sheet. Here rather than on a channel of its own: it is one more
+    // question for the same bridge.
+    case "cameraStatus":
+      result(Self.cameraStatusName(AVCaptureDevice.authorizationStatus(for: .video)))
+
+    // Put up the prompt — which iOS does only while the answer is not yet
+    // known — and answer with the status once it has been given.
+    case "requestCamera":
+      AVCaptureDevice.requestAccess(for: .video) { _ in
+        DispatchQueue.main.async {
+          result(Self.cameraStatusName(AVCaptureDevice.authorizationStatus(for: .video)))
+        }
+      }
 
     default:
       result(FlutterMethodNotImplemented)

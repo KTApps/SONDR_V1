@@ -59,10 +59,16 @@ class BlurItem {
     required this.label,
     required this.onTap,
     this.quiet = false,
+    this.detail,
   });
 
   final String label;
   final VoidCallback onTap;
+
+  /// A word about where the answer stands, after the label and in the
+  /// quiet regular — "· On" after Camera access. Part of the same line and
+  /// the same target.
+  final String? detail;
 
   /// The not-done grey. For an answer that acts on the account rather than
   /// moving around it — Sign out, Delete account — so the list's ordinary
@@ -154,6 +160,11 @@ abstract interface class BlurSheetHandle {
   /// one is never stacked over the first.
   void show(BlurView next);
 
+  /// Replace the view where it stands, with no cross-fade: the same view
+  /// with a word in it changed, which a fade would make look like a new
+  /// question.
+  void update(BlurView next);
+
   /// Close the whole thing.
   void close();
 
@@ -222,6 +233,12 @@ class _BlurSheetState extends ConsumerState<BlurSheet> implements BlurSheetHandl
       _view = next;
       _step++;
     });
+  }
+
+  @override
+  void update(BlurView next) {
+    if (!mounted) return;
+    setState(() => _view = next);
   }
 
   /// The sheet is to go once the account's surfaces are ready to be
@@ -460,6 +477,12 @@ class BlurAnswer extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
 
+    final style = theme.textTheme.displayMedium?.copyWith(
+      fontSize: kBlurItemSize * scale,
+      fontWeight: FontWeight.w600,
+      color: item.quiet ? tokens.textTertiary : tokens.textPrimary,
+    );
+
     // The LABEL is the target: its own bounds plus a tier of tap padding
     // (12 above and below, 24 either side), never less than 44 tall. The
     // rest of the row absorbs a tap and does nothing — it is not the blur,
@@ -485,15 +508,26 @@ class BlurAnswer extends StatelessWidget {
                   // without this fills the row, and the whole row would be
                   // the target again.
                   widthFactor: 1,
-                  child: Text(
-                    item.label,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.displayMedium?.copyWith(
-                      fontSize: kBlurItemSize * scale,
-                      fontWeight: FontWeight.w600,
-                      color: item.quiet ? tokens.textTertiary : tokens.textPrimary,
-                    ),
-                  ),
+                  // Plain text unless there is a word after the label, so
+                  // every answer without one is exactly what it was.
+                  child: item.detail == null
+                      ? Text(item.label, textAlign: TextAlign.center, style: style)
+                      : Text.rich(
+                          TextSpan(
+                            text: item.label,
+                            children: [
+                              TextSpan(
+                                text: ' ${item.detail}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w400,
+                                  color: tokens.textTertiary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          textAlign: TextAlign.center,
+                          style: style,
+                        ),
                 ),
               ),
             ),

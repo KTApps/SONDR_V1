@@ -169,9 +169,10 @@ void main() {
       matching: find.byType(Text),
     );
     return [
+      // A label with a word after it is rich text, and reads as one line.
       for (final element in labels.evaluate())
-        if ((element.widget as Text).data != null)
-          (element.widget as Text).data!,
+        if (((element.widget as Text).data ?? (element.widget as Text).textSpan?.toPlainText()) != null)
+          ((element.widget as Text).data ?? (element.widget as Text).textSpan!.toPlainText()),
     ];
   }
 
@@ -235,6 +236,8 @@ void main() {
         'Support',
         'Privacy',
         'Terms',
+        'Camera access',
+        'How sondr works',
         'Sign out',
         'Delete account',
         'Back',
@@ -252,7 +255,7 @@ void main() {
       );
     });
 
-    testWidgets('a guest is offered the pages and nothing else', (
+    testWidgets('a guest is offered the pages and the camera, nothing else', (
       tester,
     ) async {
       await pump(tester);
@@ -261,6 +264,8 @@ void main() {
         'Support',
         'Privacy',
         'Terms',
+        'Camera access',
+        'How sondr works',
         'Back',
       ]);
       expect(find.text('Delete account'), findsNothing);
@@ -352,6 +357,8 @@ void main() {
         MoreChoice.support,
         MoreChoice.privacy,
         MoreChoice.terms,
+        MoreChoice.cameraAccess,
+        MoreChoice.howItWorks,
         MoreChoice.signOut,
         MoreChoice.deleteAccount,
       ]);
@@ -359,6 +366,8 @@ void main() {
         MoreChoice.support,
         MoreChoice.privacy,
         MoreChoice.terms,
+        MoreChoice.cameraAccess,
+        MoreChoice.howItWorks,
       ]);
       // A guest is never offered the deletion, whatever the build.
       expect(

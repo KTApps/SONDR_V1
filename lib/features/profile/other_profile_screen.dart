@@ -308,7 +308,11 @@ class _OtherProfileScreenState extends ConsumerState<OtherProfileScreen> {
                         ProfileGutter(
                           child: _Emblem(
                             them: them,
-                            photoUrl: sees ? _ringPhoto(milestones) : null,
+                            // Their chosen photo, for everyone; without
+                            // one, a friend sees their newest milestone
+                            // photo and a stranger the initial.
+                            photoUrl: them.photoUrl ??
+                                (sees ? _ringPhoto(milestones) : null),
                             fill: sees,
                           ),
                         ),
@@ -657,6 +661,8 @@ PublicProfile profileIdentity({
     hours: published?.hours ?? 0,
     seconds: published?.seconds,
     ringProgress: published?.ringProgress ?? 0,
+    photoUrl: published?.photoUrl,
+    photoPath: published?.photoPath,
   );
 }
 

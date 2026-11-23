@@ -283,12 +283,27 @@ service cloud.firestore {
     // the tell that they had been blocked, which is the one thing a block
     // must never disclose. Blocks are enforced where they already are: on
     // the writes, whose refusals are worded identically to "no one found".
+    // A public profile's photo can only be its owner's own profile copy in
+    // this project's bucket — never someone else's, never any other address,
+    // since strangers see it. Both fields come and go together. Firebase uids
+    // are letters and digits, so one can sit in the pattern as it is.
+    function photoIsTheirs(data, uid) {
+      let url = data.get('photoUrl', null);
+      let path = data.get('photoPath', null);
+      return (url == null && path == null)
+          || (path == 'users/' + uid + '/profile/photo.jpg'
+              && url is string
+              && url.matches('https://firebasestorage[.]googleapis[.]com/v0/b/sondr-cd439[.]firebasestorage[.]app/o/users%2F'
+                             + uid + '%2Fprofile%2Fphoto[.]jpg([?].*)?'));
+    }
+
     match /publicProfiles/{uid} {
       allow read: if request.auth != null;
 
       allow create, update: if request.auth != null
                             && request.auth.uid == uid
-                            && handleIsTheirs(request.resource.data.handle, uid);
+                            && handleIsTheirs(request.resource.data.handle, uid)
+                            && photoIsTheirs(request.resource.data, uid);
 
       // A delete carries no incoming document, so there is nothing to check
       // but ownership.

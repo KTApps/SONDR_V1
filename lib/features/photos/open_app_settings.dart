@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// iOS's own switch for this app's permissions.
@@ -15,3 +16,8 @@ Future<void> openAppSettings() async {
     debugPrint('SONDR settings error: ${e.runtimeType} :: $e');
   }
 }
+
+/// [openAppSettings], behind a seam so a test can see it was asked for.
+final appSettingsOpenerProvider = Provider<Future<void> Function()>(
+  (ref) => openAppSettings,
+);

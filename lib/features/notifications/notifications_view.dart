@@ -103,5 +103,3 @@ String rowText(NotificationRow row) {
   };
 }
 
-/// After the request in a row has been accepted.
-String acceptedText(String handle) => "You're now friends with $handle";

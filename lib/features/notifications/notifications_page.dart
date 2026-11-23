@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/backend.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
@@ -9,6 +10,7 @@ import '../feed/posts_repository.dart';
 import '../feed/single_post_screen.dart';
 import '../friends/friends_repository.dart';
 import '../friends/models/friendship.dart';
+import '../profile/friend_status.dart';
 import '../profile/other_profile_screen.dart';
 import '../profile/profile_action_bar.dart';
 import 'notifications_repository.dart';
@@ -71,6 +73,10 @@ Future<void> openNotifications(BuildContext context, WidgetRef ref) {
 }
 
 /// Everything written to me, newest first, by day.
+/// A request row's two words.
+const String kAcceptWord = 'Accept';
+const String kFriendsWord = 'Friends';
+
 class NotificationsPage extends ConsumerStatefulWidget {
   const NotificationsPage({super.key});
 
@@ -79,8 +85,6 @@ class NotificationsPage extends ConsumerStatefulWidget {
 }
 
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
-  /// Requests accepted from this page, so their rows can say so.
-  final Set<String> _accepted = {};
   String? _busy;
 
   @override
@@ -155,9 +159,25 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final n = row.lead;
-    final accepted = _accepted.contains(n.id);
-    final text = accepted ? acceptedText(n.actorHandle) : rowText(row);
-    final isRequest = n.type == NotificationType.request && !accepted;
+    final text = rowText(row);
+    // A request's word is where we stand NOW, read from the friendship
+    // itself rather than from the notice, which never changes: still
+    // waiting on me is Accept, accepted is Friends, and anything else —
+    // withdrawn, declined, removed, blocked — is no word at all.
+    final standing = n.type == NotificationType.request
+        ? friendStatusOf(
+            myUid: ref.watch(currentUidProvider) ?? '',
+            theirUid: n.actorUid,
+            friendships: ref.watch(friendshipsProvider).value ?? const [],
+            blockedUids: ref.watch(blockedUidsProvider),
+          )
+        : null;
+    final isRequest = standing == FriendStatus.incoming;
+    final isFriends = standing == FriendStatus.accepted;
+    final word = theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 14 * scale,
+      fontWeight: FontWeight.w700,
+    );
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -178,8 +198,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     color: tokens.textSecondary,
                   ),
                   children: [
-                    if (!accepted)
-                      TextSpan(
+                    TextSpan(
                         text: '${n.actorHandle} ',
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
@@ -196,16 +215,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _busy == n.id ? null : () => _accept(n),
-                child: Text(
-                  'Accept',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontSize: 14 * scale,
-                    fontWeight: FontWeight.w700,
-                    color: tokens.textPrimary,
-                  ),
-                ),
+                child: Text(kAcceptWord, style: word?.copyWith(color: tokens.textPrimary)),
               )
-            else
+            // A state, not an offer: quiet, and nothing to tap.
+            else if (isFriends)
+              Text(kFriendsWord, style: word?.copyWith(color: tokens.textTertiary))
+            else if (n.type != NotificationType.request)
               Text(
                 RelativeTime.of(row.at),
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -224,8 +239,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     if (friends == null) return;
     setState(() => _busy = n.id);
     try {
+      // The friendship stream carries the write the moment it is made, so
+      // the row turns to Friends from the stream, not from a note here.
       await friends.accept(Friendship.pairId(friends.uid, n.actorUid));
-      if (mounted) setState(() => _accepted.add(n.id));
     } catch (e) {
       debugPrint('SONDR accept from notifications: ${e.runtimeType}');
     } finally {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
@@ -6,6 +7,7 @@ import '../feed/feed_screen.dart';
 import '../focus/focus_providers.dart';
 import '../profile/profile_screen.dart';
 import '../timer/timer_screen.dart';
+import 'how_it_works.dart';
 
 /// The selected bottom-tab index (0 Home · 1 Feed · 2 Profile). A provider so a
 /// flow can jump the shell to a tab — e.g. landing on Feed after creating a
@@ -96,6 +98,11 @@ class TextTabBar extends StatelessWidget {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () => onSelect(i),
+                    // Held: how this tab works. The tap is unchanged.
+                    onLongPress: () {
+                      HapticFeedback.lightImpact();
+                      showHowToSheet(context, HowToTab.values[i]);
+                    },
                     child: _TabLabel(
                       text: _labels[i],
                       selected: i == currentIndex,

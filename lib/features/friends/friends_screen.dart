@@ -9,6 +9,7 @@ import '../../core/backend.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/theme/spacing.dart';
 import '../../core/utils/figma_scale.dart';
+import '../../shared/cached_photo.dart';
 import '../../shared/sondr_action.dart';
 import '../links/invite_link.dart';
 import '../../shared/sondr_error.dart';
@@ -17,6 +18,7 @@ import '../../shared/sondr_swipe_row.dart';
 import '../auth/auth_landing.dart';
 import '../auth/handle_screen.dart';
 import '../profile/other_profile_screen.dart';
+import '../profile/public_profile.dart';
 import '../auth/profile_repository.dart';
 import 'blocked_accounts_screen.dart';
 import 'friends_repository.dart';
@@ -231,6 +233,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         for (final m in _matches)
           _FriendRow(
             identity: FriendIdentity(username: m.handle, displayName: ''),
+            avatar: SearchResultAvatar(uid: m.uid),
             // The row itself is the way to their profile; Add stays where it
             // is, so a tap on the name and a tap on the action still mean
             // two different things.
@@ -625,9 +628,14 @@ class _FriendRow extends StatelessWidget {
     this.status,
     this.trailing,
     this.onTap,
+    this.avatar,
   });
 
   final FriendIdentity? identity;
+
+  /// What stands before the name in place of the placeholder square — a
+  /// search result's photo or initial.
+  final Widget? avatar;
 
   /// Their profile. Absent only where there is no uid to open.
   final VoidCallback? onTap;
@@ -668,14 +676,15 @@ class _FriendRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: photo * scale,
-            height: photo * scale,
-            decoration: BoxDecoration(
-              color: tokens.surface,
-              shape: BoxShape.circle,
-            ),
-          ),
+          avatar ??
+              Container(
+                width: photo * scale,
+                height: photo * scale,
+                decoration: BoxDecoration(
+                  color: tokens.surface,
+                  shape: BoxShape.circle,
+                ),
+              ),
           SizedBox(width: kSpacingBase * scale),
           Expanded(
             child: Text(
@@ -711,6 +720,37 @@ class _FriendRow extends StatelessWidget {
       // "go to their profile" once nothing is revealed.
       onTap: onTap,
       child: row,
+    );
+  }
+}
+
+/// A search result's circle: the photo they chose for their profile, cover
+/// and clipped to the row's own circle, or — with none — the same empty
+/// circle every other row shows. Read from their public profile, which
+/// anyone signed in may read.
+class SearchResultAvatar extends ConsumerWidget {
+  const SearchResultAvatar({super.key, required this.uid});
+
+  final String uid;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = GreyscaleTokens.of(context);
+    final side = _FriendRow.photo * figmaScale(context);
+    final url = ref.watch(publicProfileProvider(uid)).value?.photoUrl;
+    final circle = BoxDecoration(color: tokens.surface, shape: BoxShape.circle);
+    if (url == null) {
+      return Container(width: side, height: side, decoration: circle);
+    }
+    return ClipOval(
+      child: SizedBox.square(
+        dimension: side,
+        child: SondrPhoto(
+          url: url,
+          placeholder: (_) => ColoredBox(color: tokens.surface),
+          error: (_) => ColoredBox(color: tokens.surface),
+        ),
+      ),
     );
   }
 }

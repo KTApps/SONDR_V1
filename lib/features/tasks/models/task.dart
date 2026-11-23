@@ -176,6 +176,16 @@ class Task {
         creditedSessions: creditedSessions,
       );
 
+  /// Returns a copy called [value]. Nothing else moves: the id, the hours and
+  /// the archive flag are the task, and a name is only what it is called.
+  Task renamed(String value) => Task(
+        id: id,
+        name: value,
+        secondsByDay: secondsByDay,
+        archived: archived,
+        creditedSessions: creditedSessions,
+      );
+
   /// Document body for persistence (the id is the doc key, kept separate).
   Map<String, dynamic> toMap() => {
         'name': name,

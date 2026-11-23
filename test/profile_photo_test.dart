@@ -283,7 +283,7 @@ void main() {
   });
 
   group('a search result', () {
-    Future<void> search(WidgetTester tester, {PublicProfile? published}) async {
+    Future<void> search(WidgetTester tester, {PublicProfile? published, bool friends = false}) async {
       final before = photoImageProviderFactory;
       photoImageProviderFactory = (_) => MemoryImage(tinyPng);
       addTearDown(() => photoImageProviderFactory = before);
@@ -298,7 +298,20 @@ void main() {
         friendsRepositoryProvider.overrideWithValue(repo),
         currentProfileProvider.overrideWith((ref) async => const Profile(uid: 'me', username: 'ada', displayName: 'Ada')),
         blockedAccountsProvider.overrideWith((ref) => Stream.value(const <Block>[])),
-        friendshipsProvider.overrideWith((ref) => Stream.value(const <Friendship>[])),
+        friendshipsProvider.overrideWith((ref) => Stream.value(friends
+            ? const [
+                Friendship(
+                  id: 'me_u_cass',
+                  users: ['me', 'u_cass'],
+                  requestedBy: 'me',
+                  status: FriendshipStatus.accepted,
+                  profiles: {
+                    'me': FriendIdentity(username: 'ada', displayName: 'Ada'),
+                    'u_cass': FriendIdentity(username: 'cass', displayName: 'Cass'),
+                  },
+                ),
+              ]
+            : const <Friendship>[])),
         publicProfileProvider.overrideWith((ref, uid) async => uid == 'u_cass' ? published : null),
       ], child: MaterialApp(theme: AppTheme.dark(), home: const FriendsScreen())));
       await tester.pumpAndSettle();
@@ -308,34 +321,49 @@ void main() {
     }
 
     Finder avatar() => find.byType(SearchResultAvatar);
+    // The row's own padding is the first one around the circle.
+    Rect row(WidgetTester tester) =>
+        tester.getRect(find.ancestor(of: avatar(), matching: find.byType(Padding)).first);
 
-    testWidgets('shows the photo they chose, at a comment avatar\'s size, before the handle', (tester) async {
-      await search(tester, published: const PublicProfile(
-        uid: 'u_cass', handle: 'cass', displayName: 'Cass', hours: 3,
-        photoUrl: 'https://example.invalid/cass.jpg', photoPath: 'users/u_cass/profile/photo.jpg',
-      ));
+    const cassPhoto = PublicProfile(
+      uid: 'u_cass', handle: 'cass', displayName: 'Cass', hours: 3,
+      photoUrl: 'https://example.invalid/cass.jpg', photoPath: 'users/u_cass/profile/photo.jpg',
+    );
+
+    testWidgets('shows the photo they chose, clipped to the circle, cover', (tester) async {
+      await search(tester, published: cassPhoto);
       final photo = tester.widget<SondrPhoto>(find.descendant(of: avatar(), matching: find.byType(SondrPhoto)));
       expect(photo.url, 'https://example.invalid/cass.jpg');
-      final a = tester.getRect(avatar());
-      final scale = a.width / kAvatarComment;
-      expect(a.width, closeTo(kAvatarComment * scale, 0.01));
-      expect(scale, closeTo(0.9906, 0.001));
-      final name = tester.getRect(find.text('cass'));
-      expect(a.right, lessThan(name.left));
-      expect(a.center.dy, closeTo(name.center.dy, 0.5));
-      // ignore: avoid_print
-      print('SEARCHROW avatar=${a.width.toStringAsFixed(2)} name.left=${name.left.toStringAsFixed(2)} gap=${(name.left - a.right).toStringAsFixed(2)}');
+      expect(photo.fit, BoxFit.cover);
+      expect(find.descendant(of: avatar(), matching: find.byType(ClipOval)), findsOneWidget);
     });
 
-    testWidgets('without one, their initial, as a comment shows it', (tester) async {
+    // The pre-branch measurements on the 13 Pro (390x844, scale 0.9906).
+    for (final withPhoto in [true, false]) {
+      final label = withPhoto ? 'with a photo' : 'without one';
+      testWidgets('$label: circle 35.66, handle at 71.32, Add row 61.59', (tester) async {
+        await search(tester, published: withPhoto ? cassPhoto : null);
+        final a = tester.getRect(avatar());
+        expect(a.width, closeTo(35.66, 0.01));
+        expect(a.height, closeTo(35.66, 0.01));
+        expect(tester.getRect(find.text('cass')).left, closeTo(71.32, 0.01));
+        expect(row(tester).height, closeTo(61.59, 0.01));
+      });
+
+      testWidgets('$label: a Friends row is 55.47', (tester) async {
+        await search(tester, published: withPhoto ? cassPhoto : null, friends: true);
+        expect(find.text('Friends'), findsWidgets);
+        expect(tester.getRect(avatar()).width, closeTo(35.66, 0.01));
+        expect(row(tester).height, closeTo(55.47, 0.01));
+      });
+    }
+
+    testWidgets('without one, the same empty circle as before — no initial', (tester) async {
       await search(tester, published: const PublicProfile(uid: 'u_cass', handle: 'cass', displayName: 'Cass', hours: 3));
       expect(find.descendant(of: avatar(), matching: find.byType(SondrPhoto)), findsNothing);
-      expect(find.descendant(of: avatar(), matching: find.text('C')), findsOneWidget);
-    });
-
-    testWidgets('nothing published at all: the handle\'s initial', (tester) async {
-      await search(tester);
-      expect(find.descendant(of: avatar(), matching: find.text('C')), findsOneWidget);
+      expect(find.descendant(of: avatar(), matching: find.byType(Text)), findsNothing);
+      final box = tester.widget<Container>(find.descendant(of: avatar(), matching: find.byType(Container)));
+      expect((box.decoration! as BoxDecoration).shape, BoxShape.circle);
     });
   });
 }

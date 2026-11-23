@@ -233,7 +233,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         for (final m in _matches)
           _FriendRow(
             identity: FriendIdentity(username: m.handle, displayName: ''),
-            avatar: SearchResultAvatar(uid: m.uid, handle: m.handle),
+            avatar: SearchResultAvatar(uid: m.uid),
             // The row itself is the way to their profile; Add stays where it
             // is, so a tap on the name and a tap on the action still mean
             // two different things.
@@ -724,49 +724,33 @@ class _FriendRow extends StatelessWidget {
   }
 }
 
-/// A search result's face: the photo they chose for their profile, or
-/// their initial — at a comment's avatar size, in a comment avatar's
-/// clothes. Read from their public profile, which anyone signed in may
-/// read, so a stranger found by handle shows the same face their profile
-/// would.
+/// A search result's circle: the photo they chose for their profile, cover
+/// and clipped to the row's own circle, or — with none — the same empty
+/// circle every other row shows. Read from their public profile, which
+/// anyone signed in may read.
 class SearchResultAvatar extends ConsumerWidget {
-  const SearchResultAvatar({super.key, required this.uid, required this.handle});
+  const SearchResultAvatar({super.key, required this.uid});
 
   final String uid;
-  final String handle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
-    final scale = figmaScale(context);
-    final published = ref.watch(publicProfileProvider(uid)).value;
-    final url = published?.photoUrl;
-    final trimmed = handle.trim();
-    final initial = published?.initial ??
-        (trimmed.isEmpty ? '' : trimmed.substring(0, 1).toUpperCase());
-    return CircleAvatar(
-      radius: kAvatarComment / 2 * scale,
-      backgroundColor: tokens.surface,
-      child: url == null
-          ? Text(
-              initial,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontSize: 12 * scale,
-                fontWeight: FontWeight.w700,
-                color: tokens.textSecondary,
-              ),
-            )
-          : ClipOval(
-              child: SizedBox.square(
-                dimension: kAvatarComment * scale,
-                child: SondrPhoto(
-                  url: url,
-                  placeholder: (_) => ColoredBox(color: tokens.surface),
-                  error: (_) => ColoredBox(color: tokens.surface),
-                ),
-              ),
-            ),
+    final side = _FriendRow.photo * figmaScale(context);
+    final url = ref.watch(publicProfileProvider(uid)).value?.photoUrl;
+    final circle = BoxDecoration(color: tokens.surface, shape: BoxShape.circle);
+    if (url == null) {
+      return Container(width: side, height: side, decoration: circle);
+    }
+    return ClipOval(
+      child: SizedBox.square(
+        dimension: side,
+        child: SondrPhoto(
+          url: url,
+          placeholder: (_) => ColoredBox(color: tokens.surface),
+          error: (_) => ColoredBox(color: tokens.surface),
+        ),
+      ),
     );
   }
 }

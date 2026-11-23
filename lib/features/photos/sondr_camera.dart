@@ -243,7 +243,9 @@ class SondrCameraScreen extends StatefulWidget {
     this.screenFlash,
   });
 
-  final String taskName;
+  /// Null for a shot that belongs to no task — the profile photo — when the
+  /// header is the [sessionLabel] alone.
+  final String? taskName;
 
   /// "1h 20m" — already formatted, so this screen owns no duration rules.
   final String sessionLabel;
@@ -411,7 +413,9 @@ class _SondrCameraScreenState extends State<SondrCameraScreen>
           child: Column(
             children: [
               Text(
-                '${widget.taskName} · ${widget.sessionLabel}',
+                widget.taskName == null
+                    ? widget.sessionLabel
+                    : '${widget.taskName} · ${widget.sessionLabel}',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontSize: 15 * scale,

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:sondr/core/backend.dart';
@@ -16,6 +17,10 @@ import 'package:sondr/features/friends/friends_screen.dart';
 import 'package:sondr/features/friends/models/block.dart';
 import 'package:sondr/features/friends/models/friendship.dart';
 import 'package:sondr/features/photos/models/photo.dart';
+import 'package:sondr/features/photos/photos_repository.dart';
+import 'package:sondr/features/photos/sondr_camera.dart';
+import 'package:sondr/features/tasks/models/task.dart';
+import 'package:sondr/features/tasks/tasks_providers.dart';
 import 'package:sondr/features/profile/profile_photo.dart';
 import 'package:sondr/features/profile/public_profile.dart';
 import 'package:sondr/shared/cached_photo.dart';
@@ -101,10 +106,23 @@ void main() {
       expect(read.photoSourceId, p.id);
     });
 
-    test('a shot just taken: its own bytes, no read', () async {
-      expect(await chooser.choose(photo(2), bytes: Uint8List.fromList([9])), isTrue);
+    test('a shot just taken: its own bytes, no read, no photo of yours', () async {
+      expect(await chooser.useShot(Uint8List.fromList([9])), isTrue);
       expect(files.read, isEmpty);
       expect(files.stored.values.single, [0xFF, 0xD8, 9]);
+      final doc = await profileDoc();
+      expect(doc['photoUrl'], 'https://storage.invalid/users/me/profile/photo.jpg');
+      expect(doc['photoPath'], 'users/me/profile/photo.jpg');
+      expect(doc.containsKey('photoSourceId'), isFalse);
+      expect(published, 1);
+      expect((await db.collection('users/me/photos').get()).docs, isEmpty);
+    });
+
+    test('a shot after a chosen photo: the old choice\'s ring goes', () async {
+      await chooser.choose(photo(2));
+      expect((await profileDoc())['photoSourceId'], photo(2).id);
+      expect(await chooser.useShot(Uint8List.fromList([9])), isTrue);
+      expect((await profileDoc()).containsKey('photoSourceId'), isFalse);
     });
 
     test('a failed upload records nothing and publishes nothing', () async {
@@ -140,7 +158,7 @@ void main() {
     late _Chooser chooser;
     final photos = [for (var i = 6; i >= 1; i--) photo(i)];
 
-    Future<void> open(WidgetTester tester, {String? chosen}) async {
+    Future<void> open(WidgetTester tester, {String? chosen, List<Override> extra = const []}) async {
       final before = photoImageProviderFactory;
       photoImageProviderFactory = (_) => MemoryImage(tinyPng);
       addTearDown(() => photoImageProviderFactory = before);
@@ -153,6 +171,7 @@ void main() {
           overrides: [
             profilePhotoChooserProvider.overrideWithValue(chooser),
             profilePhotoChoicesProvider.overrideWith((ref) async => photos),
+            ...extra,
             currentProfileProvider.overrideWith(
               (ref) async => Profile(
                 uid: 'me',
@@ -252,6 +271,39 @@ void main() {
       for (final p in photos) {
         expect(ringOf(tester, p), isNull);
       }
+    });
+
+    testWidgets('Take a new one: the camera says Profile photo alone, and the shot goes to the profile only', (tester) async {
+      final db = FakeFirebaseFirestore();
+      await open(tester, extra: [
+        tasksProvider.overrideWith(() => _NoTasks()),
+        photosRepositoryProvider.overrideWithValue(PhotosRepository(db: db, uid: 'me')),
+      ]);
+      expect(find.text(kTakeANewOne), findsOneWidget, reason: 'no tasks, still offered');
+      await tester.tap(find.text(kTakeANewOne));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      final camera = tester.widget<SondrCameraScreen>(find.byType(SondrCameraScreen));
+      expect(camera.taskName, isNull);
+      expect(camera.sessionLabel, kProfilePhotoCameraLabel);
+      // The shutter: the camera pops its cropped shot.
+      tester.state<NavigatorState>(find.byType(Navigator)).pop(Uint8List.fromList([7]));
+      await tester.pumpAndSettle();
+      expect(chooser.shots.single, [7]);
+      expect(chooser.chosen, isEmpty);
+      expect((await db.collection('users/me/photos').get()).docs, isEmpty, reason: 'no photo doc');
+      expect(find.text(kProfilePhotoTitle), findsNothing, reason: 'done, and closed');
+    });
+
+    testWidgets('a skipped camera changes nothing and keeps the sheet', (tester) async {
+      await open(tester, extra: [tasksProvider.overrideWith(() => _NoTasks())]);
+      await tester.tap(find.text(kTakeANewOne));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+      expect(chooser.shots, isEmpty);
+      expect(find.text(kProfilePhotoTitle), findsOneWidget);
     });
 
     testWidgets('a failure says so and keeps the sheet', (tester) async {
@@ -393,12 +445,19 @@ class _Files implements ProfilePhotoFiles {
 
 class _Chooser implements ProfilePhotoChooser {
   final List<String> chosen = [];
+  final List<Uint8List> shots = [];
   int cleared = 0;
   bool ok = true;
 
   @override
-  Future<bool> choose(Photo photo, {Uint8List? bytes}) async {
+  Future<bool> choose(Photo photo) async {
     if (ok) chosen.add(photo.id);
+    return ok;
+  }
+
+  @override
+  Future<bool> useShot(Uint8List shot) async {
+    if (ok) shots.add(shot);
     return ok;
   }
 
@@ -412,4 +471,9 @@ class _Chooser implements ProfilePhotoChooser {
 class _NoPrune implements ContentPruner {
   @override
   dynamic noSuchMethod(Invocation invocation) async {}
+}
+
+class _NoTasks extends TasksController {
+  @override
+  Future<List<Task>> build() async => const <Task>[];
 }

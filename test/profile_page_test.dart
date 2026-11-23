@@ -1806,7 +1806,10 @@ class _Account implements User {
 
 class _NoChooser implements ProfilePhotoChooser {
   @override
-  Future<bool> choose(Photo photo, {Uint8List? bytes}) async => true;
+  Future<bool> choose(Photo photo) async => true;
+
+  @override
+  Future<bool> useShot(Uint8List shot) async => true;
 
   @override
   Future<bool> clear() async => true;

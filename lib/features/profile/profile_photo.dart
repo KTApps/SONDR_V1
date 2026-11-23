@@ -11,16 +11,12 @@ import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/figma_scale.dart';
 import '../../shared/blur_sheet.dart';
 import '../../shared/cached_photo.dart';
-import '../../shared/ring/ring_metrics.dart';
 import '../auth/account_cascade.dart' show profilePhotoPathOf;
 import '../auth/profile_repository.dart';
 import '../photos/capture_crop.dart' show kCaptureQuality;
-import '../photos/capture_flow.dart' show savePhotoPrivately;
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
 import '../photos/sondr_camera.dart';
-import '../tasks/tasks_providers.dart';
-import 'profile_providers.dart';
 import 'public_profile.dart';
 
 /// The chosen profile photo: a square copy of one of your own photos, at
@@ -45,7 +41,7 @@ const String kUseMyNewestPhoto = 'Use my newest photo';
 const String kProfilePhotoFailed = 'Couldn’t change your photo. Try again.';
 
 /// What the camera says above the viewfinder when the shot is for the
-/// profile: the task it is filed under, then this.
+/// profile — alone, since the shot belongs to no task.
 const String kProfilePhotoCameraLabel = 'Profile photo';
 
 /// [bytes] cut to the biggest centred square and scaled to
@@ -118,10 +114,13 @@ final profilePhotoFilesProvider = Provider<ProfilePhotoFiles>(
 /// Choosing and clearing, in one place, behind a seam so the sheet's tests
 /// need neither Storage nor Firestore.
 abstract interface class ProfilePhotoChooser {
-  /// Make [photo] the profile photo. [bytes] when they are already in hand
-  /// (a shot just taken); otherwise read from the original. Returns whether
-  /// it is done.
-  Future<bool> choose(Photo photo, {Uint8List? bytes});
+  /// Make [photo] the profile photo, read from the original. Returns
+  /// whether it is done.
+  Future<bool> choose(Photo photo);
+
+  /// Make a shot just taken the profile photo. It goes nowhere else: no
+  /// task, no photo of yours, only the profile copy.
+  Future<bool> useShot(Uint8List shot);
 
   /// No chosen photo: the newest stands in the ring again.
   Future<bool> clear();
@@ -151,22 +150,37 @@ class FirebaseProfilePhotoChooser implements ProfilePhotoChooser {
   final Future<Uint8List?> Function(Uint8List bytes) square;
 
   @override
-  Future<bool> choose(Photo photo, {Uint8List? bytes}) async {
+  Future<bool> choose(Photo photo) async {
     try {
-      final source = bytes ?? await files.bytesOf(photo);
+      final source = await files.bytesOf(photo);
       if (source == null) return false;
-      final jpeg = await square(source);
-      if (jpeg == null) return false;
-      final path = profilePhotoPathOf(uid);
-      final url = await files.put(path, jpeg);
-      await profiles.setPhoto(uid, url: url, path: path, sourceId: photo.id);
-      changed();
-      await publish();
-      return true;
+      return await _use(source, sourceId: photo.id);
     } catch (e) {
       debugPrint('SONDR profile photo error: ${e.runtimeType} :: $e');
       return false;
     }
+  }
+
+  @override
+  Future<bool> useShot(Uint8List shot) async {
+    try {
+      return await _use(shot);
+    } catch (e) {
+      debugPrint('SONDR profile photo error: ${e.runtimeType} :: $e');
+      return false;
+    }
+  }
+
+  /// Square [source], store it, record it, publish it.
+  Future<bool> _use(Uint8List source, {String? sourceId}) async {
+    final jpeg = await square(source);
+    if (jpeg == null) return false;
+    final path = profilePhotoPathOf(uid);
+    final url = await files.put(path, jpeg);
+    await profiles.setPhoto(uid, url: url, path: path, sourceId: sourceId);
+    changed();
+    await publish();
+    return true;
   }
 
   @override
@@ -224,11 +238,6 @@ Future<void> showProfilePhotoSheet(BuildContext context, WidgetRef ref) async {
   final chosen = profile?.photoSourceId;
   final hasChoice = profile?.photoUrl != null;
   final photos = await ref.read(profilePhotoChoicesProvider.future);
-  // The task a new shot is filed under is the one the hero ring is for,
-  // which needs the task list to have arrived.
-  try {
-    await ref.read(tasksProvider.future);
-  } catch (_) {}
   if (!context.mounted) return;
 
   String? picked = chosen;
@@ -255,7 +264,6 @@ Future<void> showProfilePhotoSheet(BuildContext context, WidgetRef ref) async {
   view = (handle) {
     final pick = photos.where((p) => p.id == picked).firstOrNull;
     final canUse = pick != null && picked != chosen;
-    final task = ref.read(nextMilestoneProvider)?.task;
     return BlurView(
       title: kProfilePhotoTitle,
       explanation: error,
@@ -280,36 +288,24 @@ Future<void> showProfilePhotoSheet(BuildContext context, WidgetRef ref) async {
               run(handle, () => chooser.choose(pick));
             },
           ),
-        // A photo belongs to a task; with none, there is nothing to file a
-        // new one under.
-        if (task != null)
-          BlurItem(
-            label: kTakeANewOne,
-            onTap: () => run(handle, () async {
-              final shot = await Navigator.of(context).push<Uint8List>(
-                MaterialPageRoute(
-                  fullscreenDialog: true,
-                  builder: (_) => SondrCameraScreen(
-                    taskName: task.name,
-                    sessionLabel: kProfilePhotoCameraLabel,
-                    ringProgress: shownProgress(task.milestoneProgress),
-                  ),
+        BlurItem(
+          label: kTakeANewOne,
+          onTap: () => run(handle, () async {
+            final shot = await Navigator.of(context).push<Uint8List>(
+              MaterialPageRoute(
+                fullscreenDialog: true,
+                builder: (_) => const SondrCameraScreen(
+                  taskName: null,
+                  sessionLabel: kProfilePhotoCameraLabel,
+                  ringProgress: 0,
                 ),
-              );
-              // Skipped: nothing changes, and the sheet stays.
-              if (shot == null) return null;
-              final saved = await savePhotoPrivately(
-                ref,
-                shot: shot,
-                taskId: task.id,
-                taskName: task.name,
-                sessionSeconds: 0,
-                cumulativeSeconds: task.totalSeconds,
-              );
-              if (saved == null) return false;
-              return chooser.choose(saved, bytes: shot);
-            }),
-          ),
+              ),
+            );
+            // Skipped: nothing changes, and the sheet stays.
+            if (shot == null) return null;
+            return chooser.useShot(shot);
+          }),
+        ),
         if (hasChoice)
           BlurItem(
             label: kUseMyNewestPhoto,

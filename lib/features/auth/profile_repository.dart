@@ -33,7 +33,9 @@ class ProfileRepository {
   }) => _profileDoc(uid).set({
     'photoUrl': url,
     'photoPath': path,
-    'photoSourceId': ?sourceId,
+    // A fresh shot has no original among your photos; the old choice's
+    // ring must not stay on one.
+    'photoSourceId': sourceId ?? FieldValue.delete(),
   }, SetOptions(merge: true));
 
   /// Forget the chosen photo; the newest one stands in the ring again.

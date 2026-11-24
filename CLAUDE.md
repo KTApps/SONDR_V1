@@ -226,6 +226,46 @@ than in a second index, and counts come from that one bounded query (100,
 shown as "100+" at the cap): `count()` is server-only and would leave a cold
 profile with no figures.
 
+## Friends in a session
+
+Home says "4 friends are in a session" under the milestone countdown. A
+number only — no names, tasks or times, and the data could not give them.
+
+- **`presence/{uid}` exists while its owner is in a session**, running or
+  paused, and holds only `updatedAt` (server time, enforced by the rule) and
+  `expiresAt` (about a day on; a TTL on `presence.expiresAt` in
+  `firestore.indexes.json` deletes it after). Paused counts because Lock
+  Screen Pause and Resume only reach the App Group; Firestore could not hear
+  them until the app came back.
+- **Read one person at a time, never listed.** The `get` rule is
+  `acceptedBetween(me, uid)`, proved from the path like the friend mirror.
+  There is no `list`, so there is no query and no `count()` — the reader is
+  one listener per accepted friend (cap 100), attached only while a session
+  is active on this phone ([friends_in_session.dart](lib/features/presence/friends_in_session.dart)).
+  A record whose `updatedAt` is over 12 hours old is not counted.
+- **Accepted caveat: an attached listener is re-checked only when the
+  record changes.** Unfriending or blocking deletes the friendship, so the
+  next read is refused with nothing to clean up — but an ex-friend's
+  modified client that was already listening could keep one stale yes/no
+  until the owner's next write. The real app drops the listener as soon as
+  its friend list updates.
+- **The writer ([presence_writer.dart](lib/features/presence/presence_writer.dart))
+  is held by `main()` on the container, not by a widget.** Riverpod 3 pauses
+  a widget's providers while a route covers it, and Stop deletes the record
+  under the camera. It writes when a session becomes active and deletes when
+  it ends (every Stop reaches `discard()`); Pause and Resume never write.
+- **The timer cannot read the writer** — the writer watches the timer, and
+  Riverpod refuses the cycle. The timer bumps `presenceTouchProvider`
+  instead: in `sync()` (refreshed if an hour old) and on "Still going?" Yes.
+- **A launch with no session deletes only if this phone's flag says it
+  wrote one** (`sondr.presenceWrittenBy` in shared preferences), so there is
+  no paid delete per launch. Signing out waits up to 3 s for the delete, so
+  it goes out as the account that wrote it; the account cascade deletes it
+  explicitly.
+- **The setting is `users/{uid}/meta/settings.showInSession`; missing means
+  on.** More shows "Session status · On / · Off" to accounts only. Off
+  deletes at once; on, mid-session, writes at once.
+
 ## Build churn — do not commit
 
 Every `flutter pub get` / `flutter build` rewrites these. They are generated,

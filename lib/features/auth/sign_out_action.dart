@@ -11,6 +11,8 @@ import '../../shared/blur_sheet.dart';
 import '../../shared/sondr_error.dart';
 import '../../shared/sondr_prompt.dart';
 import '../photos/auto_collage.dart';
+import '../presence/presence_repository.dart';
+import '../presence/presence_writer.dart';
 import '../timer/live_activity.dart';
 import '../timer/session_clock.dart';
 import '../timer/session_store.dart';
@@ -178,6 +180,14 @@ Future<SignOutResult> runSignOut(
     // takes the card down itself, which is why the card is not cleared
     // again here.
     await timer.discard();
+    // The session's presence record goes as the account that wrote it: a
+    // delete still queued when the account changes waits for that account
+    // to come back, which a guest never does. Briefly — offline, the
+    // record ages out on its own.
+    await ref
+        .read(presenceWriterProvider)
+        .settle()
+        .timeout(kPresenceSignOutWait, onTimeout: () {});
     await signOutNow();
     return (signedOut: true, error: null);
   } catch (e) {

@@ -28,6 +28,7 @@ import '../photos/capture_crop.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../photos/capture_flow.dart';
 import 'live_activity.dart';
+import 'milestone_countdown.dart';
 import 'session_store.dart';
 import 'still_going_sheet.dart';
 import '../photos/capture_review_screen.dart';
@@ -211,6 +212,10 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
   /// during another's wait is not cleared early by the older timer.
   int _noticeToken = 0;
 
+  /// The countdown line as it last read, so it can fade out with its words
+  /// still on it when the session ends.
+  String _countdown = '';
+
   void _say(String message) {
     if (!mounted) return;
     final token = ++_noticeToken;
@@ -270,6 +275,18 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
         (t.todaySeconds(now) + (t.id == selectedId ? liveSeconds : 0))
             .toDouble(),
     ];
+    // During a session: how far to the milestone, as the Lock Screen card
+    // says it. The task's total before the session is what the card is
+    // given; a credit already landed (Stop in flight) is taken back out.
+    final inSession = timer.isActive && selectedTask != null;
+    if (inSession) {
+      final elapsed = timer.sessionElapsed.inSeconds;
+      _countdown = milestoneCountdownLine(
+        taskSecondsBefore: selectedTask.totalSeconds + liveSeconds - elapsed,
+        sessionSeconds: elapsed,
+      );
+    }
+
     final highlightIndex = selectedTask == null
         ? null
         : _indexOrNull(tasks.indexWhere((t) => t.id == selectedTask.id));
@@ -399,7 +416,12 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
             top: kHomeLastTenTop * scale,
             left: 24 * scale,
             right: 24 * scale,
-            child: _LastTenDays(now: now, scale: scale),
+            child: _LastTenDays(
+              now: now,
+              scale: scale,
+              inSession: inSession,
+              countdown: _countdown,
+            ),
           ),
           // Dev-only milestone primer: a DEBUG_TOOLS build, and the test
           // account signed in — nobody else sees it.
@@ -563,6 +585,13 @@ const double kDialCentrePadX = 8;
 
 /// What that target is aiming to clear.
 const double kDialCentreTarget = 44;
+
+/// How long the Last 10 days block takes to fade away when a session
+/// starts, and back when it ends; the countdown fades the other way with it.
+const Duration kHomeSessionFade = Duration(milliseconds: 300);
+
+/// The milestone countdown on Home during a session.
+const Key kHomeCountdownKey = ValueKey('home-milestone-countdown');
 
 /// The word under a session's figure, running and paused.
 const String kCentreSessionLabel = 'this session';
@@ -762,9 +791,20 @@ class _TimerControls extends StatelessWidget {
 /// the grid reads 1 (yesterday) at top-left across to 10 (oldest) at
 /// bottom-right. The day circles are display-only; only the CTA navigates.
 class _LastTenDays extends ConsumerWidget {
-  const _LastTenDays({required this.now, required this.scale});
+  const _LastTenDays({
+    required this.now,
+    required this.scale,
+    required this.inSession,
+    required this.countdown,
+  });
 
   final DateTime now;
+
+  /// A session is running or paused: the block fades away (keeping its
+  /// space, so nothing moves) and the milestone countdown takes the
+  /// heading's line.
+  final bool inSession;
+  final String countdown;
 
   /// Screen-to-Figma-reference factor, so this block grows with the rest of
   /// the screen instead of staying a fixed height and pooling slack beneath it.
@@ -815,19 +855,52 @@ class _LastTenDays extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Last 10 days',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontSize: kHomeHeadingSize * scale,
-              fontWeight: FontWeight.w700,
+          // The heading's line, shared with the countdown: centred on the
+          // page, its centre on the heading's. Laid over the heading rather
+          // than beside it, so the heading alone sets the line's height.
+          SizedBox(
+            width: double.infinity,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _away(
+                  Text(
+                    'Last 10 days',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontSize: kHomeHeadingSize * scale,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: Center(
+                    child: AnimatedOpacity(
+                      opacity: inSession ? 1 : 0,
+                      duration: kHomeSessionFade,
+                      curve: Curves.easeOut,
+                      child: Text(
+                        countdown,
+                        key: kHomeCountdownKey,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.visible,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: tokens.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           // label→row1 30, row1→row2 25; the CTA gap is larger so "View your
           // progress" sits toward the midpoint between row 2 and the tab bar.
           SizedBox(height: kHomeHeadingToRow * scale),
-          row(const [1, 2, 3, 4, 5]),
+          _away(row(const [1, 2, 3, 4, 5])),
           SizedBox(height: kHomeRowGap * scale),
-          row(const [6, 7, 8, 9, 10]),
+          _away(row(const [6, 7, 8, 9, 10])),
           // Centres "View your progress" in the gap between row 2 and the tab
           // bar (CTA ~18px tall in a ~74px gap → ~28 above).
           SizedBox(height: kHomeRowToCta * scale),
@@ -835,7 +908,7 @@ class _LastTenDays extends ConsumerWidget {
           // Plain-text CTA; opens the calendar/progress screen (same
           // destination the standalone button used to). The day circles
           // themselves stay display-only.
-          GestureDetector(
+          _away(GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => Navigator.of(
               context,
@@ -855,9 +928,20 @@ class _LastTenDays extends ConsumerWidget {
                 ),
               ),
             ),
-          ),
+          )),
         ],
       ),
     );
   }
+
+  /// Faded out and out of reach during a session, its space kept.
+  Widget _away(Widget child) => IgnorePointer(
+    ignoring: inSession,
+    child: AnimatedOpacity(
+      opacity: inSession ? 0 : 1,
+      duration: kHomeSessionFade,
+      curve: Curves.easeOut,
+      child: child,
+    ),
+  );
 }

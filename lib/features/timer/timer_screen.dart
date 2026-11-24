@@ -259,7 +259,9 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     });
 
     final isCollective = selectedTask == null;
-    final liveSeconds = timer.sessionElapsed.inSeconds;
+    // Never counted twice: once Stop has credited the task, its own totals
+    // hold the session and this is zero.
+    final liveSeconds = timer.pendingSecondsFor(selectedTask);
 
     // The outer ring is always today's split. The in-progress session is folded
     // into the selected task's slice so it grows live while the timer runs.
@@ -319,10 +321,11 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
                 // which keeps Habits.
                 center: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: tasks.isEmpty
+                  // A session's figure has no window to change.
+                  onTap: tasks.isEmpty || timer.isActive
                       ? null
                       : () => ref.read(centrePeriodProvider.notifier).toggle(),
-                  onHorizontalDragEnd: tasks.isEmpty
+                  onHorizontalDragEnd: tasks.isEmpty || timer.isActive
                       ? null
                       : (_) =>
                             ref.read(centrePeriodProvider.notifier).toggle(),
@@ -561,13 +564,19 @@ const double kDialCentrePadX = 8;
 /// What that target is aiming to clear.
 const double kDialCentreTarget = 44;
 
+/// The word under a session's figure, running and paused.
+const String kCentreSessionLabel = 'this session';
+const String kCentrePausedLabel = 'paused';
+
 /// How long the centre takes to change windows. Both halves of the
 /// cross-fade run together, so this is the whole of it.
 const Duration kDialCentreFade = Duration(milliseconds: 200);
 
-/// Centre of the dial. While a specific task's session runs, the live stopwatch
-/// is the hero; otherwise the figure is the chosen window (today / this month)
-/// — for the selected task, or the total across all tasks in collective mode.
+/// Centre of the dial. While a session runs or is paused, the figure is that
+/// session alone — the same reading as the Lock Screen card — ticking, or
+/// frozen where it was paused, as "this session" or "paused". Otherwise it is
+/// the chosen window (today / this month) — for the selected task, or the
+/// total across all tasks in collective mode.
 class _DialCentre extends StatelessWidget {
   const _DialCentre({
     required this.tasks,
@@ -590,12 +599,25 @@ class _DialCentre extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
 
-    final String value;
-    final String label = period == CentrePeriod.today ? 'today' : 'this month';
-
     if (tasks.isEmpty) {
       return _fade(_centreColumn(theme, tokens, '—', 'add a task'), 'empty');
     }
+
+    // The session, and only the session: the time before it today is not
+    // part of the figure.
+    if (timer.isActive) {
+      return _fade(
+        _centreColumn(
+          theme,
+          tokens,
+          DurationFormat.stopwatch(timer.sessionElapsed),
+          timer.isRunning ? kCentreSessionLabel : kCentrePausedLabel,
+        ),
+        'session',
+      );
+    }
+
+    final String label = period == CentrePeriod.today ? 'today' : 'this month';
 
     // Seconds for the active window.
     final int seconds;
@@ -609,21 +631,12 @@ class _DialCentre extends StatelessWidget {
                 : t.monthSeconds(now)),
       );
     } else {
-      // Fold the live session into the selected task's totals.
-      final live = selectedTask!.addingSeconds(
-        timer.sessionElapsed.inSeconds,
-        now,
-      );
       seconds = period == CentrePeriod.today
-          ? live.todaySeconds(now)
-          : live.monthSeconds(now);
+          ? selectedTask!.todaySeconds(now)
+          : selectedTask!.monthSeconds(now);
     }
 
-    final duration = Duration(seconds: seconds);
-    // Running → tick with seconds precision; otherwise the rounded h/m figure.
-    value = timer.isRunning
-        ? DurationFormat.stopwatch(duration)
-        : DurationFormat.hm(duration);
+    final value = DurationFormat.hm(Duration(seconds: seconds));
 
     return _fade(_centreColumn(theme, tokens, value, label), period.name);
   }

@@ -20,10 +20,15 @@ class TimerState {
     this.status = TimerStatus.idle,
     this.sessionElapsed = Duration.zero,
     this.stopping = false,
+    this.sessionKey,
   });
 
   final TimerStatus status;
   final Duration sessionElapsed;
+
+  /// The key the session will be credited under ([Task.sessionKey] of its
+  /// start), or null with no session.
+  final String? sessionKey;
 
   /// Stop has been pressed and the session is being credited; it is gone
   /// once that lands.
@@ -48,7 +53,22 @@ class TimerState {
       status: status ?? this.status,
       sessionElapsed: sessionElapsed ?? this.sessionElapsed,
       stopping: stopping ?? this.stopping,
+      sessionKey: sessionKey,
     );
+  }
+
+  /// The session's seconds still to be added to [task]'s own figures, for
+  /// anything that shows the task with the session folded in.
+  ///
+  /// Zero once the task carries this session's credit: Stop credits the
+  /// task under [sessionKey] before the session is taken away, and in
+  /// between the task's totals already hold the time. Asking the task —
+  /// rather than watching the clock — is right whenever the credit lands:
+  /// at once online, or only when the write is acknowledged offline.
+  int pendingSecondsFor(Task? task) {
+    final key = sessionKey;
+    if (task == null || key == null || task.hasCredited(key)) return 0;
+    return sessionElapsed.inSeconds;
   }
 }
 
@@ -334,6 +354,7 @@ class TimerController extends Notifier<TimerState> {
       status: _clock!.isPaused ? TimerStatus.paused : TimerStatus.running,
       sessionElapsed: _clock!.elapsedAt(_now()),
       stopping: _stopping,
+      sessionKey: Task.sessionKey(_clock!.startedAt),
     );
   }
 

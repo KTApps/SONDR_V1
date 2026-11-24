@@ -89,7 +89,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(DayDetailSheet), findsOneWidget);
-    expect(find.text('Logged'), findsOneWidget);
+    expect(find.text('logged'), findsOneWidget);
   });
 
   testWidgets('a greyed day thumbnail opens the viewer in full colour, the day a swipe away', (

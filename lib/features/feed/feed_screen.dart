@@ -66,7 +66,7 @@ class _Error extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Text(
-          'Couldn’t load the feed. Pull to refresh or try again later.',
+          'Couldn’t load posts. Pull to refresh or try again later.',
           textAlign: TextAlign.center,
           style: Theme.of(context)
               .textTheme

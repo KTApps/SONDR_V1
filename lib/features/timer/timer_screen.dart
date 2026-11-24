@@ -16,8 +16,6 @@ import 'home_notice.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../../shared/sondr_action.dart';
 import '../auth/guest_prompts.dart';
-import '../focus/focus_providers.dart';
-import '../focus/focus_view.dart';
 import '../habits/habits_screen.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
@@ -30,6 +28,7 @@ import '../photos/capture_crop.dart';
 import '../../shared/ring/ring_metrics.dart';
 import '../photos/capture_flow.dart';
 import 'live_activity.dart';
+import 'milestone_countdown.dart';
 import 'session_store.dart';
 import 'still_going_sheet.dart';
 import '../photos/capture_review_screen.dart';
@@ -177,7 +176,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     final outcome = await ref
         .read(timerControllerProvider.notifier)
         .stop(endedAt: endedAt);
-    ref.read(focusModeProvider.notifier).disable();
     if (!context.mounted) return;
     if (outcome.reachedMilestone && outcome.taskId != null) {
       unawaited(
@@ -200,11 +198,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     );
   }
 
-  /// True once "Start" has been tapped and the control has split into the
-  /// "Focus / Start" choice. Lives here rather than in the control itself so a
-  /// tap anywhere else on Home can close it again.
-  bool _choosing = false;
-
   /// The screen's one notice line, shown above the controls. Replaces a
   /// SnackBar: it belongs to this screen rather than to a floating Material
   /// surface.
@@ -219,6 +212,10 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
   /// during another's wait is not cleared early by the older timer.
   int _noticeToken = 0;
 
+  /// The countdown line as it last read, so it can fade out with its words
+  /// still on it when the session ends.
+  String _countdown = '';
+
   void _say(String message) {
     if (!mounted) return;
     final token = ++_noticeToken;
@@ -226,10 +223,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted && _noticeToken == token) setState(() => _notice = null);
     });
-  }
-
-  void _closeChoice() {
-    if (_choosing) setState(() => _choosing = false);
   }
 
   @override
@@ -270,13 +263,10 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
       }
     });
 
-    // Focus Mode replaces the whole home with the quietened focused view.
-    if (ref.watch(focusModeProvider)) {
-      return FocusView(onStop: () => _onStop(context, ref, selectedTask));
-    }
-
     final isCollective = selectedTask == null;
-    final liveSeconds = timer.sessionElapsed.inSeconds;
+    // Never counted twice: once Stop has credited the task, its own totals
+    // hold the session and this is zero.
+    final liveSeconds = timer.pendingSecondsFor(selectedTask);
 
     // The outer ring is always today's split. The in-progress session is folded
     // into the selected task's slice so it grows live while the timer runs.
@@ -285,15 +275,21 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
         (t.todaySeconds(now) + (t.id == selectedId ? liveSeconds : 0))
             .toDouble(),
     ];
+    // During a session: how far to the milestone, as the Lock Screen card
+    // says it. The task's total before the session is what the card is
+    // given; a credit already landed (Stop in flight) is taken back out.
+    final inSession = timer.isActive && selectedTask != null;
+    if (inSession) {
+      final elapsed = timer.sessionElapsed.inSeconds;
+      _countdown = milestoneCountdownLine(
+        taskSecondsBefore: selectedTask.totalSeconds + liveSeconds - elapsed,
+        sessionSeconds: elapsed,
+      );
+    }
+
     final highlightIndex = selectedTask == null
         ? null
         : _indexOrNull(tasks.indexWhere((t) => t.id == selectedTask.id));
-
-    // Finishing or starting a session closes the choice, so the user is never
-    // returned to a half-open control.
-    ref.listen(timerControllerProvider, (previous, next) {
-      if (previous?.status != next.status) _closeChoice();
-    });
 
     // Everything below was measured on the Figma reference; one uniform
     // factor scales the positions and the sizes together.
@@ -303,8 +299,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
       // Figma positions scaled to the screen (no AppBar/SafeArea, so
       // coordinates are screen-global). Dial size/position here is layout
       // only — ring rendering is untouched.
-      // Translucent so the controls below still receive their own taps; this
-      // only catches taps that land on empty canvas.
       body: PositionReadout(
         title: 'HOME',
         targets: () => [
@@ -312,10 +306,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
           ReadoutTarget('last10   ', probeText('Last 10 days')),
           ReadoutTarget('CTA      ', probeText('View your progress')),
         ],
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: _closeChoice,
-          child: Stack(
+        child: Stack(
           children: [
           // Task selector — nudged down slightly to tighten the gap to the dial.
           Positioned(
@@ -347,10 +338,11 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
                 // which keeps Habits.
                 center: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: tasks.isEmpty
+                  // A session's figure has no window to change.
+                  onTap: tasks.isEmpty || timer.isActive
                       ? null
                       : () => ref.read(centrePeriodProvider.notifier).toggle(),
-                  onHorizontalDragEnd: tasks.isEmpty
+                  onHorizontalDragEnd: tasks.isEmpty || timer.isActive
                       ? null
                       : (_) =>
                             ref.read(centrePeriodProvider.notifier).toggle(),
@@ -406,10 +398,9 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
                   ? _CollectiveHint(hasTasks: tasks.isNotEmpty)
                   : _TimerControls(
                       timer: timer,
-                      choosing: _choosing,
-                      onBeginChoice: () => setState(() => _choosing = true),
-                      onStart: () => _startSession(ref, focus: false),
-                      onFocus: () => _startSession(ref, focus: true),
+                      onStart: () => unawaited(
+                        ref.read(timerControllerProvider.notifier).start(),
+                      ),
                       onResume: () =>
                           ref.read(timerControllerProvider.notifier).start(),
                       onPause: () =>
@@ -425,7 +416,12 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
             top: kHomeLastTenTop * scale,
             left: 24 * scale,
             right: 24 * scale,
-            child: _LastTenDays(now: now, scale: scale),
+            child: _LastTenDays(
+              now: now,
+              scale: scale,
+              inSession: inSession,
+              countdown: _countdown,
+            ),
           ),
           // Dev-only milestone primer: a DEBUG_TOOLS build, and the test
           // account signed in — nobody else sees it.
@@ -447,23 +443,11 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
             ),
           ],
         ),
-        ),
       ),
     );
   }
 
   int? _indexOrNull(int i) => i < 0 ? null : i;
-
-  /// Pressing Start on a fresh (idle) session offers Focus Mode first, then
-  /// starts. Resuming a paused session doesn't re-prompt.
-  /// Begin a session. Focus Mode is chosen inline on the control itself
-  /// ("Focus | Start"), so there is no prompt to answer here.
-  void _startSession(WidgetRef ref, {required bool focus}) {
-    unawaited(ref.read(timerControllerProvider.notifier).start());
-    if (focus) {
-      ref.read(focusModeProvider.notifier).enable();
-    }
-  }
 
   Future<void> _onStop(BuildContext context, WidgetRef ref, Task? task) async {
     final outcome = await ref.read(timerControllerProvider.notifier).stop();
@@ -471,8 +455,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     // every crossing is logged time first — and writes nothing when the
     // whole-hour figure has not moved.
     unawaited(ref.read(publishPublicProfileProvider)());
-    // Always leave Focus Mode when the session ends.
-    ref.read(focusModeProvider.notifier).disable();
     if (!context.mounted || outcome.loggedSeconds <= 0) return;
 
     // Under a minute is not a session worth photographing. The time is
@@ -604,13 +586,26 @@ const double kDialCentrePadX = 8;
 /// What that target is aiming to clear.
 const double kDialCentreTarget = 44;
 
+/// How long the Last 10 days block takes to fade away when a session
+/// starts, and back when it ends; the countdown fades the other way with it.
+const Duration kHomeSessionFade = Duration(milliseconds: 300);
+
+/// The milestone countdown on Home during a session.
+const Key kHomeCountdownKey = ValueKey('home-milestone-countdown');
+
+/// The word under a session's figure, running and paused.
+const String kCentreSessionLabel = 'this session';
+const String kCentrePausedLabel = 'paused';
+
 /// How long the centre takes to change windows. Both halves of the
 /// cross-fade run together, so this is the whole of it.
 const Duration kDialCentreFade = Duration(milliseconds: 200);
 
-/// Centre of the dial. While a specific task's session runs, the live stopwatch
-/// is the hero; otherwise the figure is the chosen window (today / this month)
-/// — for the selected task, or the total across all tasks in collective mode.
+/// Centre of the dial. While a session runs or is paused, the figure is that
+/// session alone — the same reading as the Lock Screen card — ticking, or
+/// frozen where it was paused, as "this session" or "paused". Otherwise it is
+/// the chosen window (today / this month) — for the selected task, or the
+/// total across all tasks in collective mode.
 class _DialCentre extends StatelessWidget {
   const _DialCentre({
     required this.tasks,
@@ -633,12 +628,25 @@ class _DialCentre extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
 
-    final String value;
-    final String label = period == CentrePeriod.today ? 'today' : 'this month';
-
     if (tasks.isEmpty) {
       return _fade(_centreColumn(theme, tokens, '—', 'add a task'), 'empty');
     }
+
+    // The session, and only the session: the time before it today is not
+    // part of the figure.
+    if (timer.isActive) {
+      return _fade(
+        _centreColumn(
+          theme,
+          tokens,
+          DurationFormat.stopwatch(timer.sessionElapsed),
+          timer.isRunning ? kCentreSessionLabel : kCentrePausedLabel,
+        ),
+        'session',
+      );
+    }
+
+    final String label = period == CentrePeriod.today ? 'today' : 'this month';
 
     // Seconds for the active window.
     final int seconds;
@@ -652,21 +660,12 @@ class _DialCentre extends StatelessWidget {
                 : t.monthSeconds(now)),
       );
     } else {
-      // Fold the live session into the selected task's totals.
-      final live = selectedTask!.addingSeconds(
-        timer.sessionElapsed.inSeconds,
-        now,
-      );
       seconds = period == CentrePeriod.today
-          ? live.todaySeconds(now)
-          : live.monthSeconds(now);
+          ? selectedTask!.todaySeconds(now)
+          : selectedTask!.monthSeconds(now);
     }
 
-    final duration = Duration(seconds: seconds);
-    // Running → tick with seconds precision; otherwise the rounded h/m figure.
-    value = timer.isRunning
-        ? DurationFormat.stopwatch(duration)
-        : DurationFormat.hm(duration);
+    final value = DurationFormat.hm(Duration(seconds: seconds));
 
     return _fade(_centreColumn(theme, tokens, value, label), period.name);
   }
@@ -745,10 +744,7 @@ class _CollectiveHint extends StatelessWidget {
 class _TimerControls extends StatelessWidget {
   const _TimerControls({
     required this.timer,
-    required this.choosing,
-    required this.onBeginChoice,
     required this.onStart,
-    required this.onFocus,
     required this.onResume,
     required this.onPause,
     required this.onStop,
@@ -756,18 +752,10 @@ class _TimerControls extends StatelessWidget {
 
   final TimerState timer;
 
-  /// Whether "Start" has been tapped and the control has split into the mode
-  /// choice. Owned by the screen so a tap on empty canvas can close it.
-  final bool choosing;
-  final VoidCallback onBeginChoice;
-
-  /// Start a normal session.
+  /// Start a session.
   final VoidCallback onStart;
 
-  /// Start a session in Focus Mode.
-  final VoidCallback onFocus;
-
-  /// Resume from pause — never re-offers the mode choice.
+  /// Resume from pause.
   final VoidCallback onResume;
   final VoidCallback onPause;
   final VoidCallback onStop;
@@ -776,18 +764,7 @@ class _TimerControls extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (timer.status) {
       case TimerStatus.idle:
-        // One tap splits the control in two rather than opening a dialog: the
-        // choice is made in the same place the action was. Tapping anywhere
-        // else on Home closes it again.
-        if (!choosing) {
-          return SondrAction(label: 'Start', onPressed: onBeginChoice);
-        }
-        return SondrActionPair(
-          firstLabel: 'Focus',
-          onFirst: onFocus,
-          secondLabel: 'Start',
-          onSecond: onStart,
-        );
+        return SondrAction(label: 'Start', onPressed: onStart);
       case TimerStatus.running:
         return SondrActionPair(
           firstLabel: 'Pause',
@@ -814,9 +791,20 @@ class _TimerControls extends StatelessWidget {
 /// the grid reads 1 (yesterday) at top-left across to 10 (oldest) at
 /// bottom-right. The day circles are display-only; only the CTA navigates.
 class _LastTenDays extends ConsumerWidget {
-  const _LastTenDays({required this.now, required this.scale});
+  const _LastTenDays({
+    required this.now,
+    required this.scale,
+    required this.inSession,
+    required this.countdown,
+  });
 
   final DateTime now;
+
+  /// A session is running or paused: the block fades away (keeping its
+  /// space, so nothing moves) and the milestone countdown takes the
+  /// heading's line.
+  final bool inSession;
+  final String countdown;
 
   /// Screen-to-Figma-reference factor, so this block grows with the rest of
   /// the screen instead of staying a fixed height and pooling slack beneath it.
@@ -867,19 +855,52 @@ class _LastTenDays extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Last 10 days',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontSize: kHomeHeadingSize * scale,
-              fontWeight: FontWeight.w700,
+          // The heading's line, shared with the countdown: centred on the
+          // page, its centre on the heading's. Laid over the heading rather
+          // than beside it, so the heading alone sets the line's height.
+          SizedBox(
+            width: double.infinity,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _away(
+                  Text(
+                    'Last 10 days',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontSize: kHomeHeadingSize * scale,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: Center(
+                    child: AnimatedOpacity(
+                      opacity: inSession ? 1 : 0,
+                      duration: kHomeSessionFade,
+                      curve: Curves.easeOut,
+                      child: Text(
+                        countdown,
+                        key: kHomeCountdownKey,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.visible,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: tokens.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           // label→row1 30, row1→row2 25; the CTA gap is larger so "View your
           // progress" sits toward the midpoint between row 2 and the tab bar.
           SizedBox(height: kHomeHeadingToRow * scale),
-          row(const [1, 2, 3, 4, 5]),
+          _away(row(const [1, 2, 3, 4, 5])),
           SizedBox(height: kHomeRowGap * scale),
-          row(const [6, 7, 8, 9, 10]),
+          _away(row(const [6, 7, 8, 9, 10])),
           // Centres "View your progress" in the gap between row 2 and the tab
           // bar (CTA ~18px tall in a ~74px gap → ~28 above).
           SizedBox(height: kHomeRowToCta * scale),
@@ -887,7 +908,7 @@ class _LastTenDays extends ConsumerWidget {
           // Plain-text CTA; opens the calendar/progress screen (same
           // destination the standalone button used to). The day circles
           // themselves stay display-only.
-          GestureDetector(
+          _away(GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => Navigator.of(
               context,
@@ -907,9 +928,20 @@ class _LastTenDays extends ConsumerWidget {
                 ),
               ),
             ),
-          ),
+          )),
         ],
       ),
     );
   }
+
+  /// Faded out and out of reach during a session, its space kept.
+  Widget _away(Widget child) => IgnorePointer(
+    ignoring: inSession,
+    child: AnimatedOpacity(
+      opacity: inSession ? 0 : 1,
+      duration: kHomeSessionFade,
+      curve: Curves.easeOut,
+      child: child,
+    ),
+  );
 }

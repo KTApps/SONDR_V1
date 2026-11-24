@@ -66,7 +66,7 @@ void main() {
     // Press and HOLD. The highlight is what the report described — a
     // rectangle over the tab — and it appears on press, before any release.
     final gesture = await tester.startGesture(
-      tester.getCenter(find.text('Feed')),
+      tester.getCenter(find.text('Posts')),
     );
     await tester.pump(const Duration(milliseconds: 150));
     expect(
@@ -107,14 +107,14 @@ void main() {
     tester,
   ) async {
     await pumpBar(tester, index: 0);
-    final label = tester.getRect(find.text('Feed'));
+    final label = tester.getRect(find.text('Posts'));
     // A point inside the middle cell but well clear of the glyphs — the top
     // of the bar, above the text. An InkWell filled the cell; so must this.
     final hit = Offset(label.center.dx, label.top - 6);
     await tester.tapAt(hit);
     await tester.pumpAndSettle();
     expect(
-      tester.widget<Text>(find.text('Feed')).style!.fontWeight,
+      tester.widget<Text>(find.text('Posts')).style!.fontWeight,
       FontWeight.w700,
       reason: 'the dead zone above the label used to be tappable',
     );

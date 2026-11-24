@@ -325,7 +325,7 @@ void main() {
       expectNoOverflow(tester);
     });
 
-    testWidgets('a nonzero ring is never empty, and never closed', (
+    testWidgets('a ring draws the real fraction, at either end of the band', (
       tester,
     ) async {
       await pumpProfile(
@@ -337,7 +337,7 @@ void main() {
         ],
       );
       // By name, not by position: the tiles are alphabetical now, and this
-      // test is about the clamp rather than the order.
+      // test is about the fill rather than the order.
       double ringFor(String task) => tester
           .widget<ProgressRing>(
             find.descendant(
@@ -349,8 +349,8 @@ void main() {
             ),
           )
           .progress;
-      expect(ringFor('Spanish'), kProgressFloor);
-      expect(ringFor('Piano'), kProgressCeiling);
+      expect(ringFor('Spanish'), closeTo(12 * 60 / (20 * 3600), 1e-9));
+      expect(ringFor('Piano'), closeTo((20 * 3600 - 60) / (20 * 3600), 1e-9));
       expectNoOverflow(tester);
     });
 
@@ -584,9 +584,9 @@ void main() {
       // tiles stand alphabetically: Golf, Piano, Spanish.
       final rings = ringsOfSize(tester, kProfileRingTileSize).toList();
       expect(rings, hasLength(3));
-      expect(rings[0].progress, closeTo(shownProgress(0), 1e-9), reason: 'Golf at exactly 20h: the next band, empty');
-      expect(rings[1].progress, closeTo(shownProgress((3 * 3600 + 40 * 60) / (20 * 3600)), 1e-9), reason: 'Piano');
-      expect(rings[2].progress, closeTo(shownProgress((19 * 3600 + 59 * 60) / (20 * 3600)), 1e-9), reason: 'Spanish');
+      expect(rings[0].progress, 0, reason: 'Golf at exactly 20h: the next band, empty');
+      expect(rings[1].progress, closeTo((3 * 3600 + 40 * 60) / (20 * 3600), 1e-9), reason: 'Piano');
+      expect(rings[2].progress, closeTo((19 * 3600 + 59 * 60) / (20 * 3600), 1e-9), reason: 'Spanish');
       expectNoOverflow(tester);
     });
 

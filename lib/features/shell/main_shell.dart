@@ -4,13 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../feed/feed_screen.dart';
-import '../focus/focus_providers.dart';
 import '../profile/profile_screen.dart';
+import '../timer/timer_controller.dart';
 import '../timer/timer_screen.dart';
 import 'how_it_works.dart';
 
-/// The selected bottom-tab index (0 Home · 1 Feed · 2 Profile). A provider so a
-/// flow can jump the shell to a tab — e.g. landing on Feed after creating a
+/// The selected bottom-tab index (0 Home · 1 Posts · 2 Profile). A provider so a
+/// flow can jump the shell to a tab — e.g. landing on Posts after creating a
 /// milestone post — not just the tab bar's own taps.
 class SelectedTab extends Notifier<int> {
   @override
@@ -21,30 +21,43 @@ class SelectedTab extends Notifier<int> {
 
 final selectedTabProvider = NotifierProvider<SelectedTab, int>(SelectedTab.new);
 
-/// Root tab shell: Home · Feed · Profile. Introduced in step 2, it replaces the
+/// Root tab shell: Home · Posts · Profile. Introduced in step 2, it replaces the
 /// phase-1 top-right buttons on the timer with a bottom [NavigationBar].
 ///
 /// An [IndexedStack] keeps each tab alive so the running timer (and any scroll
-/// position) survives tab switches. While Focus Mode is active the bar is hidden
-/// and the shell is pinned to Home — the timer returns the quietened FocusView,
-/// reinforcing the "locked into the effort" ethos.
+/// position) survives tab switches. While a session runs — and while it is
+/// being stopped — the bar is hidden and the shell is held on Home. A paused
+/// session lets go, so the tabs work; resuming brings Home forward again,
+/// whether from Home or from the Lock Screen.
 class MainShell extends ConsumerWidget {
-  const MainShell({super.key});
+  const MainShell({super.key, @visibleForTesting this.tabs});
 
   static const _tabs = [TimerScreen(), FeedScreen(), ProfileScreen()];
 
+  /// Stand-ins for the three screens, so a test can hold the shell without
+  /// the Firebase each of them wants.
+  final List<Widget>? tabs;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final focused = ref.watch(focusModeProvider);
+    final held = ref.watch(
+      timerControllerProvider.select((t) => t.holdsHome),
+    );
     final index = ref.watch(selectedTabProvider);
+    // A session that starts running — Start, Resume, or a Resume from the
+    // Lock Screen read on the way back in — brings Home forward, so letting
+    // go on the next pause lands there rather than on the tab left behind.
+    ref.listen(timerControllerProvider.select((t) => t.holdsHome), (was, now) {
+      if (now && was != true) ref.read(selectedTabProvider.notifier).set(0);
+    });
 
     return Scaffold(
-      // Pin to Home while focused so the FocusView is what shows, never another
-      // tab caught behind the hidden bar.
-      body: IndexedStack(index: focused ? 0 : index, children: _tabs),
+      // Held on Home while the session runs, never another tab caught
+      // behind the hidden bar.
+      body: IndexedStack(index: held ? 0 : index, children: tabs ?? _tabs),
       // Slim, text-only tab bar (no icons) — reclaims vertical space and keeps
       // the minimal greyscale identity.
-      bottomNavigationBar: focused
+      bottomNavigationBar: held
           ? null
           : TextTabBar(
               currentIndex: index,
@@ -54,7 +67,7 @@ class MainShell extends ConsumerWidget {
   }
 }
 
-/// A minimal text-only bottom tab bar: "Home · Feed · Profile" as labels, no
+/// A minimal text-only bottom tab bar: "Home · Posts · Profile" as labels, no
 /// icons. Public only so a test can pump it without the three tab screens
 /// (and the Firebase each of them wants) coming with it. The selected tab is brighter (white, bold) with a short underline;
 /// unselected tabs are dim grey. Pure greyscale, surface-toned, and slim.
@@ -68,7 +81,7 @@ class TextTabBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onSelect;
 
-  static const List<String> _labels = ['Home', 'Feed', 'Profile'];
+  static const List<String> _labels = ['Home', 'Posts', 'Profile'];
 
   @override
   Widget build(BuildContext context) {

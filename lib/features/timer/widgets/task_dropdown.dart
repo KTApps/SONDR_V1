@@ -29,6 +29,12 @@ import '../timer_controller.dart';
 /// list's 180ms ease-out, so the two lists move the same way.
 const Duration _kLeaveDuration = Duration(milliseconds: 180);
 
+/// The selector line's least height: the arrow it once carried.
+const double _kSelectorLineMin = 22;
+
+/// The selector's words with no task chosen.
+const String kAllTasksLabel = 'Tasks';
+
 class TaskDropdown extends ConsumerStatefulWidget {
   const TaskDropdown({super.key});
 
@@ -41,45 +47,41 @@ class _TaskDropdownState extends ConsumerState<TaskDropdown> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final selected = ref.watch(selectedTaskProvider);
     final locked = ref.watch(timerControllerProvider).isActive;
     final isCollective = selected == null;
 
-    final label = isCollective ? 'Task' : selected.name;
+    final label = isCollective ? kAllTasksLabel : selected.name;
 
-    return Opacity(
-      opacity: locked ? 0.5 : 1.0,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: locked ? null : _openMenu,
-        // Double-tap snaps back to the all-tasks overview; only meaningful when
-        // a specific task is selected.
-        onDoubleTap: (locked || isCollective) ? null : _snapToCollective,
-        child: Container(
-          key: _selectorKey,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          // The phantom left box equals the chevron + gap, so the TEXT is what
-          // optically centres on screen while the chevron hangs off its right.
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(width: 28),
-              Flexible(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleLarge
-                      ?.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
-                ),
+    // Full strength during a session — it names what is being timed — but
+    // out of reach, so time cannot be moved to another task mid-session.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: locked ? null : _openMenu,
+      // Double-tap snaps back to the all-tasks overview; only meaningful when
+      // a specific task is selected.
+      onDoubleTap: (locked || isCollective) ? null : _snapToCollective,
+      child: Container(
+        key: _selectorKey,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        // The name alone, centred on the screen. The strut keeps the line
+        // as tall as the arrow that used to sit beside the name made it, so
+        // at the smallest text size the name stays where it was.
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: _kSelectorLineMin),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
               ),
-              const SizedBox(width: 6),
-              Icon(Icons.keyboard_arrow_down,
-                  size: 22, color: tokens.textSecondary),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -589,10 +591,8 @@ class _PillTrayAction extends StatelessWidget {
 /// to [progress] (0..1) through the current 20-hour block — the same measure
 /// the profile rings use, so a filled bar means the same thing everywhere.
 /// Empty = all dark; it resets on each milestone and climbs again toward the
-/// next. The fill is drawn through [shownProgress], the same clamp the rings
-/// use, so any time at all shows a nub and a nearly-finished band keeps a
-/// visible gap — a bar that filled to the end would claim a milestone the
-/// task has not reached. The filled left end is rounded by the pill; the
+/// next. The fill is drawn through [shownProgress], as the rings are: the
+/// real fraction, nothing added and nothing held back. The filled left end is rounded by the pill; the
 /// filled/unfilled boundary is a clean vertical edge. Name centred, Inter bold
 /// 12, white. Pure greyscale — fill and remainder are a brightness step apart.
 /// A task being named: a pill with nothing in it yet.

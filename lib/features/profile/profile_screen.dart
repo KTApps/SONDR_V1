@@ -413,8 +413,8 @@ class _HeroEmblem extends ConsumerWidget {
           child: ProgressRing(
           size: _ring * scale,
           stroke: ringStroke(scale),
-          // An empty grey track when there is nothing to climb, and never a
-          // closed one: see [shownProgress].
+          // An empty grey track when there is nothing to climb; otherwise
+          // the real fraction: see [shownProgress].
           progress: shownProgress(next?.progress ?? 0),
           center: SizedBox(
             width: _photo * scale,
@@ -906,9 +906,8 @@ class _TaskTile extends StatelessWidget {
               // diameter — see [kRingStroke].
               stroke: ringStroke(scale),
               // Progress through the CURRENT 20h block, so the ring keeps
-              // climbing toward the next milestone rather than pinning full
-              // — and clamped, so a first session shows and a last hour
-              // doesn't read as finished.
+              // climbing toward the next milestone rather than pinning full,
+              // drawn as the real fraction.
               progress: shownProgress(task.milestoneProgress),
               // The task's own hours, floored — "19h" until 20h is crossed,
               // "23h" after — while the ring fills through the current band.

@@ -59,6 +59,41 @@ void main() {
     tasks = _QueueingTasks([const Task(id: 't1', name: 'Spanish')]);
   });
 
+  group('stopping', () {
+    test('Stop holds the stopping flag until the session is gone', () async {
+      final c = container();
+      final timer = await sessionOn(c);
+      now = t0.add(const Duration(minutes: 30));
+      final seen = <bool>[];
+      c.listen(timerControllerProvider, (_, next) => seen.add(next.stopping));
+      await timer.stop();
+      expect(seen, contains(true));
+      expect(c.read(timerControllerProvider).stopping, isFalse);
+      expect(c.read(timerControllerProvider).status, TimerStatus.idle);
+      expect(c.read(timerControllerProvider).holdsHome, isFalse);
+    });
+
+    test('a Stop whose credit fails keeps the session, and is not left stopping', () async {
+      final c = container();
+      final timer = await sessionOn(c);
+      now = t0.add(const Duration(minutes: 30));
+      tasks.queueWithoutConfirming = true;
+      await expectLater(timer.stop(), throwsA(isA<Object>()));
+      final state = c.read(timerControllerProvider);
+      expect(state.stopping, isFalse);
+      expect(state.status, TimerStatus.running);
+      expect(state.holdsHome, isTrue, reason: 'still running');
+    });
+
+    test('a paused session lets go of Home; stopping it holds again', () async {
+      final c = container();
+      final timer = await sessionOn(c);
+      expect(c.read(timerControllerProvider).holdsHome, isTrue);
+      await timer.pause();
+      expect(c.read(timerControllerProvider).holdsHome, isFalse);
+    });
+  });
+
   test('a credit that was queued but not confirmed is not added twice',
       () async {
     final c = container();

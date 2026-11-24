@@ -87,7 +87,7 @@ void main() {
 
       // And it is not alone: the date, the figure in the ring, the label
       // under it and the section heading all answer the same setting.
-      for (final line in ['Time per task', 'Logged']) {
+      for (final line in ['Time per task', 'logged']) {
         expect(painted(tester, find.text(line)), greaterThan(13.0),
             reason: line);
       }

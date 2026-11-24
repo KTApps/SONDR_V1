@@ -121,14 +121,15 @@ class SondrAction extends StatelessWidget {
 
 /// Two [SondrAction]s side by side, separated by space alone.
 ///
-/// Used wherever a control offers a choice — "Focus / Start" when a session
-/// begins, "Pause / Stop" while one runs, and the same treatment anywhere else
+/// Used wherever a control offers a choice — "Pause / Stop" while a session
+/// runs, "Resume / Stop" while it is paused, and the same treatment anywhere else
 /// a pair of text actions sit together. Nothing is drawn between them: the gap
 /// is wide enough that the two labels read as separate buttons rather than one
 /// phrase, which is the job a divider would otherwise do.
 ///
 /// The spacing is symmetrical whatever the labels are — each action's own
-/// padding either side of a shared central gap.
+/// padding either side of a shared central gap, which sits in the middle of
+/// the width the pair is given.
 class SondrActionPair extends StatelessWidget {
   const SondrActionPair({
     super.key,
@@ -152,15 +153,27 @@ class SondrActionPair extends StatelessWidget {
   Widget build(BuildContext context) {
     final scale = figmaScale(context);
 
+    // Anchored on the gap, not centred as a whole: the gap is the middle of
+    // the width it is given, the first action ends against it and the
+    // second begins after it. So a label that changes — Pause to Resume —
+    // grows away from the middle and the other action does not move.
     return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        SondrAction(label: firstLabel, onPressed: onFirst),
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: SondrAction(label: firstLabel, onPressed: onFirst),
+          ),
+        ),
         // On top of each action's own 20 of padding, so the labels sit 56
         // apart — enough to read as two buttons with nothing drawn between.
         SizedBox(width: gap * scale),
-        SondrAction(label: secondLabel, onPressed: onSecond),
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: SondrAction(label: secondLabel, onPressed: onSecond),
+          ),
+        ),
       ],
     );
   }

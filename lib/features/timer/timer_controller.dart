@@ -19,22 +19,56 @@ class TimerState {
   const TimerState({
     this.status = TimerStatus.idle,
     this.sessionElapsed = Duration.zero,
+    this.stopping = false,
+    this.sessionKey,
   });
 
   final TimerStatus status;
   final Duration sessionElapsed;
 
+  /// The key the session will be credited under ([Task.sessionKey] of its
+  /// start), or null with no session.
+  final String? sessionKey;
+
+  /// Stop has been pressed and the session is being credited; it is gone
+  /// once that lands.
+  final bool stopping;
+
   bool get isRunning => status == TimerStatus.running;
+
+  /// Whether the app is held on Home with the tabs away: a running session,
+  /// and one being stopped. A paused session lets go.
+  bool get holdsHome => isRunning || stopping;
 
   /// True when a session exists (running or paused) — i.e. there is elapsed
   /// time not yet committed. Used to lock task switching mid-session.
   bool get isActive => status != TimerStatus.idle;
 
-  TimerState copyWith({TimerStatus? status, Duration? sessionElapsed}) {
+  TimerState copyWith({
+    TimerStatus? status,
+    Duration? sessionElapsed,
+    bool? stopping,
+  }) {
     return TimerState(
       status: status ?? this.status,
       sessionElapsed: sessionElapsed ?? this.sessionElapsed,
+      stopping: stopping ?? this.stopping,
+      sessionKey: sessionKey,
     );
+  }
+
+  /// The session's seconds still to be added to [task]'s own figures, for
+  /// anything that shows the task with the session folded in.
+  ///
+  /// Zero once the task carries this session's credit: Stop credits the
+  /// task under [sessionKey] before the session is taken away, and in
+  /// between the task's totals already hold the time. Asking the task —
+  /// rather than watching the clock — is right whenever the credit lands:
+  /// at once online, or only when the write is acknowledged offline.
+  int pendingSecondsFor(Task? task) {
+    final key = sessionKey;
+    if (task == null || key == null || task.hasCredited(key)) return 0;
+    return sessionElapsed.inSeconds;
   }
 }
 
@@ -54,6 +88,9 @@ class TimerController extends Notifier<TimerState> {
   Timer? _ticker;
   SessionClock? _clock;
   _Resync? _observer;
+
+  /// Between Stop and the session being gone.
+  bool _stopping = false;
 
   /// The last thing written to the store, so an unchanged clock is not
   /// written again.
@@ -316,6 +353,8 @@ class TimerController extends Notifier<TimerState> {
     state = TimerState(
       status: _clock!.isPaused ? TimerStatus.paused : TimerStatus.running,
       sessionElapsed: _clock!.elapsedAt(_now()),
+      stopping: _stopping,
+      sessionKey: Task.sessionKey(_clock!.startedAt),
     );
   }
 
@@ -326,9 +365,18 @@ class TimerController extends Notifier<TimerState> {
   /// the LOGGED amount, so a crossing the forgotten hours would have caused
   /// does not happen and one the real work caused still does.
   Future<StopOutcome> stop({DateTime? endedAt}) async {
-    final outcome = await commitKeepingSession(endedAt: endedAt);
-    await discard();
-    return outcome;
+    _stopping = true;
+    state = state.copyWith(stopping: true);
+    try {
+      final outcome = await commitKeepingSession(endedAt: endedAt);
+      await discard();
+      return outcome;
+    } finally {
+      _stopping = false;
+      // A credit that failed leaves the session where it was — and no
+      // longer stopping.
+      if (_clock != null) _publish(persist: false);
+    }
   }
 
   /// Credit the session's time and leave the session exactly where it is.

@@ -368,7 +368,7 @@ void main() {
       await tester.pumpAndSettle();
       final tabBar = tester.getRect(find.byType(TextTabBar));
       final tabs = {
-        for (final label in ['Home', 'Feed', 'Profile'])
+        for (final label in ['Home', 'Posts', 'Profile'])
           label: tester.getRect(find.text(label).hitTestable()).center,
       };
 
@@ -380,7 +380,7 @@ void main() {
 
       for (final (label, tab) in [
         ('Remove', 'Home'),
-        ('Back', 'Feed'),
+        ('Back', 'Posts'),
         ('Block', 'Profile'),
       ]) {
         final slot = tester.getRect(find.text(label).hitTestable()).center;

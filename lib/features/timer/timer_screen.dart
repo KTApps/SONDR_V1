@@ -16,8 +16,6 @@ import 'home_notice.dart';
 import '../../shared/ring/segmented_dial.dart';
 import '../../shared/sondr_action.dart';
 import '../auth/guest_prompts.dart';
-import '../focus/focus_providers.dart';
-import '../focus/focus_view.dart';
 import '../habits/habits_screen.dart';
 import '../habits/habits_providers.dart';
 import '../history/calendar_screen.dart';
@@ -177,7 +175,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     final outcome = await ref
         .read(timerControllerProvider.notifier)
         .stop(endedAt: endedAt);
-    ref.read(focusModeProvider.notifier).disable();
     if (!context.mounted) return;
     if (outcome.reachedMilestone && outcome.taskId != null) {
       unawaited(
@@ -200,11 +197,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     );
   }
 
-  /// True once "Start" has been tapped and the control has split into the
-  /// "Focus / Start" choice. Lives here rather than in the control itself so a
-  /// tap anywhere else on Home can close it again.
-  bool _choosing = false;
-
   /// The screen's one notice line, shown above the controls. Replaces a
   /// SnackBar: it belongs to this screen rather than to a floating Material
   /// surface.
@@ -226,10 +218,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted && _noticeToken == token) setState(() => _notice = null);
     });
-  }
-
-  void _closeChoice() {
-    if (_choosing) setState(() => _choosing = false);
   }
 
   @override
@@ -270,11 +258,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
       }
     });
 
-    // Focus Mode replaces the whole home with the quietened focused view.
-    if (ref.watch(focusModeProvider)) {
-      return FocusView(onStop: () => _onStop(context, ref, selectedTask));
-    }
-
     final isCollective = selectedTask == null;
     final liveSeconds = timer.sessionElapsed.inSeconds;
 
@@ -289,12 +272,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
         ? null
         : _indexOrNull(tasks.indexWhere((t) => t.id == selectedTask.id));
 
-    // Finishing or starting a session closes the choice, so the user is never
-    // returned to a half-open control.
-    ref.listen(timerControllerProvider, (previous, next) {
-      if (previous?.status != next.status) _closeChoice();
-    });
-
     // Everything below was measured on the Figma reference; one uniform
     // factor scales the positions and the sizes together.
     final scale = figmaScale(context);
@@ -303,8 +280,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
       // Figma positions scaled to the screen (no AppBar/SafeArea, so
       // coordinates are screen-global). Dial size/position here is layout
       // only — ring rendering is untouched.
-      // Translucent so the controls below still receive their own taps; this
-      // only catches taps that land on empty canvas.
       body: PositionReadout(
         title: 'HOME',
         targets: () => [
@@ -312,10 +287,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
           ReadoutTarget('last10   ', probeText('Last 10 days')),
           ReadoutTarget('CTA      ', probeText('View your progress')),
         ],
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: _closeChoice,
-          child: Stack(
+        child: Stack(
           children: [
           // Task selector — nudged down slightly to tighten the gap to the dial.
           Positioned(
@@ -406,10 +378,9 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
                   ? _CollectiveHint(hasTasks: tasks.isNotEmpty)
                   : _TimerControls(
                       timer: timer,
-                      choosing: _choosing,
-                      onBeginChoice: () => setState(() => _choosing = true),
-                      onStart: () => _startSession(ref, focus: false),
-                      onFocus: () => _startSession(ref, focus: true),
+                      onStart: () => unawaited(
+                        ref.read(timerControllerProvider.notifier).start(),
+                      ),
                       onResume: () =>
                           ref.read(timerControllerProvider.notifier).start(),
                       onPause: () =>
@@ -447,23 +418,11 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
             ),
           ],
         ),
-        ),
       ),
     );
   }
 
   int? _indexOrNull(int i) => i < 0 ? null : i;
-
-  /// Pressing Start on a fresh (idle) session offers Focus Mode first, then
-  /// starts. Resuming a paused session doesn't re-prompt.
-  /// Begin a session. Focus Mode is chosen inline on the control itself
-  /// ("Focus | Start"), so there is no prompt to answer here.
-  void _startSession(WidgetRef ref, {required bool focus}) {
-    unawaited(ref.read(timerControllerProvider.notifier).start());
-    if (focus) {
-      ref.read(focusModeProvider.notifier).enable();
-    }
-  }
 
   Future<void> _onStop(BuildContext context, WidgetRef ref, Task? task) async {
     final outcome = await ref.read(timerControllerProvider.notifier).stop();
@@ -471,8 +430,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
     // every crossing is logged time first — and writes nothing when the
     // whole-hour figure has not moved.
     unawaited(ref.read(publishPublicProfileProvider)());
-    // Always leave Focus Mode when the session ends.
-    ref.read(focusModeProvider.notifier).disable();
     if (!context.mounted || outcome.loggedSeconds <= 0) return;
 
     // Under a minute is not a session worth photographing. The time is
@@ -745,10 +702,7 @@ class _CollectiveHint extends StatelessWidget {
 class _TimerControls extends StatelessWidget {
   const _TimerControls({
     required this.timer,
-    required this.choosing,
-    required this.onBeginChoice,
     required this.onStart,
-    required this.onFocus,
     required this.onResume,
     required this.onPause,
     required this.onStop,
@@ -756,18 +710,10 @@ class _TimerControls extends StatelessWidget {
 
   final TimerState timer;
 
-  /// Whether "Start" has been tapped and the control has split into the mode
-  /// choice. Owned by the screen so a tap on empty canvas can close it.
-  final bool choosing;
-  final VoidCallback onBeginChoice;
-
-  /// Start a normal session.
+  /// Start a session.
   final VoidCallback onStart;
 
-  /// Start a session in Focus Mode.
-  final VoidCallback onFocus;
-
-  /// Resume from pause — never re-offers the mode choice.
+  /// Resume from pause.
   final VoidCallback onResume;
   final VoidCallback onPause;
   final VoidCallback onStop;
@@ -776,18 +722,7 @@ class _TimerControls extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (timer.status) {
       case TimerStatus.idle:
-        // One tap splits the control in two rather than opening a dialog: the
-        // choice is made in the same place the action was. Tapping anywhere
-        // else on Home closes it again.
-        if (!choosing) {
-          return SondrAction(label: 'Start', onPressed: onBeginChoice);
-        }
-        return SondrActionPair(
-          firstLabel: 'Focus',
-          onFirst: onFocus,
-          secondLabel: 'Start',
-          onSecond: onStart,
-        );
+        return SondrAction(label: 'Start', onPressed: onStart);
       case TimerStatus.running:
         return SondrActionPair(
           firstLabel: 'Pause',

@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../feed/feed_screen.dart';
-import '../focus/focus_providers.dart';
 import '../profile/profile_screen.dart';
+import '../timer/timer_controller.dart';
 import '../timer/timer_screen.dart';
 import 'how_it_works.dart';
 
@@ -25,26 +25,39 @@ final selectedTabProvider = NotifierProvider<SelectedTab, int>(SelectedTab.new);
 /// phase-1 top-right buttons on the timer with a bottom [NavigationBar].
 ///
 /// An [IndexedStack] keeps each tab alive so the running timer (and any scroll
-/// position) survives tab switches. While Focus Mode is active the bar is hidden
-/// and the shell is pinned to Home — the timer returns the quietened FocusView,
-/// reinforcing the "locked into the effort" ethos.
+/// position) survives tab switches. While a session runs — and while it is
+/// being stopped — the bar is hidden and the shell is held on Home. A paused
+/// session lets go, so the tabs work; resuming brings Home forward again,
+/// whether from Home or from the Lock Screen.
 class MainShell extends ConsumerWidget {
-  const MainShell({super.key});
+  const MainShell({super.key, @visibleForTesting this.tabs});
 
   static const _tabs = [TimerScreen(), FeedScreen(), ProfileScreen()];
 
+  /// Stand-ins for the three screens, so a test can hold the shell without
+  /// the Firebase each of them wants.
+  final List<Widget>? tabs;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final focused = ref.watch(focusModeProvider);
+    final held = ref.watch(
+      timerControllerProvider.select((t) => t.holdsHome),
+    );
     final index = ref.watch(selectedTabProvider);
+    // A session that starts running — Start, Resume, or a Resume from the
+    // Lock Screen read on the way back in — brings Home forward, so letting
+    // go on the next pause lands there rather than on the tab left behind.
+    ref.listen(timerControllerProvider.select((t) => t.holdsHome), (was, now) {
+      if (now && was != true) ref.read(selectedTabProvider.notifier).set(0);
+    });
 
     return Scaffold(
-      // Pin to Home while focused so the FocusView is what shows, never another
-      // tab caught behind the hidden bar.
-      body: IndexedStack(index: focused ? 0 : index, children: _tabs),
+      // Held on Home while the session runs, never another tab caught
+      // behind the hidden bar.
+      body: IndexedStack(index: held ? 0 : index, children: tabs ?? _tabs),
       // Slim, text-only tab bar (no icons) — reclaims vertical space and keeps
       // the minimal greyscale identity.
-      bottomNavigationBar: focused
+      bottomNavigationBar: held
           ? null
           : TextTabBar(
               currentIndex: index,

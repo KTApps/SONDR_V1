@@ -41,8 +41,6 @@ void main() {
       "CaptureFlash.auto => 'Flash auto',",
     ),
     'camera: flip': ('lib/features/photos/sondr_camera.dart', "word('Flip'"),
-    'focus: running': ('lib/features/focus/focus_view.dart', "'In session'"),
-    'focus: paused': ('lib/features/focus/focus_view.dart', "'Paused'"),
     'day detail: logged': (
       'lib/features/history/day_detail_sheet.dart',
       "'Logged',",
@@ -88,7 +86,6 @@ void main() {
         "'flash auto'",
         "word('flip'",
       ],
-      'lib/features/focus/focus_view.dart': ["'in session'", "'paused'"],
       'lib/features/history/day_detail_sheet.dart': ["'logged',"],
       'lib/features/timer/widgets/task_dropdown.dart': ["'Add Task'"],
       'lib/features/friends/friends_screen.dart': ["'Add Friends'"],

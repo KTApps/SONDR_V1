@@ -146,8 +146,8 @@ void main() {
     testWidgets('the weekday sits where Home puts its title, at its size', (
       tester,
     ) async {
-      final home = await yOf(tester, const TimerScreen(), 'Task');
-      final homeSize = tester.widget<Text>(find.text('Task')).style!.fontSize;
+      final home = await yOf(tester, const TimerScreen(), 'Tasks');
+      final homeSize = tester.widget<Text>(find.text('Tasks')).style!.fontSize;
 
       final day = DayKey.weekday(DateTime.now().weekday);
       final habits = await yOf(tester, const HabitsScreen(), day);

@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
-import '../../shared/cached_photo.dart';
-import '../../shared/ring/segmented_dial.dart';
 import '../habits/habits_providers.dart';
 import '../habits/models/daily_habits.dart';
 import '../photos/models/photo.dart';
@@ -12,6 +9,7 @@ import '../photos/photos_repository.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'day_detail_sheet.dart';
+import 'day_ring.dart';
 
 /// Calendar history: a vertically scrolling list of months. The current month
 /// is pinned at the top (it's the newest — there are no future months above it)
@@ -141,8 +139,6 @@ class _MonthGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final tokens = GreyscaleTokens.of(context);
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
@@ -168,42 +164,14 @@ class _MonthGrid extends ConsumerWidget {
       ];
 
       final dayPhotos = byDay[key] ?? const <Photo>[];
-      final hero = dayPhotos.isEmpty ? null : dayPhotos.first; // first capture
-      final hasPhoto = hero != null;
-
-      Widget dial = SegmentedDial(
+      final dial = CalendarDayRing(
         size: 49,
-        compact: true,
-        stroke: 5, // a touch thinner than the proportional ~6
-        taskTodaySeconds: segments,
+        day: day,
+        isToday: isToday,
+        segments: segments,
         habitStates: habitStates,
-        fill: hasPhoto ? _PhotoFill(url: hero.photoUrl) : null,
-        center: Text(
-          '$day',
-          style: theme.textTheme.labelMedium?.copyWith(
-            // Matches Home's Last-10-days numbers: bold (w700), size 12.
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: hasPhoto
-                ? Colors.white
-                : (isToday ? tokens.textPrimary : tokens.textSecondary),
-            // Kept legible over the tinted photo.
-            shadows: hasPhoto
-                ? const [Shadow(color: Color(0xCC000000), blurRadius: 3)]
-                : null,
-          ),
-        ),
+        photos: dayPhotos,
       );
-      if (dayPhotos.length > 1) {
-        dial = Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            dial,
-            const Positioned(top: 5, right: 8, child: _MultipleDot()),
-          ],
-        );
-      }
 
       cells.add(
         Opacity(
@@ -224,59 +192,6 @@ class _MonthGrid extends ConsumerWidget {
       mainAxisSpacing: 8,
       crossAxisSpacing: 4,
       children: cells,
-    );
-  }
-}
-
-// ── Photo-in-ring tint — a FIXED, uniform treatment on every photo cell so the
-// calendar reads consistently. Both values are tuned on screen; adjust here.
-/// Photo colour saturation: 1 = full colour, 0 = full greyscale. Lower = more
-/// muted toward the app's greyscale world.
-const double _kPhotoSaturation = 0.32;
-
-/// Dark scrim painted over the photo. Higher alpha = darker/more muted and a
-/// stronger backing for the white day number. 0x9E ≈ 62% black.
-const Color _kPhotoTint = Color(0x9E000000);
-
-/// A day's hero photo inside the effort ring: the network image, desaturated
-/// toward the app's greyscale, under the fixed dark tint that both mutes it and
-/// backs the white day number. The tint is identical on every photo day so the
-/// calendar reads consistently. A broken/failed URL falls back to nothing (ring
-/// only) so it never breaks the cell; nothing shows until the first frame, so
-/// there's no flash of a tinted-but-empty disc.
-class _PhotoFill extends StatelessWidget {
-  const _PhotoFill({required this.url});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    // Cached (survives calendar re-entry and network blips), desaturated toward
-    // greyscale under the fixed dark tint. A broken or still-loading URL shows
-    // nothing — the ring-only cell — so it never breaks the cell or flashes a
-    // tinted-but-empty disc (placeholder/error default to an empty box).
-    return SondrPhoto(
-      url: url,
-      saturation: _kPhotoSaturation,
-      tint: _kPhotoTint,
-    );
-  }
-}
-
-/// The quiet "more than one photo today" marker, top-right of the cell.
-class _MultipleDot extends StatelessWidget {
-  const _MultipleDot();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 5,
-      height: 5,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Color(0x99000000), blurRadius: 2)],
-      ),
     );
   }
 }

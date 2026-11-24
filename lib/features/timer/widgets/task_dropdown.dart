@@ -591,10 +591,8 @@ class _PillTrayAction extends StatelessWidget {
 /// to [progress] (0..1) through the current 20-hour block — the same measure
 /// the profile rings use, so a filled bar means the same thing everywhere.
 /// Empty = all dark; it resets on each milestone and climbs again toward the
-/// next. The fill is drawn through [shownProgress], the same clamp the rings
-/// use, so any time at all shows a nub and a nearly-finished band keeps a
-/// visible gap — a bar that filled to the end would claim a milestone the
-/// task has not reached. The filled left end is rounded by the pill; the
+/// next. The fill is drawn through [shownProgress], as the rings are: the
+/// real fraction, nothing added and nothing held back. The filled left end is rounded by the pill; the
 /// filled/unfilled boundary is a clean vertical edge. Name centred, Inter bold
 /// 12, white. Pure greyscale — fill and remainder are a brightness step apart.
 /// A task being named: a pill with nothing in it yet.

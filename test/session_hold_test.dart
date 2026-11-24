@@ -53,7 +53,7 @@ void main() {
     await become(tester, const TimerState(status: TimerStatus.running));
     await become(tester, const TimerState(status: TimerStatus.paused));
     expect(find.byType(TextTabBar), findsOneWidget);
-    await tester.tap(find.text('Posts').evaluate().isEmpty ? find.text('Feed') : find.text('Posts'));
+    await tester.tap(find.text('Posts'));
     await tester.pumpAndSettle();
     expect(showing('posts tab'), isTrue);
   });

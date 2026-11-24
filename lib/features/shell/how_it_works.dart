@@ -19,27 +19,28 @@ class HowToLine {
 }
 
 /// The three tabs, in the bar's order.
-enum HowToTab { home, feed, profile }
+enum HowToTab { home, posts, profile }
 
 extension HowToTabWords on HowToTab {
   /// The tab's own name, as the bar prints it.
   String get label => switch (this) {
     HowToTab.home => 'Home',
-    HowToTab.feed => 'Feed',
+    HowToTab.posts => 'Posts',
     HowToTab.profile => 'Profile',
   };
 
-  String get title => 'How $label works';
-
   List<HowToLine> get lines => switch (this) {
     HowToTab.home => kHowHomeWorks,
-    HowToTab.feed => kHowFeedWorks,
+    HowToTab.posts => kHowPostsWork,
     HowToTab.profile => kHowProfileWorks,
   };
 }
 
 const List<HowToLine> kHowHomeWorks = [
-  HowToLine('Pick a task', ' at the top, then Start.'),
+  HowToLine(
+    'Tap Tasks',
+    " to pick what you're working on. Double-tap a task's name to see all your tasks again.",
+  ),
   HowToLine('Outer ring:', " today's time, split by task. Tap the centre for this month."),
   HowToLine('Inner ring:', ' tap it for your habits.'),
   HowToLine('Lock your phone:', ' the timer keeps going.'),
@@ -47,7 +48,7 @@ const List<HowToLine> kHowHomeWorks = [
   HowToLine('Swipe a task left', ' to rename or archive it.'),
 ];
 
-const List<HowToLine> kHowFeedWorks = [
+const List<HowToLine> kHowPostsWork = [
   HowToLine("Your friends' posts", ', newest first.'),
   HowToLine('Tap the right side', ' of a milestone to see each photo, the left to go back.'),
   HowToLine('Tap a caption', ' to read all of it.'),
@@ -70,10 +71,10 @@ const String kHowSondrWorks = 'How sondr works';
 const double kHowToLineGap = 12;
 const double kHowToSectionGap = 24;
 
-/// One tab's sheet.
+/// One tab's sheet, titled with the tab's own name.
 Future<void> showHowToSheet(BuildContext context, HowToTab tab) => showBlurSheet(
   context,
-  (_) => BlurView(title: tab.title, body: HowToLines(lines: tab.lines)),
+  (_) => BlurView(title: tab.label, body: HowToLines(lines: tab.lines)),
 );
 
 /// All three, each under its tab's name.
@@ -126,7 +127,7 @@ class HowToLines extends StatelessWidget {
   }
 }
 
-/// Home, Feed and Profile, each heading in the quiet bold the notification
+/// Home, Posts and Profile, each heading in the quiet bold the notification
 /// page's day headings wear, with its points under it.
 class HowToSections extends StatelessWidget {
   const HowToSections({super.key});

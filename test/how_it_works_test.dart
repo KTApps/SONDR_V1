@@ -57,14 +57,14 @@ void main() {
   group('the words', () {
     test('each line starts with its lead phrase, as written', () {
       expect([for (final l in kHowHomeWorks) l.text], [
-        'Pick a task at the top, then Start.',
+        "Tap Tasks to pick what you're working on. Double-tap a task's name to see all your tasks again.",
         "Outer ring: today's time, split by task. Tap the centre for this month.",
         'Inner ring: tap it for your habits.',
         'Lock your phone: the timer keeps going.',
         'Stop to take a photo. Every 20 hours is a milestone.',
         'Swipe a task left to rename or archive it.',
       ]);
-      expect([for (final l in kHowFeedWorks) l.text], [
+      expect([for (final l in kHowPostsWork) l.text], [
         "Your friends' posts, newest first.",
         'Tap the right side of a milestone to see each photo, the left to go back.',
         'Tap a caption to read all of it.',
@@ -78,8 +78,8 @@ void main() {
         'In progress: how close each task is to its next 20 hours.',
         'More has settings, camera access and sign out.',
       ]);
-      expect([for (final l in [...kHowHomeWorks, ...kHowFeedWorks, ...kHowProfileWorks]) l.lead], [
-        'Pick a task', 'Outer ring:', 'Inner ring:', 'Lock your phone:', 'Stop', 'Swipe a task left',
+      expect([for (final l in [...kHowHomeWorks, ...kHowPostsWork, ...kHowProfileWorks]) l.lead], [
+        'Tap Tasks', 'Outer ring:', 'Inner ring:', 'Lock your phone:', 'Stop', 'Swipe a task left',
         "Your friends' posts", 'Tap the right side', 'Tap a caption', 'Hold your own post', 'Notifications',
         'Tap your photo', 'Your total hours', 'Milestones:', 'In progress:', 'More',
       ]);
@@ -88,15 +88,17 @@ void main() {
 
   group('a long-press on a tab', () {
     for (final (label, title, lines) in [
-      ('Home', 'How Home works', kHowHomeWorks),
-      ('Feed', 'How Feed works', kHowFeedWorks),
-      ('Profile', 'How Profile works', kHowProfileWorks),
+      ('Home', 'Home', kHowHomeWorks),
+      ('Posts', 'Posts', kHowPostsWork),
+      ('Profile', 'Profile', kHowProfileWorks),
     ]) {
-      testWidgets('on $label opens "$title", with a light haptic, and switches nothing', (tester) async {
+      testWidgets('on $label opens a sheet titled "$title", with a light haptic, and switches nothing', (tester) async {
         await pumpBar(tester);
         await tester.longPress(tab(label));
         await tester.pumpAndSettle();
-        expect(find.text(title), findsOneWidget);
+        final heading = find.descendant(of: find.byType(BlurSheet), matching: find.text(title));
+        expect(heading, findsOneWidget);
+        expect(find.textContaining('works'), findsNothing, reason: 'just the tab name');
         expect(haptics, ['HapticFeedbackType.lightImpact']);
         for (final l in lines) {
           expect(find.text(l.text, findRichText: true), findsOneWidget);
@@ -104,13 +106,13 @@ void main() {
         expect(find.text('tab 0'), findsOneWidget, reason: 'the tab did not change');
         await tester.tap(find.text('Back'));
         await tester.pumpAndSettle();
-        expect(find.text(title), findsNothing);
+        expect(heading, findsNothing);
       });
     }
 
     testWidgets('a tap still switches tabs, and opens nothing', (tester) async {
       await pumpBar(tester);
-      await tester.tap(tab('Feed'));
+      await tester.tap(tab('Posts'));
       await tester.pumpAndSettle();
       expect(find.text('tab 1'), findsOneWidget);
       expect(find.byType(BlurSheet), findsNothing);
@@ -131,7 +133,7 @@ void main() {
       final line = span.children!.single as TextSpan;
       final lead = line.children!.first as TextSpan;
       final rest = line.children!.last as TextSpan;
-      expect(lead.text, 'Pick a task');
+      expect(lead.text, 'Tap Tasks');
       expect(lead.style!.color, tokens.textPrimary);
       expect(lead.style!.fontWeight, FontWeight.w700);
       expect(rest.style, isNull, reason: 'the line\'s own style');
@@ -146,12 +148,12 @@ void main() {
 
     for (final ts in [0.824, 1.0, 1.235]) {
       testWidgets('at textScaler $ts each sheet fits on the 13 Pro without clipping', (tester) async {
-        for (final (label, lines) in [('Home', kHowHomeWorks), ('Feed', kHowFeedWorks), ('Profile', kHowProfileWorks)]) {
+        for (final (label, lines) in [('Home', kHowHomeWorks), ('Posts', kHowPostsWork), ('Profile', kHowProfileWorks)]) {
           await pumpBar(tester, textScale: ts);
           await tester.longPress(tab(label));
           await tester.pumpAndSettle();
           final scale = figmaScale(tester.element(find.byType(BlurSheet)));
-          final title = tester.getRect(find.text('How $label works'));
+          final title = tester.getRect(find.descendant(of: find.byType(BlurSheet), matching: find.text(label)));
           final top = tester.getRect(find.text(lines.first.text, findRichText: true));
           final bottom = tester.getRect(find.text(lines.last.text, findRichText: true));
           final back = tester.getRect(find.text('Back'));
@@ -163,8 +165,6 @@ void main() {
           final scroll = tester.state<ScrollableState>(find.descendant(of: find.byType(BlurSheet), matching: find.byType(Scrollable)).first);
           expect(scroll.position.maxScrollExtent, 0, reason: '$label needs no scrolling at $ts');
           expect(tester.takeException(), isNull);
-          // ignore: avoid_print
-          print('HOWTO $label ts=$ts title.bottom=${title.bottom.toStringAsFixed(1)} first.top=${top.top.toStringAsFixed(1)} last.bottom=${bottom.bottom.toStringAsFixed(1)} back.top=${back.top.toStringAsFixed(1)}');
           await tester.tap(find.text('Back'));
           await tester.pumpAndSettle();
         }
@@ -212,13 +212,13 @@ void main() {
       expect(tester.widget<Text>(row).style, tester.widget<Text>(find.text('Terms')).style);
     });
 
-    testWidgets('opens the three sets under Home, Feed and Profile', (tester) async {
+    testWidgets('opens the three sets under Home, Posts and Profile', (tester) async {
       await openMore(tester);
       await tester.tap(find.text(kHowSondrWorks));
       await tester.pumpAndSettle();
       expect(find.text(kHowSondrWorks), findsOneWidget, reason: 'the title now');
       final home = tester.getRect(find.text('Home'));
-      final feed = tester.getRect(find.text('Feed'));
+      final feed = tester.getRect(find.text('Posts'));
       final profile = tester.getRect(find.text('Profile'));
       expect(home.top, lessThan(feed.top));
       expect(feed.top, lessThan(profile.top));

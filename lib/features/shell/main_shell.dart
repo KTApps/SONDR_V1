@@ -9,8 +9,8 @@ import '../timer/timer_controller.dart';
 import '../timer/timer_screen.dart';
 import 'how_it_works.dart';
 
-/// The selected bottom-tab index (0 Home · 1 Feed · 2 Profile). A provider so a
-/// flow can jump the shell to a tab — e.g. landing on Feed after creating a
+/// The selected bottom-tab index (0 Home · 1 Posts · 2 Profile). A provider so a
+/// flow can jump the shell to a tab — e.g. landing on Posts after creating a
 /// milestone post — not just the tab bar's own taps.
 class SelectedTab extends Notifier<int> {
   @override
@@ -21,7 +21,7 @@ class SelectedTab extends Notifier<int> {
 
 final selectedTabProvider = NotifierProvider<SelectedTab, int>(SelectedTab.new);
 
-/// Root tab shell: Home · Feed · Profile. Introduced in step 2, it replaces the
+/// Root tab shell: Home · Posts · Profile. Introduced in step 2, it replaces the
 /// phase-1 top-right buttons on the timer with a bottom [NavigationBar].
 ///
 /// An [IndexedStack] keeps each tab alive so the running timer (and any scroll
@@ -67,7 +67,7 @@ class MainShell extends ConsumerWidget {
   }
 }
 
-/// A minimal text-only bottom tab bar: "Home · Feed · Profile" as labels, no
+/// A minimal text-only bottom tab bar: "Home · Posts · Profile" as labels, no
 /// icons. Public only so a test can pump it without the three tab screens
 /// (and the Firebase each of them wants) coming with it. The selected tab is brighter (white, bold) with a short underline;
 /// unselected tabs are dim grey. Pure greyscale, surface-toned, and slim.
@@ -81,7 +81,7 @@ class TextTabBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onSelect;
 
-  static const List<String> _labels = ['Home', 'Feed', 'Profile'];
+  static const List<String> _labels = ['Home', 'Posts', 'Profile'];
 
   @override
   Widget build(BuildContext context) {

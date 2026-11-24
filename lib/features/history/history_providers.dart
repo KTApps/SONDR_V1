@@ -6,9 +6,12 @@ import '../tasks/tasks_providers.dart';
 
 /// One task's logged time on a particular day.
 class TaskTime {
-  const TaskTime({required this.name, required this.seconds});
+  const TaskTime({required this.name, required this.seconds, this.taskId = ''});
   final String name;
   final int seconds;
+
+  /// Which task, so the day sheet can match it to that day's photos.
+  final String taskId;
 }
 
 /// Everything needed to render a single past (or current) day: the per-task
@@ -21,9 +24,14 @@ class DayHistory {
     required this.segments,
     required this.taskTimes,
     required this.habits,
+    this.taskIds = const [],
   });
 
   final String dayKey;
+
+  /// The task behind each of [segments], in the same order — so a task's
+  /// slice can be found to light it.
+  final List<String> taskIds;
 
   /// Per-task seconds in stable task order (zeros included), so segment colours
   /// stay consistent for a task across every day.
@@ -53,12 +61,17 @@ final dayHistoryProvider = Provider.family<DayHistory, String>((ref, dayKey) {
   final taskTimes = <TaskTime>[
     for (final t in tasks)
       if ((t.secondsByDay[dayKey] ?? 0) > 0)
-        TaskTime(name: t.name, seconds: t.secondsByDay[dayKey]!),
+        TaskTime(
+          name: t.name,
+          seconds: t.secondsByDay[dayKey]!,
+          taskId: t.id,
+        ),
   ]..sort((a, b) => b.seconds.compareTo(a.seconds));
 
   return DayHistory(
     dayKey: dayKey,
     segments: segments,
+    taskIds: [for (final t in tasks) t.id],
     taskTimes: taskTimes,
     habits: habitsState?.days[dayKey],
   );

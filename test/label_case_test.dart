@@ -52,9 +52,10 @@ void main() {
   };
 
   test('the day sheet says "logged", lowercase, on purpose', () {
+    // In the line under the date since the redesign: "2h 55m logged".
     expect(
       File('lib/features/history/day_detail_sheet.dart').readAsStringSync(),
-      contains("'logged',"),
+      contains(" logged',"),
     );
   });
 
@@ -91,7 +92,7 @@ void main() {
       ],
       // Lowercase on purpose since session-focus: it sits under the
       // figure as "today" and "this session" sit under the dial's.
-      'lib/features/history/day_detail_sheet.dart': ["'Logged',"],
+      'lib/features/history/day_detail_sheet.dart': ["'Logged',", " Logged',"],
       'lib/features/timer/widgets/task_dropdown.dart': ["'Add Task'"],
       'lib/features/friends/friends_screen.dart': ["'Add Friends'"],
     };

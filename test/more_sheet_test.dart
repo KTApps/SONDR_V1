@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +17,7 @@ import 'package:sondr/features/auth/delete_account.dart';
 import 'package:sondr/features/auth/legal_lines.dart';
 import 'package:sondr/features/auth/more_sheet.dart';
 import 'package:sondr/features/debug/debug_panel.dart';
+import 'package:sondr/features/presence/presence_repository.dart';
 import 'package:sondr/features/timer/live_activity.dart';
 import 'package:sondr/features/timer/session_clock.dart';
 import 'package:sondr/features/timer/session_store.dart';
@@ -96,6 +99,30 @@ class _Card implements LiveActivity {
   dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
 }
 
+/// The setting alone, kept in memory: the row reads it and a tap writes it.
+class _Presence implements PresenceBackend {
+  bool? stored;
+  final StreamController<bool> _changes = StreamController<bool>.broadcast();
+
+  @override
+  String get uid => 'me';
+
+  @override
+  Stream<bool> watchShowInSession() async* {
+    yield stored ?? true;
+    yield* _changes.stream;
+  }
+
+  @override
+  Future<void> setShowInSession(bool on) async {
+    stored = on;
+    _changes.add(on);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
 class _Account implements User {
   @override
   bool get isAnonymous => false;
@@ -123,6 +150,7 @@ void main() {
     User? user,
     AccountErasure? erasure,
     bool debug = false,
+    PresenceBackend? presence,
   }) async {
     auth = _Auth(user);
     useReferenceViewport(tester);
@@ -136,6 +164,8 @@ void main() {
           liveActivityProvider.overrideWithValue(_Card()),
           if (erasure != null)
             accountCascadeProvider.overrideWithValue(erasure),
+          if (presence != null)
+            presenceBackendProvider.overrideWithValue(presence),
         ],
         child: MaterialApp(
           theme: AppTheme.dark(),
@@ -237,6 +267,7 @@ void main() {
         'Privacy',
         'Terms',
         'Camera access',
+        'Session status · On',
         'How sondr works',
         'Sign out',
         'Delete account',
@@ -342,6 +373,61 @@ void main() {
       expect(pages.opened.length, 3);
     });
 
+    group('Session status', () {
+      Finder labelled(String start) => find.descendant(
+        of: find.byType(BlurSheet),
+        matching: find.byWidgetPredicate((w) =>
+            w is Text && (w.data ?? w.textSpan?.toPlainText() ?? '').startsWith(start)),
+      );
+      Finder row() => labelled('Session status');
+      String rowText(WidgetTester tester) {
+        final text = tester.widget<Text>(row());
+        return text.data ?? text.textSpan!.toPlainText();
+      }
+
+      testWidgets('"· On" with no setting stored; a tap turns it off in place, another on', (tester) async {
+        final presence = _Presence();
+        await pump(tester, user: _Account(), presence: presence);
+        await openSheet(tester);
+        expect(rowText(tester), 'Session status · On');
+        await tester.tap(row());
+        await tester.pumpAndSettle();
+        expect(presence.stored, isFalse);
+        expect(rowText(tester), 'Session status · Off');
+        expect(find.byType(BlurSheet), findsOneWidget, reason: 'the sheet stays');
+        expect(find.text('Support'), findsOneWidget, reason: 'on the list, nothing opened');
+        await tester.tap(row());
+        await tester.pumpAndSettle();
+        expect(presence.stored, isTrue);
+        expect(rowText(tester), 'Session status · On');
+      });
+
+      testWidgets('a stored Off reads Off', (tester) async {
+        final presence = _Presence()..stored = false;
+        await pump(tester, user: _Account(), presence: presence);
+        await openSheet(tester);
+        expect(rowText(tester), 'Session status · Off');
+      });
+
+      testWidgets('Camera access\'s style: white label, the word after it quiet', (tester) async {
+        await pump(tester, user: _Account(), presence: _Presence());
+        await openSheet(tester);
+        final label = tester.widget<Text>(row());
+        final camera = tester.widget<Text>(labelled('Camera access'));
+        expect(label.style, camera.style);
+        final tokens = GreyscaleTokens.of(tester.element(row()));
+        expect(label.style!.color, tokens.textPrimary);
+        expect(sessionStatusDetail(true), '· On');
+        expect(sessionStatusDetail(false), '· Off');
+      });
+
+      testWidgets('a guest does not see it', (tester) async {
+        await pump(tester, presence: _Presence());
+        await openSheet(tester);
+        expect(row(), findsNothing);
+      });
+    });
+
     testWidgets('Cancel does nothing at all', (tester) async {
       await pump(tester, user: _Account());
       await openSheet(tester);
@@ -358,6 +444,7 @@ void main() {
         MoreChoice.privacy,
         MoreChoice.terms,
         MoreChoice.cameraAccess,
+        MoreChoice.sessionStatus,
         MoreChoice.howItWorks,
         MoreChoice.signOut,
         MoreChoice.deleteAccount,
@@ -369,6 +456,11 @@ void main() {
         MoreChoice.cameraAccess,
         MoreChoice.howItWorks,
       ]);
+      // Nor Session status: a guest has no friends to be seen by.
+      expect(
+        moreChoicesFor(signedIn: false),
+        isNot(contains(MoreChoice.sessionStatus)),
+      );
       // A guest is never offered the deletion, whatever the build.
       expect(
         moreChoicesFor(signedIn: false),

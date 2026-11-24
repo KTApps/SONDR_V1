@@ -113,7 +113,7 @@ class DayDetailSheet extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Logged',
+                        'logged',
                         style: theme.textTheme.labelMedium?.copyWith(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,

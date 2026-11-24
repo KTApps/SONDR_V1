@@ -41,10 +41,6 @@ void main() {
       "CaptureFlash.auto => 'Flash auto',",
     ),
     'camera: flip': ('lib/features/photos/sondr_camera.dart', "word('Flip'"),
-    'day detail: logged': (
-      'lib/features/history/day_detail_sheet.dart',
-      "'Logged',",
-    ),
     'tasks: add': (
       'lib/features/timer/widgets/task_dropdown.dart',
       "footerAction('Add task'",
@@ -54,6 +50,13 @@ void main() {
       "'Add friends',",
     ),
   };
+
+  test('the day sheet says "logged", lowercase, on purpose', () {
+    expect(
+      File('lib/features/history/day_detail_sheet.dart').readAsStringSync(),
+      contains("'logged',"),
+    );
+  });
 
   changed.forEach((what, where) {
     final (path, needle) = where;
@@ -86,7 +89,9 @@ void main() {
         "'flash auto'",
         "word('flip'",
       ],
-      'lib/features/history/day_detail_sheet.dart': ["'logged',"],
+      // Lowercase on purpose since session-focus: it sits under the
+      // figure as "today" and "this session" sit under the dial's.
+      'lib/features/history/day_detail_sheet.dart': ["'Logged',"],
       'lib/features/timer/widgets/task_dropdown.dart': ["'Add Task'"],
       'lib/features/friends/friends_screen.dart': ["'Add Friends'"],
     };

@@ -358,7 +358,7 @@ void main() {
   });
 
   group('habits', () {
-    testWidgets('10, a hairline on the gutters, 10, then one 30 row each: Done and Not done', (tester) async {
+    testWidgets('10, a hairline on the gutters, 10, then one 30 row each: the name alone, white if done, grey if not', (tester) async {
       await open(tester, withHistory: history(habits: twoHabits));
       final t = tokens(tester);
       final rule = find.byWidgetPredicate((w) => w is ColoredBox && w.color == kHairline);
@@ -372,12 +372,19 @@ void main() {
       final read = tester.getRect(find.text('Read'));
       expect(read.top - (30 - read.height) / 2 - r.bottom, closeTo(10, 0.5));
       expect(tester.getRect(find.text('Stretch')).top - read.top, closeTo(30, 0.01));
-      expect(find.text('Done'), findsOneWidget);
-      expect(find.text('Not done'), findsOneWidget);
-      expect(colourOf(tester, find.text('Read')), t.textSecondary);
-      expect(colourOf(tester, find.text('Done')), t.textSecondary);
+      expect(find.text('Done'), findsNothing);
+      expect(find.text('Not done'), findsNothing);
+      expect(colourOf(tester, find.text('Read')), t.textPrimary);
       expect(colourOf(tester, find.text('Stretch')), t.textTertiary);
-      expect(colourOf(tester, find.text('Not done')), t.textTertiary);
+      // Nothing on the right of a habit row.
+      expect(
+        find.descendant(
+          of: find.ancestor(of: find.text('Read'), matching: find.byType(Row)).first,
+          matching: find.byType(Text),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.getRect(find.text('Read')).left, closeTo(24, 0.01));
     });
 
     testWidgets('a day without habits has no hairline and no habit rows', (tester) async {
@@ -385,6 +392,21 @@ void main() {
       expect(find.byWidgetPredicate((w) => w is ColoredBox && w.color == kHairline), findsNothing);
       expect(find.text('Done'), findsNothing);
       expect(find.text('Not done'), findsNothing);
+    });
+  });
+
+  group('the ring\'s dot', () {
+    testWidgets('no white dot for more than one photo, in the sheet or the calendar', (tester) async {
+      await open(tester, photos: fourPhotos);
+      final ring = find.byKey(kDaySheetRingKey);
+      expect(
+        find.descendant(of: ring, matching: find.byWidgetPredicate(
+          (w) => w is Container && w.decoration is BoxDecoration &&
+              (w.decoration! as BoxDecoration).shape == BoxShape.circle,
+        )),
+        findsNothing,
+      );
+      expect(find.descendant(of: ring, matching: find.byType(Positioned)), findsNothing);
     });
   });
 

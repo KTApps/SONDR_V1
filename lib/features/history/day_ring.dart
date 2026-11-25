@@ -6,8 +6,7 @@ import '../../shared/ring/segmented_dial.dart';
 import '../photos/models/photo.dart';
 
 /// One day's ring, as the calendar draws it: that day's task split and
-/// habits, the day's first photo inside it, the date's number on top, and a
-/// dot when there is more than one photo.
+/// habits, the day's first photo inside it, and the date's number on top.
 ///
 /// The calendar's cell at 49, and the day sheet's header at 44, which also
 /// lights one task's slice — [selectedTaskIndex], Home's treatment.
@@ -23,7 +22,7 @@ class CalendarDayRing extends StatelessWidget {
     this.selectedTaskIndex,
   });
 
-  /// The calendar's cell size, which the stroke and dot are drawn against.
+  /// The calendar's cell size, which the stroke is drawn against.
   static const double calendarSize = 49;
 
   final double size;
@@ -42,7 +41,7 @@ class CalendarDayRing extends StatelessWidget {
     final hero = photos.isEmpty ? null : photos.first; // first capture
     final hasPhoto = hero != null;
 
-    Widget dial = SegmentedDial(
+    return SegmentedDial(
       size: size,
       compact: true,
       stroke: 5 * k, // a touch thinner than the proportional ~6
@@ -66,17 +65,6 @@ class CalendarDayRing extends StatelessWidget {
         ),
       ),
     );
-    if (photos.length > 1) {
-      dial = Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          dial,
-          Positioned(top: 5 * k, right: 8 * k, child: const _MultipleDot()),
-        ],
-      );
-    }
-    return dial;
   }
 }
 
@@ -106,24 +94,6 @@ class _PhotoFill extends StatelessWidget {
       url: url,
       saturation: _kPhotoSaturation,
       tint: _kPhotoTint,
-    );
-  }
-}
-
-/// The quiet "more than one photo today" marker, top-right of the cell.
-class _MultipleDot extends StatelessWidget {
-  const _MultipleDot();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 5,
-      height: 5,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Color(0x99000000), blurRadius: 2)],
-      ),
     );
   }
 }

@@ -230,9 +230,9 @@ class _DayDetailSheetState extends ConsumerState<DayDetailSheet> {
 
     Widget line({
       required String name,
-      required String trailing,
       required Color nameColour,
-      required Color trailingColour,
+      String? trailing,
+      Color? trailingColour,
       VoidCallback? onTap,
       Key? key,
     }) {
@@ -249,8 +249,10 @@ class _DayDetailSheetState extends ConsumerState<DayDetailSheet> {
                 Expanded(
                   child: Text(name, style: supporting?.copyWith(color: nameColour)),
                 ),
-                const SizedBox(width: 16),
-                Text(trailing, style: figures?.copyWith(color: trailingColour)),
+                if (trailing != null) ...[
+                  const SizedBox(width: 16),
+                  Text(trailing, style: figures?.copyWith(color: trailingColour)),
+                ],
               ],
             ),
           ),
@@ -319,14 +321,11 @@ class _DayDetailSheetState extends ConsumerState<DayDetailSheet> {
             child: SizedBox(height: 1, child: ColoredBox(color: kHairline)),
           ),
           const SizedBox(height: kDaySheetHabitsGap),
+          // The name alone: white when it was done that day, grey when not.
           for (final tick in habits.ticks)
             line(
               name: tick.name,
-              trailing: tick.done ? 'Done' : 'Not done',
-              nameColour: tick.done ? tokens.textSecondary : tokens.textTertiary,
-              trailingColour: tick.done
-                  ? tokens.textSecondary
-                  : tokens.textTertiary,
+              nameColour: tick.done ? tokens.textPrimary : tokens.textTertiary,
             ),
         ],
         SizedBox(

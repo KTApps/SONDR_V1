@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/figma_scale.dart';
+import '../../shared/blur_sheet.dart';
 import '../../shared/sondr_action.dart';
+import '../shell/how_it_works.dart';
 import '../shell/main_shell.dart';
 import '../timer/home_metrics.dart';
 import 'first_run.dart';
@@ -36,7 +38,8 @@ class FirstRunScreen extends StatelessWidget {
     final tokens = GreyscaleTokens.of(context);
     final theme = Theme.of(context);
     final scale = figmaScale(context);
-    final body = theme.textTheme.bodyMedium?.copyWith(fontSize: 15 * scale);
+    // The how-to sheets' own type: their title, and their line.
+    final body = howToLineStyle(context);
 
     return Scaffold(
       backgroundColor: tokens.background,
@@ -52,11 +55,7 @@ class FirstRunScreen extends StatelessWidget {
                 Text(
                   view.title,
                   key: kFirstRunTitleKey,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontSize: 20 * scale,
-                    fontWeight: FontWeight.w700,
-                    color: tokens.textPrimary,
-                  ),
+                  style: blurTitleStyle(context),
                 ),
                 SizedBox(
                   height: (kFirstRunLineGap + kFirstRunTitleExtra) * scale,

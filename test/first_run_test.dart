@@ -17,6 +17,7 @@ import 'package:sondr/features/friends/models/friendship.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
 import 'package:sondr/features/profile/milestone_strip.dart';
+import 'package:sondr/features/shell/how_it_works.dart';
 import 'package:sondr/features/shell/main_shell.dart';
 import 'package:sondr/features/splash/boot_gate.dart';
 import 'package:sondr/features/tasks/models/task.dart';
@@ -29,6 +30,7 @@ import 'package:sondr/features/timer/session_clock.dart';
 import 'package:sondr/features/timer/session_store.dart';
 import 'package:sondr/features/timer/timer_controller.dart';
 import 'package:sondr/features/timer/timer_screen.dart';
+import 'package:sondr/shared/blur_sheet.dart';
 
 /// Onboarding once per install, "What's new" once per build with notes,
 /// both before Home and both pointing at the tab bar they leave behind.
@@ -359,7 +361,22 @@ void main() {
         expect(lines[i].top - lines[i - 1].bottom, closeTo(18 * scale, 0.01));
         expect(lines[i].left, closeTo(24 * scale, 0.01));
       }
-      final tokens = GreyscaleTokens.of(tester.element(find.byType(FirstRunScreen)));
+      final ctx = tester.element(find.byType(FirstRunScreen));
+      final tokens = GreyscaleTokens.of(ctx);
+      // The how-to sheets' type exactly: their title, and their line.
+      final titleStyle = tester.widget<Text>(find.byKey(kFirstRunTitleKey)).style!;
+      expect(titleStyle, blurTitleStyle(ctx));
+      expect(titleStyle.fontSize, 20);
+      expect(titleStyle.fontWeight, FontWeight.w700);
+      for (var i = 0; i < kOnboardingLines.length; i++) {
+        final style = tester.widget<Text>(find.text(kOnboardingLines[i])).style!;
+        final line = howToLineStyle(ctx)!;
+        expect(style.fontSize, line.fontSize);
+        expect(style.fontWeight, line.fontWeight);
+        expect(style.fontFamily, line.fontFamily);
+        expect(style.height, line.height);
+        expect(style, line.copyWith(color: i == 0 ? tokens.textPrimary : tokens.textSecondary));
+      }
       expect(tester.widget<Text>(find.text(kOnboardingLines[0])).style!.color, tokens.textPrimary);
       expect(tester.widget<Text>(find.text(kOnboardingLines[1])).style!.color, tokens.textSecondary);
       expect(tester.widget<Text>(find.text(kOnboardingLines[2])).style!.color, tokens.textSecondary);

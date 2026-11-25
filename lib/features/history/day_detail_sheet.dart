@@ -7,10 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../core/utils/date.dart';
 import '../../core/utils/duration_format.dart';
+import '../../core/utils/figma_scale.dart';
 import '../../shared/cached_photo.dart';
 import '../photos/delete_photo.dart';
 import '../photos/models/photo.dart';
 import '../photos/photos_repository.dart';
+import '../profile/profile_metrics.dart';
 import 'day_ring.dart';
 import 'history_providers.dart';
 
@@ -285,12 +287,21 @@ class _DayDetailSheetState extends ConsumerState<DayDetailSheet> {
                       child: SizedBox(
                         width: kDayPhotoWidth,
                         height: kDayPhotoHeight,
-                        child: SondrPhoto(
-                          url: photos[i].photoUrl,
-                          saturation: _kPhotoSaturation,
-                          tint: _kPhotoTint,
-                          placeholder: (_) => ColoredBox(color: tokens.ringTrack),
-                          error: (_) => ColoredBox(color: tokens.ringTrack),
+                        // The Profile milestones row's corners, so the
+                        // placeholder is rounded too.
+                        child: ClipRRect(
+                          key: ValueKey('day-photo-$i'),
+                          borderRadius: BorderRadius.circular(
+                            kProfileStripRadius * figmaScale(context),
+                          ),
+                          child: SondrPhoto(
+                            url: photos[i].photoUrl,
+                            saturation: _kPhotoSaturation,
+                            tint: _kPhotoTint,
+                            placeholder: (_) =>
+                                ColoredBox(color: tokens.ringTrack),
+                            error: (_) => ColoredBox(color: tokens.ringTrack),
+                          ),
                         ),
                       ),
                     ),

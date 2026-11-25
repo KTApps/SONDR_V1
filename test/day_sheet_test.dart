@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/core/theme/greyscale_tokens.dart';
+import 'package:sondr/core/utils/figma_scale.dart';
 import 'package:sondr/features/habits/models/daily_habits.dart';
 import 'package:sondr/features/history/day_detail_sheet.dart';
 import 'package:sondr/features/history/day_ring.dart';
@@ -12,6 +13,7 @@ import 'package:sondr/features/photos/delete_photo.dart';
 import 'package:sondr/features/photos/models/photo.dart';
 import 'package:sondr/features/photos/photo_viewer.dart';
 import 'package:sondr/features/photos/photos_repository.dart';
+import 'package:sondr/features/profile/profile_metrics.dart';
 import 'package:sondr/shared/blur_sheet.dart';
 import 'package:sondr/shared/cached_photo.dart';
 import 'package:sondr/shared/ring/segmented_dial.dart';
@@ -216,7 +218,38 @@ void main() {
   });
 
   group('photos', () {
-    testWidgets('200 × 267, square, 8 apart, the first on the gutter, chronological', (tester) async {
+    testWidgets('rounded exactly as the Profile milestones row is, the placeholder too', (tester) async {
+      await open(tester, photos: fourPhotos);
+      final ctx = tester.element(find.byKey(kDaySheetPhotosKey));
+      final scale = figmaScale(ctx);
+      final media = MediaQuery.of(ctx);
+      // The milestones row's own tile, drawn in the same place, says what
+      // its corners are.
+      await tester.pumpWidget(
+        MediaQuery(
+          data: media,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const Center(child: ProfileStripTile(child: SizedBox.expand())),
+          ),
+        ),
+      );
+      final strip = tester.widget<ClipRRect>(
+        find.descendant(of: find.byType(ProfileStripTile), matching: find.byType(ClipRRect)),
+      ).borderRadius;
+      expect(strip, BorderRadius.circular(kProfileStripRadius * scale));
+
+      await open(tester, photos: fourPhotos);
+      for (var i = 0; i < 4; i++) {
+        final clip = find.byKey(ValueKey('day-photo-$i'));
+        expect(tester.widget<ClipRRect>(clip).borderRadius, strip);
+        expect(tester.getSize(clip), const Size(200, 267));
+        // The photo, and so its loading placeholder, is inside the clip.
+        expect(find.descendant(of: clip, matching: find.byType(SondrPhoto)), findsOneWidget);
+      }
+    });
+
+    testWidgets('200 × 267, 8 apart, the first on the gutter, chronological', (tester) async {
       await open(tester, photos: fourPhotos);
       final shots = find.descendant(of: find.byKey(kDaySheetPhotosKey), matching: find.byType(SondrPhoto));
       final first = tester.getRect(shots.at(0));
@@ -225,7 +258,6 @@ void main() {
       expect(first.left, closeTo(24, 0.01));
       expect(second.left - first.right, closeTo(8, 0.01));
       expect(first.top - tester.getRect(find.byKey(kDaySheetRingKey)).bottom, closeTo(24, 0.01));
-      expect(find.descendant(of: find.byKey(kDaySheetPhotosKey), matching: find.byType(ClipRRect)), findsNothing);
       expect([for (var i = 0; i < 2; i++) tester.widget<SondrPhoto>(shots.at(i)).url],
           ['https://x/ta-1.jpg', 'https://x/tb-2.jpg']);
       // Free, like the Profile milestones row: no snapping.

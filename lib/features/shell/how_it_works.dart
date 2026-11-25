@@ -62,6 +62,9 @@ const List<HowToLine> kHowProfileWorks = [
   HowToLine('Milestones:', ' tap one to see its photos.'),
   HowToLine('In progress:', ' how close each task is to its next 20 hours.'),
   HowToLine('More', ' has settings, camera access and sign out.'),
+  // One line at the standard text size. Nothing after the lead fits on one
+  // line at the largest, so this one takes two there.
+  HowToLine('Scroll down for More:', ' support, camera and sign out.'),
 ];
 
 /// The title of the sheet with all three.

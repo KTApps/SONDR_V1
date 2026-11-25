@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/backend.dart';
+import 'features/first_run/first_run.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -22,11 +23,16 @@ Future<void> main() async {
   // upgraded in place to a permanent account. On any failure we fall through to
   // the local backend so the app still runs; tests never initialise Firebase.
   var initialized = false;
+  // An account already here before this launch signs anyone in: someone
+  // who has opened Sondr before, not a fresh install. Onboarding is for the
+  // second; "What's new" for the first.
+  var accountBeforeLaunch = false;
   if (kUseFirebase) {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+      accountBeforeLaunch = FirebaseAuth.instance.currentUser != null;
       if (FirebaseAuth.instance.currentUser == null) {
         await FirebaseAuth.instance.signInAnonymously();
       }
@@ -38,9 +44,10 @@ Future<void> main() async {
 
   runApp(
     ProviderScope(
-      overrides: initialized
-          ? [firebaseInitializedProvider.overrideWithValue(true)]
-          : const [],
+      overrides: [
+        if (initialized) firebaseInitializedProvider.overrideWithValue(true),
+        accountBeforeLaunchProvider.overrideWithValue(accountBeforeLaunch),
+      ],
       child: const SondrApp(),
     ),
   );

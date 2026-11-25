@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../feed/firebase_share_backend.dart';
 import '../feed/share_job.dart';
 import '../feed/share_trace.dart';
+import '../first_run/first_run.dart';
 
 import '../../core/backend.dart';
 import '../../core/utils/date.dart';
@@ -315,6 +316,23 @@ class _DebugPanelState extends ConsumerState<DebugPanel> {
             _btn(
               'Start a session that began 4h ago',
               () => _run('Backdating', _backdateSession),
+            ),
+
+            _section('First run'),
+            // Each shows on the next open — quit the app and open it again.
+            _btn(
+              'Reset onboarding',
+              () => _run('Resetting', () async {
+                await ref.read(firstRunStoreProvider).resetOnboarding();
+                return 'Onboarding shows on the next open.';
+              }),
+            ),
+            _btn(
+              "Reset what's new",
+              () => _run('Resetting', () async {
+                await ref.read(firstRunStoreProvider).resetWhatsNew();
+                return "What's new shows on the next open.";
+              }),
             ),
 
             _section('Measurement'),

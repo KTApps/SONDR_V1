@@ -10,6 +10,15 @@ import '../../core/utils/figma_scale.dart';
 /// app read as one line. Copying the numbers across would make that true once
 /// and false after the next nudge; deriving it keeps it true.
 const double kHomeLastTenTop = 511;
+
+/// The top of the action row — Start, or Pause and Stop — on the reference
+/// canvas. 448 rather than the measured 444: the plain-text control is
+/// shorter than the filled button the gap was sized for. Onboarding's
+/// Continue stands on the same line.
+const double kHomeActionTop = 448;
+
+/// Under the dial when tasks exist and none is picked.
+const String kHomeIdleLine = 'Tap Tasks to start a session';
 const double kHomeHeadingSize = 20;
 const double kHomeHeadingToRow = 30;
 const double kHomeDayCell = 57;

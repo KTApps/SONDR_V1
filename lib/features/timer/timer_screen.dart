@@ -373,7 +373,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
           // shorter than the filled button the gap was sized for, and this
           // centres it between the period dots and "Last 10 days".
           Positioned(
-            top: 448 * scale,
+            top: kHomeActionTop * scale,
             left: 0,
             right: 0,
             child: Center(
@@ -725,7 +725,7 @@ class _CollectiveHint extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
     final text = hasTasks
-        ? 'Pick a task to start a session'
+        ? kHomeIdleLine
         : 'Add a task to start tracking';
     return SizedBox(
       height: 56,

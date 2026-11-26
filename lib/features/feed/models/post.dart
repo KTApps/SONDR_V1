@@ -46,6 +46,7 @@ class PostPhoto {
     required this.storagePath,
     this.sessionIndex,
     this.framing = PhotoFraming.none,
+    this.page = true,
   });
 
   final String url;
@@ -61,11 +62,26 @@ class PostPhoto {
   /// and on every post from before.
   final PhotoFraming framing;
 
+  /// Whether the photo has a page of its own in a milestone's story. False
+  /// once its author deletes the page: the photo stays in the collage —
+  /// the cover, the thumbnail and the drawn fallback — and only its page
+  /// goes. Written only when false; every photo before it has a page.
+  final bool page;
+
+  PostPhoto withoutPage() => PostPhoto(
+    url: url,
+    storagePath: storagePath,
+    sessionIndex: sessionIndex,
+    framing: framing,
+    page: false,
+  );
+
   Map<String, dynamic> toMap() => {
     'url': url,
     'storagePath': storagePath,
     if (sessionIndex != null) 'sessionIndex': sessionIndex,
     if (framing != PhotoFraming.none) 'framing': framing.toMap(),
+    if (!page) 'page': false,
   };
 
   factory PostPhoto.fromMap(Map<String, dynamic> map) => PostPhoto(
@@ -75,6 +91,7 @@ class PostPhoto {
         ? (map['sessionIndex'] as num).toInt()
         : null,
     framing: PhotoFraming.fromMap(map['framing']),
+    page: map['page'] != false,
   );
 
   /// Value equality so a photo list round-trips (write → read → equal).
@@ -84,10 +101,11 @@ class PostPhoto {
       other.url == url &&
       other.storagePath == storagePath &&
       other.sessionIndex == sessionIndex &&
-      other.framing == framing;
+      other.framing == framing &&
+      other.page == page;
 
   @override
-  int get hashCode => Object.hash(url, storagePath, sessionIndex, framing);
+  int get hashCode => Object.hash(url, storagePath, sessionIndex, framing, page);
 }
 
 /// One segment of a milestone band's effort, as stored on the post.
@@ -225,6 +243,7 @@ sealed class Post {
           bandSeconds: map['bandSeconds'] is num
               ? (map['bandSeconds'] as num).toInt()
               : null,
+          firstSession: map['firstSession'] == true,
         );
     }
   }
@@ -308,6 +327,7 @@ class SessionPost extends Post {
     required this.taskName,
     required this.sessionSeconds,
     this.bandSeconds,
+    this.firstSession = false,
   });
 
   final String taskName;
@@ -317,6 +337,10 @@ class SessionPost extends Post {
   /// was credited — what the card's ring fills to. Null on posts written
   /// before it was stored; they show no ring.
   final int? bandSeconds;
+
+  /// The task's first time ever: it had no seconds before this one.
+  /// Stored once, when the post is written, and never worked out again.
+  final bool firstSession;
 
   @override
   PostType get type => PostType.session;

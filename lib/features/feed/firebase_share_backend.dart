@@ -58,14 +58,15 @@ class FirebaseShareBackend implements ShareBackend {
     required PostAuthor author,
     required List<String> friends,
   }) {
-    final createdAt = doc['createdAt'];
     return writePostWithNotices(
       db: db,
       notifier: notifier,
       postId: job.postId,
       doc: {
         ...doc,
-        if (createdAt is int) 'createdAt': Timestamp.fromMillisecondsSinceEpoch(createdAt),
+        // The server's clock, which the rules hold it to: a phone's clock
+        // running fast or slow would move the post in everyone's feed.
+        'createdAt': FieldValue.serverTimestamp(),
       },
       friends: friends,
       actorHandle: author.username,

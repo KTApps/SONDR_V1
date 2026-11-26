@@ -411,8 +411,14 @@ class ShareJob {
     } else ...{
       'sessionSeconds': sessionSeconds,
       'bandSeconds': ?bandSeconds,
+      if (isFirstSession) 'firstSession': true,
     },
   };
+
+  /// Whether this was the task's first time ever: nothing on it before
+  /// this session — the total after the credit is exactly the session.
+  bool get isFirstSession =>
+      !isMilestone && sessionSeconds > 0 && cumulativeSeconds - sessionSeconds == 0;
 }
 
 class _CancelledJob implements Exception {

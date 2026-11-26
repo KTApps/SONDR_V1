@@ -12,6 +12,7 @@ import '../../shared/legal.dart';
 import '../debug/debug_panel.dart';
 import '../photos/camera_access.dart';
 import '../photos/open_app_settings.dart';
+import '../presence/presence_repository.dart';
 import '../shell/how_it_works.dart';
 import 'delete_account.dart';
 import 'sign_out_action.dart';
@@ -21,6 +22,8 @@ import 'sign_out_action.dart';
 /// The three pages first — the App Store wants them reachable from inside
 /// the app, and they are the ones most likely to be wanted — then the
 /// camera's permission, which is the phone's setting rather than ours.
+/// Session status — whether friends see you as in a session — sits with it,
+/// for an account only: a guest has no friends to be seen by.
 /// Then, under a rule, the two that act on the account itself. Debug is QA-only and sits
 /// last, just above Cancel, where it cannot be mistaken for either group.
 enum MoreChoice {
@@ -28,6 +31,7 @@ enum MoreChoice {
   privacy,
   terms,
   cameraAccess,
+  sessionStatus,
   howItWorks,
   signOut,
   deleteAccount,
@@ -38,6 +42,7 @@ enum MoreChoice {
     MoreChoice.privacy => 'Privacy',
     MoreChoice.terms => 'Terms',
     MoreChoice.cameraAccess => 'Camera access',
+    MoreChoice.sessionStatus => 'Session status',
     MoreChoice.howItWorks => kHowSondrWorks,
     MoreChoice.signOut => 'Sign out',
     MoreChoice.deleteAccount => 'Delete account',
@@ -51,6 +56,10 @@ enum MoreChoice {
     _ => null,
   };
 }
+
+/// "· On" while friends can see you are in a session, "· Off" when not —
+/// Camera access's pattern.
+String sessionStatusDetail(bool on) => on ? '· On' : '· Off';
 
 /// The three pages, which a guest sees as well.
 const List<MoreChoice> kMorePages = [
@@ -68,6 +77,7 @@ List<MoreChoice> moreChoicesFor({required bool signedIn, bool debug = false}) =>
   ...kMorePages,
   // A guest takes photos too.
   MoreChoice.cameraAccess,
+  if (signedIn) MoreChoice.sessionStatus,
   MoreChoice.howItWorks,
   if (signedIn) MoreChoice.signOut,
   if (signedIn) MoreChoice.deleteAccount,
@@ -96,6 +106,11 @@ Future<String?> showMoreSheet(
   // from Settings must not pull How sondr works out from under the reader.
   var onList = true;
   final following = ref.listenManual(cameraAccessProvider, (_, _) {
+    if (onList) open?.update(view());
+  });
+  // The same for Session status: a tap writes the setting, and the row
+  // says what it now is.
+  final showing = ref.listenManual(showInSessionProvider, (_, _) {
     if (onList) open?.update(view());
   });
 
@@ -139,6 +154,10 @@ Future<String?> showMoreSheet(
           } else {
             await ref.read(appSettingsOpenerProvider)();
           }
+        case MoreChoice.sessionStatus:
+          // In place: the row flips, the sheet stays.
+          final on = ref.read(showInSessionProvider).value ?? true;
+          await ref.read(presenceBackendProvider)?.setShowInSession(!on);
         case MoreChoice.howItWorks:
           // In the same blur: the list cross-fades to the three tabs.
           onList = false;
@@ -157,9 +176,13 @@ Future<String?> showMoreSheet(
         for (final choice in moreChoicesFor(signedIn: signedIn, debug: debug))
           BlurItem(
             label: choice.label,
-            detail: choice == MoreChoice.cameraAccess
-                ? cameraAccessDetail(ref.read(cameraAccessProvider).value)
-                : null,
+            detail: switch (choice) {
+              MoreChoice.cameraAccess =>
+                cameraAccessDetail(ref.read(cameraAccessProvider).value),
+              MoreChoice.sessionStatus =>
+                sessionStatusDetail(ref.read(showInSessionProvider).value ?? true),
+              _ => null,
+            },
             // The two that act on the account, and Debug with them: the
             // not-done grey, against the three pages' white.
             quiet: choice == MoreChoice.signOut ||
@@ -172,6 +195,7 @@ Future<String?> showMoreSheet(
     return view();
   });
   following.close();
+  showing.close();
 
   return said;
 }

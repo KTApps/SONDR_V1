@@ -191,6 +191,7 @@ class AccountCascade implements AccountErasure {
     await _friendships();
     await _blocksIPlaced();
     await _publicProfile();
+    await _presence();
     await _invite();
     await _handleDoc(handle);
     // Last, because the handle above is read out of it.
@@ -515,6 +516,11 @@ class AccountCascade implements AccountErasure {
 
   Future<void> _publicProfile() =>
       db.collection('publicProfiles').doc(uid).delete();
+
+  /// "In a session", if they were. Discarding the session asked for this
+  /// delete already, but only this one is waited for: an account that is
+  /// about to stop existing cannot send a queued write later.
+  Future<void> _presence() => db.collection('presence').doc(uid).delete();
 
   /// Who invited them. Theirs, and only ever theirs to remove — deleting a
   /// missing one is an allowed no-op, which is what an account that was

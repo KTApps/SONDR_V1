@@ -61,7 +61,7 @@ const List<HowToLine> kHowProfileWorks = [
   HowToLine('Your total hours', ', streak and milestones.'),
   HowToLine('Milestones:', ' tap one to see its photos.'),
   HowToLine('In progress:', ' how close each task is to its next 20 hours.'),
-  HowToLine('More', ' has settings, camera access and sign out.'),
+  HowToLine('Scroll down for More:', ' your settings and account.'),
 ];
 
 /// The title of the sheet with all three.
@@ -83,6 +83,14 @@ const BlurView kHowSondrWorksView = BlurView(
   body: HowToSections(),
 );
 
+/// A point's type: the sheet's body size, in the supporting tone. The lead
+/// is drawn bold over it.
+TextStyle? howToLineStyle(BuildContext context) =>
+    Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontSize: kBlurExplanationSize * figmaScale(context),
+      color: GreyscaleTokens.of(context).textSecondary,
+    );
+
 /// The points, one to a line, left-aligned in the sheet's column, at the
 /// sheet's body size.
 class HowToLines extends StatelessWidget {
@@ -93,12 +101,8 @@ class HowToLines extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = GreyscaleTokens.of(context);
-    final theme = Theme.of(context);
     final scale = figmaScale(context);
-    final body = theme.textTheme.bodyMedium?.copyWith(
-      fontSize: kBlurExplanationSize * scale,
-      color: tokens.textSecondary,
-    );
+    final body = howToLineStyle(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,

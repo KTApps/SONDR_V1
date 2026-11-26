@@ -51,6 +51,15 @@ const double kBlurSideInset = 32;
 
 /// The line under a title, for a question that needs one.
 const double kBlurExplanationSize = 13;
+
+/// A sheet's title: Home's title type, unscaled by the canvas as Home's
+/// title is.
+TextStyle? blurTitleStyle(BuildContext context) =>
+    Theme.of(context).textTheme.titleLarge?.copyWith(
+      fontSize: kBlurTitleSize,
+      fontWeight: FontWeight.w700,
+      color: GreyscaleTokens.of(context).textPrimary,
+    );
 const double kBlurExplanationGap = kSpacingBase;
 
 /// One answer in a blur view.
@@ -396,12 +405,7 @@ class _ViewBody extends StatelessWidget {
                 Text(
                   view.title!,
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    // Unscaled by the canvas, as Home's title is.
-                    fontSize: kBlurTitleSize,
-                    fontWeight: FontWeight.w700,
-                    color: tokens.textPrimary,
-                  ),
+                  style: blurTitleStyle(context),
                 ),
                 if (view.explanation != null) ...[
                   SizedBox(height: kBlurExplanationGap * scale),

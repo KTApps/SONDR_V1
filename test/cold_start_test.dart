@@ -10,6 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sondr/core/backend.dart';
 import 'package:sondr/features/auth/models/profile.dart';
 import 'package:sondr/features/auth/profile_repository.dart';
+import 'package:sondr/features/first_run/first_run.dart';
 import 'package:sondr/features/friends/friends_repository.dart';
 import 'package:sondr/features/friends/models/friendship.dart';
 import 'package:sondr/features/photos/models/photo.dart';
@@ -82,6 +83,9 @@ void main() {
             milestoneStripProvider.overrideWith((ref) async => const <MilestoneStripEntry>[]),
             galleryPreviewProvider.overrideWith(gallery),
             if (precache != null) bootPrecacheProvider.overrideWith((ref) => precache),
+            // Nothing to show before Home: the gate waits for that decision,
+            // and its real one reads the phone.
+            firstRunProvider.overrideWith((ref) async => null),
           ],
           child: MaterialApp(theme: AppTheme.dark(), home: const BootGate()),
         );

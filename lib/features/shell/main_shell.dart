@@ -74,12 +74,17 @@ class MainShell extends ConsumerWidget {
 class TextTabBar extends StatelessWidget {
   const TextTabBar({
     super.key,
-    required this.currentIndex,
-    required this.onSelect,
+    required int this.currentIndex,
+    required ValueChanged<int> this.onSelect,
   });
 
-  final int currentIndex;
-  final ValueChanged<int> onSelect;
+  /// The three names alone, where the bar would be: all in the text tone,
+  /// none selected, none a tap target. The same layout as the bar, so they
+  /// sit exactly where its labels do at every text size.
+  const TextTabBar.names({super.key}) : currentIndex = null, onSelect = null;
+
+  final int? currentIndex;
+  final ValueChanged<int>? onSelect;
 
   static const List<String> _labels = ['Home', 'Posts', 'Profile'];
 
@@ -98,6 +103,15 @@ class TextTabBar extends StatelessWidget {
             children: [
               for (var i = 0; i < _labels.length; i++)
                 Expanded(
+                  child: onSelect == null
+                      ? _TabLabel(
+                          text: _labels[i],
+                          selected: false,
+                          style: theme.textTheme.labelLarge,
+                          activeColor: tokens.textPrimary,
+                          inactiveColor: tokens.textPrimary,
+                        )
+                      :
                   // A GestureDetector, not an InkWell. Material ink draws a
                   // HIGHLIGHT across the whole of its bounds as well as the
                   // ripple, and the bounds here are the full tab cell — so a
@@ -108,9 +122,9 @@ class TextTabBar extends StatelessWidget {
                   //
                   // `opaque` keeps the tap target exactly what it was: the
                   // whole cell, label and padding alike, not just the glyphs.
-                  child: GestureDetector(
+                  GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => onSelect(i),
+                    onTap: () => onSelect!(i),
                     // Held: how this tab works. The tap is unchanged.
                     onLongPress: () {
                       HapticFeedback.lightImpact();

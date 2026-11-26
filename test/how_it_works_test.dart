@@ -76,12 +76,12 @@ void main() {
         'Your total hours, streak and milestones.',
         'Milestones: tap one to see its photos.',
         'In progress: how close each task is to its next 20 hours.',
-        'More has settings, camera access and sign out.',
+        'Scroll down for More: your settings and account.',
       ]);
       expect([for (final l in [...kHowHomeWorks, ...kHowPostsWork, ...kHowProfileWorks]) l.lead], [
         'Tap Tasks', 'Outer ring:', 'Inner ring:', 'Lock your phone:', 'Stop', 'Swipe a task left',
         "Your friends' posts", 'Tap the right side', 'Tap a caption', 'Hold your own post', 'Notifications',
-        'Tap your photo', 'Your total hours', 'Milestones:', 'In progress:', 'More',
+        'Tap your photo', 'Your total hours', 'Milestones:', 'In progress:', 'Scroll down for More:',
       ]);
     });
   });

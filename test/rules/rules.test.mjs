@@ -1902,6 +1902,121 @@ describe('deleting a post, end to end against the rules', () => {
   });
 });
 
+describe('presence: who is in a session', () => {
+  /**
+   * presence/{uid} exists while its owner is in a session, and says nothing
+   * else. Friends read it one person at a time; nobody lists it.
+   */
+  const HOUR = 3600 * 1000;
+  const guest = () => env
+    .authenticatedContext(D, { firebase: { sign_in_provider: 'anonymous' } })
+    .firestore();
+
+  /** What the app writes: the server's clock, and about a day to live. */
+  function record(fields = {}) {
+    return {
+      updatedAt: serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(Date.now() + 24 * HOUR),
+      ...fields,
+    };
+  }
+
+  beforeEach(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      // A and C are friends; B has asked A, D has been asked by C.
+      await setDoc(doc(db, 'friendships/' + pairId(A, C)), {
+        users: [A, C].sort(), requestedBy: A, status: 'accepted',
+      });
+      await setDoc(doc(db, 'friendships/' + pairId(A, B)), {
+        users: [A, B].sort(), requestedBy: B, status: 'pending',
+      });
+      await setDoc(doc(db, 'presence/' + A), {
+        updatedAt: Timestamp.now(), expiresAt: Timestamp.fromMillis(Date.now() + 24 * HOUR),
+      });
+    });
+  });
+
+  it('the owner creates, refreshes and deletes their own', async () => {
+    await assertSucceeds(setDoc(doc(as(C), 'presence/' + C), record()));
+    await assertSucceeds(getDoc(doc(as(C), 'presence/' + C)));
+    // A refresh is the same write again.
+    await assertSucceeds(setDoc(doc(as(C), 'presence/' + C), record()));
+    await assertSucceeds(updateDoc(doc(as(C), 'presence/' + C), record()));
+    await assertSucceeds(deleteDoc(doc(as(C), 'presence/' + C)));
+  });
+
+  it('a guest cannot write one, but can delete one', async () => {
+    await assertFails(setDoc(doc(guest(), 'presence/' + D), record()));
+    await seed(async (db) => {
+      await setDoc(doc(db, 'presence/' + D), {
+        updatedAt: Timestamp.now(), expiresAt: Timestamp.fromMillis(Date.now() + HOUR),
+      });
+    });
+    await assertSucceeds(deleteDoc(doc(guest(), 'presence/' + D)));
+  });
+
+  it('nobody writes or deletes somebody else\'s', async () => {
+    await assertFails(setDoc(doc(as(C), 'presence/' + A), record()));
+    await assertFails(updateDoc(doc(as(C), 'presence/' + A), record()));
+    await assertFails(deleteDoc(doc(as(C), 'presence/' + A)));
+    await assertFails(setDoc(doc(as(D), 'presence/' + C), record()));
+  });
+
+  it('an accepted friend can read it; a missing one is simply not there', async () => {
+    const snap = await assertSucceeds(getDoc(doc(as(C), 'presence/' + A)));
+    assert.equal(snap.exists(), true);
+    const none = await assertSucceeds(getDoc(doc(as(A), 'presence/' + C)));
+    assert.equal(none.exists(), false, 'not in a session, not an error');
+  });
+
+  it('a stranger, a pending request either way, and a guest are refused', async () => {
+    await assertFails(getDoc(doc(as(D), 'presence/' + A)));
+    await assertFails(getDoc(doc(as(B), 'presence/' + A)), 'the asker');
+    await seed(async (db) => {
+      await setDoc(doc(db, 'presence/' + B), {
+        updatedAt: Timestamp.now(), expiresAt: Timestamp.fromMillis(Date.now() + HOUR),
+      });
+    });
+    await assertFails(getDoc(doc(as(A), 'presence/' + B)), 'the asked');
+    await assertFails(getDoc(doc(guest(), 'presence/' + A)));
+  });
+
+  it('after an unfriend the next read is refused, with nothing cleaned up', async () => {
+    await assertSucceeds(getDoc(doc(as(C), 'presence/' + A)));
+    await assertSucceeds(deleteDoc(doc(as(A), 'friendships/' + pairId(A, C))));
+    await assertFails(getDoc(doc(as(C), 'presence/' + A)));
+  });
+
+  it('after a block the next read is refused', async () => {
+    await assertSucceeds(getDoc(doc(as(C), 'presence/' + A)));
+    const a = as(A);
+    const batch = writeBatch(a);
+    batch.delete(doc(a, 'friendships/' + pairId(A, C)));
+    batch.set(doc(a, 'blocks/' + A + '__' + C), { blocker: A, blocked: C });
+    await assertSucceeds(batch.commit());
+    await assertFails(getDoc(doc(as(C), 'presence/' + A)));
+  });
+
+  it('nobody can list it, not even a friend or the owner', async () => {
+    await assertFails(getDocs(collection(as(C), 'presence')));
+    await assertFails(getDocs(collection(as(A), 'presence')));
+    await assertFails(getDocs(query(collection(as(C), 'presence'), limit(1))));
+  });
+
+  it('only the two fields, the server\'s clock, and at most two days to live', async () => {
+    const mine = () => doc(as(C), 'presence/' + C);
+    await assertFails(setDoc(mine(), record({ taskName: 'Golf' })), 'an extra field');
+    await assertFails(setDoc(mine(), { expiresAt: Timestamp.fromMillis(Date.now() + HOUR) }), 'no updatedAt');
+    await assertFails(setDoc(mine(), { updatedAt: serverTimestamp() }), 'no expiresAt');
+    await assertFails(setDoc(mine(), record({ updatedAt: Timestamp.now() })), 'a client clock');
+    await assertFails(setDoc(mine(), record({ expiresAt: Timestamp.fromMillis(Date.now() + 72 * HOUR) })), '3 days out');
+    await assertFails(setDoc(mine(), record({ expiresAt: Timestamp.fromMillis(Date.now() - HOUR) })), 'already expired');
+    await assertFails(setDoc(mine(), record({ expiresAt: 'tomorrow' })), 'not a timestamp');
+    await assertSucceeds(setDoc(mine(), record()));
+  });
+});
+
 describe('deleting an account, end to end against the rules', () => {
   // ME is leaving. They liked and commented on a friend's post, were
   // liked and commented on in return, and left notices in two inboxes.
@@ -1923,6 +2038,9 @@ describe('deleting an account, end to end against the rules', () => {
         users: [ME, FRIEND].sort(), requestedBy: ME, status: 'accepted',
       });
       await setDoc(doc(db, 'invites/' + ME), { invitedBy: FRIEND, invitedByHandle: 'cass', at: 1 });
+      // In a session when they left, and so was the friend.
+      await setDoc(doc(db, 'presence/' + ME), { updatedAt: 1, expiresAt: 2 });
+      await setDoc(doc(db, 'presence/' + FRIEND), { updatedAt: 1, expiresAt: 2 });
 
       // A post of theirs, liked and commented on by the friend.
       await setDoc(doc(db, 'posts/mine'), {
@@ -2003,6 +2121,7 @@ describe('deleting an account, end to end against the rules', () => {
       await deleteDoc(f.ref);
     }
     await deleteDoc(doc(db, 'publicProfiles/' + uid));
+    await deleteDoc(doc(db, 'presence/' + uid));
     await deleteDoc(doc(db, 'invites/' + uid));
     if (handle) await deleteDoc(doc(db, 'usernames/' + handle));
     for (const name of ['meta', 'tasks', 'habitDays', 'photos', 'collages', 'likes', 'hidden', 'sessions']) {
@@ -2064,7 +2183,7 @@ describe('deleting an account, end to end against the rules', () => {
         'users/' + ME, 'users/' + ME + '/meta/profile', 'users/' + ME + '/tasks/t1',
         'usernames/ada', 'publicProfiles/' + ME, 'publicProfiles/' + ME + '/friends/' + FRIEND,
         'publicProfiles/' + FRIEND + '/friends/' + ME, 'friendships/' + pairId(ME, FRIEND),
-        'invites/' + ME, 'posts/mine', 'posts/mine/likes/' + FRIEND, 'posts/mine/comments/theirs',
+        'invites/' + ME, 'presence/' + ME, 'posts/mine', 'posts/mine/likes/' + FRIEND, 'posts/mine/comments/theirs',
         'users/' + FRIEND + '/likes/mine', 'posts/theirs/likes/' + ME, 'users/' + ME + '/likes/theirs',
         'posts/theirs/comments/by-me', 'notifications/' + ME + '/items/n3',
         'notifications/' + FRIEND + '/items/n1', 'notifications/' + OTHER + '/items/n2',
@@ -2079,6 +2198,7 @@ describe('deleting an account, end to end against the rules', () => {
       assert.equal((await getDocs(collection(db, 'posts/theirs/likes'))).size, 0);
       assert.equal((await getDocs(collection(db, 'posts/theirs/comments'))).size, 0);
       assert.equal((await getDoc(doc(db, 'notifications/' + OTHER + '/items/n4'))).exists(), true, 'not theirs to take');
+      assert.equal((await getDoc(doc(db, 'presence/' + FRIEND))).exists(), true, 'the friend\'s session is theirs');
     });
   });
 

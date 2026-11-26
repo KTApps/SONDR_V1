@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/greyscale_tokens.dart';
 import '../../shared/cached_photo.dart';
 import '../feed/firebase_share_backend.dart';
+import '../first_run/first_run.dart';
+import '../first_run/first_run_screen.dart';
 import '../friends/friends_repository.dart';
 import '../photos/photos_repository.dart';
 import '../friends/audience_widen.dart';
@@ -49,10 +51,16 @@ const Duration kBootPrecacheTimeout = Duration(milliseconds: 1500);
 class _BootGateState extends ConsumerState<BootGate> {
   bool _ready = false;
   bool _warming = false;
+
+  /// Onboarding or "What's new" was shown and Continue taken.
+  bool _firstRunDone = false;
   Timer? _failsafe;
 
   static const Duration _maxWait = Duration(seconds: 6);
   static const Duration _fade = Duration(milliseconds: 320);
+
+  /// Onboarding and "What's new", in and out.
+  static const Duration _firstRunFade = Duration(milliseconds: 300);
 
   @override
   void initState() {
@@ -120,6 +128,11 @@ class _BootGateState extends ConsumerState<BootGate> {
       final gallery = ref.watch(galleryPreviewProvider);
       final strip = ref.watch(milestoneStripProvider);
 
+      // Onboarding or "What's new" decided too, so neither lands a moment
+      // after Home. Settled either way: one that cannot be decided is one
+      // that is not shown, never a reason to lift early.
+      final firstRun = ref.watch(firstRunProvider);
+
       final anyError = tasks.hasError ||
           habits.hasError ||
           gallery.hasError ||
@@ -127,7 +140,8 @@ class _BootGateState extends ConsumerState<BootGate> {
       final allLoaded = tasks.hasValue &&
           habits.hasValue &&
           gallery.hasValue &&
-          strip.hasValue;
+          strip.hasValue &&
+          (firstRun.hasValue || firstRun.hasError);
       if (anyError) {
         // Can't setState during build — lift after this frame.
         WidgetsBinding.instance.addPostFrameCallback((_) => _lift());
@@ -143,17 +157,43 @@ class _BootGateState extends ConsumerState<BootGate> {
       }
     }
 
-    return AnimatedSwitcher(
-      duration: _fade,
-      // The link listener wraps the shell rather than living inside it, so
-      // it starts only once there is a navigator to push onto. A link that
-      // launched the app is delivered the moment the splash lifts.
-      child: _ready
-          ? const InviteLinkListener(
-              key: ValueKey('shell'),
-              child: MainShell(),
-            )
-          : const _SplashScreen(key: ValueKey('splash')),
+    final firstRun = _ready && !_firstRunDone
+        ? ref.watch(firstRunProvider).value
+        : null;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ExcludeSemantics(
+          // Under onboarding, Home is there but not to be read out.
+          excluding: firstRun != null,
+          child: AnimatedSwitcher(
+            duration: _fade,
+            // The link listener wraps the shell rather than living inside
+            // it, so it starts only once there is a navigator to push onto.
+            // A link that launched the app is delivered the moment the
+            // splash lifts.
+            child: _ready
+                ? const InviteLinkListener(
+                    key: ValueKey('shell'),
+                    child: MainShell(),
+                  )
+                : const _SplashScreen(key: ValueKey('splash')),
+          ),
+        ),
+        // Over Home rather than in place of it, so Continue simply fades it
+        // away with Home already there underneath.
+        AnimatedSwitcher(
+          duration: _firstRunFade,
+          child: firstRun == null
+              ? const SizedBox.shrink(key: ValueKey('no-first-run'))
+              : FirstRunScreen(
+                  key: ValueKey(firstRun.kind),
+                  view: firstRun,
+                  onContinue: () => setState(() => _firstRunDone = true),
+                ),
+        ),
+      ],
     );
   }
 }

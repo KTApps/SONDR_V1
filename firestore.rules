@@ -344,6 +344,41 @@ service cloud.firestore {
       }
     }
 
+    // "In a session", one document per person, existing only while they
+    // are in one — running or paused. Home counts how many friends have one;
+    // nothing else about the session is in it, so nothing else can leak.
+    //
+    // The path names the owner, so friendship is proved from the path the
+    // same way as the friend mirror: a GET of one person's document. There
+    // is no `list` — a query over the collection could not be proved for
+    // every document, and one that could would be a scan of who is in a
+    // session. Unfriending or blocking deletes the friendship, so the next
+    // read is refused with nothing to clean up. A listener already attached
+    // is re-checked only when this document next changes, so an ex-friend's
+    // modified client could hold one stale yes/no until then.
+    //
+    // Guests cannot write one: they have no friends to show it to. They can
+    // delete one, so an account that became a guest can always clear up.
+    match /presence/{uid} {
+      allow get: if request.auth != null
+                 && (request.auth.uid == uid
+                     || acceptedBetween(request.auth.uid, uid));
+
+      allow create, update: if request.auth != null
+                            && request.auth.uid == uid
+                            && request.auth.token.firebase.sign_in_provider
+                               != 'anonymous'
+                            && request.resource.data.keys().hasOnly(['updatedAt', 'expiresAt'])
+                            && request.resource.data.keys().hasAll(['updatedAt', 'expiresAt'])
+                            && request.resource.data.updatedAt == request.time
+                            && request.resource.data.expiresAt is timestamp
+                            && request.resource.data.expiresAt > request.time
+                            && request.resource.data.expiresAt
+                               <= request.time + duration.value(2, 'd');
+
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
     // Feed posts. Friends-only: each post carries an `audience` array (the
     // author's accepted friends at post time + self), so the feed is a single
     // `audience array-contains uid` query and the read rule needs no per-post

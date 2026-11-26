@@ -7,7 +7,7 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  arrayRemove, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs,
+  Timestamp, arrayRemove, arrayUnion, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs,
   increment, limit, orderBy, query, serverTimestamp, setDoc, updateDoc, where,
   writeBatch,
 } from 'firebase/firestore';
@@ -106,18 +106,20 @@ describe('posts', () => {
     await assertFails(getDocs(collection(as(B), 'posts')));
   });
 
-  it('a pending post reaches nobody but its author until the author widens it', async () => {
-    await assertSucceeds(setDoc(doc(as(A), 'posts/pending1'), {
-      authorUid: A, audience: [A], pending: true, type: 'milestone', createdAt: 5,
-      taskName: 'Spanish', milestoneHours: 20, totalHours: 20, photos: [{ url: 'file:///x.jpg', storagePath: '' }],
-    }));
+  it('a pending post from an old build reaches nobody but its author, who may only delete it', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/pending1'), {
+        authorUid: A, audience: [A], pending: true, type: 'milestone', createdAt: 5,
+        taskName: 'Spanish', milestoneHours: 20, totalHours: 20, photos: [{ url: 'file:///x.jpg', storagePath: '' }],
+      });
+    });
     await assertSucceeds(getDoc(doc(as(A), 'posts/pending1')));
     await assertFails(getDoc(doc(as(B), 'posts/pending1')));
-    // The one update that finishes it: the author widens the audience.
-    await assertSucceeds(updateDoc(doc(as(A), 'posts/pending1'), {
-      audience: [A, B], pending: false, photos: [{ url: 'https://x/0.jpg', storagePath: 'users/A/posts/pending1/0.jpg' }],
+    // The old finishing update touched `pending`, which no update may now.
+    await assertFails(updateDoc(doc(as(A), 'posts/pending1'), {
+      audience: [A], pending: false, photos: [{ url: 'https://x/0.jpg', storagePath: 'users/A/posts/pending1/0.jpg' }],
     }));
-    await assertSucceeds(getDoc(doc(as(B), 'posts/pending1')));
+    // What the share job does with one: deletes it.
     await assertSucceeds(deleteDoc(doc(as(A), 'posts/pending1')));
   });
 
@@ -129,6 +131,124 @@ describe('posts', () => {
   it('a reader may not rewrite someone else\'s audience', async () => {
     await assertFails(
       updateDoc(doc(as(C), 'posts/p2'), { audience: [A, C, B] }));
+  });
+});
+
+describe('posts: when, and what the author may change', () => {
+  const now = () => Timestamp.now();
+  const minutes = (m) => Timestamp.fromMillis(Date.now() + m * 60 * 1000);
+  const base = {
+    authorUid: A, audience: [A, C], type: 'session', caption: 'x',
+    taskName: 'Golf', sessionSeconds: 600, likeCount: 0, commentCount: 0,
+    photos: [{ url: 'u0', storagePath: 'p0' }],
+  };
+
+  before(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'friendships/' + pairId(A, C)), { users: [A, C].sort(), status: 'accepted' });
+      await setDoc(doc(db, 'friendships/' + pairId(A, B)), { users: [A, B].sort(), status: 'pending' });
+      await setDoc(doc(db, 'posts/m1'), {
+        ...base, type: 'milestone', milestoneHours: 20, totalHours: 20, createdAt: now(),
+        audience: [A],
+        photos: [{ url: 'u0', storagePath: 'p0', sessionIndex: 0 }, { url: 'u1', storagePath: 'p1', sessionIndex: 1 }],
+      });
+      await setDoc(doc(db, 'posts/s1'), { ...base, createdAt: now() });
+      await setDoc(doc(db, 'posts/old'), { ...base, createdAt: Timestamp.fromMillis(Date.now() - 2 * 86400000) });
+      await setDoc(doc(db, 'posts/m2'), {
+        ...base, type: 'milestone', milestoneHours: 20, totalHours: 20,
+        createdAt: Timestamp.fromMillis(Date.now() - 30 * 86400000),
+      });
+    });
+  });
+
+  it('a post written with the server\'s time is accepted', async () => {
+    await assertSucceeds(setDoc(doc(as(A), 'posts/new1'), { ...base, createdAt: serverTimestamp() }));
+  });
+
+  it('within the grace for older builds, a phone\'s clock is accepted', async () => {
+    await assertSucceeds(setDoc(doc(as(A), 'posts/new2'), { ...base, createdAt: minutes(-5) }));
+  });
+
+  it('a createdAt away from the server\'s time is refused', async () => {
+    await assertFails(setDoc(doc(as(A), 'posts/bad1'), { ...base, createdAt: minutes(-60) }));
+    await assertFails(setDoc(doc(as(A), 'posts/bad2'), { ...base, createdAt: minutes(30) }));
+    await assertFails(setDoc(doc(as(A), 'posts/bad3'), { ...base, createdAt: 5 }));
+    await assertFails(setDoc(doc(as(A), 'posts/bad4'), { ...base }));
+  });
+
+  it('the author may hide a photo page: page false on one photo', async () => {
+    await assertSucceeds(updateDoc(doc(as(A), 'posts/m1'), {
+      photos: [{ url: 'u0', storagePath: 'p0', sessionIndex: 0 }, { url: 'u1', storagePath: 'p1', sessionIndex: 1, page: false }],
+    }));
+  });
+
+  it('nobody else may', async () => {
+    await assertFails(updateDoc(doc(as(C), 'posts/s1'), { photos: [] }));
+  });
+
+  it('the author may let one accepted friend in, appended', async () => {
+    await assertSucceeds(updateDoc(doc(as(A), 'posts/m1'), { audience: arrayUnion(C) }));
+  });
+
+  it('but never a stranger, a pending request, or two at once', async () => {
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { audience: arrayUnion(D) }));
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { audience: arrayUnion(B) }));
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { audience: [A] .concat([C, D]) }));
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { audience: [C, A, D] }));
+  });
+
+  it('the author may narrow the audience', async () => {
+    await assertSucceeds(updateDoc(doc(as(A), 'posts/old'), { audience: arrayRemove(C) }));
+  });
+
+  it('the author may not change the type, the author, when, or what it logged', async () => {
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { type: 'milestone' }));
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { authorUid: D }));
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { createdAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { sessionSeconds: 99999 }));
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { firstSession: true }));
+  });
+
+  it('the author may still edit the caption and take counters down in bulk', async () => {
+    await assertSucceeds(updateDoc(doc(as(A), 'posts/s1'), { caption: 'y' }));
+    await assertSucceeds(updateDoc(doc(as(A), 'posts/s1'), { likeCount: increment(-3), commentCount: increment(-2) }));
+  });
+
+  it('a reader still nudges a counter by one, and only that', async () => {
+    await assertSucceeds(updateDoc(doc(as(C), 'posts/s1'), { likeCount: increment(1) }));
+    await assertFails(updateDoc(doc(as(C), 'posts/s1'), { likeCount: increment(2) }));
+    await assertFails(updateDoc(doc(as(C), 'posts/s1'), { caption: 'mine' }));
+  });
+
+  it('the last day\'s posts: allowed for an audience member', async () => {
+    const q = query(collection(as(C), 'posts'),
+      where('audience', 'array-contains', C),
+      where('createdAt', '>', Timestamp.fromMillis(Date.now() - 86400000)),
+      orderBy('createdAt', 'desc'));
+    const snap = await assertSucceeds(getDocs(q));
+    assert.ok(snap.docs.every((d) => d.id !== 'old' && d.id !== 'm2'), 'nothing older than a day');
+    assert.ok(snap.docs.some((d) => d.id === 's1'));
+  });
+
+  it('the milestones, paged: allowed for an audience member', async () => {
+    const q = query(collection(as(C), 'posts'),
+      where('type', '==', 'milestone'),
+      where('audience', 'array-contains', C),
+      orderBy('createdAt', 'desc'), limit(20));
+    const snap = await assertSucceeds(getDocs(q));
+    assert.ok(snap.docs.some((d) => d.id === 'm2'), 'a month-old milestone is still there');
+    assert.ok(snap.docs.every((d) => d.data().type === 'milestone'));
+  });
+
+  it('both queries without the audience filter, or for someone else, are denied', async () => {
+    await assertFails(getDocs(query(collection(as(D), 'posts'),
+      where('createdAt', '>', Timestamp.fromMillis(Date.now() - 86400000)), orderBy('createdAt', 'desc'))));
+    await assertFails(getDocs(query(collection(as(D), 'posts'),
+      where('type', '==', 'milestone'), orderBy('createdAt', 'desc'), limit(20))));
+    await assertFails(getDocs(query(collection(as(D), 'posts'),
+      where('type', '==', 'milestone'), where('audience', 'array-contains', C),
+      orderBy('createdAt', 'desc'), limit(20))));
   });
 });
 

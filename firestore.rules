@@ -408,22 +408,57 @@ service cloud.firestore {
                     );
     }
 
+    // A post's createdAt: a timestamp within ten minutes of the server's.
+    function createdAtIsNow(data) {
+      return data.createdAt is timestamp
+          && data.createdAt > request.time - duration.value(10, 'm')
+          && data.createdAt < request.time + duration.value(10, 'm');
+    }
+
+    // An author's audience change: the same people or fewer, or exactly one
+    // more, appended last (arrayUnion appends), who is an accepted friend
+    // of the author. Never a stranger, never several at once.
+    function audienceChangeAllowed(before, after, author) {
+      let added = after.toSet().difference(before.toSet());
+      return added.size() == 0
+          || (added.size() == 1
+              && before.toSet().difference(after.toSet()).size() == 0
+              && added.hasOnly([after[after.size() - 1]])
+              && acceptedAfter(author, after[after.size() - 1]));
+    }
+
     match /posts/{postId} {
       allow read: if request.auth != null
                   && request.auth.uid in resource.data.audience;
 
+      // createdAt is the server's clock. A grace of ten minutes either way
+      // lets builds before 112, which wrote the phone's clock, keep
+      // posting; tighten to `== request.time` once they are gone.
       allow create: if request.auth != null
                     && request.resource.data.authorUid == request.auth.uid
-                    && request.auth.uid in request.resource.data.audience;
+                    && request.auth.uid in request.resource.data.audience
+                    && createdAtIsNow(request.resource.data);
 
       allow delete: if request.auth != null
                     && resource.data.authorUid == request.auth.uid;
 
-      // Author has full edit rights. An audience member may only nudge the
-      // like/comment counters by ±1 — the bump batched alongside their own like
-      // mirror (users/{uid}/likes) or comment doc.
+      // The author may change the caption, the photos (a photo page hidden
+      // from a milestone), the counters (taking down what was under the
+      // post) and the audience — narrowed freely, or widened by exactly
+      // one accepted friend at a time, which is how a new friend is let
+      // into what was posted before. Nothing else: never the type, the
+      // author, when it was posted or what it logged. An audience member
+      // may only nudge the like/comment counters by ±1 — the bump batched
+      // alongside their own like mirror (users/{uid}/likes) or comment doc.
       allow update: if request.auth != null && (
-        resource.data.authorUid == request.auth.uid
+        (
+          resource.data.authorUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['caption', 'photos', 'audience', 'likeCount', 'commentCount'])
+          && audienceChangeAllowed(resource.data.audience,
+                                   request.resource.data.audience,
+                                   request.auth.uid)
+        )
         || (
           request.auth.uid in resource.data.audience
           && request.resource.data.diff(resource.data).affectedKeys()

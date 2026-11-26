@@ -54,15 +54,18 @@ class AudienceWidener {
     };
     if (people.isEmpty) return;
 
-    // Posts: add whoever is missing from each.
+    // Posts: add whoever is missing from each — one person at a time. The
+    // rules let an author's audience grow by exactly one accepted friend
+    // per write, so each person goes in their own batches.
     final posts = await audiences.myPosts();
-    final postUpdates = <(String path, List<String> add)>[];
-    for (final p in posts) {
-      final missing = [for (final o in people) if (!p.audience.contains(o)) o];
-      if (missing.isNotEmpty) postUpdates.add((p.path, missing));
-    }
-    for (var i = 0; i < postUpdates.length; i += batchLimit) {
-      await audiences.addToPosts(postUpdates.skip(i).take(batchLimit).toList());
+    for (final o in people) {
+      final postUpdates = <(String path, List<String> add)>[
+        for (final p in posts)
+          if (!p.audience.contains(o)) (p.path, [o]),
+      ];
+      for (var i = 0; i < postUpdates.length; i += batchLimit) {
+        await audiences.addToPosts(postUpdates.skip(i).take(batchLimit).toList());
+      }
     }
 
     // Comments: each follows its post, exactly.

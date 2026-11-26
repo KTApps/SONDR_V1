@@ -56,6 +56,8 @@ void main() {
     await widener().widenFor({'old', 'new', 'newer'});
     expect(store.posts['posts/p1'], [me, 'old', 'new', 'newer']);
     expect(store.posts['posts/p2'], [me, 'old', 'new', 'newer']);
+    // The rules let an audience grow by one accepted friend per write.
+    expect(store.widestAdd, 1);
   });
 
   test('someone I have blocked is never let in', () async {
@@ -98,6 +100,7 @@ class _Audiences implements WidenableAudiences {
   int postBatches = 0;
   int commentBatches = 0;
   int largestBatch = 0;
+  int widestAdd = 0;
 
   Map<String, Object> snapshot() => {
     'posts': {for (final e in posts.entries) e.key: [...e.value]},
@@ -124,6 +127,7 @@ class _Audiences implements WidenableAudiences {
     postBatches++;
     if (updates.length > largestBatch) largestBatch = updates.length;
     for (final (path, add) in updates) {
+      if (add.length > widestAdd) widestAdd = add.length;
       final a = posts[path]!;
       for (final u in add) {
         if (!a.contains(u)) a.add(u);

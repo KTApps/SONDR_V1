@@ -20,7 +20,13 @@ import 'package:sondr/shared/ring/segmented_dial.dart';
 /// alone — what the Lock Screen card shows — and the ring never counts it
 /// twice, however long the credit takes to land.
 void main() {
-  final today = DayKey.of(DateTime.now());
+  // Noon today, never the real time of day: a test that moves the clock
+  // half an hour on must not cross midnight because it ran at 23:59. Today's
+  // date, not a fixed one, because Home reads the real clock for which day
+  // its ring is.
+  final real = DateTime.now();
+  final noon = DateTime(real.year, real.month, real.day, 12);
+  final today = DayKey.of(noon);
   late DateTime now;
   late _Tasks repo;
   late _HangingLog log;
@@ -61,7 +67,7 @@ void main() {
       .single;
 
   setUp(() {
-    now = DateTime.now();
+    now = noon;
     // A first session of 21 seconds earlier today.
     repo = _Tasks([Task(id: 'a', name: 'Spanish', secondsByDay: {today: 21})]);
     log = _HangingLog();

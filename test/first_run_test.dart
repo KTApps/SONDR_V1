@@ -67,19 +67,19 @@ void main() {
       expect(d.view, isNull);
     });
 
-    test('an existing user on their first 111 (no flags, an account already there): What\'s new, not onboarding', () {
+    test('an existing user on their first 112 (no flags, an account already there): What\'s new, not onboarding', () {
       final d = decideFirstRun(
         onboardingSeen: null,
         lastSeenBuild: null,
-        currentBuild: 111,
+        currentBuild: 112,
         accountBeforeLaunch: true,
         notes: kWhatsNewNotes,
       );
       expect(d.view?.kind, FirstRunKind.whatsNew);
       expect(d.view?.title, "What's new");
-      expect(d.view?.lines, kWhatsNewNotes[111]);
+      expect(d.view?.lines, kWhatsNewNotes[112]);
       expect(d.onboardingSeen, isTrue);
-      expect(d.lastSeenBuild, 111);
+      expect(d.lastSeenBuild, 112);
     });
 
     test('once per build: the same build again shows nothing', () {
@@ -118,12 +118,19 @@ void main() {
       expect(whatsNewLines(lastSeen: 111, current: 111, notes: notes), isEmpty);
     });
 
-    test('the notes for 111', () {
-      expect(kWhatsNewNotes[111], [
+    test('the notes for 112, and none for 111', () {
+      expect(kWhatsNewNotes[112], [
         "Tap Tasks above the dial to pick what you're working on.",
+        "A friend's day is one card now: swipe through it.",
         'See how many friends are in a session too. Turn yours off in More.',
         'Tap a day on your calendar for a simpler view of it.',
       ]);
+      expect(kWhatsNewNotes.containsKey(111), isFalse);
+      // A tester coming from 107 sees all four, within the cap.
+      expect(whatsNewLines(lastSeen: null, current: 112), kWhatsNewNotes[112]);
+      expect(whatsNewLines(lastSeen: 107, current: 112).length, kWhatsNewMaxLines);
+      // An internal tester who saw 111's screen still gets 112's.
+      expect(whatsNewLines(lastSeen: 111, current: 112), kWhatsNewNotes[112]);
     });
 
     test('a reset onboarding flag is onboarding again, even with an account already there', () {
@@ -141,7 +148,7 @@ void main() {
   group('the phone\'s flags', () {
     setUp(() => SharedPreferences.setMockInitialValues({}));
 
-    Future<FirstRunView?> open(FirstRunStore store, {bool account = true, int build = 111}) async {
+    Future<FirstRunView?> open(FirstRunStore store, {bool account = true, int build = 112}) async {
       final c = ProviderContainer(
         overrides: [
           firstRunStoreProvider.overrideWithValue(store),
@@ -169,7 +176,7 @@ void main() {
         PrefsFirstRunStore.lastSeenBuildKey: 110,
       });
       final store = PrefsFirstRunStore();
-      expect((await open(store))?.lines, kWhatsNewNotes[111]);
+      expect((await open(store))?.lines, kWhatsNewNotes[112]);
       expect(await open(store), isNull);
     });
 
@@ -185,7 +192,7 @@ void main() {
       await store.resetWhatsNew();
       final next = await open(store);
       expect(next?.kind, FirstRunKind.whatsNew);
-      expect(next?.lines, kWhatsNewNotes[111]);
+      expect(next?.lines, kWhatsNewNotes[112]);
       expect(await open(store), isNull);
     });
   });
@@ -235,7 +242,7 @@ void main() {
         bootPrecacheProvider.overrideWith((ref) => (_, _) async {}),
         firstRunStoreProvider.overrideWithValue(store),
         accountBeforeLaunchProvider.overrideWithValue(account),
-        currentBuildProvider.overrideWith((ref) async => 111),
+        currentBuildProvider.overrideWith((ref) async => 112),
       ],
       child: MaterialApp(theme: AppTheme.dark(), home: const BootGate()),
     );
@@ -283,7 +290,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(tester.widget<Text>(find.byKey(kFirstRunTitleKey)).data, "What's new");
-      for (final line in kWhatsNewNotes[111]!) {
+      for (final line in kWhatsNewNotes[112]!) {
         expect(find.text(line), findsOneWidget);
       }
       expect(find.text(kFirstRunHint), findsOneWidget);

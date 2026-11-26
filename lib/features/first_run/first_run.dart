@@ -10,8 +10,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// The notes, by build number. A build without an entry has nothing to say,
 /// and an update to it shows nothing.
 const Map<int, List<String>> kWhatsNewNotes = {
-  111: [
+  // The build family testers move to from 107; 111 went to internal
+  // testing only, so its notes are folded in here.
+  112: [
     "Tap Tasks above the dial to pick what you're working on.",
+    "A friend's day is one card now: swipe through it.",
     'See how many friends are in a session too. Turn yours off in More.',
     'Tap a day on your calendar for a simpler view of it.',
   ],

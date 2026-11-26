@@ -478,8 +478,8 @@ service cloud.firestore {
                     && resource.data.authorUid == request.auth.uid;
 
       // The author may change the caption, the photos (a photo page hidden
-      // from a milestone), the counters (taking down what was under the
-      // post) and the audience — narrowed freely, or widened by exactly
+      // from a milestone), the counters — down only (taking down what was
+      // under the post) — and the audience — narrowed freely, or widened by exactly
       // one accepted friend at a time, which is how a new friend is let
       // into what was posted before. Nothing else: never the type, the
       // author, when it was posted or what it logged. An audience member
@@ -493,6 +493,11 @@ service cloud.firestore {
           && audienceChangeAllowed(resource.data.audience,
                                    request.resource.data.audience,
                                    request.auth.uid)
+          // Down or unchanged: taking down what was under the post. Never
+          // up — an author's own like or comment goes the reader's way
+          // below, one at a time beside its own doc.
+          && request.resource.data.get('likeCount', 0) <= resource.data.get('likeCount', 0)
+          && request.resource.data.get('commentCount', 0) <= resource.data.get('commentCount', 0)
         )
         || (
           request.auth.uid in resource.data.audience

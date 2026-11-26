@@ -210,6 +210,22 @@ describe('posts: when, and what the author may change', () => {
     await assertFails(updateDoc(doc(as(A), 'posts/s1'), { firstSession: true }));
   });
 
+  it('the author may never raise their own counts in an edit', async () => {
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { likeCount: increment(2) }));
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { commentCount: increment(5) }));
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { caption: 'z', likeCount: increment(1) }));
+    await assertFails(updateDoc(doc(as(A), 'posts/s1'), { photos: [], commentCount: increment(1) }));
+  });
+
+  it('an author\'s own like or comment still counts, one at a time, the reader\'s way', async () => {
+    // The ±1 beside a like or a comment is the reader path, which the
+    // author is on too as a member of the audience. Unchanged.
+    await assertSucceeds(updateDoc(doc(as(A), 'posts/s1'), { likeCount: increment(1) }));
+    await assertSucceeds(updateDoc(doc(as(A), 'posts/s1'), { likeCount: increment(-1) }));
+    await assertSucceeds(updateDoc(doc(as(A), 'posts/s1'), { commentCount: increment(1) }));
+    await assertSucceeds(updateDoc(doc(as(A), 'posts/s1'), { commentCount: increment(-1) }));
+  });
+
   it('the author may still edit the caption and take counters down in bulk', async () => {
     await assertSucceeds(updateDoc(doc(as(A), 'posts/s1'), { caption: 'y' }));
     await assertSucceeds(updateDoc(doc(as(A), 'posts/s1'), { likeCount: increment(-3), commentCount: increment(-2) }));
@@ -2327,5 +2343,178 @@ describe('storage: the share job\'s paths', () => {
     assert.deepEqual(inner.items.map((i) => i.name), ['0.jpg']);
     await assertSucceeds(bucket(A).ref(`users/${A}/photos`).listAll());
     await assertFails(bucket(B).ref(`users/${A}/photos`).listAll());
+  });
+});
+
+// ── Build 107 ─────────────────────────────────────────────────────────
+//
+// Family testers stay on build 107 (commit 796efaa, the session-focus tip
+// merged as 5b60847) until the next build passes, so the live rules must
+// take everything 107 writes. These replay its write shapes exactly, from
+// the code at that commit: ShareJob.document() + createPost (the phone's
+// clock as a Timestamp), writePostWithNotices, PostsRepository.setLike /
+// addComment / deleteComment / deletePost, AudienceWidener (several
+// friends in one arrayUnion) and the block prune (arrayRemove). 107 makes
+// no other author edit to a post.
+describe('build 107, replayed against these rules', () => {
+  const E = 'uid_friend_two';
+  const author = { username: 'ann', displayName: 'Ann' };
+  const phoneClock = (minutes = 0) => Timestamp.fromMillis(Date.now() + minutes * 60 * 1000);
+
+  // ShareJob.document() at 107, as createPost wrote it.
+  const sessionDoc = (createdAt) => ({
+    authorUid: A, author, type: 'session', createdAt, caption: 'Range day',
+    photos: [{ url: 'https://x/0.jpg', storagePath: 'users/' + A + '/posts/s/0.jpg' }],
+    audience: [A, C], likeCount: 0, commentCount: 0, taskName: 'Golf',
+    sessionSeconds: 1800, bandSeconds: 5400,
+  });
+  const milestoneDoc = (createdAt) => ({
+    authorUid: A, author, type: 'milestone', createdAt, caption: 'Twenty.',
+    photos: [
+      { url: 'https://x/0.jpg', storagePath: 'users/' + A + '/posts/m/0.jpg', sessionIndex: 0, framing: { scale: 1.2, dx: 0, dy: 0 } },
+      { url: 'https://x/1.jpg', storagePath: 'users/' + A + '/posts/m/1.jpg', sessionIndex: 1 },
+    ],
+    audience: [A, C], likeCount: 0, commentCount: 0, taskName: 'Golf',
+    milestoneHours: 20, totalHours: 20,
+    sessions: [{ at: 1000, seconds: 3600, photo: true }, { at: 2000, seconds: 1800, photo: true }],
+    unit: 'session',
+    coverUrl: 'https://x/cover.jpg', coverStoragePath: 'users/' + A + '/posts/m/cover.jpg',
+    thumbUrl: 'https://x/thumb.jpg', thumbStoragePath: 'users/' + A + '/posts/m/thumb.jpg',
+  });
+  // FirestoreNotificationsWriter.document() at 107.
+  const notice = (type, extra) => ({ type, actorUid: extra.actorUid, actorHandle: extra.actorHandle, at: serverTimestamp(), ...extra.fields });
+
+  beforeEach(async () => {
+    await env.clearFirestore();
+    await seed(async (db) => {
+      for (const f of [C, E]) {
+        await setDoc(doc(db, 'friendships/' + pairId(A, f)), { users: [A, f].sort(), status: 'accepted' });
+      }
+      await setDoc(doc(db, 'posts/p'), { ...sessionDoc(Timestamp.now()) });
+      await setDoc(doc(db, 'posts/old'), { ...sessionDoc(Timestamp.fromMillis(Date.now() - 86400000 * 3)), audience: [A] });
+    });
+  });
+
+  it('PASS: a session post, the phone\'s clock a few seconds behind', async () => {
+    await assertSucceeds(setDoc(doc(as(A), 'posts/s'), sessionDoc(phoneClock(-0.1))));
+  });
+
+  it('PASS: a session post at the edges of the window (9 minutes either way)', async () => {
+    await assertSucceeds(setDoc(doc(as(A), 'posts/s-behind'), sessionDoc(phoneClock(-9))));
+    await assertSucceeds(setDoc(doc(as(A), 'posts/s-ahead'), sessionDoc(phoneClock(9))));
+  });
+
+  it('FAIL (expected): a session post stamped just outside the window', async () => {
+    await assertFails(setDoc(doc(as(A), 'posts/s-late'), sessionDoc(phoneClock(-11))));
+    await assertFails(setDoc(doc(as(A), 'posts/s-early'), sessionDoc(phoneClock(11))));
+  });
+
+  it('PASS: a milestone post with its notices, in one batch', async () => {
+    const db = as(A);
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'posts/m'), milestoneDoc(phoneClock(-2)));
+    batch.set(doc(db, 'notifications/' + C + '/items/m'), notice('milestone', {
+      actorUid: A, actorHandle: 'ann', fields: { postId: 'm', taskName: 'Golf', hours: 20 },
+    }));
+    await assertSucceeds(batch.commit());
+  });
+
+  it('PASS: like, then unlike — the mirror, the copy, the count and the notice', async () => {
+    const db = as(C);
+    const like = writeBatch(db);
+    like.set(doc(db, 'users/' + C + '/likes/p'), { createdAt: serverTimestamp() });
+    like.set(doc(db, 'posts/p/likes/' + C), { at: serverTimestamp() });
+    like.update(doc(db, 'posts/p'), { likeCount: increment(1) });
+    like.set(doc(db, 'notifications/' + A + '/items/n1'), notice('like', {
+      actorUid: C, actorHandle: 'cass', fields: { postId: 'p' },
+    }));
+    await assertSucceeds(like.commit());
+    const unlike = writeBatch(db);
+    unlike.delete(doc(db, 'users/' + C + '/likes/p'));
+    unlike.delete(doc(db, 'posts/p/likes/' + C));
+    unlike.update(doc(db, 'posts/p'), { likeCount: increment(-1) });
+    await assertSucceeds(unlike.commit());
+  });
+
+  it('PASS: a comment and a reply to it; KNOWN, as before: a reader deleting a comment that has replies is refused', async () => {
+    const asC = as(C);
+    const c = writeBatch(asC);
+    c.set(doc(asC, 'posts/p/comments/c1'), {
+      authorUid: C, author: { username: 'cass', displayName: 'Cass' }, text: 'Nice', audience: [A, C], createdAt: serverTimestamp(),
+    });
+    c.update(doc(asC, 'posts/p'), { commentCount: increment(1) });
+    c.set(doc(asC, 'notifications/' + A + '/items/n2'), notice('comment', {
+      actorUid: C, actorHandle: 'cass', fields: { postId: 'p', commentId: 'c1' },
+    }));
+    await assertSucceeds(c.commit());
+
+    // The author replies: a reply notice to the comment's writer, and none
+    // to themselves.
+    const asA = as(A);
+    const r = writeBatch(asA);
+    r.set(doc(asA, 'posts/p/comments/r1'), {
+      authorUid: A, author, text: 'Thanks', audience: [A, C], createdAt: serverTimestamp(), parentId: 'c1',
+    });
+    r.update(doc(asA, 'posts/p'), { commentCount: increment(1) });
+    r.set(doc(asA, 'notifications/' + C + '/items/n3'), notice('reply', {
+      actorUid: A, actorHandle: 'ann', fields: { postId: 'p', commentId: 'r1' },
+    }));
+    await assertSucceeds(r.commit());
+
+    // C deletes their comment; the reply under it goes in the same batch.
+    const d = writeBatch(asC);
+    d.delete(doc(asC, 'posts/p/comments/c1'));
+    d.delete(doc(asC, 'posts/p/comments/r1'));
+    d.update(doc(asC, 'posts/p'), { commentCount: increment(-2) });
+    // 107 sends one increment of −(1 + replies); a reader may move a
+    // counter by one only, so the live rules refused this batch before
+    // this change as well (checked against them). Not made worse here.
+    await assertFails(d.commit());
+  });
+
+  it('PASS: deleting a comment with no replies', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/p/comments/c1'), { authorUid: C, audience: [A, C], text: 'x', createdAt: Timestamp.now() });
+      await updateDoc(doc(db, 'posts/p'), { commentCount: 1 });
+    });
+    const db = as(C);
+    const d = writeBatch(db);
+    d.delete(doc(db, 'posts/p/comments/c1'));
+    d.update(doc(db, 'posts/p'), { commentCount: increment(-1) });
+    await assertSucceeds(d.commit());
+  });
+
+  it('PASS: the author deletes their own post, the full cascade in 107\'s order', async () => {
+    await seed(async (db) => {
+      await updateDoc(doc(db, 'posts/p'), { likeCount: 1, commentCount: 2 });
+      await setDoc(doc(db, 'users/' + C + '/likes/p'), { createdAt: Timestamp.now() });
+      await setDoc(doc(db, 'posts/p/likes/' + C), { at: Timestamp.now() });
+      await setDoc(doc(db, 'posts/p/comments/c1'), { authorUid: C, audience: [A, C], text: 'x', createdAt: Timestamp.now() });
+      await setDoc(doc(db, 'posts/p/comments/r1'), { authorUid: C, audience: [A, C], text: 'y', createdAt: Timestamp.now(), parentId: 'c1' });
+    });
+    await assertSucceeds(deletePost(as(A), 'p'));
+    await seed(async (db) => {
+      assert.equal((await getDoc(doc(db, 'posts/p'))).exists(), false);
+      assert.equal((await getDoc(doc(db, 'users/' + C + '/likes/p'))).exists(), false);
+    });
+  });
+
+  it('PASS: accepting a friend lets that one friend into an older post', async () => {
+    await assertSucceeds(updateDoc(doc(as(A), 'posts/old'), { audience: arrayUnion(C) }));
+  });
+
+  it('FAIL (expected, documented): 107\'s launch catch-up adding two friends in one write', async () => {
+    await assertFails(updateDoc(doc(as(A), 'posts/old'), { audience: arrayUnion(C, E) }));
+  });
+
+  it('PASS: blocking takes the person out of my posts and my comments', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'posts/p/comments/mine'), { authorUid: A, audience: [A, C], text: 'x', createdAt: Timestamp.now() });
+    });
+    const db = as(A);
+    const b = writeBatch(db);
+    b.update(doc(db, 'posts/p'), { audience: arrayRemove(C) });
+    b.update(doc(db, 'posts/p/comments/mine'), { audience: arrayRemove(C) });
+    await assertSucceeds(b.commit());
   });
 });

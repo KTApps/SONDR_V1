@@ -31,16 +31,23 @@ class MilestonePage {
   String toString() => 'MilestonePage($kind, $photoIndex)';
 }
 
-/// The pages: the cover, then every photo in stored order — the collage's
-/// own order, top-left tile first. One photo is the cover alone; none is
-/// the frame with the milestone itself.
+/// The pages: the cover, then every photo that still has a page, in
+/// stored order — the collage's own order, top-left tile first. A photo
+/// whose page was deleted stays in the collage and is skipped here. One
+/// photo is the cover alone (the cover is that photo); so is a post whose
+/// every page was deleted; none is the frame with the milestone itself.
 List<MilestonePage> milestonePages(MilestonePost post) {
   final n = post.photos.length;
   if (n == 0) return const [MilestonePage(MilestonePageKind.noPhoto)];
   if (n == 1) return const [MilestonePage(MilestonePageKind.cover)];
+  final visible = [
+    for (var i = 0; i < n; i++)
+      if (post.photos[i].page) i,
+  ];
+  if (visible.isEmpty) return const [MilestonePage(MilestonePageKind.cover)];
   return [
     const MilestonePage(MilestonePageKind.cover),
-    for (var i = 0; i < n; i++)
+    for (final i in visible)
       MilestonePage(MilestonePageKind.photo, photoIndex: i),
   ];
 }

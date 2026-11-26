@@ -1,13 +1,20 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/backend.dart';
 import '../../../core/theme/greyscale_tokens.dart';
+import '../../../core/theme/spacing.dart';
+import '../../../shared/blur_sheet.dart';
+import '../../../shared/sondr_error.dart';
 import '../../photos/capture_crop.dart';
 import '../milestone_hints.dart';
 import '../milestone_pages.dart';
 import '../models/post.dart';
+import '../posts_repository.dart';
+import 'deletable_post_card.dart' show kDeleteFailed;
 import 'mini_ring.dart';
 import 'milestone_cover.dart';
 import 'milestone_frame.dart';
@@ -35,9 +42,14 @@ class MilestoneCard extends ConsumerStatefulWidget {
     super.key,
     required this.post,
     this.preview = false,
+    this.onHidePage,
   });
 
   final MilestonePost post;
+
+  /// Test seam: what deleting a photo's page does. Defaults to
+  /// [PostsRepository.hidePhotoPage].
+  final Future<void> Function(MilestonePost post, int photoIndex)? onHidePage;
 
   /// The final look before a share: the handle and the actions are drawn
   /// as they will be but do nothing — there is no post yet to like, and
@@ -51,11 +63,14 @@ class MilestoneCard extends ConsumerStatefulWidget {
 /// The frame's corner, as the milestone card has always been cut.
 const double kMilestoneCardRadius = kPostCardRadius;
 
+/// What a long-press on one of my photo pages asks.
+const String kHidePageTitle = 'Delete this photo?';
+const String kHidePageBody = "It stays in the milestone's collage.";
+
 /// What the caption line says while the hint is on.
-const String kMilestoneHintText = 'Tap the right side to see each session';
+const String kMilestoneHintText = 'Tap the right side to see each photo';
 
 const double _kInset = kPostCardInset;
-const double _kTop = kPostCardTop;
 const double _kBottom = kPostCardBottom;
 const Color _kTextCaption = kPostCardTextCaption;
 
@@ -90,7 +105,9 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
 
   List<MilestonePage> get _pages => milestonePages(widget.post);
 
-  bool get _multi => widget.post.photos.length > 1;
+  /// More than one page to step through: the cover and at least one photo
+  /// that still has its page.
+  bool get _multi => _pages.length > 1;
 
   /// On: the next photo, and from the last one round to the cover.
   void _next() {
@@ -196,15 +213,6 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
                 Positioned(
                   left: _kInset,
                   right: _kInset,
-                  top: _kTop,
-                  child: AbsorbPointer(
-                    absorbing: widget.preview,
-                    child: PostCardTopRow(post: post),
-                  ),
-                ),
-                Positioned(
-                  left: _kInset,
-                  right: _kInset,
                   // The actions carry 12 of their own below the words;
                   // the words' line ends 16 from the edge.
                   bottom: _kBottom - PostInteractions.verticalPad,
@@ -222,12 +230,67 @@ class _MilestoneCardState extends ConsumerState<MilestoneCard>
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapUp: (d) => _tap(d.localPosition, c.maxWidth),
+              // Held on one of my photo pages: that page, not the post.
+              // Anywhere else — the cover, someone else's post — the
+              // long-press is the card's own (delete or report the post).
+              onLongPress: _ownPhotoPage(page) ? () => _askHidePage(page) : null,
               child: frame,
             );
           },
         ),
       ),
     );
+  }
+
+  bool _ownPhotoPage(MilestonePage page) {
+    if (widget.preview || page.kind != MilestonePageKind.photo) return false;
+    final uid = ref.watch(currentUidProvider);
+    return uid != null && uid == widget.post.authorUid;
+  }
+
+  /// "Delete this photo?" — the page goes, the photo stays in the collage.
+  Future<void> _askHidePage(MilestonePage page) async {
+    final index = page.photoIndex;
+    if (index == null) return;
+    HapticFeedback.mediumImpact();
+    String? failure;
+    await showBlurSheet(context, (handle) {
+      BlurView question() => BlurView(
+        title: kHidePageTitle,
+        explanation: kHidePageBody,
+        body: failure == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(bottom: kSpacingBase),
+                child: SondrError(failure!, textAlign: TextAlign.center),
+              ),
+        items: [
+          BlurItem(
+            label: 'Delete',
+            onTap: () async {
+              failure = null;
+              try {
+                final hide = widget.onHidePage ??
+                    (MilestonePost p, int i) async {
+                      final repo = ref.read(postsRepositoryProvider);
+                      if (repo == null) throw StateError('not signed in');
+                      await repo.hidePhotoPage(p, i);
+                    };
+                await hide(widget.post, index);
+                // Back a page, so what shows next is the one before it.
+                if (mounted) setState(() => _page = math.max(0, _page - 1));
+                handle.close();
+              } catch (e) {
+                debugPrint('SONDR hide photo page error: $e');
+                failure = kDeleteFailed;
+                if (mounted) handle.show(question());
+              }
+            },
+          ),
+        ],
+      );
+      return question();
+    });
   }
 
   /// A page's ground. The cover as rendered, or drawn; a photo under the

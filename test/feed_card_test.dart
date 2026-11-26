@@ -59,7 +59,7 @@ void main() {
     );
     expect(find.text('20'), findsOneWidget); // ring centre figure
     expect(find.text('hours'), findsOneWidget);
-    expect(find.text('tom'), findsOneWidget); // the handle, not the display name
+    expect(find.text('tom'), findsNothing); // the name stands above the card now
     expect(find.text('Spanish'), findsOneWidget);
     expect(find.byType(Image), findsNothing);
     expect(find.byType(MilestoneRing), findsOneWidget);
@@ -101,7 +101,7 @@ void main() {
       ),
     );
     expect(find.text('Spanish · 2h 15m'), findsOneWidget);
-    expect(find.text('tom'), findsOneWidget);
+    expect(find.text('tom'), findsNothing); // above the card now
     expect(find.byType(Image), findsNothing);
     expect(find.text('Like'), findsOneWidget);
     expect(find.byType(MiniRing), findsNothing);

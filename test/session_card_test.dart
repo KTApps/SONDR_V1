@@ -80,15 +80,16 @@ void main() {
   testWidgets('the milestone\'s frame and chrome: the same places, the same words', (tester) async {
     await pump(tester, MilestoneCard(post: milestone()));
     final mFrame = tester.getRect(frame());
-    final mHandle = tester.getRect(find.text('cass'));
-    final mTime = tester.getRect(find.text('5h'));
+    // No name or time on either photo: they stand above the card.
+    expect(find.text('cass'), findsNothing);
+    expect(find.text('5h'), findsNothing);
     final mLike = tester.getRect(find.text('Like'));
     final mCaption = tester.getRect(find.text('Done for today.'));
 
     await pump(tester, SessionCard(post: post()));
     expect(tester.getRect(frame()), mFrame);
-    expect(tester.getRect(find.text('cass')), mHandle);
-    expect(tester.getRect(find.text('5h')), mTime);
+    expect(find.text('cass'), findsNothing);
+    expect(find.text('5h'), findsNothing);
     expect(tester.getRect(find.text('Like')), mLike);
     expect(tester.getRect(find.text('Done for today.')), mCaption);
     expect(scrim(), findsOneWidget);

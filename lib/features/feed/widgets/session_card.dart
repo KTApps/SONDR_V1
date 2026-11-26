@@ -12,7 +12,8 @@ import 'post_card_chrome.dart';
 import 'post_chrome.dart';
 
 /// A session post, in the milestone card's frame: the photo full-bleed
-/// under the eased scrim, the handle and how long ago above, the task and
+/// under the eased scrim, "First time" at the top right on the task's
+/// first ever — who posted it and when stand above the card — the task and
 /// its length, the caption and the actions below — and at the right the
 /// small ring: grey to where the task stood in its band before this
 /// session, white for the session itself. One photo, no pages: a tap on
@@ -62,12 +63,24 @@ class SessionCard extends StatelessWidget {
               const IgnorePointer(
                 child: DecoratedBox(decoration: BoxDecoration(gradient: kMilestoneScrim)),
               ),
-            Positioned(
-              left: kPostCardInset,
-              right: kPostCardInset,
-              top: kPostCardTop,
-              child: AbsorbPointer(absorbing: preview, child: PostCardTopRow(post: post)),
-            ),
+            // The task's first time ever, where how-long-ago used to be.
+            if (post.firstSession)
+              Positioned(
+                right: kPostCardInset,
+                top: kPostCardTop,
+                child: IgnorePointer(
+                  child: Text(
+                    kFirstTimeLabel,
+                    key: kFirstTimeKey,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: tokens.textPrimary,
+                      shadows: kTextShadows,
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               left: kPostCardInset,
               right: kPostCardInset,
@@ -85,6 +98,10 @@ class SessionCard extends StatelessWidget {
     );
   }
 }
+
+/// On a photo from the task's first time ever.
+const String kFirstTimeLabel = 'First time';
+const Key kFirstTimeKey = ValueKey('post-first-time');
 
 /// What a session post's ring shows, or null when the post has no figure.
 MiniRingData? sessionRing(SessionPost post) {

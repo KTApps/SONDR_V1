@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +14,7 @@ import 'models/comment.dart';
 import '../friends/friends_repository.dart';
 import '../reports/report.dart';
 import 'band_story.dart' show SegmentUnit;
+import 'feed_days.dart';
 import 'models/post.dart';
 
 /// Reads the friends-only feed and creates posts. Posts live in a top-level
@@ -35,17 +38,46 @@ class PostsRepository {
   CollectionReference<Map<String, dynamic>> get _posts =>
       db.collection('posts');
 
-  /// Posts visible to this user (their friends' + their own), newest first.
-  /// Needs the composite index on (audience array-contains, createdAt desc).
-  Stream<List<Post>> watchFeed() {
+  /// Everything posted since [since] that this user is in the audience of
+  /// — their friends' and their own — newest first, with no cap: the feed's
+  /// days are built from it. The audience filter is what makes the read
+  /// rule provable. Index: (audience array-contains, createdAt desc).
+  Stream<List<Post>> watchSince(DateTime since) {
     return _posts
         .where('audience', arrayContains: uid)
+        .where('createdAt', isGreaterThan: Timestamp.fromDate(since))
         .orderBy('createdAt', descending: true)
-        .limit(50)
         .snapshots()
         .map(
           (snap) => withoutPending([for (final d in snap.docs) Post.fromMap(d.id, d.data())]),
         );
+  }
+
+  /// The newest [limit] milestones this user is in the audience of. They
+  /// stay in the feed for good, so they are paged: the limit grows as the
+  /// feed is scrolled. Index: (type, audience array-contains, createdAt
+  /// desc).
+  Stream<List<Post>> watchMilestones(int limit) {
+    return _posts
+        .where('type', isEqualTo: PostType.milestone.name)
+        .where('audience', arrayContains: uid)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snap) => withoutPending([for (final d in snap.docs) Post.fromMap(d.id, d.data())]),
+        );
+  }
+
+  /// Delete one photo's page from my milestone: the photo stays in the
+  /// collage — the cover, the thumbnail, its file — and only its page goes.
+  Future<void> hidePhotoPage(MilestonePost post, int photoIndex) async {
+    if (post.authorUid != uid) throw StateError('not my post');
+    final photos = [
+      for (var i = 0; i < post.photos.length; i++)
+        (i == photoIndex ? post.photos[i].withoutPage() : post.photos[i]).toMap(),
+    ];
+    await _posts.doc(post.id).update({'photos': photos});
   }
 
   /// Someone's posts that I am in the audience of, newest first — what their
@@ -628,15 +660,86 @@ List<T> withoutBlockedAuthors<T>(
               if (!blockedUids.contains(authorOf(item))) item,
           ];
 
-/// The raw friends-only feed stream (empty on the local backend).
+/// Where the last day starts: 24 hours before it was last asked. Asked
+/// again on the way back into the app and every [kFeedRefresh] while it
+/// is open — a listener never drops a post as it ages, so the query is
+/// re-made, and the feed also hides anything past the day as it draws.
+class FeedCutoff extends Notifier<DateTime> {
+  Timer? _timer;
+  AppLifecycleListener? _lifecycle;
+
+  @override
+  DateTime build() {
+    _timer = Timer.periodic(kFeedRefresh, (_) => refresh());
+    try {
+      _lifecycle = AppLifecycleListener(onResume: refresh);
+    } catch (_) {
+      // No binding (a plain unit test): the timer alone.
+    }
+    ref.onDispose(() {
+      _timer?.cancel();
+      _lifecycle?.dispose();
+    });
+    return _cutoff();
+  }
+
+  DateTime _cutoff() => ref.read(feedNowProvider)().subtract(kFeedDay);
+
+  void refresh() => state = _cutoff();
+}
+
+final feedCutoffProvider = NotifierProvider<FeedCutoff, DateTime>(FeedCutoff.new);
+
+/// How many milestones the feed reads: a page more each time it is
+/// scrolled to the end.
+class MilestoneLimit extends Notifier<int> {
+  @override
+  int build() => kMilestonePageSize;
+
+  void more() => state = state + kMilestonePageSize;
+}
+
+final milestoneLimitProvider =
+    NotifierProvider<MilestoneLimit, int>(MilestoneLimit.new);
+
+final _recentStreamProvider = StreamProvider<List<Post>>((ref) {
+  final repo = ref.watch(postsRepositoryProvider);
+  if (repo == null) return Stream.value(const <Post>[]);
+  return repo.watchSince(ref.watch(feedCutoffProvider));
+});
+
+final _milestonesStreamProvider = StreamProvider<List<Post>>((ref) {
+  final repo = ref.watch(postsRepositoryProvider);
+  if (repo == null) return Stream.value(const <Post>[]);
+  return repo.watchMilestones(ref.watch(milestoneLimitProvider));
+});
+
+/// Whether scrolling on could bring older milestones: the last page read
+/// came back full.
+final moreMilestonesProvider = Provider<bool>((ref) {
+  final got = ref.watch(_milestonesStreamProvider).value;
+  return got != null && got.length >= ref.watch(milestoneLimitProvider);
+});
+
+/// The raw friends-only feed: the last day's posts and the milestones,
+/// merged, newest first (empty on the local backend).
 ///
 /// Private: everything reads [feedProvider], which is this with blocked
 /// authors removed. Kept separate so changing the blocked set re-filters
-/// without tearing down and re-establishing the Firestore subscription.
-final _feedStreamProvider = StreamProvider<List<Post>>((ref) {
-  final repo = ref.watch(postsRepositoryProvider);
-  if (repo == null) return Stream.value(const <Post>[]);
-  return repo.watchFeed();
+/// without tearing down and re-establishing the Firestore subscriptions.
+/// Loading until both have answered once; a page of milestones being read
+/// keeps what is already shown.
+final _feedStreamProvider = Provider<AsyncValue<List<Post>>>((ref) {
+  final recent = ref.watch(_recentStreamProvider);
+  final milestones = ref.watch(_milestonesStreamProvider);
+  if (recent.hasError) return AsyncValue.error(recent.error!, recent.stackTrace!);
+  if (milestones.hasError) {
+    return AsyncValue.error(milestones.error!, milestones.stackTrace!);
+  }
+  final r = recent.value;
+  final m = milestones.value;
+  if (r == null || m == null) return const AsyncValue.loading();
+  return AsyncValue.data(mergeFeedPosts(r, m, now: ref.read(feedNowProvider)()));
 });
 
 /// The feed, with posts by blocked authors removed.

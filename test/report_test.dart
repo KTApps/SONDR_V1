@@ -3,6 +3,7 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sondr/features/feed/feed_days.dart';
 import 'package:sondr/core/theme/app_theme.dart';
 import 'package:sondr/features/feed/models/comment.dart';
 import 'package:sondr/features/feed/models/post.dart';
@@ -402,6 +403,8 @@ void main() {
             PostsRepository(db: db, uid: 'me'),
           ),
           hiddenThingsProvider.overrideWith((ref) => Stream.value(hidden)),
+          // The posts are from 1 October; the feed shows a day's worth.
+          feedNowProvider.overrideWithValue(() => DateTime(2026, 10, 1, 12)),
         ],
       );
       addTearDown(c.dispose);
@@ -484,6 +487,7 @@ void main() {
           hiddenThingsProvider.overrideWith(
             (ref) => Stream<Set<String>>.error(Exception('denied')),
           ),
+          feedNowProvider.overrideWithValue(() => DateTime(2026, 10, 1, 12)),
         ],
       );
       addTearDown(c.dispose);

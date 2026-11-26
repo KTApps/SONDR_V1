@@ -98,12 +98,13 @@ void main() {
   Finder inCard(String text) => find.descendant(of: card(), matching: find.text(text));
 
   group('the card as friends will see it', () {
-    testWidgets('the session card: handle, now, task and length, the ring; Retake top right', (tester) async {
+    testWidgets('the session card: task and length, the ring; no name or time on the photo; Retake top right', (tester) async {
       await open(tester);
       final c = tester.widget<SessionCard>(card());
       expect(c.preview, isTrue);
-      expect(inCard('cass'), findsOneWidget);
-      expect(inCard('now'), findsOneWidget);
+      // Who and when stand above the card in the feed, not on the photo.
+      expect(inCard('cass'), findsNothing);
+      expect(inCard('now'), findsNothing);
       expect(inCard('Spanish · 1h 20m'), findsOneWidget);
       expect(inCard('Like'), findsOneWidget);
       expect(find.byType(MiniRing), findsOneWidget);

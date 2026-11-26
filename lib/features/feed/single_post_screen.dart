@@ -1,3 +1,5 @@
+import 'feed_days.dart';
+import 'widgets/post_card_chrome.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/spacing.dart';
@@ -23,9 +25,14 @@ class SinglePostScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scale = figmaScale(context);
+    final now = DateTime.now();
     final Widget card = switch (post) {
       final MilestonePost p => MilestoneCard(post: p),
       final SessionPost p => SessionCard(post: p),
+    };
+    final line = switch (post) {
+      final MilestonePost p => milestoneLine(p, now: now),
+      final SessionPost p => dayLine(DayItem([p]), now: now),
     };
     return Scaffold(
       body: SafeArea(
@@ -34,7 +41,17 @@ class SinglePostScreen extends StatelessWidget {
             horizontal: kSpacingSection * scale,
             vertical: kSpacingSection * scale,
           ),
-          child: card,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Who posted it, above the card, as in the feed.
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: kPostCardInset),
+                child: PostHeader(author: post.author, authorUid: post.authorUid, line: line),
+              ),
+              card,
+            ],
+          ),
         ),
       ),
       // Back where the tab bar's centre slot is, as every pushed page.

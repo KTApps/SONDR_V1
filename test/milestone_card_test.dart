@@ -140,8 +140,8 @@ void main() {
       expect(find.byType(MilestoneRing), findsNothing);
       expect(scrim(), findsNothing);
       expect(find.byType(Image), findsOneWidget);
-      // The chrome is still the card's.
-      expect(find.text('cass'), findsOneWidget);
+      // The chrome is still the card's; the name is above it now.
+      expect(find.text('cass'), findsNothing);
       expect(find.text('Spanish'), findsOneWidget);
     });
 
@@ -155,14 +155,12 @@ void main() {
       expect(tester.widget<MilestoneRing>(find.byType(MilestoneRing)).onPhoto, isFalse);
     });
 
-    testWidgets('the handle left and the time right above; task, caption, actions below', (tester) async {
+    testWidgets('nothing at the photo\'s top; task, caption, actions below', (tester) async {
       await pump(tester, twoPhotos());
       final r = tester.getRect(frame());
-      final handle = tester.getRect(find.text('cass'));
-      expect(handle.top - r.top, closeTo(16, 0.5));
-      expect(handle.left - r.left, closeTo(18, 0.5));
-      final time = tester.getRect(find.text('5h'));
-      expect(r.right - time.right, closeTo(18, 0.5));
+      // Who and when stand above the card, in the feed's header.
+      expect(find.text('cass'), findsNothing);
+      expect(find.text('5h'), findsNothing);
       expect(find.text('Spanish'), findsOneWidget);
       expect(find.text('Twenty hours in. Starting to dream in it.'), findsOneWidget);
       // Actions at the left: Like starts at the inset, 16 from the bottom.
@@ -173,7 +171,7 @@ void main() {
       expect(dots(), findsNothing);
       expect(find.byType(MiniRing), findsNothing);
       // Every word over the photo wears the one soft shadow.
-      for (final t in ['cass', '5h', 'Spanish', 'Twenty hours in. Starting to dream in it.', 'Like', 'Comments']) {
+      for (final t in ['Spanish', 'Twenty hours in. Starting to dream in it.', 'Like', 'Comments']) {
         expect(tester.widget<Text>(find.text(t)).style?.shadows, kTextShadows, reason: t);
       }
     });

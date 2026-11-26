@@ -87,13 +87,14 @@ void main() {
   Finder card() => find.byType(MilestoneCard);
   Finder inCard(String text) => find.descendant(of: card(), matching: find.text(text));
 
-  testWidgets('the real card, as friends will see it: handle, now, task, dots, Like and Comments', (tester) async {
+  testWidgets('the real card, as friends will see it: task, dots, Like and Comments; no name or time on it', (tester) async {
     await open(tester);
     expect(card(), findsOneWidget);
     final c = tester.widget<MilestoneCard>(card());
     expect(c.preview, isTrue);
-    expect(inCard('cass'), findsOneWidget);
-    expect(inCard('now'), findsOneWidget);
+    // Who and when stand above the card in the feed, not on the photo.
+    expect(inCard('cass'), findsNothing);
+    expect(inCard('now'), findsNothing);
     expect(inCard('Spanish'), findsOneWidget);
     expect(inCard('Like'), findsOneWidget);
     expect(inCard('Comments'), findsOneWidget);

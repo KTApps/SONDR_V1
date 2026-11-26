@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../presence/presence_repository.dart';
 import '../tasks/models/task.dart';
 import '../tasks/tasks_providers.dart';
 import 'live_activity.dart';
@@ -197,6 +198,9 @@ class TimerController extends Notifier<TimerState> {
   Future<void> sync() async {
     await _writing;
     final found = await _store.read();
+    // Every way back into the app comes through here: a long session's
+    // presence record is written again before friends stop counting it.
+    ref.read(presenceTouchProvider.notifier).touch();
     if (found == null) return;
     final current = _clock;
     if (current != null && found.encode() == current.encode()) return;
@@ -268,6 +272,7 @@ class TimerController extends Notifier<TimerState> {
     if (clock == null) return;
     _clock = clock.confirmedNow(_now());
     _publish();
+    ref.read(presenceTouchProvider.notifier).touch(force: true);
   }
 
   /// Move the running session's start back by [by], for testing the

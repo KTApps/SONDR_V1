@@ -60,10 +60,11 @@ void main() {
   }
 
   group('the task name', () {
+    // Supporting text since the redesign: 13, not 15.
     const sizes = [
-      (scale: 0.824, points: 12.36, box: 17.0),
-      (scale: 1.0, points: 15.0, box: 21.0),
-      (scale: 1.235, points: 18.525, box: 26.0),
+      (scale: 0.824, points: 10.712, box: 15.0),
+      (scale: 1.0, points: 13.0, box: 18.0),
+      (scale: 1.235, points: 16.055, box: 22.0),
     ];
 
     for (final s in sizes) {
@@ -85,12 +86,10 @@ void main() {
       final large = heightsAt(tester);
       expect(large, greaterThan(small * 1.2));
 
-      // And it is not alone: the date, the figure in the ring, the label
-      // under it and the section heading all answer the same setting.
-      for (final line in ['Time per task', 'logged']) {
-        expect(painted(tester, find.text(line)), greaterThan(13.0),
-            reason: line);
-      }
+      // And it is not alone: the date and the line under it answer the
+      // same setting.
+      expect(painted(tester, find.text('Thursday 1st October')), greaterThan(15.0));
+      expect(painted(tester, find.byKey(kDaySheetSummaryKey)), greaterThan(12.0));
     });
   });
 
@@ -112,8 +111,9 @@ void main() {
       // The duration beside it stays on the row, inside the gutter, and
       // the two do not meet.
       final nameBox = tester.getRect(find.text(long));
-      // Two "1h" on the sheet: the figure in the ring, and this row's.
-      final time = tester.getRect(find.text('1h').last);
+      // "1h" twice: the line under the date says "1h logged" whole, so the
+      // row's is the only text that is exactly "1h".
+      final time = tester.getRect(find.text('1h'));
       expect(nameBox.right, lessThanOrEqualTo(time.left + 0.5));
       expect(time.right, lessThanOrEqualTo(kRefWidth - 24 + 0.5));
     });

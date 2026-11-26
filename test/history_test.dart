@@ -89,12 +89,13 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(DayDetailSheet), findsOneWidget);
-    expect(find.text('logged'), findsOneWidget);
+    // The redesign keeps "logged", lowercase, in the line under the date.
+    expect(find.textContaining(' logged'), findsOneWidget);
   });
 
-  testWidgets('a greyed day thumbnail opens the viewer in full colour, the day a swipe away', (
-    tester,
-  ) async {
+  // The day sheet no longer opens the photo viewer: its photos are a row
+  // to scroll, and a long press deletes. See test/day_sheet_test.dart.
+  testWidgets('a day\'s photo does not open the viewer', (tester) async {
     final factoryBefore = photoImageProviderFactory;
     photoImageProviderFactory = (_) => MemoryImage(tinyPng);
     addTearDown(() => photoImageProviderFactory = factoryBefore);
@@ -104,11 +105,10 @@ void main() {
           sessionSeconds: 60, photoUrl: 'https://x/$ts.jpg', storagePath: '',
           cumulativeSeconds: ts,
         );
-    final day = [photo(1), photo(2), photo(3)];
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          photosForDayProvider.overrideWith((ref, key) async => day),
+          photosForDayProvider.overrideWith((ref, key) async => [photo(1), photo(2)]),
         ],
         child: MaterialApp(
           theme: AppTheme.dark(),
@@ -117,20 +117,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-
-    // The sheet's thumbnails are tinted; the viewer's photo is not.
-    final thumbs = find.byType(SondrPhoto);
-    expect(thumbs, findsNWidgets(3));
-    expect(tester.widget<SondrPhoto>(thumbs.first).saturation, isNotNull);
-    final tappedUrl = tester.widget<SondrPhoto>(thumbs.at(1)).url;
-    await tester.tap(thumbs.at(1));
+    final row = find.byKey(kDaySheetPhotosKey);
+    await tester.tap(find.descendant(of: row, matching: find.byType(SondrPhoto)).first);
     await tester.pumpAndSettle();
-
-    final viewer = tester.widget<PhotoViewer>(find.byType(PhotoViewer));
-    expect(viewer.photos.length, 3);
-    expect(viewer.photos[viewer.index].photoUrl, tappedUrl);
-    final shown = find.descendant(of: find.byType(PhotoViewer), matching: find.byType(SondrPhoto));
-    expect(tester.widget<SondrPhoto>(shown.first).saturation, isNull);
-    expect(find.text('2 of 3'), findsOneWidget);
+    expect(find.byType(PhotoViewer), findsNothing);
   });
 }

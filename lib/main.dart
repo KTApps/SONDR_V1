@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'core/backend.dart';
 import 'features/first_run/first_run.dart';
+import 'features/presence/presence_writer.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -42,13 +43,17 @@ Future<void> main() async {
     }
   }
 
+  final container = ProviderContainer(
+    overrides: [
+      if (initialized) firebaseInitializedProvider.overrideWithValue(true),
+      accountBeforeLaunchProvider.overrideWithValue(accountBeforeLaunch),
+    ],
+  );
+  // "In a session", for friends, kept in step for the app's whole life.
+  // Held here rather than by a widget: a widget's providers pause while a
+  // route covers it, and Stop deletes the record under the camera.
+  container.listen(presenceWriterProvider, (_, _) {});
   runApp(
-    ProviderScope(
-      overrides: [
-        if (initialized) firebaseInitializedProvider.overrideWithValue(true),
-        accountBeforeLaunchProvider.overrideWithValue(accountBeforeLaunch),
-      ],
-      child: const SondrApp(),
-    ),
+    UncontrolledProviderScope(container: container, child: const SondrApp()),
   );
 }

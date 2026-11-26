@@ -32,6 +32,7 @@ import 'milestone_countdown.dart';
 import 'session_store.dart';
 import 'still_going_sheet.dart';
 import '../photos/capture_review_screen.dart';
+import '../presence/friends_in_session.dart';
 import '../profile/profile_providers.dart';
 import '../shell/main_shell.dart';
 import '../tasks/models/task.dart';
@@ -216,6 +217,10 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
   /// still on it when the session ends.
   String _countdown = '';
 
+  /// The friends line as it last read, for the same reason: it fades out
+  /// with its words, when the count falls to 0 or the session ends.
+  String _friends = '';
+
   void _say(String message) {
     if (!mounted) return;
     final token = ++_noticeToken;
@@ -286,6 +291,10 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
         sessionSeconds: elapsed,
       );
     }
+    // How many friends are in a session too. Listened to only while one is
+    // active here; nothing at 0.
+    final friendsLine = friendsInSessionLine(ref.watch(friendsInSessionProvider));
+    if (friendsLine != null) _friends = friendsLine;
 
     final highlightIndex = selectedTask == null
         ? null
@@ -421,6 +430,8 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
               scale: scale,
               inSession: inSession,
               countdown: _countdown,
+              friends: _friends,
+              showFriends: inSession && friendsLine != null,
             ),
           ),
           // Dev-only milestone primer: a DEBUG_TOOLS build, and the test
@@ -583,6 +594,34 @@ class _TimerScreenState extends ConsumerState<TimerScreen>
 const double kDialCentrePadY = 6;
 const double kDialCentrePadX = 8;
 
+/// The countdown centred in the heading's line, exactly as a [Center]
+/// would put it, and the friends line [gap] below the countdown's box,
+/// centred too. The line is laid out but given no space: the box is the
+/// heading's, so nothing beneath moves.
+class _UnderCountdown extends MultiChildLayoutDelegate {
+  _UnderCountdown({required this.gap});
+
+  static const Object countdown = 'countdown';
+  static const Object friends = 'friends';
+
+  final double gap;
+
+  @override
+  void performLayout(Size size) {
+    final line = layoutChild(countdown, BoxConstraints.loose(size));
+    final top = (size.height - line.height) / 2;
+    positionChild(countdown, Offset((size.width - line.width) / 2, top));
+    final below = layoutChild(friends, BoxConstraints(maxWidth: size.width));
+    positionChild(
+      friends,
+      Offset((size.width - below.width) / 2, top + line.height + gap),
+    );
+  }
+
+  @override
+  bool shouldRelayout(_UnderCountdown old) => old.gap != gap;
+}
+
 /// What that target is aiming to clear.
 const double kDialCentreTarget = 44;
 
@@ -592,6 +631,16 @@ const Duration kHomeSessionFade = Duration(milliseconds: 300);
 
 /// The milestone countdown on Home during a session.
 const Key kHomeCountdownKey = ValueKey('home-milestone-countdown');
+
+/// "4 friends are in a session", under the countdown.
+const Key kHomeFriendsKey = ValueKey('home-friends-in-session');
+
+/// From the countdown's line box to the friends line's. Not scaled to the
+/// screen: neither line's type is, so the space between them is not either.
+const double kHomeFriendsGap = 22;
+
+/// The friends line's size: Supporting text, one step under the countdown.
+const double kHomeFriendsSize = 13;
 
 /// The word under a session's figure, running and paused.
 const String kCentreSessionLabel = 'this session';
@@ -796,6 +845,8 @@ class _LastTenDays extends ConsumerWidget {
     required this.scale,
     required this.inSession,
     required this.countdown,
+    required this.friends,
+    required this.showFriends,
   });
 
   final DateTime now;
@@ -805,6 +856,10 @@ class _LastTenDays extends ConsumerWidget {
   /// heading's line.
   final bool inSession;
   final String countdown;
+
+  /// How many friends are in a session, under the countdown, when any are.
+  final String friends;
+  final bool showFriends;
 
   /// Screen-to-Figma-reference factor, so this block grows with the rest of
   /// the screen instead of staying a fixed height and pooling slack beneath it.
@@ -872,24 +927,53 @@ class _LastTenDays extends ConsumerWidget {
                     ),
                   ),
                 ),
+                // The countdown centred on the line as before; the friends
+                // line hangs below it without taking any height, over the
+                // faded rows.
                 Positioned.fill(
-                  child: Center(
-                    child: AnimatedOpacity(
-                      opacity: inSession ? 1 : 0,
-                      duration: kHomeSessionFade,
-                      curve: Curves.easeOut,
-                      child: Text(
-                        countdown,
-                        key: kHomeCountdownKey,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.visible,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: tokens.textSecondary,
+                  child: CustomMultiChildLayout(
+                    delegate: _UnderCountdown(gap: kHomeFriendsGap),
+                    children: [
+                      LayoutId(
+                        id: _UnderCountdown.countdown,
+                        child: AnimatedOpacity(
+                          opacity: inSession ? 1 : 0,
+                          duration: kHomeSessionFade,
+                          curve: Curves.easeOut,
+                          child: Text(
+                            countdown,
+                            key: kHomeCountdownKey,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.visible,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: tokens.textSecondary,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      LayoutId(
+                        id: _UnderCountdown.friends,
+                        child: AnimatedOpacity(
+                          opacity: showFriends ? 1 : 0,
+                          duration: kHomeSessionFade,
+                          curve: Curves.easeOut,
+                          child: Text(
+                            friends,
+                            key: kHomeFriendsKey,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.visible,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontSize: kHomeFriendsSize,
+                              color: tokens.textTertiary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
